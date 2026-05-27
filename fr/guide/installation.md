@@ -107,13 +107,13 @@ Certains paquets (typiquement ceux de la communauté) sont publiés sans export 
 
 Auteurs : voir [Système de plugins](./plugin-system) pour publier un plugin configurable.
 
-## Convention de publication source-first
+## Convention de publication : source en dev, `dist/` au publish
 
-Les paquets Ream publient leur source TypeScript (`src/**/*.ts`) directement — ils ne livrent PAS un dossier `dist/` pré-construit. Votre projet les compile via `@swc-node/register` (déjà requis pour les métadonnées de décorateurs, voir [Prérequis](#prérequis)).
+Dans le monorepo Ream et pendant le développement, les paquets s'exécutent **directement depuis leur source TypeScript** (`src/**/*.ts`) : le champ `exports` de chaque `package.json` pointe sur `src/`, donc éditer `packages/*/src` est pris en compte immédiatement, sans étape de build, via `@swc-node/register` / `tsx`. Aucun drapeau `--conditions` n'est requis.
 
-Il s'agit d'une convention délibérée du framework. Elle garde les stack traces en production pointant sur de vrais numéros de lignes du code source, évite une classe de bugs où un `dist/` publié dérive de sa source, et vous permet de patcher une dépendance sur place pendant le développement en éditant les fichiers dans `node_modules/@c9up/<pkg>/src/`. La contrepartie : les consommateurs paient le coût de compilation SWC ; en pratique c'est négligeable car `@swc-node/register` met en cache et les projets utilisant des décorateurs paient déjà ce coût.
+Au moment de la publication sur npm, le champ `publishConfig` de chaque paquet redirige `main` / `types` / `exports` vers `dist/` : pnpm substitue ces valeurs dans le tarball, si bien que les consommateurs qui n'ont pas de transformation TypeScript reçoivent du JavaScript compilé (`dist/*.js` + `.d.ts`), tandis que le `package.json` versionné reste source-first. Le `dist/` est généré par `pnpm build` juste avant `pnpm publish` (et n'est jamais committé — il est dans `.gitignore`).
 
-La seule exception est `@c9up/ream-mcp`, qui publie un `dist/` construit car c'est un outil de développement lancé hors du contexte d'exécution du framework — ses consommateurs (agents d'éditeur, clients MCP) ne tournent pas sous `@swc-node/register` et ont besoin d'un artefact autonome.
+Pourquoi ce double mode plutôt que publier uniquement la source : un consommateur Node hors écosystème Ream (sans `@swc-node/register`) ne pourrait pas importer un paquet `src/*.ts`. Pourquoi ne pas publier uniquement `dist/` : on garderait alors le coût d'un build watch permanent dans le dev loop du monorepo. Le `publishConfig` capture les deux besoins sans imposer l'un à l'autre. Les `sourceMap` + `declarationMap` émis par le build préservent les stack traces vers les vraies lignes source côté consommateur.
 
 ## Configuration TypeScript
 
