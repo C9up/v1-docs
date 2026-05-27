@@ -58,7 +58,7 @@ await codemods.addProvider('@community/your-plugin/provider')
 
 ### `addEnvVars(vars)`
 
-Ajoute des paires `KEY=value` à `.env` (créant le fichier s'il manque ; implémentation vivante en `packages/ream/src/Codemods.ts:119`). Idempotent — les clés déjà présentes en début de ligne dans `.env` sont laissées intactes, donc les valeurs existantes écrites par l'utilisateur ou un précédent `configure` sont préservées.
+Ajoute des paires `KEY=value` à `.env` (créant le fichier s'il manque ; implémentation vivante en `packages/ream/src/Codemods.ts:123`). Idempotent — les clés déjà présentes en début de ligne dans `.env` sont laissées intactes, donc les valeurs existantes écrites par l'utilisateur ou un précédent `configure` sont préservées.
 
 ```typescript
 await codemods.addEnvVars({
@@ -70,7 +70,7 @@ Utilisez des valeurs placeholder qui signalent « à remplir » (chaîne vide, b
 
 ### `writeFile(filePath, content, options?)`
 
-Écrit un fichier sous la racine du projet (implémentation vivante en `packages/ream/src/Codemods.ts:135`). Le chemin est résolu relativement à la racine et rejeté s'il s'échappe via `..` ou un lien symbolique. Idempotent — les fichiers existants sont laissés intacts à moins que `options.force` ne soit défini (transmis par `ream add --force` / `ream configure --force`).
+Écrit un fichier sous la racine du projet (implémentation vivante en `packages/ream/src/Codemods.ts:141`). Le chemin est résolu relativement à la racine et rejeté s'il s'échappe via `..` ou un lien symbolique. Idempotent — les fichiers existants sont laissés intacts à moins que `options.force` ne soit défini (transmis par `ream add --force` / `ream configure --force`).
 
 ```typescript
 await codemods.writeFile('config/your-plugin.ts', `import { defineConfig } from '@community/your-plugin'
@@ -85,7 +85,7 @@ Les erreurs levées par `writeFile` utilisent le préfixe `[configure]` et expli
 
 ### `registerCommand(importPath)`
 
-Insère une entrée `() => import('<importPath>'),` dans le tableau `commands: [ ... ]` de `reamrc.ts` (implémentation vivante en `packages/ream/src/Codemods.ts:196`). Bootstrappe un champ `commands: []` quand il est absent — l'insère immédiatement après le bloc `providers: [...]` existant s'il est présent, sinon avant la fermeture `})` de `defineConfig({...})`. Idempotent — les chemins déjà enregistrés sont ignorés, avec la même déduplication par guillemets simples/doubles que `addProvider`.
+Insère une entrée `() => import('<importPath>'),` dans le tableau `commands: [ ... ]` de `reamrc.ts` (implémentation vivante en `packages/ream/src/Codemods.ts:202`). Bootstrappe un champ `commands: []` quand il est absent — l'insère immédiatement après le bloc `providers: [...]` existant s'il est présent, sinon avant la fermeture `})` de `defineConfig({...})`. Idempotent — les chemins déjà enregistrés sont ignorés, avec la même déduplication par guillemets simples/doubles que `addProvider`.
 
 ```typescript
 await codemods.registerCommand('@community/your-plugin/commands/my-command.js')
@@ -95,7 +95,7 @@ Le chemin d'import doit pointer vers un module dont l'export par défaut respect
 
 ### `registerMiddleware(importPath, options?)`
 
-Insère une entrée `() => import('<importPath>'),` dans le tableau `<tier>.use([ ... ])` approprié de `start/kernel.ts` (implémentation vivante en `packages/ream/src/Codemods.ts:285`). L'option `tier` choisit entre `'server'` (s'exécute sur chaque requête y compris les 404 — convient aux en-têtes de sécurité, à la propagation de request-id, à la journalisation structurée) et `'router'` (s'exécute uniquement sur les routes matchées — convient à l'authentification, au CSRF, aux concerns route-level). Par défaut `'router'`, le choix conservateur qui n'interfère pas avec les réponses 404.
+Insère une entrée `() => import('<importPath>'),` dans le tableau `<tier>.use([ ... ])` approprié de `start/kernel.ts` (implémentation vivante en `packages/ream/src/Codemods.ts:291`). L'option `tier` choisit entre `'server'` (s'exécute sur chaque requête y compris les 404 — convient aux en-têtes de sécurité, à la propagation de request-id, à la journalisation structurée) et `'router'` (s'exécute uniquement sur les routes matchées — convient à l'authentification, au CSRF, aux concerns route-level). Par défaut `'router'`, le choix conservateur qui n'interfère pas avec les réponses 404.
 
 ```typescript
 await codemods.registerMiddleware('@community/your-plugin/middleware/headers.js', { tier: 'server' })
@@ -167,7 +167,7 @@ Documentez les drapeaux acceptés par votre hook dans le README de votre plugin 
 
 ## Conventions de gestion d'erreurs
 
-Levez une `Error` standard (ou une sous-classe) avec le préfixe `[configure]` quand quelque chose échoue. L'implémentation `Codemods` first-party utilise ce préfixe systématiquement (voir `packages/ream/src/Codemods.ts:90, 110, 137, 141, 156, 165, 200, 251, 292, 302, 314, 322`), donc les utilisateurs voient une forme d'erreur uniforme indépendamment du paquet qui l'a levée :
+Levez une `Error` standard (ou une sous-classe) avec le préfixe `[configure]` quand quelque chose échoue. L'implémentation `Codemods` first-party utilise ce préfixe systématiquement (voir `packages/ream/src/Codemods.ts:90, 114, 143, 147, 162, 171, 206, 257, 298, 308, 320, 328`), donc les utilisateurs voient une forme d'erreur uniforme indépendamment du paquet qui l'a levée :
 
 ```typescript
 if (!flags?.apiToken?.[0]) {

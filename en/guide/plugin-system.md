@@ -58,7 +58,7 @@ await codemods.addProvider('@community/your-plugin/provider')
 
 ### `addEnvVars(vars)`
 
-Appends `KEY=value` pairs to `.env` (creating the file if missing; live implementation at `packages/ream/src/Codemods.ts:119`). Idempotent — keys already present at the start of any line in `.env` are left untouched, so existing values written by the user or a prior configure run are preserved.
+Appends `KEY=value` pairs to `.env` (creating the file if missing; live implementation at `packages/ream/src/Codemods.ts:123`). Idempotent — keys already present at the start of any line in `.env` are left untouched, so existing values written by the user or a prior configure run are preserved.
 
 ```typescript
 await codemods.addEnvVars({
@@ -70,7 +70,7 @@ Use placeholder values that signal "fill me in" (an empty string, a `<placeholde
 
 ### `writeFile(filePath, content, options?)`
 
-Writes a file under the project root (live implementation at `packages/ream/src/Codemods.ts:135`). The path is resolved relative to the project root and rejected if it escapes the root via `..` or symlinks. Idempotent — existing files are left untouched unless `options.force` is set (forwarded by `ream add --force` / `ream configure --force`).
+Writes a file under the project root (live implementation at `packages/ream/src/Codemods.ts:141`). The path is resolved relative to the project root and rejected if it escapes the root via `..` or symlinks. Idempotent — existing files are left untouched unless `options.force` is set (forwarded by `ream add --force` / `ream configure --force`).
 
 ```typescript
 await codemods.writeFile('config/your-plugin.ts', `import { defineConfig } from '@community/your-plugin'
@@ -85,7 +85,7 @@ Errors thrown by `writeFile` use the `[configure]` prefix and explain the constr
 
 ### `registerCommand(importPath)`
 
-Inserts a `() => import('<importPath>'),` entry into the `commands: [ ... ]` array of `reamrc.ts` (live implementation at `packages/ream/src/Codemods.ts:196`). Bootstraps a `commands: []` field when absent — inserts immediately after the existing `providers: [...]` block when present, otherwise before the closing `})` of `defineConfig({...})`. Idempotent — already-registered paths are skipped, with the same single/double-quote dedup as `addProvider`.
+Inserts a `() => import('<importPath>'),` entry into the `commands: [ ... ]` array of `reamrc.ts` (live implementation at `packages/ream/src/Codemods.ts:202`). Bootstraps a `commands: []` field when absent — inserts immediately after the existing `providers: [...]` block when present, otherwise before the closing `})` of `defineConfig({...})`. Idempotent — already-registered paths are skipped, with the same single/double-quote dedup as `addProvider`.
 
 ```typescript
 await codemods.registerCommand('@community/your-plugin/commands/my-command.js')
@@ -95,7 +95,7 @@ The import path must point at a module whose default export matches the `Command
 
 ### `registerMiddleware(importPath, options?)`
 
-Inserts a `() => import('<importPath>'),` entry into the appropriate `<tier>.use([ ... ])` array of `start/kernel.ts` (live implementation at `packages/ream/src/Codemods.ts:285`). The `tier` option chooses between `'server'` (runs on every request including 404s — fits security headers, request-id propagation, structured logging) and `'router'` (runs on matched routes only — fits auth, CSRF, route-level concerns). Defaults to `'router'`, the conservative choice that does not interfere with 404 responses.
+Inserts a `() => import('<importPath>'),` entry into the appropriate `<tier>.use([ ... ])` array of `start/kernel.ts` (live implementation at `packages/ream/src/Codemods.ts:291`). The `tier` option chooses between `'server'` (runs on every request including 404s — fits security headers, request-id propagation, structured logging) and `'router'` (runs on matched routes only — fits auth, CSRF, route-level concerns). Defaults to `'router'`, the conservative choice that does not interfere with 404 responses.
 
 ```typescript
 await codemods.registerMiddleware('@community/your-plugin/middleware/headers.js', { tier: 'server' })
@@ -167,7 +167,7 @@ Document the flags your hook accepts in your plugin README so consumers know wha
 
 ## Error handling conventions
 
-Throw a regular `Error` (or a subclass) with the `[configure]` prefix when something fails. The first-party `Codemods` implementation uses this prefix consistently (see `packages/ream/src/Codemods.ts:90, 110, 137, 141, 156, 165, 200, 251, 292, 302, 314, 322`), so users see a uniform error shape regardless of which package raised it:
+Throw a regular `Error` (or a subclass) with the `[configure]` prefix when something fails. The first-party `Codemods` implementation uses this prefix consistently (see `packages/ream/src/Codemods.ts:90, 114, 143, 147, 162, 171, 206, 257, 298, 308, 320, 328`), so users see a uniform error shape regardless of which package raised it:
 
 ```typescript
 if (!flags?.apiToken?.[0]) {
