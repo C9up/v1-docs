@@ -103,6 +103,110 @@ defineProps<{
 </div>
 ```
 
+## Configuration du projet Vite
+
+Photon rend vos composants, mais c'est **Vite** qui les bundle. Au-delà de `config/photon.ts`, une app Photon a besoin d'un `vite.config.ts`, d'une entrée client, d'une entrée SSR et de vos pages. L'app [`kitchen-sink`](https://github.com/C9up/kitchen-sink) est la référence vérifiée pour React, Vue et Svelte.
+
+### `vite.config.ts`
+
+```typescript
+import react from '@vitejs/plugin-react' // ou @vitejs/plugin-vue / @sveltejs/vite-plugin-svelte
+import { defineConfig } from 'vite'
+
+export default defineConfig({
+  plugins: [react()],
+  build: {
+    manifest: true,
+    outDir: 'public/build',   // doit être égal au `buildDir` de config/photon.ts
+    emptyOutDir: false,       // les builds client + SSR partagent ce dossier
+    copyPublicDir: false,     // OBLIGATOIRE — voir l'encadré ci-dessous
+    rollupOptions: { input: 'resources/app.tsx' },
+  },
+})
+```
+
+> **`copyPublicDir: false` est obligatoire.** Le `buildDir` par défaut de Photon
+> (`public/build`) est *à l'intérieur* du `publicDir` Vite par défaut (`public/`).
+> Sans ce flag, Vite recopie `public/` dans la sortie de build de façon récursive
+> et le build échoue avec `ENAMETOOLONG`. Photon sert les assets statiques
+> lui-même : Vite ne doit pas copier le dossier public.
+
+### Entrée client — `resources/app.tsx`
+
+Un seul appel au `hydrate()` de Photon. Le `import.meta.glob` paresseux code-split chaque page.
+
+```tsx
+import './app.css' // votre entrée CSS / Tailwind (optionnel)
+import { hydrate } from '@c9up/photon/client'
+
+const pages = import.meta.glob<{ default: unknown }>('./pages/*.tsx')
+
+hydrate({
+  resolveComponent: async (name) => {
+    const loader = pages[`./pages/${name}.tsx`]
+    if (!loader) throw new Error(`Page inconnue : ${name}`)
+    return await loader()
+  },
+})
+```
+
+### Entrée SSR — `resources/ssr.tsx`
+
+**C'est vous** qui écrivez le rendu serveur : il exporte `render(pageData)` qui renvoie le HTML interne, que Photon enveloppe dans `<div id="app">…</div>` et associe au bloc page-data + aux balises d'assets. `import.meta.glob(..., { eager: true })` bundle chaque page pour qu'un seul build SSR résolve n'importe quel composant par son nom.
+
+```tsx
+import { type ComponentType, createElement } from 'react'
+import { renderToString } from 'react-dom/server'
+
+const pages = import.meta.glob<{ default: ComponentType }>('./pages/*.tsx', { eager: true })
+
+interface PageData { component: string; props: Record<string, unknown> }
+
+export function render(pageData: PageData): string {
+  const mod = pages[`./pages/${pageData.component}.tsx`]
+  if (!mod) throw new Error(`Page inconnue : ${pageData.component}`)
+  return renderToString(createElement(mod.default, pageData.props))
+}
+```
+
+Vue et Svelte ne diffèrent que par cette entrée :
+
+```ts
+// Vue — resources/ssr.ts
+import { createSSRApp } from 'vue'
+import { renderToString } from 'vue/server-renderer'
+export async function render(pageData) {
+  const app = createSSRApp(pages[`./pages/${pageData.component}.vue`].default, pageData.props)
+  return await renderToString(app)
+}
+
+// Svelte 5 — resources/ssr.ts
+import { render as svelteRender } from 'svelte/server'
+export function render(pageData) {
+  return svelteRender(pages[`./pages/${pageData.component}.svelte`].default, { props: pageData.props }).body
+}
+```
+
+### Commandes de build
+
+Deux builds Vite — le bundle client (avec le manifest) et le module SSR :
+
+```json
+{
+  "scripts": {
+    "build:client": "vite build",
+    "build:ssr": "vite build --ssr resources/ssr.tsx --outDir public/build/ssr",
+    "build:front": "pnpm build:client && pnpm build:ssr"
+  }
+}
+```
+
+Le build client écrit `public/build/.vite/manifest.json` (Vite 5+) — Photon le trouve automatiquement. Le build SSR écrit `public/build/ssr/ssr.js`, que le renderer de Photon importe en production.
+
+### Tailwind
+
+Ajoutez `@tailwindcss/vite` aux `plugins[]` et `@import "tailwindcss";` à votre entrée CSS (importée depuis l'entrée client ci-dessus). Photon émet le `<link rel="stylesheet">` depuis le manifest automatiquement. Voir [Tailwind CSS](./tailwind.md).
+
 ## Mode dev — Vite HMR
 
 En developpement, Photon proxifie les assets via le serveur de dev Vite pour un hot module replacement instantane. Aucun redemarrage manuel necessaire lors de la modification des composants.
@@ -250,18 +354,19 @@ Aucune configuration supplementaire n'est necessaire. Photon gere la detection d
 
 ## Build de production
 
-Construisez des assets optimises pour la production :
+Lancez les deux builds Vite de [Commandes de build](#commandes-de-build), puis démarrez l'app avec `NODE_ENV=production` :
 
 ```bash
-pnpm photon build
+pnpm build:front   # vite build  +  vite build --ssr … --outDir public/build/ssr
+NODE_ENV=production pnpm start
 ```
 
-Cela execute Vite en mode build, produisant :
-- Un bundle serveur pour le SSR (utilise par le processus Ream)
-- Un bundle client avec code splitting et hachage des assets
-- Un fichier manifest associant les noms de composants a leurs chunks
+Cela produit :
+- Le module SSR à `public/build/ssr/ssr.js` (importé par le processus Ream)
+- Le bundle client avec code splitting + assets hachés
+- `public/build/.vite/manifest.json` associant l'entrée à ses chunks
 
-En production, Photon sert les assets pre-construits depuis `buildDir` sans surcharge Vite.
+En production (`viteDevUrl` ignoré), Photon sert les assets pré-construits depuis `buildDir` sans surcharge Vite — il lit le manifest et injecte les balises `<script type="module">` / `<link rel="stylesheet">` correspondantes.
 
 ## SEO et gestion du `<head>`
 
