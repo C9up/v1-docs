@@ -665,6 +665,92 @@ The four `NativeWarden.hashPassword*` interface methods (`hashPasswordArgon2`, `
 
 ---
 
+## Multi-Factor Authentication (MFA)
+
+Warden ships four MFA providers, all implemented on `node:crypto` with **zero third-party dependency** — WebAuthn included (the CBOR / COSE / attestation parsing is in-house). Every provider and the `MfaManager` take pluggable stores that default to in-memory; supply persistent stores (Atlas, KeyDB…) in production.
+
+| Provider | Purpose |
+|---|---|
+| `TotpProvider` | RFC 6238 authenticator-app codes (Google Authenticator, 1Password…) |
+| `BackupCodesProvider` | single-use recovery codes, salted-hashed at rest |
+| `OtpProvider` | delivered email / SMS one-time codes (pluggable channel) |
+| `WebauthnProvider` | passkeys / FIDO2 (no third-party WebAuthn library) |
+
+### MfaManager — enrollment lifecycle
+
+`MfaManager` orchestrates the stateful "enable 2FA" flow for TOTP + backup codes, with per-user brute-force protection on `verify()`.
+
+```typescript
+import { MfaManager, TotpProvider, BackupCodesProvider } from '@c9up/warden'
+
+const mfa = new MfaManager({
+  issuer: 'Fluveo',
+  totp: new TotpProvider(),
+  backupCodes: new BackupCodesProvider(),
+  // store: new AtlasMfaFactorStore(db),   // persistent factors in production
+  rateLimit: { maxAttempts: 5, windowSeconds: 900 },
+})
+
+// 1. Enroll — render `uri` as a QR code
+const { factorId, uri } = await mfa.enrollTotp({ id: user.id, name: user.email })
+// 2. Confirm with a first code from the authenticator app
+await mfa.confirmTotp(factorId, code)              // → true once confirmed
+// 3. Recovery codes — display ONCE
+const codes = await mfa.createBackupCodes(user.id)
+
+// Sign-in step-up — a TOTP code OR a backup code, rate-limited per user
+if (await mfa.verify(user.id, submitted)) {
+  // issue a JWT carrying `mfa: true`
+}
+```
+
+Status helpers: `isEnabled(userId)`, `listFactors(userId)` (never leaks secret material), `disableFactor(factorId)`, `isLocked(userId)`.
+
+### @RequireMfa — gating routes
+
+A route decorated with `@RequireMfa()` is reachable only when the authenticated user's payload carries a truthy `mfa` claim (set by your step-up flow once `MfaManager.verify()` succeeds). Otherwise the auth middleware returns **403 `MFA_REQUIRED`**.
+
+```typescript
+import { Guard, RequireMfa } from '@c9up/warden'
+
+class TransferController {
+  @Guard('jwt')
+  @RequireMfa()
+  async transfer() { /* only reachable after MFA step-up */ }
+}
+```
+
+Register the manager via config so it lands in the container as `MfaManager` / `"mfa"`:
+
+```typescript
+// config/auth.ts
+import { defineConfig } from '@c9up/warden/config'
+export default defineConfig({ jwt: { /* … */ }, mfa: { manager: mfa } })
+```
+
+### Email / SMS OTP and WebAuthn
+
+`OtpProvider` and `WebauthnProvider` are used directly — their flows are challenge / ceremony based, not an enrollment lifecycle:
+
+```typescript
+import { OtpProvider, WebauthnProvider } from '@c9up/warden'
+
+// Delivered OTP — you supply the email/SMS channel
+const otp = new OtpProvider({ channel: { send: (to, code) => mailer.send(to, code) } })
+const { challengeId } = await otp.start(user.email)
+await otp.verify(challengeId, submitted)           // single-use, TTL + attempt budget
+
+// Passkeys — attestation is trust-on-registration (request attestation: 'none')
+const webauthn = new WebauthnProvider({ rpName: 'Fluveo', rpID: 'fluveo.ch', origin: 'https://fluveo.ch' })
+const reg = await webauthn.startRegistration({ id: user.id, name: user.email })
+// … browser ceremony … then:
+await webauthn.finishRegistration(reg.state, user.id, browserResponse)
+```
+
+> **Persistence.** The default stores are in-memory — factors and passkeys are lost on restart. In production, implement `MfaFactorStore` / `WebauthnCredentialStore` over your database (Atlas) and the challenge stores over a fast cache (KeyDB).
+
+---
+
 ## Auth Middleware
 
 Create an `AuthMiddleware` class that calls `auth.verify()` and populates `ctx.auth`. The container resolves `AuthManager` via constructor injection.

@@ -683,6 +683,92 @@ Les quatre méthodes de l'interface `NativeWarden.hashPassword*` (`hashPasswordA
 
 ---
 
+## Authentification multi-facteurs (MFA)
+
+Warden embarque quatre providers MFA, tous implémentés sur `node:crypto` avec **zéro dépendance tierce** — WebAuthn compris (le parsing CBOR / COSE / attestation est fait maison). Chaque provider et le `MfaManager` prennent des stores enfichables qui par défaut sont en mémoire ; fournissez des stores persistants (Atlas, KeyDB…) en production.
+
+| Provider | Rôle |
+|---|---|
+| `TotpProvider` | codes d'application d'authentification RFC 6238 (Google Authenticator, 1Password…) |
+| `BackupCodesProvider` | codes de secours à usage unique, hachés salés au repos |
+| `OtpProvider` | codes à usage unique livrés par email / SMS (canal enfichable) |
+| `WebauthnProvider` | passkeys / FIDO2 (aucune librairie WebAuthn tierce) |
+
+### MfaManager — cycle d'enrôlement
+
+`MfaManager` orchestre le flux stateful « activer la 2FA » pour TOTP + codes de secours, avec une protection anti-brute-force par utilisateur sur `verify()`.
+
+```typescript
+import { MfaManager, TotpProvider, BackupCodesProvider } from '@c9up/warden'
+
+const mfa = new MfaManager({
+  issuer: 'Fluveo',
+  totp: new TotpProvider(),
+  backupCodes: new BackupCodesProvider(),
+  // store: new AtlasMfaFactorStore(db),   // facteurs persistants en production
+  rateLimit: { maxAttempts: 5, windowSeconds: 900 },
+})
+
+// 1. Enrôlement — affichez `uri` sous forme de QR code
+const { factorId, uri } = await mfa.enrollTotp({ id: user.id, name: user.email })
+// 2. Confirmation avec un premier code de l'application d'authentification
+await mfa.confirmTotp(factorId, code)              // → true une fois confirmé
+// 3. Codes de secours — à afficher UNE SEULE fois
+const codes = await mfa.createBackupCodes(user.id)
+
+// Step-up à la connexion — un code TOTP OU un code de secours, rate-limité par utilisateur
+if (await mfa.verify(user.id, submitted)) {
+  // émettez un JWT portant `mfa: true`
+}
+```
+
+Helpers de statut : `isEnabled(userId)`, `listFactors(userId)` (ne divulgue jamais de secret), `disableFactor(factorId)`, `isLocked(userId)`.
+
+### @RequireMfa — protéger des routes
+
+Une route décorée par `@RequireMfa()` n'est accessible que si le payload de l'utilisateur authentifié porte un claim `mfa` truthy (posé par votre flux de step-up une fois `MfaManager.verify()` réussi). Sinon le middleware d'auth renvoie **403 `MFA_REQUIRED`**.
+
+```typescript
+import { Guard, RequireMfa } from '@c9up/warden'
+
+class TransferController {
+  @Guard('jwt')
+  @RequireMfa()
+  async transfer() { /* accessible uniquement après le step-up MFA */ }
+}
+```
+
+Enregistrez le manager via la config pour qu'il atterrisse dans le conteneur sous `MfaManager` / `"mfa"` :
+
+```typescript
+// config/auth.ts
+import { defineConfig } from '@c9up/warden/config'
+export default defineConfig({ jwt: { /* … */ }, mfa: { manager: mfa } })
+```
+
+### OTP email / SMS et WebAuthn
+
+`OtpProvider` et `WebauthnProvider` s'utilisent directement — leurs flux sont basés sur un challenge / une cérémonie, pas sur un cycle d'enrôlement :
+
+```typescript
+import { OtpProvider, WebauthnProvider } from '@c9up/warden'
+
+// OTP livré — vous fournissez le canal email/SMS
+const otp = new OtpProvider({ channel: { send: (to, code) => mailer.send(to, code) } })
+const { challengeId } = await otp.start(user.email)
+await otp.verify(challengeId, submitted)           // usage unique, TTL + budget d'essais
+
+// Passkeys — l'attestation est en trust-on-registration (demandez attestation: 'none')
+const webauthn = new WebauthnProvider({ rpName: 'Fluveo', rpID: 'fluveo.ch', origin: 'https://fluveo.ch' })
+const reg = await webauthn.startRegistration({ id: user.id, name: user.email })
+// … cérémonie navigateur … puis :
+await webauthn.finishRegistration(reg.state, user.id, browserResponse)
+```
+
+> **Persistance.** Les stores par défaut sont en mémoire — facteurs et passkeys sont perdus au redémarrage. En production, implémentez `MfaFactorStore` / `WebauthnCredentialStore` au-dessus de votre base de données (Atlas) et les stores de challenge au-dessus d'un cache rapide (KeyDB).
+
+---
+
 ## Middleware d'authentification
 
 Créez une classe `AuthMiddleware` qui appelle `auth.verify()` et peuple `ctx.auth`. Le conteneur résout `AuthManager` via l'injection par constructeur.
