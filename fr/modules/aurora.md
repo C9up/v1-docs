@@ -193,6 +193,116 @@ La factory **doit produire la même forme de `TemplateResult`** que celle rendue
 
 L'helper `auroraRoute()` antérieur à `aurora.render()` reste exporté pour compatibilité ; les nouvelles apps doivent préférer l'API Inertia-shape.
 
+## Helpers navigateur & stockage
+
+Le barrel client fournit des helpers DX sûrs en SSR (sans Node — ils sont no-op ou renvoient une valeur par défaut côté serveur, donc le même code de page tourne des deux côtés).
+
+**Navigation** — `redirect(url)`, `replace(url)`, `reload()` (rechargement complet), plus l'historique SPA sans reload : `navigate(url)`, `back()`, `forward()`.
+
+**Stockage** — `WebStorage` est un wrapper typé et namespacé par préfixe au-dessus de `localStorage` / `sessionStorage` :
+
+```js
+import { storage, session, WebStorage } from '@c9up/aurora'
+
+storage.set('user', { id: 1 })          // sérialisé en JSON
+storage.get('user')                     // { id: 1 } | null
+storage.has('user'); storage.keys()
+storage.getOrSet('seed', () => compute())
+
+const prefs = new WebStorage({ prefix: 'prefs:', area: 'local' })
+prefs.clear()                           // limité au préfixe — ne touche pas les autres clés
+```
+
+**`persistedSignal`** — un signal miroité dans le stockage, synchronisé entre onglets :
+
+```js
+import { persistedSignal } from '@c9up/aurora'
+
+const theme = persistedSignal('theme', 'light')   // restauré au rechargement
+theme('dark')                                      // persisté + diffusé aux autres onglets
+```
+
+**État navigateur réactif** — des signaux qui suivent l'environnement (à créer une fois au niveau module et à partager) :
+
+```js
+import { prefersDark, online, windowSize, visibility, hash } from '@c9up/aurora'
+
+const dark = prefersDark()    // Signal<boolean>, change avec le thème de l'OS
+const live = online()         // navigator.onLine
+const size = windowSize()     // { width, height } au resize
+```
+
+**Query URL** — `queryParam(key)` est un signal lié à un paramètre de query (la lecture reflète l'URL, l'écriture fait un `pushState` sans reload).
+
+**Cookies / presse-papiers / partage** — `cookie.get/set/remove` (sûr en SSR), `clipboard.copy/read`, et `share(data)` (Web Share API).
+
+## Client HTTP
+
+`HttpClient` wrappe `fetch` pour écrire `await http.get('/auth/me')` au lieu de gérer à la main les headers, `res.json()` et les codes de statut. Isomorphe (utilise le `fetch` global).
+
+```js
+import { HttpClient } from '@c9up/aurora'
+
+const api = new HttpClient({
+  baseURL: 'https://api.example.com',
+  token: () => authToken(),     // bearer, relu à chaque requête (string ou getter)
+})
+
+const me = await api.get('/auth/me')              // JSON parsé, Authorization auto
+await api.post('/posts', { title: 'Hi' })         // objet simple → corps JSON + content-type
+await api.get('/search', { query: { q: 'ream' } })// paramètres de query
+
+api.setHeader('Accept-Language', 'fr')            // gestion des headers par défaut (chaînable)
+   .setHeaders({ 'X-App': 'web' })
+   .removeHeader('x-trace')
+```
+
+- Méthodes : `get` / `post` / `put` / `patch` / `delete`, plus `raw(method, url, body?)` pour la `Response` brute.
+- Une réponse non-2xx lève `HttpError` (`status`, `response`, `data` parsé).
+- `extend(options)` dérive un client enfant avec les défauts fusionnés.
+- Passe une option `parse` pour un résultat validé au runtime et entièrement typé ; sans elle, le type générique est une assertion non vérifiée de la forme de la réponse (la frontière HTTP habituelle).
+- Une instance `http` same-origin par défaut est exportée pour les appels rapides.
+
+## Intégrer aurora dans les templates inker
+
+Les îlots aurora fonctionnent dans un template serveur [Inker](/fr/modules/inker) — aucun code de liaison ne vit dans l'un ou l'autre package, tu le câbles avec un seul helper. Inker émet le `SafeString` d'un helper verbatim, et `renderToString` d'aurora produit le HTML d'un composant côté serveur :
+
+```ts
+// boot — enregistrement du helper via la Map helpers de Templates (ou la map fusionnée
+// de l'InkerProvider). Les args du helper passent en JSON via NAPI : données simples.
+import { renderToString } from '@c9up/aurora'
+import { SafeString, Templates } from '@c9up/inker'
+import { Counter } from '../islands/Counter.js'
+
+const islands = { Counter }   // nom → factory de composant aurora
+
+const templates = new Templates({
+  root: 'resources/templates',
+  helpers: new Map([
+    ['aurora', (name, data) =>
+      new SafeString(
+        `<div data-aurora="${name}">${renderToString(islands[name](data))}</div>`,
+      ),
+    ],
+  ]),
+})
+```
+
+```inker
+<!-- template serveur inker — un SafeString est émis brut, même en double accolade -->
+<section>{{ aurora("Counter", page.counter) }}</section>
+```
+
+```ts
+// client — hydratation de l'îlot pour rebrancher la réactivité
+import { hydrate } from '@c9up/aurora'
+import { Counter } from './islands/Counter.js'
+
+for (const el of document.querySelectorAll('[data-aurora=Counter]')) hydrate(el, Counter)
+```
+
+La factory client doit reproduire la même forme de `TemplateResult` que le serveur a rendue (même contrainte que l'hydratation de `aurora.render()`). Ne renvoie un `SafeString` que depuis du markup que tu contrôles — aurora échappe les interpolations `${}`, mais la chaîne enveloppante reste sous ta responsabilité.
+
 ## Aurora vs Photon
 
 | | Aurora | Photon |

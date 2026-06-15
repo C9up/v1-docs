@@ -213,6 +213,10 @@ These are deliberate and tracked by the named follow-up story:
 - **No Ream provider** — Story 53.5 adds `inker.render(ctx, name, data)` and the container-singleton wiring.
 - **No `@c9up/inker/testing`** — Story 53.6 adds the agnostic fake renderer with `assertRendered(name, dataMatcher)` style assertions.
 
+## Aurora islands
+
+A helper can return a [SafeString](#html-escape-vs-raw) of server-rendered [Aurora](/en/modules/aurora) markup, embedding a reactive island inside an Inker template — `renderToString(component(data))` on the server, `hydrate(el, component)` on the client. No glue code lives in either package. See [Embedding aurora in inker templates](/en/modules/aurora#embedding-aurora-in-inker-templates).
+
 ## Production checklist
 
 - Resolve `root` to an absolute path against your project layout — do not pass relative paths.

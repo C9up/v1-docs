@@ -213,6 +213,10 @@ Volontaires, suivies par la story dédiée :
 - **Pas de provider Ream** — Story 53.5 ajoutera `inker.render(ctx, name, data)` et le câblage container-singleton.
 - **Pas de `@c9up/inker/testing`** — Story 53.6 ajoutera le renderer fake agnostique avec les assertions style `assertRendered(name, dataMatcher)`.
 
+## Îlots aurora
+
+Un helper peut renvoyer un [SafeString](#html-escape-vs-raw) de markup [Aurora](/fr/modules/aurora) rendu côté serveur, embarquant un îlot réactif dans un template Inker — `renderToString(component(data))` côté serveur, `hydrate(el, component)` côté client. Aucun code de liaison ne vit dans l'un ou l'autre package. Voir [Intégrer aurora dans les templates inker](/fr/modules/aurora#integrer-aurora-dans-les-templates-inker).
+
 ## Checklist production
 
 - Résoudre `root` vers un chemin absolu relatif à la structure projet — ne pas passer de chemin relatif.
