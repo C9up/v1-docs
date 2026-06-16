@@ -48,7 +48,7 @@ pnpm dev
 |---|---|---|
 | `@c9up/aurora` | Reactive SSR — signals, html\`\`, hydrate | [C9up/aurora](https://github.com/C9up/aurora) |
 | `@c9up/photon` | Inertia-style SSR + SPA hydration (React / Vue / Svelte adapters) | [C9up/photon](https://github.com/C9up/photon) |
-| `@c9up/inker` | Server-side templating engine (lex / parse / render) | inline in [C9up/ream-dev](https://github.com/C9up/ream-dev/tree/main/packages/inker) |
+| `@c9up/inker` | Server-side templating engine (lex / parse / render) | [C9up/inker](https://github.com/C9up/inker) |
 
 ### Infrastructure
 
@@ -61,14 +61,14 @@ pnpm dev
 | `@c9up/ream/events` | Event bus + wildcard subscribers (Rust + NAPI) — part of ream core | [C9up/ream](https://github.com/C9up/ream) |
 | `@c9up/relay` | Realtime — Hub + SignalR adapter | [C9up/relay](https://github.com/C9up/relay) |
 | `@c9up/rover` | Mail — Resend / Mailgun / SES / SMTP + webhooks + send-later via bay | [C9up/rover](https://github.com/C9up/rover) |
-| `@c9up/nova` | Web Push (PWA + VAPID + subscription store) | inline in [C9up/ream-dev](https://github.com/C9up/ream-dev/tree/main/packages/nova) |
+| `@c9up/nova` | Web Push (PWA + VAPID + subscription store) | [C9up/nova](https://github.com/C9up/nova) |
 
 ### Admin & tooling
 
 | Package | What it is | Repository |
 |---|---|---|
-| `@c9up/station` | Admin scaffolding — defineResource + CRUD + policies + audit | inline in [C9up/ream-dev](https://github.com/C9up/ream-dev/tree/main/packages/station) |
-| `@c9up/ream-mcp` | Model Context Protocol server (bmad / docs / inker / migration / security / station tools) | inline in [C9up/ream-dev](https://github.com/C9up/ream-dev/tree/main/packages/ream-mcp) |
+| `@c9up/station` | Admin scaffolding — defineResource + CRUD + policies + audit | [C9up/station](https://github.com/C9up/station) |
+| `@c9up/ream-mcp` | Model Context Protocol server (bmad / docs / inker / migration / security / station tools) | [C9up/ream-mcp](https://github.com/C9up/ream-mcp) |
 
 ### Testing
 
