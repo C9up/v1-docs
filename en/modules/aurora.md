@@ -258,10 +258,32 @@ api.setHeader('Accept-Language', 'fr')            // manage default headers (cha
 ```
 
 - Methods: `get` / `post` / `put` / `patch` / `delete`, plus `raw(method, url, body?)` for the untouched `Response`.
-- A non-2xx response throws `HttpError` (`status`, `response`, parsed `data`).
+- A non-2xx response throws `HttpError` (`status`, `response`, parsed `data`). `isHttpError(e)` is a type guard for clean `catch` narrowing.
 - `extend(options)` derives a child client with merged defaults.
 - Pass a `parse` option for a runtime-validated, fully-typed result; without it, the generic type is an unchecked assertion of the response shape (the usual HTTP boundary).
 - A default same-origin `http` instance is exported for quick same-origin calls.
+
+**Error handling without try/catch** — `attempt()` turns a throw into a discriminated result, so a form submit branches instead of wrapping every call:
+
+```js
+import { HttpClient } from '@c9up/aurora'
+const api = new HttpClient()
+
+const r = await api.attempt(api.post('/auth/login', creds))
+if (r.ok) user(r.data)
+else fieldErrors(r.error.data)   // r.error is the HttpError; .data is the parsed 4xx body
+```
+
+`attempt` resolves `{ ok: false, error }` on an `HttpError` (non-2xx); genuine transport failures (offline, DNS) still reject — they're exceptional.
+
+**Cancellation & timeout** — pass a `signal` to cancel (on unmount, or a superseded search-as-you-type), or a `timeout` (ms) to auto-abort; both combine, first to fire wins. `isAbortError(e)` recognizes an aborted or timed-out request so you can ignore it:
+
+```js
+const api = new HttpClient({ timeout: 8000 })          // default per-request timeout
+const controller = new AbortController()
+api.get('/search', { query: { q }, signal: controller.signal })
+controller.abort()                                      // cancel in-flight
+```
 
 ## Embedding aurora in inker templates
 

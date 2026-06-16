@@ -258,10 +258,32 @@ api.setHeader('Accept-Language', 'fr')            // gestion des headers par dé
 ```
 
 - Méthodes : `get` / `post` / `put` / `patch` / `delete`, plus `raw(method, url, body?)` pour la `Response` brute.
-- Une réponse non-2xx lève `HttpError` (`status`, `response`, `data` parsé).
+- Une réponse non-2xx lève `HttpError` (`status`, `response`, `data` parsé). `isHttpError(e)` est un type-guard pour un `catch` propre.
 - `extend(options)` dérive un client enfant avec les défauts fusionnés.
 - Passe une option `parse` pour un résultat validé au runtime et entièrement typé ; sans elle, le type générique est une assertion non vérifiée de la forme de la réponse (la frontière HTTP habituelle).
 - Une instance `http` same-origin par défaut est exportée pour les appels rapides.
+
+**Gestion d'erreur sans try/catch** — `attempt()` transforme le throw en résultat discriminé, donc un submit de formulaire branche au lieu d'encapsuler chaque appel :
+
+```js
+import { HttpClient } from '@c9up/aurora'
+const api = new HttpClient()
+
+const r = await api.attempt(api.post('/auth/login', creds))
+if (r.ok) user(r.data)
+else fieldErrors(r.error.data)   // r.error = HttpError ; .data = corps 4xx parsé
+```
+
+`attempt` résout `{ ok: false, error }` sur un `HttpError` (non-2xx) ; les vraies pannes de transport (hors-ligne, DNS) rejettent toujours — elles sont exceptionnelles.
+
+**Annulation & timeout** — passe un `signal` pour annuler (au démontage, ou une recherche-au-clavier supplantée), ou un `timeout` (ms) pour auto-abandonner ; les deux se combinent, le premier déclenché gagne. `isAbortError(e)` reconnaît une requête annulée ou expirée pour l'ignorer :
+
+```js
+const api = new HttpClient({ timeout: 8000 })          // timeout par défaut par requête
+const controller = new AbortController()
+api.get('/search', { query: { q }, signal: controller.signal })
+controller.abort()                                      // annule en vol
+```
 
 ## Intégrer aurora dans les templates inker
 
