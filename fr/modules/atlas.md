@@ -315,12 +315,21 @@ this.schema.createTable('orders', (table) => {
   table.decimal('total', 10, 2)        // DECIMAL(10,2)
   table.boolean('active')              // BOOLEAN
   table.date('birthday')               // DATE
-  table.timestamp('published_at')      // TIMESTAMP
+  table.timestamp('published_at')      // TIMESTAMP (sans tz — UTC seulement si écrit via atlas)
+  table.timestamptz('occurred_at')     // TIMESTAMPTZ (Postgres) — normalisé UTC pour TOUS les writers
   table.json('metadata')               // JSONB (Postgres) / TEXT (SQLite)
   table.binary('avatar')               // BYTEA (Postgres) / BLOB (SQLite)
   table.timestamps()                   // created_at + updated_at (NOT NULL, DEFAULT NOW())
 })
 ```
+
+> **`timestamp` vs `timestamptz`.** `timestamp` (sans time zone) ne round-trip en UTC
+> que pour les valeurs écrites par atlas ; un `DEFAULT now()` côté DB, du SQL brut ou
+> un seed stocke le wall-clock local du serveur, relu décalé sur un hôte non-UTC.
+> **`timestamptz` normalise tous les writers en UTC** — à utiliser pour toute valeur
+> comparée exactement ou toute colonne avec un défaut côté DB. Il se combine avec
+> `@column.dateTime()` sans changement (décorateur découplé du type SQL). Sur
+> MySQL/SQLite (pas de vrai type tz), `timestamptz` dégrade vers le mapping timestamp.
 
 ### Index
 
