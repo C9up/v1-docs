@@ -538,9 +538,101 @@ de tenant.
 
 Les helpers grossiers `hasRole` / `hasPermission` (et le gate `@Permission` /
 `@Role` du middleware) sont ré-exprimés sur ce même ensemble résolu — voir
-[Helpers RBAC](#helpers-rbac). La mise en cache au niveau du contexte de requête
-(résoudre une fois par requête plutôt qu'une fois par Bouncer) s'appuie sur cette
-base dans une release ultérieure.
+[Helpers RBAC](#helpers-rbac).
+
+### Intégration HTTP
+
+Dans une app HTTP Ream, vous ne construisez jamais un `Bouncer` à la main. Le
+middleware global `initializeBouncer` en construit un **par requête** et
+l'attache comme `ctx.bouncer`. Enregistrez-le dans `start/kernel.ts` comme
+middleware global, après le middleware d'authentification qui peuple `ctx.auth` :
+
+```ts
+// start/kernel.ts
+import router from "@c9up/ream/services/router"
+import { initializeBouncer } from "@c9up/warden/middleware"
+
+// 1. Middleware auth — peuple ctx.auth depuis les décorateurs @Guard/@Role/
+//    @Permission de la route. La forme lazy utilise le default export de warden :
+router.use([() => import("@c9up/warden/middleware")])
+//    (forme directe équivalente : import { wardenMiddleware }; router.use([wardenMiddleware]))
+
+// 2. Bouncer — construit ctx.bouncer par requête (invités compris). À enregistrer
+//    APRÈS l'auth. C'est un export nommé → enregistre la fonction directement (PAS
+//    `() => initializeBouncer`, que Ream essaierait de `new`) :
+router.use([initializeBouncer])
+```
+
+Il construit `ctx.bouncer` à partir de trois choses, toutes enregistrées par
+`WardenProvider` depuis votre `config/auth.ts` :
+
+- l'utilisateur authentifié — `ctx.auth?.user`, ou `null` pour un invité ;
+- le `RightsResolver` partagé (Layer 1), pour que `this.permissions` dans une
+  policy se résolve sur le rights store ;
+- le `bouncer:registry` — les tables `abilities` / `policies` et le hook optionnel
+  `resolveScope(ctx)` qui dérive le scope tenant de la requête.
+
+Vous déclarez tout cela dans `config/auth.ts` :
+
+```ts
+// config/auth.ts
+import { defineConfig } from "@c9up/warden/config"
+import { Bouncer } from "@c9up/warden"
+import { PostPolicy } from "#app/policies/post_policy.js"
+
+export default defineConfig({
+  // ...config jwt / session...
+  abilities: {
+    "post.edit": Bouncer.ability((user, post: { ownerId: string }) =>
+      user.id === post.ownerId,
+    ),
+  },
+  policies: { PostPolicy },
+  // dérive un scope tenant depuis un header / sous-domaine (omis ⇒ toujours "global")
+  resolveScope: (ctx) =>
+    ctx.request.headers["x-tenant"]
+      ? { tenant: ctx.request.headers["x-tenant"] }
+      : "global",
+})
+```
+
+Si la couche de droits n'est pas câblée, `initializeBouncer` attache quand même
+un Bouncer vide plutôt que de planter — `ctx.bouncer` est toujours défini.
+
+Dans un handler, autorisez avec les quatre mêmes verbes, désormais à l'échelle de
+la requête :
+
+```ts
+class PostController {
+  async update(ctx) {
+    const post = await Post.find(ctx.params.id)
+    // lève WARDEN_AUTHORIZATION_FAILURE (status 403) en cas de refus
+    await ctx.bouncer.authorize("post.edit", post)
+    // ...ou branchez sans lever
+    if (await ctx.bouncer.allows("post.publish", post)) { /* ... */ }
+    // policy basée sur une classe, par nom enregistré
+    await ctx.bouncer.with("PostPolicy").authorize("archive", post)
+  }
+}
+```
+
+Quand `authorize()` refuse, il lève une `WardenError` de
+`code: "WARDEN_AUTHORIZATION_FAILURE"` portant `status: 403` et le message de
+refus. L'`ExceptionHandler` de Ream lit ce `status` par duck-typing et le mappe
+sur une réponse **403** :
+
+```json
+{ "error": { "code": "WARDEN_AUTHORIZATION_FAILURE", "message": "Authorization failed" } }
+```
+
+Un `deny(message, status)` personnalisé — ou un `before` de policy renvoyant
+`deny("not found", 404)` — propage **son propre** status jusqu'à la réponse,
+permettant à une policy de répondre 404 plutôt que de révéler l'existence d'une
+ressource.
+
+Le Bouncer par requête résout les permissions d'un utilisateur **une seule fois
+par requête** et partage le résultat entre tous les checks de cette requête
+(mémoïsé sur l'instance).
 
 ---
 

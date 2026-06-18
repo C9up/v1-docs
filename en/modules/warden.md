@@ -521,8 +521,98 @@ Isolation is *enforceable, not automatic* — a policy decides where to call
 
 The coarse `hasRole` / `hasPermission` helpers (and the middleware
 `@Permission` / `@Role` gate) are re-expressed over this same resolved set —
-see [RBAC helpers](#rbac-helpers). Request-context caching (resolve once per
-request rather than once per Bouncer) builds on this in a later release.
+see [RBAC helpers](#rbac-helpers).
+
+### HTTP integration
+
+In a Ream HTTP app you never construct a `Bouncer` by hand. The
+`initializeBouncer` global middleware builds one **per request** and attaches it
+as `ctx.bouncer`. Register it in `start/kernel.ts` as a global middleware, after
+the auth middleware that populates `ctx.auth`:
+
+```ts
+// start/kernel.ts
+import router from "@c9up/ream/services/router"
+import { initializeBouncer } from "@c9up/warden/middleware"
+
+// 1. Auth middleware — populates ctx.auth from the route's @Guard/@Role/
+//    @Permission decorators. The lazy form uses warden's default export:
+router.use([() => import("@c9up/warden/middleware")])
+//    (equivalent direct form: import { wardenMiddleware }; router.use([wardenMiddleware]))
+
+// 2. Bouncer — builds ctx.bouncer per request (guests included). Register AFTER
+//    auth. It's a named export, so register the function directly (NOT
+//    `() => initializeBouncer`, which Ream would try to `new`):
+router.use([initializeBouncer])
+```
+
+It builds `ctx.bouncer` from three things, all registered by `WardenProvider`
+from your `config/auth.ts`:
+
+- the authenticated user — `ctx.auth?.user`, or `null` for a guest;
+- the shared `RightsResolver` (Layer 1), so `this.permissions` inside a policy
+  resolves against the rights store;
+- the `bouncer:registry` — the `abilities` / `policies` tables and the optional
+  `resolveScope(ctx)` hook that derives the request's tenant scope.
+
+You declare those in `config/auth.ts`:
+
+```ts
+// config/auth.ts
+import { defineConfig } from "@c9up/warden/config"
+import { Bouncer } from "@c9up/warden"
+import { PostPolicy } from "#app/policies/post_policy.js"
+
+export default defineConfig({
+  // ...jwt / session config...
+  abilities: {
+    "post.edit": Bouncer.ability((user, post: { ownerId: string }) =>
+      user.id === post.ownerId,
+    ),
+  },
+  policies: { PostPolicy },
+  // derive a tenant scope from a header / subdomain (omit ⇒ always "global")
+  resolveScope: (ctx) =>
+    ctx.request.headers["x-tenant"]
+      ? { tenant: ctx.request.headers["x-tenant"] }
+      : "global",
+})
+```
+
+If the rights layer is not wired, `initializeBouncer` still attaches an empty
+Bouncer rather than crashing — `ctx.bouncer` is always defined.
+
+Inside a handler, authorize with the same four verbs, now scoped to the request:
+
+```ts
+class PostController {
+  async update(ctx) {
+    const post = await Post.find(ctx.params.id)
+    // throws WARDEN_AUTHORIZATION_FAILURE (status 403) on denial
+    await ctx.bouncer.authorize("post.edit", post)
+    // ...or branch without throwing
+    if (await ctx.bouncer.allows("post.publish", post)) { /* ... */ }
+    // class-based policy by registered name
+    await ctx.bouncer.with("PostPolicy").authorize("archive", post)
+  }
+}
+```
+
+When `authorize()` denies it throws a `WardenError` with
+`code: "WARDEN_AUTHORIZATION_FAILURE"` carrying `status: 403` and the denial
+message. Ream's `ExceptionHandler` duck-types that `status` and maps it to a
+**403** response:
+
+```json
+{ "error": { "code": "WARDEN_AUTHORIZATION_FAILURE", "message": "Authorization failed" } }
+```
+
+A custom `deny(message, status)` — or a policy `before` returning
+`deny("not found", 404)` — propagates **its own** status through to the response,
+so a policy can answer 404 instead of leaking that a resource exists.
+
+The per-request Bouncer resolves a user's permissions **once per request** and
+shares the result across every check in that request (memoised on the instance).
 
 ---
 

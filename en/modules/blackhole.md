@@ -23,6 +23,8 @@ All three adapters share one pipeline (`./core`): there is no duplicated securit
 ```ts
 // Ream — config/blackhole.ts + start/kernel.ts
 router.use([() => import('@c9up/blackhole/middleware')])
+// equivalent direct form: import { blackholeMiddleware } from '@c9up/blackhole/middleware'
+//                         router.use([blackholeMiddleware])
 
 // Express
 import { blackholeExpress } from '@c9up/blackhole/express'

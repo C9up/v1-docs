@@ -23,6 +23,8 @@ Les trois adaptateurs partagent un seul pipeline (`./core`) : aucune logique de 
 ```ts
 // Ream — config/blackhole.ts + start/kernel.ts
 router.use([() => import('@c9up/blackhole/middleware')])
+// forme directe équivalente : import { blackholeMiddleware } from '@c9up/blackhole/middleware'
+//                             router.use([blackholeMiddleware])
 
 // Express
 import { blackholeExpress } from '@c9up/blackhole/express'
