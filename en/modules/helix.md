@@ -66,11 +66,32 @@ sqlite insert → JWT sign chains have headroom.
 
 ```sh
 helix test                       # run the suite once
+helix test app                   # run only the tests under ./app
 helix test --watch               # re-run on file change
 helix test --coverage            # V8 coverage + LCOV + thresholds
 helix test --diff-cov            # diff coverage vs `main`
 helix test --tsx=false           # use the parent's loader instead of tsx
 ```
+
+### package.json scripts
+
+Use the `helix` bin directly — in npm scripts it resolves to
+`node_modules/.bin/helix`, which already bootstraps the TS loader. There is **no
+need** for the verbose `node --import tsx node_modules/@c9up/helix/bin/helix.js …`
+form:
+
+```json
+{
+  "scripts": {
+    "test": "helix test app --threads=1",
+    "test:coverage": "helix test app --threads=1 --coverage"
+  }
+}
+```
+
+`app` is the test path (run only `./app`); `--threads=1` runs serially — pick it
+when a suite shares process state (e.g. one in-memory SQLite DB, fake timers),
+and drop it to parallelise independent suites.
 
 ### Diff coverage in monorepos
 

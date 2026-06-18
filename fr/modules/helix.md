@@ -66,11 +66,31 @@ JWT sign laisse de la marge.
 
 ```sh
 helix test                       # un run
+helix test app                   # ne lance que les tests sous ./app
 helix test --watch               # re-run au changement
 helix test --coverage            # couverture V8 + LCOV + seuils
 helix test --diff-cov            # diff coverage vs `main`
 helix test --tsx=false           # utilise le loader du parent (pas tsx)
 ```
+
+### Scripts package.json
+
+Utilise le bin `helix` directement — dans les scripts npm il résout vers
+`node_modules/.bin/helix`, qui amorce déjà le loader TS. **Inutile** d'écrire la
+forme verbeuse `node --import tsx node_modules/@c9up/helix/bin/helix.js …` :
+
+```json
+{
+  "scripts": {
+    "test": "helix test app --threads=1",
+    "test:coverage": "helix test app --threads=1 --coverage"
+  }
+}
+```
+
+`app` est le chemin des tests (ne lance que `./app`) ; `--threads=1` exécute en
+série — à choisir quand une suite partage de l'état de process (ex. une seule DB
+SQLite en mémoire, fake timers), à retirer pour paralléliser des suites indépendantes.
 
 ### Diff coverage en monorepo
 
