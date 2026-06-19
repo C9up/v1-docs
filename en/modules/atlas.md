@@ -643,6 +643,38 @@ Didactic output on drift:
     ✗ created_at: column `created_at` is NOT NULL with no default but no model property maps to it — inserts will fail
 ```
 
+### CLI command (`atlas:check`)
+
+Atlas ships a command for Ream's console kernel (the AdonisJS `ace` equivalent). List your models, register the command in `reamrc.ts`, and run it through your console entry.
+
+```typescript
+// commands/atlas-check.ts
+import { schemaCheckCommand } from '@c9up/atlas'
+import { User } from '#models/user'
+import { Post } from '#models/post'
+export default schemaCheckCommand([User, Post])
+
+// reamrc.ts
+export default defineConfig({
+  // ...providers...
+  commands: [() => import('./commands/atlas-check.js')],
+})
+
+// bin/console.ts — console entry (boots in console mode: DB open, no HTTP server)
+import { Ignitor } from '@c9up/ream'
+new Ignitor(APP_ROOT, { importer })
+  .useRcFile((await import('../reamrc.js')).default)
+  .console()
+  .handle(process.argv.slice(2))
+```
+
+Then:
+
+```bash
+node bin/console.ts atlas:check         # exit 1 on drift — ideal in CI
+node bin/console.ts atlas:check --warn  # non-blocking report (exit 0)
+```
+
 ### Programmatic API
 
 For a CI command / script:

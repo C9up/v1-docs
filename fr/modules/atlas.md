@@ -645,6 +645,38 @@ Sortie didactique en cas de dérive :
     ✗ created_at: column `created_at` is NOT NULL with no default but no model property maps to it — inserts will fail
 ```
 
+### Commande CLI (`atlas:check`)
+
+Atlas fournit une commande pour le ConsoleKernel de Ream (l'équivalent `ace` d'AdonisJS). Listez vos modèles, enregistrez la commande dans `reamrc.ts`, et lancez-la via votre entrée console.
+
+```typescript
+// commands/atlas-check.ts
+import { schemaCheckCommand } from '@c9up/atlas'
+import { User } from '#models/user'
+import { Post } from '#models/post'
+export default schemaCheckCommand([User, Post])
+
+// reamrc.ts
+export default defineConfig({
+  // ...providers...
+  commands: [() => import('./commands/atlas-check.js')],
+})
+
+// bin/console.ts — entrée console (boote en mode console : DB ouverte, pas de serveur HTTP)
+import { Ignitor } from '@c9up/ream'
+new Ignitor(APP_ROOT, { importer })
+  .useRcFile((await import('../reamrc.js')).default)
+  .console()
+  .handle(process.argv.slice(2))
+```
+
+Puis :
+
+```bash
+node bin/console.ts atlas:check         # échec (exit 1) sur dérive — idéal en CI
+node bin/console.ts atlas:check --warn  # rapport non bloquant (exit 0)
+```
+
 ### API programmatique
 
 Pour une commande CI / un script :
