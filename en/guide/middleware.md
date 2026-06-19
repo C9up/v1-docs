@@ -254,7 +254,27 @@ ctx.response.status(code)   // Set response status (chainable)
 ctx.response.header(k, v)   // Set response header (chainable)
 ctx.response.json(data)      // Send JSON response
 ctx.store                   // Per-request Map for passing data downstream
+ctx.containerResolver        // Per-request IoC resolver: ctx.containerResolver?.make(Service)
 ```
+
+### Resolving services in middleware
+
+Resolve container-registered services through `ctx.containerResolver` (the AdonisJS idiom) instead of importing the application singleton. This keeps a middleware — especially one shipped as a standalone package — free of any `@c9up/ream` runtime import:
+
+```typescript
+import type { HttpContext } from '@c9up/ream'
+import { AuthManager } from '@c9up/warden'
+
+export default class WardenMiddleware {
+  async handle(ctx: HttpContext, next: () => Promise<void>) {
+    const auth = ctx.containerResolver?.make(AuthManager)
+    // ...authenticate with `auth`, then:
+    await next()
+  }
+}
+```
+
+`ctx.containerResolver` is the per-request resolver Ream populates from the application container; `.make(token)` resolves a class, string, or symbol token. This is how `@c9up/warden` and `@c9up/blackhole` consume host services while staying framework-agnostic.
 
 ## Next Steps
 

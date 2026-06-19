@@ -122,8 +122,9 @@ ctx.id                    // ID de corrélation (depuis le header x-request-id o
 ctx.type                  // 'http' ou 'event'
 ctx.is('http')            // true pour les requêtes HTTP
 ctx.is('event')           // true pour les events du bus
-ctx.auth                  // { authenticated, userId?, roles? }
+ctx.auth                  // { authenticated, user?, roles?, permissions? }
 ctx.locale                // Locale détectée (défaut 'en')
+ctx.containerResolver     // Résolveur IoC par requête (idiome Adonis) : ctx.containerResolver?.make(Service)
 
 // Spécifique HTTP
 ctx.request?.method       // 'GET', 'POST', etc.
@@ -141,6 +142,25 @@ ctx.event?.name           // 'order.created'
 ctx.event?.data           // Payload de l'event
 ctx.event?.correlationId  // ID de traçage de chaîne
 ```
+
+## Résoudre un service dans un middleware
+
+Un middleware résout les services enregistrés dans le conteneur via `ctx.containerResolver` (idiome AdonisJS), plutôt qu'en important le singleton applicatif. C'est ce qui permet à un middleware — surtout livré comme package autonome — de rester sans import runtime de `@c9up/ream` :
+
+```typescript
+import type { HttpContext } from '@c9up/ream'
+import { AuthManager } from '@c9up/warden'
+
+export default class WardenMiddleware {
+  async handle(ctx: HttpContext, next: () => Promise<void>) {
+    const auth = ctx.containerResolver?.make(AuthManager)
+    // ...authentifie via `auth`, puis :
+    await next()
+  }
+}
+```
+
+`ctx.containerResolver` est le résolveur par requête que Ream alimente depuis le conteneur applicatif ; `.make(token)` résout une classe, une string ou un symbol. C'est ainsi que `@c9up/warden` et `@c9up/blackhole` consomment les services de l'hôte tout en restant agnostiques du framework.
 
 ## Pipeline unifié
 
