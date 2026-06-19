@@ -607,6 +607,61 @@ L'audit est appliqué par :
 - `packages/atlas/AUDIT-migration-templates.md` (inventaire re-jouable de
   chaque template embarqué + les règles ci-dessus)
 
+## Vérification de schéma
+
+Atlas peut réconcilier vos modèles avec le schéma **réel** de la base — quelque chose qu'un ORM en JS pur ne peut pas faire, parce que le driver d'atlas introspecte la vraie base (SQLite via `pragma_table_info`, Postgres/MySQL via `information_schema`). Quatre dérives sont détectées **avant** qu'elles ne cassent à l'exécution :
+
+- **`missing-table`** — la table du modèle n'existe pas (migrations non jouées) ;
+- **`missing-in-db`** — une colonne du modèle pointe vers une colonne inexistante (faute de frappe → `did you mean`) ;
+- **`type-mismatch`** — un `@Column({ type })` déclaré entre en conflit avec le type de la colonne (conservateur : seulement les conflits clairs numérique↔texte, zéro faux positif) ;
+- **`missing-in-model`** — une colonne `NOT NULL` sans valeur par défaut qu'aucun modèle ne renseigne → les inserts échoueront.
+
+### Garde-fou au démarrage
+
+Activez-le dans `config/database.ts`. Atlas n'a pas de registre global d'entités (par choix — comme Lucid où l'on pointe `ace` vers ses modèles) : listez vos modèles.
+
+```typescript
+import { defineConfig } from '@c9up/atlas'
+import { User } from '#models/user'
+import { Post } from '#models/post'
+
+export default defineConfig({
+  // ...connexions...
+  verifySchema: {
+    entities: [User, Post],
+    mode: 'throw', // défaut : échec du boot sur dérive ; 'warn' = log non bloquant
+  },
+})
+```
+
+Sortie didactique en cas de dérive :
+
+```
+[atlas:check] 3 schema issue(s) found:
+
+  users (User)
+    ✗ emial: model property `emial` maps to column `emial`, which does not exist — did you mean `email`?
+    ✗ age: declared `string` but column is `INTEGER`
+    ✗ created_at: column `created_at` is NOT NULL with no default but no model property maps to it — inserts will fail
+```
+
+### API programmatique
+
+Pour une commande CI / un script :
+
+```typescript
+import { checkSchema, formatSchemaFindings } from '@c9up/atlas'
+import db from '@c9up/atlas/services/db'
+
+const findings = await checkSchema([User, Post], db, 'postgres')
+if (findings.length > 0) {
+  console.error(formatSchemaFindings(findings))
+  process.exit(1)
+}
+```
+
+`verifySchema(entities, db, dialect, { mode })` enveloppe `checkSchema` + le formatage + le throw/warn. `introspectTable(db, dialect, table)` renvoie la forme réelle d'une table (ou `null` si absente).
+
 ## AtlasProvider
 
 Enregistrez `AtlasProvider` dans la liste des providers de votre application. Il lit `config/database.ts`, ouvre la connexion à la base de données, enregistre l'adaptateur dans le conteneur et exécute automatiquement les migrations en attente au démarrage.
