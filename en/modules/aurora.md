@@ -463,6 +463,68 @@ The kitchen-sink demo wires the full stack with the Inertia-shape API:
 
 No `AssetController`, no client-side bootstrap script, no manual importmap: the provider handles all of it.
 
+## Live Components (server-resident state)
+
+**Live components** keep state **on the server** (ordinary aurora signals) and send the browser only **precise per-slot patches** — never a full HTML re-render. Because each signal already knows which slot it feeds, a patch is `{slot, value}` for ONLY the changed slots (O(changed data), not O(component size)). That precision beats HTML-diffing live-view libraries — and, with state living server-side, it gives native **real-time multiplayer**.
+
+### Define + mount (server)
+
+```typescript
+import { mountLiveSession, createLiveRegistry, html, signal } from '@c9up/aurora'
+
+const registry = createLiveRegistry()
+registry.define('Counter', () => {
+  const count = signal(0)
+  return {
+    view: html`<button data-live-click="increment">Count: <span>${count}</span></button>`,
+    handlers: { increment: () => count(count() + 1) },
+  }
+})
+```
+
+> **Authoring rule**: a reactive text slot must be the SOLE content of its element (`<span>${count}</span>`, not `Count: ${count}`) — SSR merges adjacent static+dynamic text and hydration can't re-split it.
+
+### Wiring (provider/app)
+
+```typescript
+import { createLiveRouter, wireLiveEvents } from '@c9up/aurora'
+// HTTP router + relay resolved from the container (agnostic idiom)
+const live = createLiveRouter(registry, relay)
+wireLiveEvents(httpRouter, live)              // POST /_live/event route
+// rendering a page: const { id, channel, html } = live.mount('Counter', uid)
+// on relay disconnect: live.disconnect(uid)
+```
+
+### Client side
+
+```typescript
+import { liveClient, buildLiveTransport, HttpClient } from '@c9up/aurora'
+import { relay } from '@c9up/aurora/relay'
+
+liveClient({
+  container: document.querySelector('#app')!,
+  factory: () => html`<button data-live-click="increment">Count: <span>${count}</span></button>`,
+  mount,                                       // { id, channel } injected into the page
+  transport: buildLiveTransport(relay(), new HttpClient()),
+})
+```
+
+`liveClient` **hydrates** the SSR HTML, applies inbound patches by setting the mirror signal (aurora patches the exact node), and forwards `data-live-click` via the transport.
+
+### Shared / multiplayer state
+
+A `liveStore` is ONE server-side instance whose state is shared by every client on a channel: one `dispatch` mutates once → one patch computed once → `relay.broadcast` fans it out to all (O(1) compute, O(N) network).
+
+```typescript
+import { liveStore } from '@c9up/aurora'
+const presence = liveStore(() => {
+  const online = signal(0)
+  return { view: html`<span><b>${online}</b> online</span>`, handlers: { join: () => online(online() + 1) } }
+}, relay, 'room/lobby')
+```
+
+Gate the channel with `relay.authorize('room/*', …)`. **Caveat**: `relay.broadcast` is in-process; scaling across nodes needs a backplane (Redis) — the same constraint as Phoenix LiveView. Single-process: nothing to do.
+
 ## Next Steps
 
 - [Photon](/en/modules/photon) — When you need React / Vue / Svelte + Vite

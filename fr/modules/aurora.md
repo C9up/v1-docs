@@ -465,6 +465,68 @@ La démo kitchen-sink câble toute la stack avec l'API Inertia-shape :
 
 Pas d'`AssetController`, pas de script bootstrap client, pas d'importmap manuelle : le provider gère tout.
 
+## Composants Live (état résident serveur)
+
+Les **composants live** gardent l'état **sur le serveur** (des signals aurora ordinaires) et ne renvoient au navigateur que des **patchs précis par slot** — pas un re-render HTML. Comme chaque signal sait déjà quel slot il alimente, le patch est `{slot, value}` pour les **seuls** slots changés (O(données changées), pas O(taille du composant)). C'est l'angle qui dépasse les libs qui diffent du HTML — et, l'état vivant côté serveur, ça donne du **temps réel multi-user** natif.
+
+### Définir + monter (serveur)
+
+```typescript
+import { mountLiveSession, createLiveRegistry, html, signal } from '@c9up/aurora'
+
+const registry = createLiveRegistry()
+registry.define('Counter', () => {
+  const count = signal(0)
+  return {
+    view: html`<button data-live-click="increment">Count: <span>${count}</span></button>`,
+    handlers: { increment: () => count(count() + 1) },
+  }
+})
+```
+
+> **Règle d'authoring** : un slot texte réactif doit être le **seul contenu** de son élément (`<span>${count}</span>`, pas `Count: ${count}`) — le SSR fusionne le statique+dynamique adjacents et l'hydration ne peut pas re-splitter.
+
+### Câblage (provider/app)
+
+```typescript
+import { createLiveRouter, wireLiveEvents } from '@c9up/aurora'
+// router HTTP + relay résolus du conteneur (idiome agnostique)
+const live = createLiveRouter(registry, relay)
+wireLiveEvents(httpRouter, live)              // route POST /_live/event
+// au rendu d'une page : const { id, channel, html } = live.mount('Counter', uid)
+// à la déconnexion relay : live.disconnect(uid)
+```
+
+### Côté client
+
+```typescript
+import { liveClient, buildLiveTransport, HttpClient } from '@c9up/aurora'
+import { relay } from '@c9up/aurora/relay'
+
+liveClient({
+  container: document.querySelector('#app')!,
+  factory: () => html`<button data-live-click="increment">Count: <span>${count}</span></button>`,
+  mount,                                       // { id, channel } injecté dans la page
+  transport: buildLiveTransport(relay(), new HttpClient()),
+})
+```
+
+`liveClient` **hydrate** le HTML SSR, applique les patchs entrants en posant le signal mirror (aurora patche le bon nœud), et forwarde les `data-live-click` via le transport.
+
+### État partagé / multiplayer
+
+Un `liveStore` est **une** instance serveur dont l'état est partagé par tous les clients d'un canal : un `dispatch` mute une fois → un patch calculé une fois → `relay.broadcast` fan-out à tous (O(1) calcul, O(N) réseau).
+
+```typescript
+import { liveStore } from '@c9up/aurora'
+const presence = liveStore(() => {
+  const online = signal(0)
+  return { view: html`<span><b>${online}</b> online</span>`, handlers: { join: () => online(online() + 1) } }
+}, relay, 'room/lobby')
+```
+
+Gate l'accès au canal avec `relay.authorize('room/*', …)`. **Caveat** : `relay.broadcast` est in-process ; pour scaler sur plusieurs nodes il faut un backplane (Redis) — même contrainte que Phoenix LiveView. Mono-process : rien à faire.
+
 ## Étapes suivantes
 
 - [Photon](/fr/modules/photon) — Quand il vous faut React / Vue / Svelte + Vite
