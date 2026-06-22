@@ -20,19 +20,19 @@ Each config file is a plain TypeScript module that exports a default object. The
 
 ### config/database.ts
 
-```typescript
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+Read environment variables through `#start/env` and build filesystem paths with the `app` path helpers — never `process.env` or `dirname(fileURLToPath(import.meta.url))` directly (see below).
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
+```typescript
+import app from '@c9up/ream/services/app'
+import env from '#start/env.js'
 
 export default {
   client: 'sqlite' as const,
   connection: {
-    filename: join(__dirname, '..', 'data', 'app.db'),
+    filename: env.get('DB_PATH', app.makePath('data', 'app.db')),
   },
   migrations: {
-    path: join(__dirname, '..', 'database', 'migrations'),
+    path: app.migrationsPath(),
   },
 }
 ```
@@ -40,42 +40,73 @@ export default {
 ### config/auth.ts
 
 ```typescript
+import env from '#start/env.js'
+
 export default {
   defaultStrategy: 'jwt',
   jwt: {
-    secret: process.env.JWT_SECRET ?? 'dev-secret-change-me-in-production',
+    secret: env.get('JWT_SECRET'),
     expiresInSeconds: 86400,
   },
 }
 ```
 
-### config/logger.ts
-
-```typescript
-export default {
-  level: process.env.LOG_LEVEL ?? 'info',
-}
-```
-
 ## Environment variables
 
-Use `process.env` directly in config files. Because config is loaded at boot time (not at import time), the values are read once when the application starts.
+Define and **validate** your environment in `start/env.ts` with `Env.create`, then read variables anywhere through the typed `env.get()`. This mirrors AdonisJS: the schema loads the `.env*` files at import time and refuses to boot if a required variable is missing or malformed, so a typo surfaces immediately instead of as a runtime `undefined`.
 
 ```typescript
-export default {
-  secret: process.env.APP_SECRET,
-  debug: process.env.NODE_ENV !== 'production',
-  port: Number(process.env.PORT ?? 3000),
-}
+// start/env.ts
+import { Env } from '@c9up/ream'
+
+export default await Env.create(new URL('../', import.meta.url), {
+  NODE_ENV: Env.schema.enum(['development', 'production', 'test'] as const),
+  PORT: Env.schema.number(),
+  HOST: Env.schema.string({ format: 'host' }),
+  JWT_SECRET: Env.schema.string(),
+  // Optional with `.optional()` — `env.get` then returns `T | undefined`.
+  DB_PATH: Env.schema.string.optional(),
+  REDIS_URL: Env.schema.string({ format: 'url' }).optional(),
+})
 ```
 
-A `.env` file at the project root is the conventional place to define local values:
+Schema types: `string({ format?: 'host' | 'url' | 'email' })`, `number()`, `boolean()`, `enum([...] as const)`, each with an `.optional()` variant. Validation failures throw `E_INVALID_ENV_VARIABLES` with an aggregated list.
+
+Read variables in **config files** via `#start/env` — importing it is what loads `.env` before the config is evaluated, in every flow (server, console, tests):
+
+```typescript
+import env from '#start/env.js'
+
+const port = env.get('PORT')                      // typed `number`
+const secret = env.get('JWT_SECRET')              // typed `string`
+const dbPath = env.get('DB_PATH', '/tmp/app.db')  // fallback
+```
+
+::: warning
+Do not read `process.env` directly in config files, services, or controllers — funnel every variable through `start/env.ts` so the app has a single, validated source of truth. `process.env` belongs only to the bootstrap entry points (`bin/*.ts`, `start/env.ts`).
+:::
+
+A `.env` file at the project root holds local values (`.env.test`, `.env.production` are picked up by `NODE_ENV`):
 
 ```env
 NODE_ENV=development
-LOG_LEVEL=debug
-JWT_SECRET=change-me-at-least-32-characters-long
 PORT=3000
+HOST=localhost
+JWT_SECRET=change-me-at-least-32-characters-long
+```
+
+## Filesystem paths
+
+Use the `app` path helpers instead of recomputing `dirname(fileURLToPath(import.meta.url))` in every file. They resolve against the project root the Ignitor was constructed with.
+
+```typescript
+import app from '@c9up/ream/services/app'
+
+app.makePath('data', 'app.db')   // <root>/data/app.db
+app.configPath('database.ts')    // <root>/config/database.ts
+app.migrationsPath()             // <root>/database/migrations
+app.tmpPath('uploads')           // <root>/tmp/uploads
+app.publicPath('style.css')      // <root>/public/style.css
 ```
 
 ## Accessing config

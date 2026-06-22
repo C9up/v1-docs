@@ -17,18 +17,15 @@ L'annulation n'est pas automatique — vous appelez `down()` manuellement ou via
 
 ```typescript
 // config/database.ts
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
+import app from '@c9up/ream/services/app'
 
 export default {
   client: 'sqlite' as const,
   connection: {
-    filename: join(__dirname, '..', 'data', 'app.db'),
+    filename: app.makePath('data', 'app.db'),
   },
   migrations: {
-    path: join(__dirname, '..', 'database', 'migrations'),
+    path: app.migrationsPath(),
   },
 }
 ```
@@ -82,7 +79,7 @@ export default class CreatePosts extends Migration {
       t.uuid('user_id').notNullable().references('users', 'id')
       t.string('title', 255).notNullable()
       t.text('body').notNullable()
-      t.boolean('published').notNullable().defaultTo('0')
+      t.boolean('published').notNullable().defaultTo(false)
       t.timestamps()
     })
   }
@@ -111,7 +108,7 @@ Toutes les méthodes de colonne s'appellent sur l'instance `TableBuilder` passé
 
 | Méthode | Type SQL (Postgres / SQLite) |
 |---------|------------------------------|
-| `id()` | Raccourci : `uuid('id').primary().defaultTo('gen_random_uuid()')` |
+| `id()` | Raccourci : `uuid('id').primary().defaultTo(raw('gen_random_uuid()'))` |
 | `uuid(name)` | `UUID` / `TEXT` |
 | `string(name, length?)` | `VARCHAR(n)` / `TEXT` — longueur par défaut 255 |
 | `text(name)` | `TEXT` / `TEXT` |
@@ -135,17 +132,29 @@ Les modificateurs s'appliquent à la colonne définie par l'appel de colonne le 
 | `.notNullable()` | Ajoute la contrainte `NOT NULL` |
 | `.nullable()` | Supprime `NOT NULL` (les colonnes sont nullables par défaut) |
 | `.unique()` | Ajoute la contrainte `UNIQUE` |
-| `.defaultTo(value)` | Définit une expression SQL brute par défaut |
+| `.defaultTo(value)` | Définit une valeur par défaut de colonne — les littéraux JS sont mis entre quotes, les expressions SQL utilisent `raw()` |
 | `.references(table, column?)` | Ajoute une référence de clé étrangère — `column` vaut `'id'` par défaut |
 
-`defaultTo()` accepte une chaîne SQL brute, pas une valeur JavaScript. Utilisez des littéraux ou des fonctions SQL :
+### Valeurs par défaut des colonnes
+
+`defaultTo()` suit la sémantique de Lucid/Knex : un **littéral** JavaScript est mis entre quotes et échappé pour vous, tandis qu'une **expression** SQL doit être enveloppée dans `raw()` (ou produite par `this.now()`).
 
 ```typescript
-t.boolean('active').notNullable().defaultTo('true')       // Postgres
-t.boolean('active').notNullable().defaultTo('1')          // SQLite
-t.timestamp('expires_at').defaultTo('NOW()')
-t.string('role', 50).notNullable().defaultTo("'member'")
+import { Migration, raw } from '@c9up/atlas'
+
+// Littéraux — mis entre quotes automatiquement
+t.text('role').notNullable().defaultTo('member')      // → DEFAULT 'member'
+t.integer('count').notNullable().defaultTo(0)         // → DEFAULT 0
+t.boolean('active').notNullable().defaultTo(true)     // → DEFAULT true
+
+// Expressions SQL — enveloppez dans raw() / this.raw(), ou utilisez this.now()
+t.uuid('id').primary().defaultTo(raw('gen_random_uuid()'))
+t.timestamp('created_at').notNullable().defaultTo(this.now()) // NOW() / CURRENT_TIMESTAMP
 ```
+
+::: warning RUPTURE (atlas 0.1.14)
+Les versions antérieures écrivaient l'argument **verbatim**, donc les valeurs par défaut de type string devaient être mises entre quotes à la main (`defaultTo("'member'")`) et les fonctions SQL passées brutes (`defaultTo('NOW()')`). Pour migrer, retirez les quotes internes des littéraux et enveloppez les expressions dans `raw()` / `this.now()`. `Migration.raw()` / `now()` renvoient désormais une `RawValue`.
+:::
 
 ## Index
 
@@ -195,8 +204,8 @@ export default class CreateMemberships extends Migration {
       t.uuid('id').primary()
       t.uuid('user_id').notNullable().references('users', 'id')
       t.uuid('residence_id').notNullable().references('residences', 'id')
-      t.string('role', 50).notNullable().defaultTo("'member'")
-      t.boolean('active').notNullable().defaultTo('1')
+      t.string('role', 50).notNullable().defaultTo('member')
+      t.boolean('active').notNullable().defaultTo(true)
       t.json('permissions').nullable()
       t.timestamps()
     })

@@ -17,18 +17,15 @@ Rolling back is not automatic — you call `down()` manually or through a CLI co
 
 ```typescript
 // config/database.ts
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
+import app from '@c9up/ream/services/app'
 
 export default {
   client: 'sqlite' as const,
   connection: {
-    filename: join(__dirname, '..', 'data', 'app.db'),
+    filename: app.makePath('data', 'app.db'),
   },
   migrations: {
-    path: join(__dirname, '..', 'database', 'migrations'),
+    path: app.migrationsPath(),
   },
 }
 ```
@@ -82,7 +79,7 @@ export default class CreatePosts extends Migration {
       t.uuid('user_id').notNullable().references('users', 'id')
       t.string('title', 255).notNullable()
       t.text('body').notNullable()
-      t.boolean('published').notNullable().defaultTo('0')
+      t.boolean('published').notNullable().defaultTo(false)
       t.timestamps()
     })
   }
@@ -111,7 +108,7 @@ All column methods are called on the `TableBuilder` instance passed to the `crea
 
 | Method | SQL type (Postgres / SQLite) |
 |--------|------------------------------|
-| `id()` | Shortcut: `uuid('id').primary().defaultTo('gen_random_uuid()')` |
+| `id()` | Shortcut: `uuid('id').primary().defaultTo(raw('gen_random_uuid()'))` |
 | `uuid(name)` | `UUID` / `TEXT` |
 | `string(name, length?)` | `VARCHAR(n)` / `TEXT` — default length 255 |
 | `text(name)` | `TEXT` / `TEXT` |
@@ -135,17 +132,29 @@ Modifiers apply to the column defined by the most recent column call.
 | `.notNullable()` | Adds `NOT NULL` constraint |
 | `.nullable()` | Removes `NOT NULL` (columns are nullable by default) |
 | `.unique()` | Adds `UNIQUE` constraint |
-| `.defaultTo(value)` | Sets a raw SQL default expression |
+| `.defaultTo(value)` | Sets a column default — JS literals are quoted, SQL expressions use `raw()` |
 | `.references(table, column?)` | Adds a foreign key reference — `column` defaults to `'id'` |
 
-`defaultTo()` accepts a raw SQL string, not a JavaScript value. Use SQL literals or functions:
+### Column defaults
+
+`defaultTo()` follows Lucid/Knex semantics: a JavaScript **literal** is quoted/escaped for you, and a SQL **expression** must be wrapped in `raw()` (or produced by `this.now()`).
 
 ```typescript
-t.boolean('active').notNullable().defaultTo('true')       // Postgres
-t.boolean('active').notNullable().defaultTo('1')          // SQLite
-t.timestamp('expires_at').defaultTo('NOW()')
-t.string('role', 50).notNullable().defaultTo("'member'")
+import { Migration, raw } from '@c9up/atlas'
+
+// Literals — quoted automatically
+t.text('role').notNullable().defaultTo('member')      // → DEFAULT 'member'
+t.integer('count').notNullable().defaultTo(0)         // → DEFAULT 0
+t.boolean('active').notNullable().defaultTo(true)     // → DEFAULT true
+
+// SQL expressions — wrap in raw() / this.raw(), or use this.now()
+t.uuid('id').primary().defaultTo(raw('gen_random_uuid()'))
+t.timestamp('created_at').notNullable().defaultTo(this.now()) // NOW() / CURRENT_TIMESTAMP
 ```
+
+::: warning BREAKING (atlas 0.1.14)
+Earlier versions wrote the argument **verbatim**, so string defaults had to be hand-quoted (`defaultTo("'member'")`) and SQL functions passed bare (`defaultTo('NOW()')`). Migrate by dropping the inner quotes from literals and wrapping expressions in `raw()` / `this.now()`. `Migration.raw()` / `now()` now return a `RawValue`.
+:::
 
 ## Indexes
 
@@ -195,8 +204,8 @@ export default class CreateMemberships extends Migration {
       t.uuid('id').primary()
       t.uuid('user_id').notNullable().references('users', 'id')
       t.uuid('residence_id').notNullable().references('residences', 'id')
-      t.string('role', 50).notNullable().defaultTo("'member'")
-      t.boolean('active').notNullable().defaultTo('1')
+      t.string('role', 50).notNullable().defaultTo('member')
+      t.boolean('active').notNullable().defaultTo(true)
       t.json('permissions').nullable()
       t.timestamps()
     })
