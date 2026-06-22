@@ -108,7 +108,7 @@ Toutes les méthodes de colonne s'appellent sur l'instance `TableBuilder` passé
 
 | Méthode | Type SQL (Postgres / SQLite) |
 |---------|------------------------------|
-| `id()` | Raccourci : `uuid('id').primary().defaultTo(raw('gen_random_uuid()'))` |
+| `id()` | Raccourci : `uuid('id').primary().defaultTo(db.raw('gen_random_uuid()'))` |
 | `uuid(name)` | `UUID` / `TEXT` |
 | `string(name, length?)` | `VARCHAR(n)` / `TEXT` — longueur par défaut 255 |
 | `text(name)` | `TEXT` / `TEXT` |
@@ -137,23 +137,23 @@ Les modificateurs s'appliquent à la colonne définie par l'appel de colonne le 
 
 ### Valeurs par défaut des colonnes
 
-`defaultTo()` suit la sémantique de Lucid/Knex : un **littéral** JavaScript est mis entre quotes et échappé pour vous, tandis qu'une **expression** SQL doit être enveloppée dans `raw()` (ou produite par `this.now()`).
+`defaultTo()` suit la sémantique de Lucid/Knex : un **littéral** JavaScript est mis entre quotes et échappé pour vous, tandis qu'une **expression** SQL provient de `this.now()` (timestamps) ou `db.raw(...)` — le même builder raw qu'AdonisJS (`Database.raw` / `db.raw`).
 
 ```typescript
-import { Migration, raw } from '@c9up/atlas'
+import db from '@c9up/atlas/services/db'
 
 // Littéraux — mis entre quotes automatiquement
 t.text('role').notNullable().defaultTo('member')      // → DEFAULT 'member'
 t.integer('count').notNullable().defaultTo(0)         // → DEFAULT 0
 t.boolean('active').notNullable().defaultTo(true)     // → DEFAULT true
 
-// Expressions SQL — enveloppez dans raw() / this.raw(), ou utilisez this.now()
-t.uuid('id').primary().defaultTo(raw('gen_random_uuid()'))
-t.timestamp('created_at').notNullable().defaultTo(this.now()) // NOW() / CURRENT_TIMESTAMP
+// Expressions SQL — this.now() pour les timestamps, db.raw() pour toute autre fonction
+t.timestamp('created_at').notNullable().defaultTo(this.now())          // NOW() / CURRENT_TIMESTAMP
+t.uuid('id').primary().defaultTo(db.raw('gen_random_uuid()'))
 ```
 
-::: warning RUPTURE (atlas 0.1.14)
-Les versions antérieures écrivaient l'argument **verbatim**, donc les valeurs par défaut de type string devaient être mises entre quotes à la main (`defaultTo("'member'")`) et les fonctions SQL passées brutes (`defaultTo('NOW()')`). Pour migrer, retirez les quotes internes des littéraux et enveloppez les expressions dans `raw()` / `this.now()`. `Migration.raw()` / `now()` renvoient désormais une `RawValue`.
+::: warning RUPTURE (atlas 0.1.15)
+Les versions antérieures écrivaient l'argument **verbatim**, donc les valeurs par défaut de type string devaient être mises entre quotes à la main (`defaultTo("'member'")`) et les fonctions SQL passées brutes (`defaultTo('NOW()')`). Pour migrer, retirez les quotes internes des littéraux et utilisez `this.now()` / `db.raw(...)` pour les expressions. `db.raw()` renvoie un `RawSql` (le même type raw que dans les requêtes).
 :::
 
 ## Index
