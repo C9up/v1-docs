@@ -285,6 +285,64 @@ api.get('/search', { query: { q }, signal: controller.signal })
 controller.abort()                                      // annule en vol
 ```
 
+## Client JSON-RPC — `createRpcClient`
+
+Un client JSON-RPC 2.0 typé pour le endpoint RPC de Ream (le `RpcProvider` de
+`@c9up/ream` monte `POST /rpc`). Il s'appuie sur `HttpClient` et hérite donc de
+son URL de base, ses en-têtes d'auth et ses timeouts.
+
+```ts
+import { createRpcClient } from '@c9up/aurora'
+
+const rpc = createRpcClient()                  // POST /rpc, même origine
+// ou : createRpcClient({ url: '/api/rpc', http: httpClientExistant })
+
+// Appel simple — typé via call<T>() ; lève RpcError sur une erreur JSON-RPC.
+const result = await rpc.call<{ valid: boolean }>('task.validate', { id: 7 })
+```
+
+Passez un validateur `parse` pour vérifier le résultat au runtime au lieu de
+l'assertion `T` non vérifiée (même principe que le `parse` de `HttpClient`) :
+
+```ts
+const user = await rpc.call('user.find', { id }, (data) => {
+  if (!isUser(data)) throw new Error('forme invalide')
+  return data
+})
+```
+
+Les erreurs remontent en `RpcError` (porte `code`, `message`, `data`) :
+
+```ts
+import { isRpcError } from '@c9up/aurora'
+
+try {
+  await rpc.call('task.validate', { id })
+} catch (err) {
+  if (isRpcError(err)) console.error(err.code, err.message, err.data)
+}
+```
+
+Envoyez plusieurs appels en un aller-retour avec `batch()` — il renvoie une
+entrée résolue par appel, dans l'ordre des requêtes (les réponses sont réappariées
+par id) :
+
+```ts
+const [a, b] = await rpc.batch([
+  { method: 'task.validate', params: { id: 1 } },
+  { method: 'user.find', params: { id: 2 } },
+])
+if (a.ok) console.log(a.value)
+if (!b.ok) console.error(b.error.message)
+```
+
+Se marie naturellement avec [`command`](#actions-async-command) pour des appels
+réactifs :
+
+```ts
+const validate = command((p) => rpc.call('task.validate', p))
+```
+
 ## Actions async — `command`
 
 `command()` enveloppe une tâche async (typiquement un appel `HttpClient`) avec des

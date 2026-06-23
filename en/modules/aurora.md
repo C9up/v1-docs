@@ -285,6 +285,62 @@ api.get('/search', { query: { q }, signal: controller.signal })
 controller.abort()                                      // cancel in-flight
 ```
 
+## JSON-RPC client — `createRpcClient`
+
+A typed JSON-RPC 2.0 client for Ream's RPC endpoint (`@c9up/ream`'s `RpcProvider`
+mounts `POST /rpc`). It builds on `HttpClient`, so it inherits the base URL, auth
+headers, and timeouts.
+
+```ts
+import { createRpcClient } from '@c9up/aurora'
+
+const rpc = createRpcClient()                  // POST /rpc, same-origin
+// or: createRpcClient({ url: '/api/rpc', http: existingHttpClient })
+
+// Single call — typed via call<T>(); throws RpcError on a JSON-RPC error.
+const result = await rpc.call<{ valid: boolean }>('task.validate', { id: 7 })
+```
+
+Pass a `parse` validator to check the result at runtime instead of the unchecked
+`T` assertion (same pattern as `HttpClient`'s `parse`):
+
+```ts
+const user = await rpc.call('user.find', { id }, (data) => {
+  if (!isUser(data)) throw new Error('bad shape')
+  return data
+})
+```
+
+Errors surface as `RpcError` (carries `code`, `message`, `data`):
+
+```ts
+import { isRpcError } from '@c9up/aurora'
+
+try {
+  await rpc.call('task.validate', { id })
+} catch (err) {
+  if (isRpcError(err)) console.error(err.code, err.message, err.data)
+}
+```
+
+Send several calls in one round-trip with `batch()` — it returns one settled
+entry per call, in request order (responses are matched back by id):
+
+```ts
+const [a, b] = await rpc.batch([
+  { method: 'task.validate', params: { id: 1 } },
+  { method: 'user.find', params: { id: 2 } },
+])
+if (a.ok) console.log(a.value)
+if (!b.ok) console.error(b.error.message)
+```
+
+Pairs naturally with [`command`](#async-actions-command) for reactive calls:
+
+```ts
+const validate = command((p) => rpc.call('task.validate', p))
+```
+
 ## Async actions — `command`
 
 `command()` wraps an async task (typically an `HttpClient` call) with reactive
