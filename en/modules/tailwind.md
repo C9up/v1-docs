@@ -35,6 +35,21 @@ That's it. No framework configuration command, no plugin to register on the Ream
 
 Reference: [Tailwind CSS — Install with AdonisJS](https://tailwindcss.com/docs/installation/framework-guides/adonisjs) (the same Vite-based flow Ream mirrors via Photon).
 
+## Merging classes — `cn`
+
+For conditional class composition with conflict resolution (the `clsx` +
+`tailwind-merge` pattern), Aurora ships a **zero-dependency** `cn` built for
+Tailwind **v4** — no extra packages to install:
+
+```ts
+import { cn } from '@c9up/aurora'
+
+cn('px-2', 'px-4')            // → 'px-4'  (later wins; dedup is the point)
+cn('rounded-lg border', props.class)
+```
+
+Full details: [Aurora → Tailwind classes (`cn`)](./aurora.md#tailwind-classes--cn).
+
 ## About `@c9up/tailwind`
 
 A `@c9up/tailwind` stub package used to live in the workspace; it scaffolded `tailwind.config.ts` + `postcss.config.js` + an `app.css` entry via `ream configure @c9up/tailwind`. It was never published to npm, was retired on 2026-05-01 (Epic 41.1, decision: Kill), and the workspace folder was deleted on 2026-05-01 (Epic 41.5). There is no replacement Ream package — the recipe above is the canonical Tailwind-in-Ream setup.

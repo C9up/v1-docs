@@ -343,6 +343,58 @@ réactifs :
 const validate = command((p) => rpc.call('task.validate', p))
 ```
 
+## Constructeur d'URL — `urlFor`
+
+Construisez les URL depuis des **routes nommées** (définies côté serveur avec
+`.as()`) au lieu de coder les chemins en dur — la moitié client du
+`router.urlFor` de Ream, isomorphe : le même appel marche au SSR et après
+hydratation.
+
+```ts
+import { urlFor } from '@c9up/aurora'
+
+urlFor('users.show', { id: 42 })           // → '/users/42'
+urlFor('auth.login')                       // → '/login'
+urlFor('search', {}, { q: 'ream', p: 2 })  // → '/search?q=ream&p=2'
+```
+
+Il résout sur un manifeste `nom → motif`. Passez-le au rendu depuis le serveur —
+construisez-le avec `router.namedManifest()` :
+
+```ts
+await aurora.render(ctx, 'Users', { users }, {
+  routes: router.namedManifest(), // seules les routes NOMMÉES sont exposées au client
+})
+```
+
+`renderPage` installe le manifeste avant le SSR et le sérialise dans la page, si
+bien que le bootstrap d'hydratation le réinstalle via `setRouteManifest` —
+`urlFor` résout alors à l'identique côté serveur et navigateur.
+(`setRouteManifest(routes)` est aussi exporté si vous devez l'installer à la
+main.) Voir [Routage → Routes nommées](../guide/routing.md#routes-nommées).
+
+## Classes Tailwind — `cn`
+
+Composez les noms de classes et résolvez les conflits Tailwind — une
+réimplémentation **zéro dépendance** de `clsx` + `tailwind-merge` (aucune dep
+externe). Le dédoublonnage est le but : dans un même scope de variante, la
+**dernière** classe de chaque groupe en conflit l'emporte.
+
+```ts
+import { cn } from '@c9up/aurora'
+
+cn('px-2 py-1', isActive && 'bg-indigo-600', props.class)
+cn('px-2', 'px-4')             // → 'px-4'    (la dernière gagne)
+cn('mr-4', 'mr-8')             // → 'mr-8'    (pas d'accumulation)
+cn('text-red-500', 'text-sm')  // → 'text-red-500 text-sm' (groupes différents)
+cn('hover:p-2', 'hover:p-4')   // → 'hover:p-4' (scopé par variante)
+```
+
+Cible le jeu d'utilitaires standard de Tailwind **v4** (variantes, important `!`,
+valeurs/propriétés arbitraires `[…]`, `/opacité`, négatifs) ; les classes inconnues
+sont conservées telles quelles. `clsx` et `twMerge` sont aussi exportés. Voir aussi
+[Tailwind](./tailwind.md).
+
 ## Actions async — `command`
 
 `command()` enveloppe une tâche async (typiquement un appel `HttpClient`) avec des

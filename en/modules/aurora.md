@@ -341,6 +341,57 @@ Pairs naturally with [`command`](#async-actions-command) for reactive calls:
 const validate = command((p) => rpc.call('task.validate', p))
 ```
 
+## URL builder — `urlFor`
+
+Build URLs from **named routes** (defined server-side with `.as()`) instead of
+hard-coding paths — the client half of Ream's `router.urlFor`, isomorphic so the
+same call works during SSR and after hydration.
+
+```ts
+import { urlFor } from '@c9up/aurora'
+
+urlFor('users.show', { id: 42 })           // → '/users/42'
+urlFor('auth.login')                       // → '/login'
+urlFor('search', {}, { q: 'ream', p: 2 })  // → '/search?q=ream&p=2'
+```
+
+It resolves against a `name → pattern` manifest. Hand it to the renderer from the
+server — build it with `router.namedManifest()`:
+
+```ts
+await aurora.render(ctx, 'Users', { users }, {
+  routes: router.namedManifest(), // only NAMED routes are exposed to the client
+})
+```
+
+`renderPage` installs the manifest before SSR and serializes it into the page, so
+the hydrate bootstrap re-installs it via `setRouteManifest` — `urlFor` then
+resolves identically on the server and in the browser. (`setRouteManifest(routes)`
+is exported too, if you need to install it by hand.) See
+[Routing → Named Routes](../guide/routing.md#named-routes).
+
+## Tailwind classes — `cn`
+
+Compose class names and resolve Tailwind conflicts — a **zero-dependency**
+reimplementation of `clsx` + `tailwind-merge` (no external deps). Dedup is the
+whole point: within a variant scope, the **last** class of each conflicting group
+wins.
+
+```ts
+import { cn } from '@c9up/aurora'
+
+cn('px-2 py-1', isActive && 'bg-indigo-600', props.class)
+cn('px-2', 'px-4')             // → 'px-4'    (later wins within a group)
+cn('mr-4', 'mr-8')             // → 'mr-8'    (no accumulation)
+cn('text-red-500', 'text-sm')  // → 'text-red-500 text-sm' (different groups)
+cn('hover:p-2', 'hover:p-4')   // → 'hover:p-4' (variant-scoped)
+```
+
+Targets the standard Tailwind **v4** utility set (variants, important `!`,
+arbitrary `[…]` values/properties, `/opacity`, negatives); unknown classes are
+kept untouched. `clsx` and `twMerge` are exported too if you want the pieces. See
+also [Tailwind](./tailwind.md).
+
 ## Async actions — `command`
 
 `command()` wraps an async task (typically an `HttpClient` call) with reactive

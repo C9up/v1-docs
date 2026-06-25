@@ -182,16 +182,27 @@ router.group(() => {
 
 ## Named Routes
 
-Name a route with `.as()` to generate URLs without hard-coding paths:
+Name a route with `.as()`, then build URLs from the name with `urlFor` — never hard-code paths:
 
 ```typescript
 router.get('/users/:id', [UsersController, 'show']).as('users.show')
 
-const url = router.makeUrl('users.show', { id: '42' })
+const url = router.urlFor('users.show', { id: '42' })
 // → /users/42
 ```
 
+> `router.makeUrl()` is a **deprecated** alias of `urlFor()` (AdonisJS v7 renamed `makeUrl` → `urlFor`). Prefer `urlFor`.
+
 Resource routes are named automatically: `posts.index`, `posts.store`, `posts.show`, `posts.update`, `posts.destroy`.
+
+### URLs in the browser
+
+To build the same URLs client-side, serialize the named-route map with `router.namedManifest()` (only **named** routes are exposed — unnamed routes stay private to the server) and hand it to your page renderer; Aurora's isomorphic `urlFor` resolves against it. See [Aurora → URL builder](../modules/aurora.md#url-builder--urlfor).
+
+```typescript
+const routes = router.namedManifest()
+// → { 'users.show': '/users/:id', ... }
+```
 
 ## Fluent Route Builder
 

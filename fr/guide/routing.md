@@ -182,16 +182,27 @@ router.group(() => {
 
 ## Routes nommées
 
-Nommez une route avec `.as()` pour générer des URL sans coder les chemins en dur :
+Nommez une route avec `.as()`, puis construisez les URL depuis le nom avec `urlFor` — sans jamais coder les chemins en dur :
 
 ```typescript
 router.get('/users/:id', [UsersController, 'show']).as('users.show')
 
-const url = router.makeUrl('users.show', { id: '42' })
+const url = router.urlFor('users.show', { id: '42' })
 // → /users/42
 ```
 
+> `router.makeUrl()` est un alias **déprécié** de `urlFor()` (AdonisJS v7 a renommé `makeUrl` → `urlFor`). Préférez `urlFor`.
+
 Les routes de ressource sont nommées automatiquement : `posts.index`, `posts.store`, `posts.show`, `posts.update`, `posts.destroy`.
+
+### URL côté navigateur
+
+Pour construire les mêmes URL côté client, sérialisez la map des routes nommées avec `router.namedManifest()` (seules les routes **nommées** sont exposées — les autres restent privées au serveur) et passez-la au rendu de page ; le `urlFor` isomorphe d'Aurora résout dessus. Voir [Aurora → constructeur d'URL](../modules/aurora.md#constructeur-durl--urlfor).
+
+```typescript
+const routes = router.namedManifest()
+// → { 'users.show': '/users/:id', ... }
+```
 
 ## Builder de route fluide
 
