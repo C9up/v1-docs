@@ -234,7 +234,59 @@ const size = windowSize()     // { width, height } on resize
 
 **URL query** — `queryParam(key)` is a signal bound to a query param (reads reflect the URL, writes `pushState` without a reload).
 
-**Cookies / clipboard / share** — `cookie.get/set/remove` (SSR-safe), `clipboard.copy/read`, and `share(data)` (Web Share API).
+**Clipboard / share** — `clipboard.copy/read` and `share(data)` (Web Share API).
+
+## Isomorphic cookies
+
+`cookie.get/set/remove` is an SSR-safe accessor over `document.cookie`. On its own
+it can't help SSR, though: during a server render there is no `document`, so a page
+that decides its layout from a cookie (a collapsed sidebar, a theme, a locale)
+renders the **default** — then the browser reads the real cookie on hydration and
+repaints, e.g. a sidebar that animates open→collapsed on every navigation.
+
+The fix is **`cookieSignal`** — a signal backed by a cookie, seeded from the cookie
+on **both** sides (the SSR request seed on the server, `document.cookie` in the
+browser) and persisting every write back. Same value server- and client-side ⇒ the
+SSR markup matches hydration ⇒ no flash, no mismatch.
+
+```js
+import { cookieSignal, cookieState, booleanCookie, jsonCookie } from '@c9up/aurora'
+
+// String state:
+const locale = cookieSignal('locale', 'en')
+locale('fr')                        // persisted to the cookie
+
+// Typed state via a codec (boolean / enum / JSON):
+const collapsed = cookieState('sidebar', false, booleanCookie)   // "1" / "0"
+const prefs = cookieState('prefs', { dense: false }, jsonCookie({ dense: false }))
+```
+
+Use it in a page, read at the top (before any `await`):
+
+```js
+export default function Sidebar() {
+  const collapsed = cookieState('sidebar', false, booleanCookie)
+  return html`<aside class="${() => (collapsed() ? 'w-16' : 'w-60')} transition-all">…</aside>`
+}
+```
+
+For the **server** to seed the cookie, list it in `render()` / `renderPage()` via the
+`cookies` allowlist — aurora reads only those names from the request and seeds them
+before rendering (they are NOT serialized into the page; the browser reads
+`document.cookie`):
+
+```js
+await aurora.render(ctx, 'Sidebar', props, {
+  cookies: ['sidebar', 'theme'],   // plain, JS-readable UI cookies only
+})
+```
+
+> ⚠️ Never list a session / signed / encrypted / `httpOnly` cookie in `cookies` —
+> those must stay server-only. The allowlist is for plain UI-state cookies.
+>
+> `cookieSignal` is the cookie twin of `persistedSignal` (which mirrors to web
+> storage, client-only). Reach for `cookieSignal` when the **server** must read the
+> value too; `persistedSignal` when it's purely client-side.
 
 ## HTTP client
 
