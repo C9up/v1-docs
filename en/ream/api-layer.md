@@ -19,7 +19,7 @@ like controllers — so handlers get full dependency injection.
 Add `RpcProvider`, then register methods on the container-bound `rpc` router.
 
 ```ts
-import { RpcProvider } from '@c9up/ream'
+import { RpcProvider } from '@c9up/ream/rpc/provider'
 
 // 1. Register the provider (in your providers list).
 
@@ -50,8 +50,9 @@ Config: `config.rpc.path` overrides the mount path (default `/rpc`).
 > and pipeline (DI, middleware, warden auth), but the JSON-RPC envelope, parsing,
 > notification rule, and error codes come from the agnostic
 > [`@c9up/comet`](/en/modules/comet) protocol core — the same core aurora's client
-> uses, so the spec logic is defined once. The browser client is
-> `createRpcClient` from `@c9up/aurora`.
+> uses, so the spec logic is defined once. `@c9up/comet` is an optional peer —
+> register RPC from the `@c9up/ream/rpc/provider` subpath. The browser client is
+> `createRpcClient` from `@c9up/aurora/rpc`.
 
 ## GraphQL
 

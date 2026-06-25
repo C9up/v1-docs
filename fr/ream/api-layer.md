@@ -21,7 +21,7 @@ Ajoute `RpcProvider`, puis enregistre des méthodes sur le routeur `rpc` lié au
 container.
 
 ```ts
-import { RpcProvider } from '@c9up/ream'
+import { RpcProvider } from '@c9up/ream/rpc/provider'
 
 // 1. Enregistrer le provider (dans ta liste de providers).
 
@@ -53,7 +53,9 @@ Config : `config.rpc.path` change le chemin de montage (défaut `/rpc`).
 > parsing, la règle de notification et les codes d'erreur viennent du cœur de
 > protocole agnostique [`@c9up/comet`](/fr/modules/comet) — le même cœur que le
 > client d'aurora, donc la logique de la spec est définie une seule fois. Le
-> client navigateur est `createRpcClient` de `@c9up/aurora`.
+> `@c9up/comet` est un peer optionnel — enregistre le RPC depuis le sous-chemin
+> `@c9up/ream/rpc/provider`. Le client navigateur est `createRpcClient` de
+> `@c9up/aurora/rpc`.
 
 ## GraphQL
 

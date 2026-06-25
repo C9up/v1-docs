@@ -75,7 +75,7 @@ s'associe à `command()`. Il re-exporte la surface de comet, donc `RpcError` /
 `isRpcError` / les types viennent de `@c9up/aurora` sans changement.
 
 ```ts
-import { createRpcClient, isRpcError } from "@c9up/aurora";
+import { createRpcClient, isRpcError } from "@c9up/aurora/rpc";
 
 const rpc = createRpcClient(); // POST /rpc, same-origin, en-têtes d'auth depuis HttpClient
 ```

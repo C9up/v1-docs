@@ -74,7 +74,7 @@ It re-exports comet's surface, so `RpcError` / `isRpcError` / the types come fro
 `@c9up/aurora` unchanged.
 
 ```ts
-import { createRpcClient, isRpcError } from "@c9up/aurora";
+import { createRpcClient, isRpcError } from "@c9up/aurora/rpc";
 
 const rpc = createRpcClient(); // POST /rpc, same-origin, auth headers from HttpClient
 ```

@@ -18,7 +18,7 @@ Cette page liste l'etat des modules de l'ecosysteme.
 | Comet | `@c9up/comet` | Présent | Protocole JSON-RPC 2.0 agnostique + client isomorphe à transport injectable (aurora le branche côté navigateur, le `RpcRouter` de ream construit le serveur dessus) |
 | Relay | `@c9up/relay` | Présent | Realtime SSE + WebSocket Hub + SignalR (renomme depuis `@c9up/raytrace` dans l'Epic 45) |
 | Echo | `@c9up/echo` | Présent | Cache (rename de Nebula) |
-| Bay | `@c9up/bay` | Présent | Queue/Jobs (rename de Comet) |
+| Bay | `@c9up/bay` | Présent | Queue/Jobs — drivers mémoire / Redis + retry + lease |
 | Blackhole | `@c9up/blackhole` | Présent | Middleware d'assainissement XSS du body |
 | Rosetta | `@c9up/rosetta` | Présent | Module i18n dédié avec fallback de locale |
 | Chronos | `@c9up/chronos` | Présent | Date/Time + récurrence RRULE |

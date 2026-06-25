@@ -348,11 +348,14 @@ son URL de base, ses en-têtes d'auth et ses timeouts.
 
 > Sous le capot, c'est un binding fin au-dessus du client agnostique
 > [`@c9up/comet`](/fr/modules/comet) — aurora branche `HttpClient` comme transport
-> de comet et re-exporte sa surface (`RpcError`, `isRpcError`, les types), tu
-> continues donc à tout importer depuis `@c9up/aurora`.
+> de comet et re-exporte sa surface (`RpcError`, `isRpcError`, les types). Comme le
+> RPC est opt-in, il vit sur le sous-chemin **`@c9up/aurora/rpc`** (pas le barrel
+> principal) et `@c9up/comet` est une **dépendance peer optionnelle** — installe-la
+> seulement si tu utilises le RPC ; les projets qui ne l'utilisent pas ne la tirent
+> jamais.
 
 ```ts
-import { createRpcClient } from '@c9up/aurora'
+import { createRpcClient } from '@c9up/aurora/rpc'
 
 const rpc = createRpcClient()                  // POST /rpc, même origine
 // ou : createRpcClient({ url: '/api/rpc', http: httpClientExistant })
@@ -380,7 +383,7 @@ await rpc.call('slow.op', params, { signal: ac.signal })   // ac.abort() annule
 Les erreurs remontent en `RpcError` (porte `code`, `message`, `data`) :
 
 ```ts
-import { isRpcError } from '@c9up/aurora'
+import { isRpcError } from '@c9up/aurora/rpc'
 
 try {
   await rpc.call('task.validate', { id })
