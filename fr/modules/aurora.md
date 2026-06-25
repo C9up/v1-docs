@@ -356,14 +356,20 @@ const rpc = createRpcClient()                  // POST /rpc, même origine
 const result = await rpc.call<{ valid: boolean }>('task.validate', { id: 7 })
 ```
 
-Passez un validateur `parse` pour vérifier le résultat au runtime au lieu de
-l'assertion `T` non vérifiée (même principe que le `parse` de `HttpClient`) :
+Le 3ᵉ argument est un objet d'**options** par appel. Passe `parse` pour valider le
+résultat au runtime au lieu de l'assertion `T` non vérifiée (même principe que le
+`parse` de `HttpClient`), et `signal` pour rendre l'appel annulable :
 
 ```ts
-const user = await rpc.call('user.find', { id }, (data) => {
-  if (!isUser(data)) throw new Error('forme invalide')
-  return data
+const user = await rpc.call('user.find', { id }, {
+  parse: (data) => {
+    if (!isUser(data)) throw new Error('forme invalide')
+    return data
+  },
 })
+
+const ac = new AbortController()
+await rpc.call('slow.op', params, { signal: ac.signal })   // ac.abort() annule
 ```
 
 Les erreurs remontent en `RpcError` (porte `code`, `message`, `data`) :

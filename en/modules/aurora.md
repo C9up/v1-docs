@@ -353,14 +353,20 @@ const rpc = createRpcClient()                  // POST /rpc, same-origin
 const result = await rpc.call<{ valid: boolean }>('task.validate', { id: 7 })
 ```
 
-Pass a `parse` validator to check the result at runtime instead of the unchecked
-`T` assertion (same pattern as `HttpClient`'s `parse`):
+The third argument is a per-call **options** object. Pass `parse` to validate the
+result at runtime instead of the unchecked `T` assertion (same pattern as
+`HttpClient`'s `parse`), and `signal` to make the call abortable:
 
 ```ts
-const user = await rpc.call('user.find', { id }, (data) => {
-  if (!isUser(data)) throw new Error('bad shape')
-  return data
+const user = await rpc.call('user.find', { id }, {
+  parse: (data) => {
+    if (!isUser(data)) throw new Error('bad shape')
+    return data
+  },
 })
+
+const ac = new AbortController()
+await rpc.call('slow.op', params, { signal: ac.signal })   // ac.abort() cancels
 ```
 
 Errors surface as `RpcError` (carries `code`, `message`, `data`):
