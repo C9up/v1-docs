@@ -59,6 +59,7 @@ pnpm dev
 | `@c9up/echo` | Cache — memory / Redis drivers | [C9up/echo](https://github.com/C9up/echo) |
 | `@c9up/spectrum` | Structured logging — console / file channels + Rust bridge | [C9up/spectrum](https://github.com/C9up/spectrum) |
 | `@c9up/ream/events` | Event bus + wildcard subscribers (Rust + NAPI) — part of ream core | [C9up/ream](https://github.com/C9up/ream) |
+| `@c9up/comet` | JSON-RPC 2.0 — agnostic protocol + isomorphic, transport-injectable client | [C9up/comet](https://github.com/C9up/comet) |
 | `@c9up/relay` | Realtime — Hub + SignalR adapter | [C9up/relay](https://github.com/C9up/relay) |
 | `@c9up/rover` | Mail — Resend / Mailgun / SES / SMTP + webhooks + send-later via bay | [C9up/rover](https://github.com/C9up/rover) |
 | `@c9up/nova` | Web Push (PWA + VAPID + subscription store) | [C9up/nova](https://github.com/C9up/nova) |

@@ -46,6 +46,13 @@ Clients `POST /rpc` with a JSON-RPC 2.0 body (single or batch, max 50):
 
 Config: `config.rpc.path` overrides the mount path (default `/rpc`).
 
+> `RpcRouter` keeps its routing DSL (`method`/`group`/`namespace`/`guard`/`validate`)
+> and pipeline (DI, middleware, warden auth), but the JSON-RPC envelope, parsing,
+> notification rule, and error codes come from the agnostic
+> [`@c9up/comet`](/en/modules/comet) protocol core — the same core aurora's client
+> uses, so the spec logic is defined once. The browser client is
+> `createRpcClient` from `@c9up/aurora`.
+
 ## GraphQL
 
 `GraphQLProvider` is opt-in: it does nothing unless `config.graphql.schemaPath`

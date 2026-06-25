@@ -346,6 +346,11 @@ Un client JSON-RPC 2.0 typé pour le endpoint RPC de Ream (le `RpcProvider` de
 `@c9up/ream` monte `POST /rpc`). Il s'appuie sur `HttpClient` et hérite donc de
 son URL de base, ses en-têtes d'auth et ses timeouts.
 
+> Sous le capot, c'est un binding fin au-dessus du client agnostique
+> [`@c9up/comet`](/fr/modules/comet) — aurora branche `HttpClient` comme transport
+> de comet et re-exporte sa surface (`RpcError`, `isRpcError`, les types), tu
+> continues donc à tout importer depuis `@c9up/aurora`.
+
 ```ts
 import { createRpcClient } from '@c9up/aurora'
 

@@ -15,6 +15,7 @@ This page lists the current status of ecosystem modules.
 | Spectrum | `@c9up/spectrum` | Present | Logging |
 | Photon | `@c9up/photon` | Present | Frontend/SSR + client hydration + SPA-nav router (44.1) + SEO/`<head>` injection (44.2) |
 | Aurora | `@c9up/aurora` | Present | Reactive UI runtime — tagged-template DOM + signals + SSR + isomorphic dist (no app-side bundler) |
+| Comet | `@c9up/comet` | Present | Agnostic JSON-RPC 2.0 protocol + isomorphic, transport-injectable client (aurora binds it browser-side, ream's `RpcRouter` builds the server on it) |
 | Relay | `@c9up/relay` | Present | Realtime SSE + WebSocket Hub + SignalR (renamed from `@c9up/raytrace` in Epic 45) |
 | Echo | `@c9up/echo` | Present | Cache (Nebula rename) |
 | Bay | `@c9up/bay` | Present | Queue/Jobs (Comet rename) |
