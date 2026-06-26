@@ -7,7 +7,9 @@ Echo is the cache layer in the Ream ecosystem (`@c9up/echo`).
 ## Capabilities
 
 - get/set/delete
-- flush
+- getOrSet (fetch-or-compute)
+- clear
+- namespaces
 - tags
 - pluggable drivers (`Memory`, `Redis`)
 
@@ -28,17 +30,29 @@ const user = await cache.get<{ id: number; name: string }>('user:1')
 const hasUser = await cache.has('user:1')
 
 await cache.delete('user:1')
-await cache.flush()
+await cache.clear()
 ```
 
-### `remember()` (stampede protection)
+`clear()` empties the whole cache.
 
-`remember` avoids duplicate concurrent misses by sharing a single in-flight promise.
+### `getOrSet()` (fetch-or-compute, single-flight)
+
+`getOrSet` returns the cached value or computes it via the factory on a miss, storing the result. Concurrent misses for the same key share a single in-flight promise (no duplicate work).
 
 ```ts
-const profile = await cache.remember('profile:42', 60, async () => {
+const profile = await cache.getOrSet('profile:42', 60, async () => {
   return await fetchProfileFromDb(42)
 })
+```
+
+### Namespaces
+
+`namespace(ns)` returns a cache view scoped under an extra key prefix. Every operation on the view is transparently prefixed:
+
+```ts
+const users = cache.namespace('users')
+await users.set('42', { id: 42 })
+await users.get('42') // reads the underlying key `users:42`
 ```
 
 ### Prefix and default TTL

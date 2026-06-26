@@ -163,6 +163,27 @@ C'est tout. `aurora.render(ctx, name, props)` :
 
 Côté navigateur, aurora adopte le DOM SSR en place, attache signaux + écouteurs d'événements + hooks de cycle de vie. Le `onMount` que tu as écrit s'exécute une fois l'arbre vivant.
 
+### Lié au contexte — `ctx.aurora.render(name, props)`
+
+`ctx.aurora.render(name, props)` est le sucre lié au contexte — l'analogue Ream de `ctx.view` / `ctx.inertia` d'AdonisJS. Le `ctx` est déjà capturé, donc un contrôleur rend une page sans avoir à le faire transiter :
+
+```ts
+async show({ aurora }) {
+  return aurora.render('Dashboard', { user })
+}
+```
+
+Enregistre le middleware `auroraContext` globalement pour attacher `ctx.aurora` à chaque requête :
+
+```ts
+// reamrc.ts (ou ta liste de middleware globaux)
+import { auroraContext } from '@c9up/aurora/server'
+
+middleware: [auroraContext()]
+```
+
+Le `aurora.render(ctx, name, props)` au niveau module (le cœur agnostique) marche toujours exactement comme montré ci-dessus — `ctx.aurora.render(name, props)` n'en est que le raccourci lié au contexte.
+
 ### Options
 
 | Option | Défaut | Rôle |

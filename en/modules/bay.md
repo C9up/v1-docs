@@ -41,6 +41,18 @@ queue.work(500) // poll every 500ms
 queue.stop()
 ```
 
+## Config
+
+Author the queue config with the `defineConfig` helper in `config/queue.ts` (AdonisJS config-helper parity):
+
+```ts
+import { defineConfig, MemoryDriver } from '@c9up/bay'
+
+export default defineConfig({
+  driver: new MemoryDriver(),
+})
+```
+
 ## Drivers
 
 - `MemoryDriver`: dev/tests

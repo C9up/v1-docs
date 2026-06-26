@@ -20,9 +20,11 @@ const hash = new Hash({
 })
 
 const hashed = await hash.make('correct horse battery staple')
-await hash.verify('correct horse battery staple', hashed) // true
-await hash.verify('mauvais-mot-de-passe', hashed)         // false
+await hash.verify(hashed, 'correct horse battery staple') // true
+await hash.verify(hashed, 'mauvais-mot-de-passe')         // false
 ```
+
+`verify` prend le **hash en premier, la valeur en clair en second** — `verify(hashedValue, plainValue)`, aligné sur AdonisJS (`@adonisjs/hash`).
 
 Choisir un driver à la volée :
 
@@ -32,6 +34,22 @@ const scryptHashed = await hash.use('scrypt').make('password')
 ```
 
 `hash.use(name)` retourne un `HashDriver` dont les méthodes `make` / `verify` ciblent le driver nommé.
+
+### Re-hachage transparent — `needsReHash`
+
+`hash.needsReHash(storedHash): boolean` retourne `true` quand un hash stocké a été produit avec un algorithme ou des paramètres qui ont depuis divergé de votre config actuelle (p. ex. vous avez augmenté les `rounds` de bcrypt, ou changé le driver par défaut). Re-hachez lors d'un login réussi pour que les identifiants migrent vers les paramètres renforcés au fil du temps :
+
+```ts
+const stored = user.passwordHash
+
+if (await hash.verify(stored, password)) {
+  if (hash.needsReHash(stored)) {
+    user.passwordHash = await hash.make(password) // re-stocke avec les params courants
+    await user.save()
+  }
+  // …émettre la session
+}
+```
 
 Configurer une fois, enregistrer le provider :
 
@@ -115,8 +133,8 @@ En cas de doute : mots de passe → Sigil, tokens/HMAC → ream racine, flux de 
 
 | Export | Type | Rôle |
 |---|---|---|
-| `Hash` | classe | `new Hash(config)`. Méthodes d'instance : `make(value)`, `verify(value, hash)`, `use(name?)`. |
-| `HashDriver` | interface | À implémenter pour brancher un driver custom. Requis : `make`, `verify`. Type de retour de `hash.use(name)`. |
+| `Hash` | classe | `new Hash(config)`. Méthodes d'instance : `make(value)`, `verify(hash, value)`, `needsReHash(hash)`, `use(name?)`. |
+| `HashDriver` | interface | À implémenter pour brancher un driver custom. Requis : `make`, `verify`, `needsReHash`. Type de retour de `hash.use(name)`. |
 | `HashConfig` | type | `{ default: string; drivers: Record<string, { driver: string; ...}> }`. |
 | `defineConfig` | helper | Authoring de config typé. |
 | `SigilProvider` | provider | Enregistre `Hash` (et le token `'hash'`) dans le container Ream. Importé via `@c9up/sigil/provider`. |
@@ -138,7 +156,7 @@ Les versions précédentes de `@c9up/ream` exposaient une classe `Hash` interne,
 - const ok = await argon2Verify(password, hashed)
 + const hash = new Hash({ default: 'argon2', drivers: { argon2: { driver: 'argon2' } } })
 + const hashed = await hash.make(password)
-+ const ok = await hash.verify(password, hashed)
++ const ok = await hash.verify(hashed, password)
 ```
 
 Dans une application Ream, préférer le `Hash` résolu via le container (cf. Exemples rapides) plutôt que d'en construire un inline.

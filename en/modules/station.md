@@ -11,6 +11,20 @@ of them uniformly through the IoC container (resolved bindings + optional
 peers), never through a hard static import, so a host that has not wired a given
 peer degrades gracefully rather than failing to load.
 
+## Config
+
+Author the admin config with the `defineConfig` helper in `config/station.ts`
+(AdonisJS config-helper parity):
+
+```ts
+import { defineConfig } from "@c9up/station";
+
+export default defineConfig({
+  requireAuth: true,
+  requireRole: "admin",
+});
+```
+
 ## Authorization
 
 Station authorizes every admin action exclusively through Warden's unified

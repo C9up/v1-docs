@@ -17,6 +17,21 @@ logger.warn('Requête lente détectée', { duration: 2500 })
 logger.error('Connexion échouée', { host: 'db.example.com' })
 ```
 
+La signature est **message-first** : la string de message vient en premier, l'objet de données structuré en second — `logger.info('user logged in', { userId })`. C'est une déviation par rapport à la convention object-first de pino (`logger.info({ userId }, 'user logged in')`) ; Spectrum se lit de gauche à droite pour l'ergonomie.
+
+### Sérialisation des erreurs
+
+Une `Error` placée sous `err` (ou `error`) dans l'objet de données est sérialisée automatiquement en `{ name, message, stack }` :
+
+```typescript
+try {
+  await order.save()
+} catch (err) {
+  logger.error('save failed', { err })
+  // data.err → { name: 'Error', message: '...', stack: '...' }
+}
+```
+
 ## Niveaux de log
 
 Du moins au plus sévère :

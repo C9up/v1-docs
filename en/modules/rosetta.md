@@ -46,6 +46,23 @@ Main methods:
 - `t(key, params?, options?)`
 - `has(key, locale?)`
 
+## Config
+
+Author the i18n config with the `defineConfig` helper in `config/i18n.ts` (AdonisJS config-helper parity):
+
+```ts
+import { defineConfig } from '@c9up/rosetta'
+
+export default defineConfig({
+  defaultLocale: 'en',
+  supportedLocales: ['en', 'fr', 'de'],
+  fallbackLocale: 'en',
+  fallbackLocales: {
+    'fr-ch': 'fr',
+  },
+})
+```
+
 ## Fallback Resolution
 
 Translation lookup uses a chain, in this order:

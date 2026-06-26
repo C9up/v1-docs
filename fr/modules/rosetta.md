@@ -46,6 +46,23 @@ Methodes principales:
 - `t(key, params?, options?)`
 - `has(key, locale?)`
 
+## Config
+
+Declarez la config i18n avec le helper `defineConfig` dans `config/i18n.ts` (parite avec le config-helper AdonisJS):
+
+```ts
+import { defineConfig } from '@c9up/rosetta'
+
+export default defineConfig({
+  defaultLocale: 'en',
+  supportedLocales: ['en', 'fr', 'de'],
+  fallbackLocale: 'en',
+  fallbackLocales: {
+    'fr-ch': 'fr',
+  },
+})
+```
+
 ## Resolution des Fallbacks
 
 L'ordre de recherche des traductions est:

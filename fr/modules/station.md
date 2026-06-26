@@ -13,6 +13,20 @@ peers optionnels), jamais via un import statique en dur, si bien qu'un hôte qui
 n'a pas câblé un peer donné se dégrade proprement au lieu d'échouer au
 chargement.
 
+## Config
+
+Déclarez la config d'admin avec le helper `defineConfig` dans
+`config/station.ts` (parité avec le config-helper AdonisJS) :
+
+```ts
+import { defineConfig } from "@c9up/station";
+
+export default defineConfig({
+  requireAuth: true,
+  requireRole: "admin",
+});
+```
+
 ## Autorisation
 
 Station autorise chaque action d'admin exclusivement via la couche

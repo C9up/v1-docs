@@ -163,6 +163,27 @@ That's it. `aurora.render(ctx, name, props)`:
 
 Browser-side, aurora adopts the SSR DOM in place, attaches signals + event listeners + lifecycle hooks. The `onMount` callback you wrote fires once the tree is live.
 
+### Context-bound — `ctx.aurora.render(name, props)`
+
+`ctx.aurora.render(name, props)` is the ctx-bound sugar — Ream's analog of AdonisJS's `ctx.view` / `ctx.inertia`. The `ctx` is already captured, so a controller renders a page without threading it through:
+
+```ts
+async show({ aurora }) {
+  return aurora.render('Dashboard', { user })
+}
+```
+
+Register the `auroraContext` middleware globally to attach `ctx.aurora` to every request:
+
+```ts
+// reamrc.ts (or your global middleware list)
+import { auroraContext } from '@c9up/aurora/server'
+
+middleware: [auroraContext()]
+```
+
+The module-level `aurora.render(ctx, name, props)` (the agnostic core) still works exactly as shown above — `ctx.aurora.render(name, props)` is just the ctx-bound shorthand over it.
+
 ### Options
 
 | Option | Default | What it does |

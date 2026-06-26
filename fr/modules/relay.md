@@ -21,6 +21,18 @@ rt.authorize('user:*', async (ctx, userId) => ctx.auth.user?.id === userId)
 rt.relay('task.*')
 ```
 
+## Configuration
+
+Définissez vos réglages Relay dans `config/relay.ts` avec le helper `defineConfig` :
+
+```ts
+import { defineConfig } from '@c9up/relay'
+
+export default defineConfig({
+  // Options Relay
+})
+```
+
 ## Endpoints typiques
 
 - `GET /__relay/events` connexion SSE (hint optionnel `?uid=<id>`)

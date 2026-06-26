@@ -18,6 +18,21 @@ logger.error('Connection failed', { host: 'db.example.com' })
 logger.fatal('Out of memory')
 ```
 
+The signature is **message-first**: the message string comes first, the structured data object second — `logger.info('user logged in', { userId })`. This deviates from pino's object-first convention (`logger.info({ userId }, 'user logged in')`); Spectrum reads left-to-right for ergonomics.
+
+### Error Serialization
+
+An `Error` placed under `err` (or `error`) in the data object is serialized automatically to `{ name, message, stack }`:
+
+```typescript
+try {
+  await order.save()
+} catch (err) {
+  logger.error('save failed', { err })
+  // data.err → { name: 'Error', message: '...', stack: '...' }
+}
+```
+
 ## Log Levels
 
 From least to most severe:

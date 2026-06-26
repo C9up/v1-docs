@@ -45,6 +45,33 @@ router.get('/dashboard', async ({ auth, photon, response }) => {
 
 Photon effectue le rendu serveur du composant, injecte les props serialisees et envoie une page HTML complete. Cote client, le framework hydrate la page en une application interactive.
 
+## Props partagées
+
+`ctx.photon.share({ ... })` enregistre des props par requête qui sont fusionnées dans **chaque** `ctx.photon.render(...)` de la même requête. Utilisez-le pour les props transversales que vous répéteriez sinon dans chaque handler — l'utilisateur authentifié, les messages flash, la locale active.
+
+Partagez depuis un middleware, puis lisez la prop gratuitement dans n'importe quel contrôleur en aval :
+
+```typescript
+// middleware : rend l'utilisateur auth disponible pour chaque page
+router.use([
+  async (ctx, next) => {
+    ctx.photon.share({ authUser: ctx.auth.user })
+    return next()
+  },
+])
+
+// contrôleur : pas besoin de repasser authUser
+router.get('/dashboard', async ({ photon, response }) => {
+  const stats = await DashboardService.getStats()
+  const result = await photon.render('Dashboard', { stats }) // authUser est inclus automatiquement
+  response.status(result.status)
+  for (const [k, v] of Object.entries(result.headers)) response.header(k, v)
+  response.send(result.html)
+})
+```
+
+Les appels multiples à `share()` se fusionnent en surface (le dernier appel gagne par clé). Une clé passée directement à `render(props)` écrase la valeur partagée de la même clé pour ce rendu.
+
 ## Support des frameworks
 
 ### React (.tsx)
