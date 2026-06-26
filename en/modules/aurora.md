@@ -349,6 +349,14 @@ headers, and timeouts.
 > Because RPC is opt-in, it lives on the **`@c9up/aurora/rpc`** subpath (not the
 > main barrel) and `@c9up/comet` is an **optional peer dependency** — install it
 > only when you use RPC; projects that don't never pull it.
+>
+> No browser wiring needed: when comet is installed, `AuroraProvider` auto-serves
+> its runtime at `<assetsPrefix>/comet/*` and `render()` adds `@c9up/comet` to the
+> importmap, so the RPC client's bare `import '@c9up/comet'` resolves in the
+> no-bundler browser with zero app-side importmap or mount. (To serve any other
+> package the same way, `@c9up/aurora/server` exports `packageAssetDir(specifier)`,
+> which uses `import.meta.resolve` — correct for ESM-only packages where
+> `require.resolve` throws.)
 
 ```ts
 import { createRpcClient } from '@c9up/aurora/rpc'

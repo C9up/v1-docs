@@ -353,6 +353,14 @@ son URL de base, ses en-têtes d'auth et ses timeouts.
 > principal) et `@c9up/comet` est une **dépendance peer optionnelle** — installe-la
 > seulement si tu utilises le RPC ; les projets qui ne l'utilisent pas ne la tirent
 > jamais.
+>
+> Aucun câblage navigateur : quand comet est installé, `AuroraProvider` sert
+> automatiquement son runtime sur `<assetsPrefix>/comet/*` et `render()` ajoute
+> `@c9up/comet` à l'importmap — le `import '@c9up/comet'` du client RPC se résout
+> donc dans le navigateur no-bundler sans aucun importmap ni mount côté app. (Pour
+> servir un autre package pareil, `@c9up/aurora/server` exporte
+> `packageAssetDir(specifier)`, basé sur `import.meta.resolve` — correct pour les
+> packages ESM-only où `require.resolve` plante.)
 
 ```ts
 import { createRpcClient } from '@c9up/aurora/rpc'
