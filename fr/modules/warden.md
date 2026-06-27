@@ -727,9 +727,23 @@ const strategy = new SessionStrategy({
 })
 ```
 
+Configurez-la depuis `config/auth.ts` avec un bloc `session` — fournissez `findUser` et le `WardenProvider` enregistre la stratégie sous le nom `session` :
+
+```typescript
+// config/auth.ts
+export default {
+  defaultStrategy: 'session',          // session-first (web kit AdonisJS)
+  session: {
+    findUser: async (id) => /* résout ton utilisateur via l'id stocké */ null,
+  },
+}
+```
+
+Sans bloc `session`, la stratégie n'est pas enregistrée et `@Guard('session')` lève une erreur.
+
 ### login() / logout() / verifyWithContext()
 
-`SessionStrategy.authenticate()` est volontairement un no-op — elle lève une erreur pour rendre le contrat explicite. Appelez `login(user, session)` après avoir vérifié le mot de passe vous-même, puis `verifyWithContext(unused, { session })` sur les requêtes suivantes :
+`SessionStrategy.authenticate()` est volontairement un no-op — elle lève une erreur pour rendre le contrat explicite. Appelez `login(user, session)` après avoir vérifié le mot de passe vous-même, puis `verifyWithContext(unused, { session })` sur les requêtes suivantes. `login()` **fait tourner l'id de session** (`session.regenerate()`) avant de stocker l'id utilisateur — la défense standard contre la fixation de session (CWE-384) :
 
 ```typescript
 import { Hash } from '@c9up/sigil'
@@ -754,7 +768,45 @@ if (result.authenticated) ctx.auth = { authenticated: true, user: result.user!, 
 await strategy.logout(ctx.session)
 ```
 
-L'interface `SessionStore` est volontairement minimale — `get(key)`, `set(key, value)`, `forget(key)`. Branchez n'importe quel backend de session (cookie, Redis, en mémoire) qui s'y conforme.
+L'interface `SessionStore` est volontairement minimale — `get(key)`, `put(key, value)`, `forget(key)`, `regenerate()`. Les noms de méthodes épousent l'**API `Session` d'AdonisJS** (`put`, pas `set`), si bien que la `Session` de Ream — exposée sur `ctx.session` par `SessionMiddleware` — satisfait le contrat structurellement, sans adaptateur. (Si tu avais écrit un `SessionStore` maison contre l'ancien `set()`, renomme-le en `put()`.)
+
+> **`ctx.session`.** La session de requête vit sur `ctx.session` (parité AdonisJS), peuplée par le `SessionMiddleware` de Ream. Enregistre ce middleware **avant** le middleware d'auth pour que `ctx.session` soit posé quand la stratégie session résout l'utilisateur.
+
+---
+
+## Dual-guard : session pour le web, JWT pour l'API
+
+`AuthManager` tient une **map** de stratégies nommées et en choisit une **par route**, si bien qu'une même app sert une surface web authentifiée par cookie et une API à token Bearer côte à côte. C'est le pendant des deux starter kits AdonisJS — `session` ≈ le kit **web**, `jwt` (access tokens) ≈ le kit **api**.
+
+```typescript
+// config/auth.ts
+export default {
+  defaultStrategy: 'session',          // le fallback quand une route ne nomme aucun guard
+  session: { findUser: async (id) => /* … */ null },
+  jwt: { secret: process.env.JWT_SECRET, findUser, verifyCredentials },
+}
+```
+
+```typescript
+// routes web/navigateur — cookie envoyé automatiquement, protégé CSRF
+router.get('/dashboard', [DashboardController, 'show']).guard('session')
+router.get('/download/:id', [FileController, 'download']).guard('session')
+
+// routes API / mobile — Authorization: Bearer <jwt>, immunes au CSRF
+router.get('/api/v1/orders', [OrderController, 'index']).guard('jwt')
+```
+
+Le cookie part automatiquement sur une navigation `<a href>` simple : un download gardé par `session` **sait qui demande**, sans token à attacher — l'ergonomie qu'une API Bearer-only ne peut pas donner à un lien. Les requêtes Bearer ne portent aucun cookie ambiant, donc elles sont immunes au CSRF ; ce sont les routes cookie/session que le CSRF signé de blackhole protège (ajoute les préfixes d'API Bearer aux `exceptRoutes` de blackhole).
+
+L'enregistrement des stratégies est introspectable à l'exécution — `auth.getStrategyNames()` liste les noms enregistrés et `auth.getStrategy(name)` en retourne une (elle lève pour un nom non enregistré, donc garde avec `getStrategyNames().includes(name)` d'abord) :
+
+```typescript
+auth.getStrategyNames()        // ['session', 'jwt']
+if (auth.getStrategyNames().includes('session')) {
+  const strategy = auth.getStrategy('session')
+  // les stratégies session exposent verifyWithContext(unused, { session })
+}
+```
 
 ---
 

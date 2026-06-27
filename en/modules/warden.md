@@ -707,9 +707,23 @@ const strategy = new SessionStrategy({
 })
 ```
 
+Configure it from `config/auth.ts` with a `session` block — supply `findUser` and the `WardenProvider` wires the strategy under the name `session`:
+
+```typescript
+// config/auth.ts
+export default {
+  defaultStrategy: 'session',          // session-first (AdonisJS web kit)
+  session: {
+    findUser: async (id) => /* resolve your user by the stored id */ null,
+  },
+}
+```
+
+Without a `session` block the strategy is unregistered and `@Guard('session')` throws.
+
 ### login() / logout() / verifyWithContext()
 
-`SessionStrategy.authenticate()` is a deliberate no-op — it throws to make the contract explicit. Call `login(user, session)` after you've verified the password yourself, then `verifyWithContext(unused, { session })` on subsequent requests:
+`SessionStrategy.authenticate()` is a deliberate no-op — it throws to make the contract explicit. Call `login(user, session)` after you've verified the password yourself, then `verifyWithContext(unused, { session })` on subsequent requests. `login()` **rotates the session id** (`session.regenerate()`) before storing the user id — the standard session-fixation defence (CWE-384):
 
 ```typescript
 import { Hash } from '@c9up/sigil'
@@ -734,7 +748,45 @@ if (result.authenticated) ctx.auth = { authenticated: true, user: result.user!, 
 await strategy.logout(ctx.session)
 ```
 
-The `SessionStore` interface is intentionally minimal — `get(key)`, `set(key, value)`, `forget(key)`. Plug in any session backend (cookie, Redis, in-memory) that conforms.
+The `SessionStore` interface is intentionally minimal — `get(key)`, `put(key, value)`, `forget(key)`, `regenerate()`. The method names mirror the **AdonisJS `Session` API** (`put`, not `set`), so Ream's `Session` — exposed on `ctx.session` by `SessionMiddleware` — satisfies the contract structurally with no adapter. (If you hand-rolled a `SessionStore` against the old `set()` name, rename it to `put()`.)
+
+> **`ctx.session`.** The request session lives on `ctx.session` (AdonisJS parity), populated by Ream's `SessionMiddleware`. Register that middleware **before** the auth middleware so `ctx.session` is set when the session strategy resolves the user.
+
+---
+
+## Dual-guard: session for the web, JWT for the API
+
+`AuthManager` holds a **map** of named strategies and picks one **per route**, so a single app can serve a cookie-authenticated web surface and a Bearer-token API side by side. This mirrors the two AdonisJS starter kits — `session` ≈ the **web** kit, `jwt` (access tokens) ≈ the **api** kit.
+
+```typescript
+// config/auth.ts
+export default {
+  defaultStrategy: 'session',          // the fallback when a route names no guard
+  session: { findUser: async (id) => /* … */ null },
+  jwt: { secret: process.env.JWT_SECRET, findUser, verifyCredentials },
+}
+```
+
+```typescript
+// browser/web routes — cookie sent automatically, CSRF-protected
+router.get('/dashboard', [DashboardController, 'show']).guard('session')
+router.get('/download/:id', [FileController, 'download']).guard('session')
+
+// API / mobile routes — Authorization: Bearer <jwt>, CSRF-immune
+router.get('/api/v1/orders', [OrderController, 'index']).guard('jwt')
+```
+
+A cookie ride on a plain `<a href>` navigation means a session-guarded download **knows who is asking** with no token to attach — the ergonomics a Bearer-only API can't give a link. Bearer requests carry no ambient cookie, so they're immune to CSRF; the cookie/session routes are the ones blackhole's signed CSRF protects (add the Bearer API prefixes to blackhole's `exceptRoutes`).
+
+Strategy registration is introspectable at runtime — `auth.getStrategyNames()` lists the registered names and `auth.getStrategy(name)` returns one (it throws for an unregistered name, so guard with `getStrategyNames().includes(name)` first):
+
+```typescript
+auth.getStrategyNames()        // ['session', 'jwt']
+if (auth.getStrategyNames().includes('session')) {
+  const strategy = auth.getStrategy('session')
+  // session strategies expose verifyWithContext(unused, { session })
+}
+```
 
 ---
 

@@ -47,3 +47,11 @@ const ctx2 = HttpContext.getOrFail() // throws if called outside a request
 
 `get()` returns `undefined` outside a request; `getOrFail()` throws — use it when a
 request context is required.
+
+### Request session — `ctx.session`
+
+When `SessionMiddleware` is registered, the request session is exposed as a
+top-level `ctx.session` (AdonisJS parity) — `ctx.session.get()` / `.put()` /
+`.forget()` / `.regenerate()`. It's top-level so consumers and Warden's session
+guard read `ctx.session` directly rather than fishing it out of `ctx.store`. It's
+`undefined` when no session middleware ran.

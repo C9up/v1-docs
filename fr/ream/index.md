@@ -48,3 +48,12 @@ const ctx2 = HttpContext.getOrFail() // lève si appelé hors d'une requête
 
 `get()` retourne `undefined` hors d'une requête ; `getOrFail()` lève — à utiliser
 quand un contexte de requête est requis.
+
+### Session de requête — `ctx.session`
+
+Quand `SessionMiddleware` est enregistré, la session de requête est exposée en
+propriété top-level `ctx.session` (parité AdonisJS) — `ctx.session.get()` /
+`.put()` / `.forget()` / `.regenerate()`. Elle est top-level pour que les
+consommateurs et la session guard de Warden lisent `ctx.session` directement
+plutôt que de la pêcher dans `ctx.store`. Vaut `undefined` si aucun middleware de
+session n'a tourné.

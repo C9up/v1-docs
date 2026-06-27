@@ -103,8 +103,8 @@ providers: [
 
 C'est tout. Le provider d'aurora :
 - met `pages.root` par défaut sur `<projectRoot>/resources/pages` — il suffit de poser tes pages dedans ;
-- auto-monte `GET /_assets/aurora/*` (le `dist/` pré-compilé d'aurora) ;
-- auto-monte `GET /_assets/pages/*` (ton dossier de pages).
+- auto-monte `GET /__assets/aurora/*` (le `dist/` pré-compilé d'aurora) ;
+- auto-monte `GET /__assets/pages/*` (ton dossier de pages).
 
 Pour utiliser un autre dossier, crée `config/aurora.ts` :
 
@@ -157,7 +157,7 @@ C'est tout. `aurora.render(ctx, name, props)` :
 1. Résout `resources/pages/${name}.js` (import dynamique — les changements sur disque sont visibles à chaque requête)
 2. Appelle la factory avec `props`, fait le SSR via `renderToString`
 3. Enveloppe le markup dans un document HTML complet avec :
-   - l'importmap qui alias `@c9up/aurora` → `/_assets/aurora/index.js`
+   - l'importmap qui alias `@c9up/aurora` → `/__assets/aurora/index.js`
    - un blob `<script id="aurora-page-data" type="application/json">` qui transporte `{ name, props, url, rootId }`
    - un `<script type="module">` inline qui importe aurora + le même module de page et appelle `hydrate(root, () => Page(data.props))`
 
@@ -191,7 +191,7 @@ Le `aurora.render(ctx, name, props)` au niveau module (le cœur agnostique) marc
 | `lang` | `'en'` | Valeur de `<html lang="…">` |
 | `rootId` | `'aurora-root'` | id du `<div>` qui enveloppe le body SSR — doit matcher ce que le client attend |
 | `headExtra` | `''` | HTML brut inséré dans `<head>` après l'importmap. Pour `<title>`, meta tags, stylesheets |
-| `importmap` | `{ "@c9up/aurora": "/_assets/aurora/index.js" }` | Entrées additionnelles à fusionner dans l'importmap de la page |
+| `importmap` | `{ "@c9up/aurora": "/__assets/aurora/index.js" }` | Entrées additionnelles à fusionner dans l'importmap de la page |
 
 ### Pourquoi JS pur (pas TS) ?
 
@@ -391,6 +391,21 @@ const rpc = createRpcClient()                  // POST /rpc, même origine
 
 // Appel simple — typé via call<T>() ; lève RpcError sur une erreur JSON-RPC.
 const result = await rpc.call<{ valid: boolean }>('task.validate', { id: 7 })
+```
+
+### CSRF — `X-XSRF-TOKEN` automatique
+
+Quand `/rpc` est authentifié par cookie/session, il est protégé contre le CSRF
+(double-submit signé de blackhole). `createRpcClient()` s'en charge : à chaque
+appel il lit le cookie `XSRF-TOKEN` et le renvoie dans l'en-tête `X-XSRF-TOKEN`
+(convention axios/Angular). C'est un no-op hors navigateur et quand le cookie est
+absent — donc un `/rpc` authentifié par Bearer (immunisé au CSRF) n'est pas affecté.
+
+```ts
+createRpcClient()                    // xsrf activé par défaut
+createRpcClient({ xsrf: false })     // désactiver
+// renommer (valeurs par défaut affichées) :
+createRpcClient({ xsrfCookieName: 'XSRF-TOKEN', xsrfHeaderName: 'X-XSRF-TOKEN' })
 ```
 
 Le 3ᵉ argument est un objet d'**options** par appel. Passe `parse` pour valider le
@@ -700,7 +715,7 @@ registry.define('Counter', () => {
 import { createLiveRouter, wireLiveEvents } from '@c9up/aurora'
 // router HTTP + relay résolus du conteneur (idiome agnostique)
 const live = createLiveRouter(registry, relay)
-wireLiveEvents(httpRouter, live)              // route POST /_live/event
+wireLiveEvents(httpRouter, live)              // route POST /__live/event
 // au rendu d'une page : const { id, channel, html } = live.mount('Counter', uid)
 // à la déconnexion relay : live.disconnect(uid)
 ```

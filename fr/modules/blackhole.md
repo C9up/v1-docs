@@ -28,11 +28,11 @@ router.use([() => import('@c9up/blackhole/middleware')])
 
 // Express
 import { blackholeExpress } from '@c9up/blackhole/express'
-app.use(blackholeExpress({ csrf: true, rateLimit: { max: 100, windowSeconds: 60 } }))
+app.use(blackholeExpress({ csrf: true, secret: process.env.APP_KEY, rateLimit: { max: 100, windowSeconds: 60 } }))
 
 // Fastify
 import { blackholeFastify } from '@c9up/blackhole/fastify'
-fastify.register(blackholeFastify({ csrf: true }))
+fastify.register(blackholeFastify({ csrf: true, secret: process.env.APP_KEY }))
 ```
 
 Après son passage, le token CSRF est sur `request.csrfToken` et le nonce CSP sur `response.nonce`.
@@ -83,40 +83,53 @@ Les query strings et corps de requête ne sont **pas** modifiés ; l'entrée uti
 
 ## Protection CSRF
 
-Validation **double-submit cookie** sans état, avec une API compatible AdonisJS. Les méthodes qui modifient l'état (`POST`, `PUT`, `PATCH`, `DELETE`) doivent porter un token qui correspond à celui du cookie `XSRF-TOKEN` — aucun store côté serveur, donc ça scale horizontalement (rien à purger, rien de perdu au redémarrage).
+Validation **double-submit cookie signé** sans état (HMAC-SHA256), avec une API compatible AdonisJS. Le cookie `XSRF-TOKEN` porte `<random>.<HMAC(secret, random)>`. Une requête qui modifie l'état (`POST`, `PUT`, `PATCH`, `DELETE`) doit renvoyer ce token exact **et** le token doit porter une signature valide. Aucun store côté serveur, donc ça scale horizontalement — chaque instance a juste besoin du même `secret`.
+
+La signature est ce qui en fait un double-submit *signé* (la forme recommandée par l'OWASP) : un double-submit naïf accepte n'importe quelle paire auto-cohérente, donc un attaquant capable de poser un cookie `XSRF-TOKEN` (un sous-domaine frère, un MITM sur un frère HTTP) pourrait en forger un. Un token signé ne peut pas être forgé sans le secret.
+
+::: warning Nécessite un secret (breaking)
+Quand le CSRF est activé, un `secret` est **obligatoire**. `createBlackhole({ csrf: true })` sans secret **throw** — il n'y a aucun fallback silencieux vers un token non signé. Passe `secret: env.get('APP_KEY')` dans `config/blackhole.ts` (le provider retombe aussi sur `process.env.APP_KEY`). Le secret doit être une valeur stable à haute entropie (utilise ton `APP_KEY`) et **partagée entre les instances** — un token signé par une instance doit se vérifier sur une autre.
+:::
 
 ### Fonctionnement
 
-1. **Amorçage** — À chaque requête le middleware s'assure qu'un cookie `XSRF-TOKEN` existe (en générant un token CSPRNG via `getrandom` s'il est absent) et publie le token dans `ctx.request.csrfToken` (idiome Adonis) et dans `ctx.store` (`csrfToken`) pour le templating.
+1. **Amorçage** — À chaque requête le middleware s'assure qu'un cookie `XSRF-TOKEN` existe (en générant `<random>.<HMAC>` avec du CSPRNG via `getrandom` s'il est absent) et publie le token dans `ctx.request.csrfToken` (idiome Adonis) et dans `ctx.store` (`csrfToken`) pour le templating.
 2. **Soumission** — Sur une requête non sûre, le client renvoie le même token, via **l'un** de :
    - le header `X-XSRF-TOKEN` (Axios / Angular `HttpClient` lisent le cookie automatiquement),
    - le header `X-CSRF-TOKEN` (clients SPA manuels),
    - le champ de formulaire `_csrf` (formulaires rendus côté serveur — voir `csrfField()` ci-dessous).
-3. **Validation** — Le token soumis est comparé (temps constant) au cookie. Une non-correspondance ou un token manquant est rejeté avec `403 CSRF_FAILED`.
+3. **Validation** — Le token soumis doit égaler le cookie (temps constant) **et** porter une signature HMAC valide sous le secret. Une non-correspondance, une valeur forgée/non signée, ou un token manquant est rejeté avec `403 CSRF_FAILED`.
 
 ```
 POST /orders                                       → 403 CSRF_FAILED (pas de token)
-POST /orders  cookie: XSRF-TOKEN=a1b2…
-              X-XSRF-TOKEN: a1b2…                  → 200 OK
-POST /orders  cookie: XSRF-TOKEN=a1b2…  X-XSRF-TOKEN: ZZZ  → 403 CSRF_FAILED
+POST /orders  cookie: XSRF-TOKEN=a1b2.SIG
+              X-XSRF-TOKEN: a1b2.SIG               → 200 OK
+POST /orders  cookie: XSRF-TOKEN=a1b2.SIG  X-XSRF-TOKEN: ZZZ      → 403 CSRF_FAILED
+POST /orders  cookie: XSRF-TOKEN=forged   X-XSRF-TOKEN: forged    → 403 CSRF_FAILED (pas de signature valide)
 ```
 
 ### Configuration
 
 ```ts
 // config/blackhole.ts
+import env from '#start/env'
 import { defineConfig } from '@c9up/blackhole'
 
 export default defineConfig({
+  secret: env.get('APP_KEY'),                   // clé HMAC — OBLIGATOIRE quand csrf est actif
   csrf: {
     exceptRoutes: ['/api/webhooks/*'],          // ignorer le CSRF (exact ou préfixe trailing-*)
     methods: ['POST', 'PUT', 'PATCH', 'DELETE'], // verbes protégés (défaut affiché)
-    cookie: { sameSite: 'lax', secure: true },   // attributs du cookie XSRF-TOKEN
+    cookie: { sameSite: 'lax' },                 // attributs du cookie XSRF-TOKEN
   },
 })
 ```
 
 `csrf: true` / `csrf: false` est un raccourci pour activer/désactiver avec les défauts. `GET`, `HEAD` et `OPTIONS` ne sont jamais protégés.
+
+**Attributs du cookie.** Le cookie `XSRF-TOKEN` est désormais `Secure` par défaut en production (`NODE_ENV === 'production'`) — pas besoin de le poser à la main. Il n'est volontairement **pas** `httpOnly` : le flux double-submit a besoin que le JS du navigateur lise le cookie et le renvoie en `X-XSRF-TOKEN`. Mettre `cookie: { httpOnly: true }` rend le cookie illisible et tout POST non-formulaire fera `403` — blackhole log un avertissement si tu le fais. Ne l'active que pour une app entièrement rendue côté serveur qui soumet exclusivement via le champ `_csrf`.
+
+> Les routes Bearer/JWT sont immunisées contre le CSRF (le navigateur ne peut pas attacher un header `Authorization` cross-site) : liste tes préfixes d'API token-authed dans `exceptRoutes` et réserve le CSRF aux routes cookie/session.
 
 ### Helpers de templating
 
