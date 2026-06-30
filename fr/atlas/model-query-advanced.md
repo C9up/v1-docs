@@ -77,6 +77,42 @@ repo.query().where('id', 10).increment('attempts', 1)
 
 Pour des critères SQL complexes non couverts par les clauses sûres, passer par du raw SQL paramétré.
 
+## Transactions
+
+`transaction(db, callback)` exécute le callback dans une transaction — commit en
+cas de succès, rollback si une erreur est levée. Elle est **épinglée à une seule
+connexion** (`db.begin()` en interne) : chaque `query`/`execute` sur le handle
+`trx` s'exécute sur cette même connexion, donc un lire-puis-décider-puis-écrire
+est réellement atomique, et la connexion n'est rendue au pool qu'au
+commit/rollback.
+
+```ts
+import { transaction } from '@c9up/atlas'
+
+const next = await transaction(db, async (trx) => {
+  const [row] = await trx.query<{ counter: number }>(
+    'SELECT counter FROM counters WHERE id = ?', [id],
+  )
+  const value = row.counter + 1
+  await trx.execute('UPDATE counters SET counter = ? WHERE id = ?', [value, id])
+  return value // committé ; lever une erreur ici annule tout
+})
+```
+
+Les appels `transaction()` imbriqués réutilisent la même connexion via
+`SAVEPOINT` (rollback partiel). Passer le `trx` actif à un repository avec
+`repo.useTransaction(trx)`.
+
+> Ne jamais émuler une transaction en envoyant `BEGIN`/`COMMIT` via
+> `db.execute()` sur une connexion du pool : chaque appel peut atterrir sur une
+> connexion différente, les instructions se dispersent — rien n'est atomique et
+> un verrou de ligne peut rester bloqué sur une connexion idle du pool. Toujours
+> passer par `transaction()` / `db.begin()`.
+
+Pour une liste figée d'instructions sans lecture intermédiaire, utiliser
+`runInTransaction(batch)` — atomique mais non interactif (utilisé par les
+migrations).
+
 ## Locks
 
 ```ts
