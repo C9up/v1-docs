@@ -79,12 +79,11 @@ Pour des critères SQL complexes non couverts par les clauses sûres, passer par
 
 ## Transactions
 
-`transaction(db, callback)` exécute le callback dans une transaction — commit en
-cas de succès, rollback si une erreur est levée. Elle est **épinglée à une seule
-connexion** (`db.begin()` en interne) : chaque `query`/`execute` sur le handle
-`trx` s'exécute sur cette même connexion, donc un lire-puis-décider-puis-écrire
-est réellement atomique, et la connexion n'est rendue au pool qu'au
-commit/rollback.
+Atlas reprend l'API de transactions de Lucid. Dans les deux cas la transaction
+est **épinglée à une seule connexion**, donc un lire-puis-décider-puis-écrire est
+réellement atomique, et la connexion n'est rendue au pool qu'au commit/rollback.
+
+**Managed** — commit automatique en cas de succès, rollback si une erreur est levée :
 
 ```ts
 import { transaction } from '@c9up/atlas'
@@ -97,6 +96,30 @@ const next = await transaction(db, async (trx) => {
   await trx.execute('UPDATE counters SET counter = ? WHERE id = ?', [value, id])
   return value // committé ; lever une erreur ici annule tout
 })
+
+// La même chose en méthode (parité Lucid) :
+await db.transaction(async (trx) => { /* … */ })
+```
+
+**Manuel** — vous pilotez `commit()` / `rollback()` :
+
+```ts
+const trx = await db.transaction()
+try {
+  await trx.execute('UPDATE …')
+  await trx.commit()
+} catch (err) {
+  await trx.rollback()
+  throw err
+}
+```
+
+**Niveau d'isolation** (`read uncommitted` | `read committed` | `repeatable read`
+| `serializable` ; appliqué sur Postgres / MySQL, ignoré sur SQLite) :
+
+```ts
+await db.transaction(async (trx) => { /* … */ }, { isolationLevel: 'serializable' })
+const trx = await db.transaction({ isolationLevel: 'repeatable read' })
 ```
 
 Les appels `transaction()` imbriqués réutilisent la même connexion via
@@ -107,7 +130,7 @@ Les appels `transaction()` imbriqués réutilisent la même connexion via
 > `db.execute()` sur une connexion du pool : chaque appel peut atterrir sur une
 > connexion différente, les instructions se dispersent — rien n'est atomique et
 > un verrou de ligne peut rester bloqué sur une connexion idle du pool. Toujours
-> passer par `transaction()` / `db.begin()`.
+> passer par `transaction()` / `db.transaction()`.
 
 Pour une liste figée d'instructions sans lecture intermédiaire, utiliser
 `runInTransaction(batch)` — atomique mais non interactif (utilisé par les

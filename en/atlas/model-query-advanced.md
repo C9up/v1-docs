@@ -79,12 +79,11 @@ For complex SQL criteria unsupported by safe clauses, use explicit raw SQL with 
 
 ## Transactions
 
-`transaction(db, callback)` runs the callback inside a database transaction —
-commit on success, rollback on a thrown error. It is **pinned to a single
-connection** (`db.begin()` under the hood): every `query`/`execute` on the `trx`
-handle runs on that one connection, so a read-then-decide-then-write is
-genuinely atomic, and the connection is only returned to the pool on
-commit/rollback.
+Atlas mirrors Lucid's transaction API. Either way the transaction is **pinned to
+a single connection**, so a read-then-decide-then-write is genuinely atomic, and
+the connection is only returned to the pool on commit/rollback.
+
+**Managed** — auto commit on success, rollback on a thrown error:
 
 ```ts
 import { transaction } from '@c9up/atlas'
@@ -97,6 +96,30 @@ const next = await transaction(db, async (trx) => {
   await trx.execute('UPDATE counters SET counter = ? WHERE id = ?', [value, id])
   return value // committed; throw to roll the whole thing back
 })
+
+// Same thing as a method (Lucid parity):
+await db.transaction(async (trx) => { /* … */ })
+```
+
+**Manual** — you drive `commit()` / `rollback()`:
+
+```ts
+const trx = await db.transaction()
+try {
+  await trx.execute('UPDATE …')
+  await trx.commit()
+} catch (err) {
+  await trx.rollback()
+  throw err
+}
+```
+
+**Isolation level** (`read uncommitted` | `read committed` | `repeatable read` |
+`serializable`; applied on Postgres / MySQL, ignored on SQLite):
+
+```ts
+await db.transaction(async (trx) => { /* … */ }, { isolationLevel: 'serializable' })
+const trx = await db.transaction({ isolationLevel: 'repeatable read' })
 ```
 
 Nested `transaction()` calls reuse the same connection via `SAVEPOINT` (partial
@@ -105,7 +128,7 @@ rollback). Hand the active `trx` to a repository with `repo.useTransaction(trx)`
 > Never emulate a transaction by issuing `BEGIN`/`COMMIT` through `db.execute()`
 > on a pooled connection: each call may land on a different connection, so the
 > statements scatter — nothing is atomic and a row lock can be stranded on an
-> idle pooled connection. Always go through `transaction()` / `db.begin()`.
+> idle pooled connection. Always go through `transaction()` / `db.transaction()`.
 
 For a fixed list of statements you don't need to read between, use
 `runInTransaction(batch)` — atomic but non-interactive (what migrations use).
