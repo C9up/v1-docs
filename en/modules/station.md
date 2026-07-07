@@ -25,6 +25,41 @@ export default defineConfig({
 });
 ```
 
+## Views (Inker)
+
+Station renders its admin pages through [`@c9up/inker`](./inker) templates that
+ship inside the package, rather than a hand-rolled view layer. The templates
+live in the package `templates/` root (`templates/layout.inker`, the shared
+shell, and per-page templates such as `templates/errors/404.inker`), resolved
+from the module URL so the same path holds whether Station runs from source or
+from its published build.
+
+This follows the **AdonisJS package-views pattern** (Edge `edge.mount(name, dir)`
++ `namespace::template`). Station does not construct its own view engine: it
+resolves the host's **shared** inker renderer from the container under the
+`"inker"` alias (the one `InkerProvider` binds), mounts its package `templates/`
+directory as a named **disk** (`renderer.mount("station", …)`), and renders
+`station::errors/404`. Inside a Station template, references to sibling
+templates are namespaced too — the 404 declares `{% layout 'station::layout' %}`.
+
+Like every other Ream-universe package Station integrates, the engine is
+consumed **purely through the container** — exactly like `@c9up/warden`. There
+is no static or dynamic `import "@c9up/inker"` anywhere in Station's source;
+`@c9up/inker` is an **optional peer dependency** provided by the host.
+
+Unlike Warden — whose absence keeps the open dev-preview path alive — the view
+engine is a **hard render requirement**: there is no admin page without it. Once
+an admin surface is registered, an unwired `"inker"` renderer fails **loud at
+boot** (`register @c9up/inker (InkerProvider) to render admin views`) rather than
+degrading silently or erroring on the first request. Wire `InkerProvider` (and
+its `@c9up/rosetta` / router peers) before Station. A host that registers no
+resources never needs it.
+
+> **Migration in progress.** The 404 page is the first view rendered through
+> inker. The `list` / `show` / `create` / `edit` and `login` views are still
+> hand-rolled and migrate in later stories; the hand-rolled view layer is
+> retired once every page renders through inker.
+
 ## Authorization
 
 Station authorizes every admin action exclusively through Warden's unified

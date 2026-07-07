@@ -83,6 +83,8 @@ const templates = new Templates({
 await templates.render(name, data)      // async ; charge <root>/<name>.inker
 templates.renderString(source, data)    // sync ; rend une chaîne en mémoire
 templates.clearCache()                  // vide tout le cache d'AST
+templates.mount('admin', '/abs/admin')  // disque nommé → render 'admin::dashboard'
+templates.unmount('admin')              // retire un disque nommé
 ```
 
 ### `render(name, data)`
@@ -114,6 +116,27 @@ Aucune clé de cache — l'appelant est responsable du cache de ses propres sour
 ### `clearCache()`
 
 Vide chaque AST en cache. Utilisé par le provider de la Story 53.5 sur `shutdown` et par les tests qui assertent du cache-bust.
+
+### `mount(diskName, dir)` / `unmount(diskName)`
+
+**Disques** nommés — parité AdonisJS/Edge `edge.mount(name, dir)`. Monte un second dossier de templates sous un namespace, puis adresse ses templates comme `diskName::template` :
+
+```ts
+templates.mount('admin', '/chemin/abs/vers/admin-templates')
+
+await templates.render('admin::dashboard')   // <admin>/dashboard.inker
+await templates.render('home')                // <racine par défaut>/home.inker
+```
+
+Un nom **nu** résout toujours contre le disque par défaut (le `root` du constructeur) ; un nom `disk::name` résout contre le disque monté — exactement comme Edge. Les références à l'intérieur d'un template sont résolues de la même façon, donc la composition cross-disque est explicite :
+
+```inker
+{% layout 'admin::layout' %}
+{% include 'admin::partials/sidebar' %}
+{% component 'admin::button' { label: 'Save' } %}
+```
+
+C'est ainsi qu'un **package livre ses propres vues** : il résout le renderer partagé de l'hôte, `mount` son dossier de templates sous son propre namespace, et rend `pkg::template` — voir comment [Station](./station) monte ses vues d'admin. Le containment est appliqué contre la racine **propre** de chaque disque (la même validation de forme de chemin et le même garde-fou symlink que la racine par défaut), donc monter un dossier n'élargit jamais la traversée hors d'une racine. Un nom de disque doit être de forme identifiant (`[A-Za-z0-9_-]+`) ; les séparateurs de chemin et `::` sont rejetés. `unmount(name)` retire un disque (no-op s'il est absent). Re-monter un nom écrase son dossier.
 
 ## Sémantique du cache
 

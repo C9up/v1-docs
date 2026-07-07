@@ -83,6 +83,8 @@ const templates = new Templates({
 await templates.render(name, data)      // async; loads <root>/<name>.inker
 templates.renderString(source, data)    // sync; renders an in-memory string
 templates.clearCache()                  // drop the entire AST cache
+templates.mount('admin', '/abs/admin')  // named disk → render 'admin::dashboard'
+templates.unmount('admin')              // remove a named disk
 ```
 
 ### `render(name, data)`
@@ -114,6 +116,27 @@ No cache key — the caller is responsible for caching its own template sources.
 ### `clearCache()`
 
 Drops every cached AST. Used by Story 53.5's provider on `shutdown` and by tests asserting cache-bust behaviour.
+
+### `mount(diskName, dir)` / `unmount(diskName)`
+
+Named **disks** — AdonisJS/Edge `edge.mount(name, dir)` parity. Mount a second templates directory under a namespace, then address its templates as `diskName::template`:
+
+```ts
+templates.mount('admin', '/abs/path/to/admin-templates')
+
+await templates.render('admin::dashboard')   // <admin>/dashboard.inker
+await templates.render('home')                // <default root>/home.inker
+```
+
+A **bare** name always resolves against the default (constructor `root`) disk; a `disk::name` name resolves against the mounted disk — exactly like Edge. References inside a template are resolved the same way, so cross-disk composition is explicit:
+
+```inker
+{% layout 'admin::layout' %}
+{% include 'admin::partials/sidebar' %}
+{% component 'admin::button' { label: 'Save' } %}
+```
+
+This is how a **package ships its own views**: it resolves the host's shared renderer, `mount`s its package templates dir under its own namespace, and renders `pkg::template` — see how [Station](./station) mounts its admin views. Containment is enforced against each disk's **own** root (the same path-shape validation and symlink guard as the default root), so mounting a directory never widens traversal out of any root. A disk name must be identifier-shaped (`[A-Za-z0-9_-]+`); path separators and `::` are rejected. `unmount(name)` removes a disk (no-op if absent). Re-mounting a name overwrites its directory.
 
 ## Cache semantics
 

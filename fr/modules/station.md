@@ -27,6 +27,44 @@ export default defineConfig({
 });
 ```
 
+## Vues (Inker)
+
+Station rend ses pages d'admin via des templates [`@c9up/inker`](./inker)
+livrés à l'intérieur du package, plutôt qu'une couche de vues écrite à la main.
+Les templates vivent dans la racine `templates/` du package
+(`templates/layout.inker`, la coquille partagée, et des templates par page comme
+`templates/errors/404.inker`), résolus depuis l'URL du module afin que le même
+chemin soit valide que Station tourne depuis les sources ou depuis son build
+publié.
+
+Cela suit le **pattern des vues de package AdonisJS** (Edge `edge.mount(name,
+dir)` + `namespace::template`). Station ne construit pas son propre moteur de
+vues : il résout le renderer inker **partagé** de l'hôte depuis le conteneur
+sous l'alias `"inker"` (celui que `InkerProvider` enregistre), monte son
+dossier `templates/` comme un **disque** nommé (`renderer.mount("station", …)`),
+et rend `station::errors/404`. À l'intérieur d'un template Station, les
+références aux templates voisins sont aussi namespacées — le 404 déclare
+`{% layout 'station::layout' %}`.
+
+Comme chaque autre package de l'univers Ream que Station intègre, le moteur est
+consommé **purement via le conteneur** — exactement comme `@c9up/warden`. Il n'y
+a aucun `import "@c9up/inker"` statique ou dynamique nulle part dans les sources
+de Station ; `@c9up/inker` est un **peer optionnel** fourni par l'hôte.
+
+Contrairement à Warden — dont l'absence garde vivant le chemin dev-preview
+ouvert — le moteur de vues est une **exigence de rendu stricte** : il n'y a pas
+de page d'admin sans lui. Dès qu'une surface d'admin est enregistrée, un
+renderer `"inker"` non câblé échoue **bruyamment au démarrage** (`register
+@c9up/inker (InkerProvider) to render admin views`) plutôt que de se dégrader
+silencieusement ou d'échouer à la première requête. Câblez `InkerProvider` (et
+ses peers `@c9up/rosetta` / routeur) avant Station. Un hôte qui n'enregistre
+aucune ressource n'en a jamais besoin.
+
+> **Migration en cours.** La page 404 est la première vue rendue via inker. Les
+> vues `list` / `show` / `create` / `edit` et `login` sont encore écrites à la
+> main et migreront dans des stories ultérieures ; la couche de vues manuelle est
+> retirée une fois que chaque page est rendue via inker.
+
 ## Autorisation
 
 Station autorise chaque action d'admin exclusivement via la couche
