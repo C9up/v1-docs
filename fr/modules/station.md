@@ -60,10 +60,12 @@ silencieusement ou d'échouer à la première requête. Câblez `InkerProvider` 
 ses peers `@c9up/rosetta` / routeur) avant Station. Un hôte qui n'enregistre
 aucune ressource n'en a jamais besoin.
 
-> **Migration en cours.** La page 404 est la première vue rendue via inker. Les
-> vues `list` / `show` / `create` / `edit` et `login` sont encore écrites à la
-> main et migreront dans des stories ultérieures ; la couche de vues manuelle est
-> retirée une fois que chaque page est rendue via inker.
+> **Migration en cours.** Les pages 404, `list` et `show` sont désormais rendues
+> via inker (`templates/list.inker`, `templates/show.inker`) — les handlers
+> construisent un view-model pur et inker prend en charge l'échappement HTML. Les
+> vues `create` / `edit` et `login` sont encore écrites à la main et migreront
+> dans des stories ultérieures ; la couche de vues manuelle est retirée une fois
+> que chaque page est rendue via inker.
 
 ## Autorisation
 
