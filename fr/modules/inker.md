@@ -13,6 +13,8 @@ L'epic interdit de tirer une dépendance de templating (Handlebars, Mustache, Et
 
 > La source des expressions est contrôlée par l'auteur (fichiers `.inker`) — le même niveau de confiance que le reste du code de l'app. C'est le modèle d'Edge, et c'est pourquoi un helper peut être appelé *à l'intérieur* d'une expression riche (`{{ users.filter(u => can(u)).map(u => u.name).join(', ') }}`).
 
+> **Frontière de confiance (sécurité).** Comme les expressions tournent dans V8, un template *est du code*. Ne passe jamais d'entrée non fiable à `renderString`, et ne charge jamais de template `.inker` depuis une source non fiable (un champ CMS, un upload utilisateur) — ce serait de l'exécution de code arbitraire, exactement comme dans Edge. En durcissement (une déviation nommée de la parité Edge stricte), les globals Node dangereux — `process`, `globalThis`, `global`, `require`, `module`, `exports`, `Function`, `eval` — sont masqués à `undefined` dans le scope d'expression, donc `{{ process.env.SECRET }}` ou `@eval(require('child_process')…)` échouent. Ce n'est **pas** un sandbox : un échappement déterminé par chaîne de propriétés (`({}).constructor.constructor(…)`) n'est pas bloqué. Traite les templates comme du code de confiance.
+
 Le package reste ainsi sans dépendance runtime, agnostique par construction, et exempt de toute VM JS embarquée (un spike QuickJS antérieur a été abandonné : deux runtimes impliquaient un pont FFI sujet aux crashs, et V8-dans-Node est à la fois plus simple et plus rapide).
 
 ## Convention de fichiers
