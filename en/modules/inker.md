@@ -1,18 +1,19 @@
 # Inker — Server-side Templates
 
-Inker is the server-side templating module in the Ream ecosystem (`@c9up/inker`).
+Inker is the server-side templating module in the Ream ecosystem (`@c9up/inker`). It is a hand-rolled **AdonisJS Edge** clone: the same `@`-directive syntax, the same `{{ }}` interpolation, the same layouts / sections / components / slots — with a Rust lexer + parser and a Node evaluator.
 
-> Status: Story 53.1 has landed the minimum credible engine — hand-rolled lexer + parser + renderer with HTML-escape-by-default interpolation, member-access expression resolution, and a per-instance AST cache. Layouts (53.2), control flow (53.3), helpers (53.4), the Ream provider (53.5), and the agnostic `@c9up/inker/testing` sub-path (53.6) all land in subsequent stories.
+> Status: full Edge-parity engine. `{{ }}` interpolation evaluates real JavaScript expressions; `@if`/`@elseif`/`@else`/`@unless`, `@each`, `@let`, `@layout` + `@section`/`@super`, `@include`/`@includeIf`, `@component` + `@slot` with `$props`/`$slots`, core globals, registered helpers, `@eval`/`@dump`, and custom tags (`registerTag`) all ship. The Ream provider and the agnostic `@c9up/inker/testing` sub-path are wired.
 
-## Why hand-rolled
+## Architecture — Rust parses, Node evaluates (the Edge model)
 
-The epic explicitly forbids pulling in a templating dependency (Handlebars, Mustache, Eta, EJS, Pug, Nunjucks, even Edge.js itself). Inker is a hand-rolled lexer + AST + renderer trifecta:
+The epic forbids pulling in a templating dependency (Handlebars, Mustache, Eta, EJS, Pug, Nunjucks, even Edge.js itself). Inker is hand-rolled, split across a Rust core and a Node renderer:
 
-- The lexer is a single forward scan over the source — no regex-only paths.
-- The parser walks the token stream linearly, freezes the AST, and uses a TypeScript exhaustiveness check so a new node kind in 53.2-53.4 is a compile-time error if the renderer forgets to extend.
-- The renderer accumulates into a `string[]` buffer and joins at the end (memory-friendly vs. `+=` concatenation).
+- **Rust (`inker-engine`)** — a single forward-scan lexer and a linear parser turn a `.inker` source into a **JSON AST** (`parseTemplate` / `parseTemplateJson` over NAPI). This is the CPU-bound work; each node carries the *verbatim source* of its expressions.
+- **Node (`renderNode.ts`)** — walks the JSON AST and evaluates each expression's source in Node's own **V8**, with the registered helpers, core globals, and the render scope all in lexical scope — exactly like Edge (one runtime; helpers are plain functions callable anywhere, including inside arrow functions and loop-scoped arguments).
 
-This makes the package zero-peer-dep, agnostic by construction, and easy to extend story by story.
+> The expression source is author-controlled (`.inker` files) — the same trust level as the rest of the app's code. That is Edge's model, and it is why a helper can be called *inside* a rich expression (`{{ users.filter(u => can(u)).map(u => u.name).join(', ') }}`).
+
+This keeps the package zero-runtime-dep, agnostic by construction, and free of any embedded JS VM (an earlier QuickJS spike was dropped: two runtimes meant a crash-prone FFI bridge, and V8-in-Node is both simpler and faster).
 
 ## File convention
 
@@ -34,7 +35,7 @@ const html = await templates.render('invoice', {
 
 The constructor throws `InkerRenderError({ code: 'E_INKER_INVALID_PATH' })` if `root` is relative, missing, or points at a file rather than a directory.
 
-## Interpolation syntax
+## Interpolation & expressions
 
 Inker mirrors Adonis Edge for output:
 
@@ -46,29 +47,185 @@ Inker mirrors Adonis Edge for output:
 <div>{{{ richBody }}}</div>
 ```
 
-The `expr` between braces is a **member-access path**, not a JavaScript expression. 53.1 supports:
-
-| Form               | Resolves to                              |
-|--------------------|------------------------------------------|
-| `name`             | `data.name`                              |
-| `customer.name`    | `data.customer.name`                     |
-| `items[0]`         | `data.items[0]` (non-negative int only)  |
-| `items["weird k"]` | `data["weird k"]` (`\"`/`\'`/`\\` only)  |
-| `items[0].title`   | nested mix                               |
-
-Arithmetic (`a + b`), function calls (`fn(x)`), ternaries (`a ? b : c`), optional chaining (`a?.b`), and template literals all throw `E_INKER_PARSE_ERROR` with a descriptive reason — full JS-expression evaluation arrives with helpers in Story 53.4.
-
-### Escape characters
-
-Use `\{{` and `\}}` to emit literal `{{` / `}}` in the rendered output (the backslash is consumed):
+The `expr` between braces is a **full JavaScript expression**, evaluated in V8 with helpers, globals, and the render scope in scope:
 
 ```inker
-Use \{{ name \}} to interpolate.   →   Use {{ name }} to interpolate.
+{{ n > 1 ? n * 2 : 0 }}
+{{ items.map(i => i.title).join(', ') }}
+{{ users.filter(u => u.active).length }}
+{{ truncate(post.body, 120) }}
+{{ customer?.address?.city ?? 'n/a' }}
 ```
 
-### Whitespace and comments
+A value that is a `SafeString` is emitted raw (even in the escaped `{{ }}` form); `null` / `undefined` render as the empty string; scalars stringify (numbers without a trailing `.0`, `-0` → `0`). An expression that references an unknown identifier (or navigates into `null`/`undefined`) throws `E_INKER_UNKNOWN_IDENTIFIER` with the source position.
 
-53.1 preserves every byte outside interpolation braces verbatim. Edge's `{{- expr -}}` whitespace-trim syntax and `{{-- comment --}}` comment syntax are NOT implemented in 53.1 (deferred per Story 53.1 D7); render output is byte-stable against the source.
+### Escape characters, comments, whitespace
+
+Use `\{{` / `\}}` to emit literal braces (the backslash is consumed). Edge-style comments are supported and stripped entirely — they emit nothing, and their contents are never parsed:
+
+```inker
+Use \{{ name \}} to interpolate.     →   Use {{ name }} to interpolate.
+{{-- this note, and any {{ x }} inside it, is stripped --}}
+```
+
+An unterminated `{{--` is a hard lex error, so a stray comment open cannot silently swallow the rest of a template.
+
+## Control flow
+
+Adonis-style block tags. `@if` / `@elseif` / `@else` / `@endif`, its negation `@unless`, and `@each` / `@endeach`:
+
+```inker
+@if(cart.items.length > 0)
+  <p>{{ cart.items.length }} item(s)</p>
+@elseif(cart.savedForLater.length)
+  <p>Nothing in the cart, but you have saved items.</p>
+@else
+  <p>Your cart is empty.</p>
+@endif
+
+@unless(user.verified)
+  <banner>Please verify your email.</banner>
+@endunless
+```
+
+`@each` iterates arrays, objects, `Map`s, and `Set`s, with an optional `@else` for the empty case:
+
+```inker
+@each(item in cart.items)
+  <li>{{ item.title }} — {{ item.price }}</li>
+@else
+  <li>empty</li>
+@endeach
+
+@each((value, key) in settings)
+  <tr><td>{{ key }}</td><td>{{ value }}</td></tr>
+@endeach
+```
+
+`(value, index)` binds the element and its position (numeric index for arrays/Sets, property key for objects). Iterating a `null`/`undefined` value throws `E_INKER_INVALID_ITERABLE` and points you at wrapping the loop in `@if()`.
+
+`@let` adds a block-scoped binding for every sibling that follows it, evaluated in a restricted pure-expression grammar:
+
+```inker
+@let(total = cart.items.reduce((s, i) => s + i.price, 0))
+<p>Total: {{ total }}</p>
+```
+
+## Layouts & sections
+
+A child template declares its layout with `@layout` (which must be the first node); the layout injects the child body at `{{> body }}` and named sections at their `@section` yields:
+
+```inker
+{{-- layouts/main.inker --}}
+<html>
+  <head><title>@section('title')Default title@endsection</title></head>
+  <body>{{> body }}</body>
+</html>
+```
+
+```inker
+{{-- home.inker --}}
+@layout('layouts/main')
+@section('title')Home — @super@endsection
+<h1>Welcome</h1>
+```
+
+In a layout a `@section('name')…@endsection` is a **yield** with default content; in a child it **fills** the matching yield. `@super` inside a child section injects the layout's default content for that section. Names resolve by position — no separate declaration.
+
+## Partials
+
+`@include('name')` renders another template's nodes in the **same** scope; `@includeIf(condition, 'name')` includes only when the condition is truthy:
+
+```inker
+@include('partials/header')
+@includeIf(user.isAdmin, 'partials/admin-bar')
+```
+
+## Components
+
+`@component('name', { props })` renders a component template with its **own** scope built from the passed props (it does not inherit the caller's data). Block body content and `@slot('name')…@endslot` blocks render in the **caller's** scope and are injected at the component's slot outlets:
+
+```inker
+{{-- components/card.inker --}}
+<div {{ $props.only(['id']).toAttrs() }} class="{{ $props.get('class', 'card') }}">
+  <header>{{ title }}</header>
+  {{ $slots.main() }}
+  @if($slots.footer)<footer>{{ $slots.footer() }}</footer>@endif
+</div>
+```
+
+```inker
+@component('components/card', { title: 'Invoice', class: 'card lg' })
+  <p>Body goes to the default (main) slot.</p>
+  @slot('footer')<a href="/pay">Pay now</a>@endslot
+@endcomponent
+```
+
+Inside a component:
+
+- `$props` is a chainable API — `all()`, `get(key, fallback)`, `has(key)`, `only(keys)`, `except(keys)`, `merge(defaults)` (caller props win; `class` is combined), and `toAttrs()` (serialise to an HTML attribute string).
+- `$slots.main()` renders the default (body) slot; `$slots.<name>()` a named slot; `$slots.<name>` is `undefined` when absent, so `@if($slots.footer)` works.
+
+## Helpers & globals
+
+Two function layers are always in expression scope:
+
+- **Core globals** — string casing (`camelCase`, `pascalCase`, `snakeCase`, `dashCase`, `titleCase`), text (`truncate`, `excerpt`, `nl2br`), `pluralize`, formatting (`prettyBytes`, `prettyMs`, `ordinal`), `inspect`, and the `html` helpers (`html.attrs`, `html.classNames`, `html.safe`). These mirror Edge's built-in globals.
+- **Registered helpers** — passed to the constructor (`helpers` option) or wired by the provider: `t()` (i18n), `route`/`urlFor` and `signedUrlFor`, `asset`, `csrfField` / `csrfMeta`, etc. A registered name overrides a core global of the same name.
+
+```ts
+const templates = new Templates({
+  root,
+  helpers: new Map([
+    ['t', (key) => i18n.translate(String(key))],
+  ]),
+})
+```
+
+A helper (or global) that returns a `SafeString` is emitted raw — this is how a helper embeds pre-trusted markup (e.g. a CSRF hidden field, or a server-rendered Aurora island).
+
+## Custom tags — `registerTag`
+
+Register a custom `@`-tag (AdonisJS/Edge `edge.registerTag` parity). The definition is an object — `{ tagName, block, seekable, compile(parser, buffer, token) }` — and it makes the parser recognise `@<tagName>(jsArg)` in every template:
+
+```ts
+import fs from 'node:fs'
+
+templates.registerTag({
+  tagName: 'svg',
+  block: false,     // inline tag (block tags are not supported yet)
+  seekable: true,   // accepts an argument between parens
+  compile(parser, buffer, token) {
+    const name = token.properties.jsArg.trim().replace(/['"]/g, '')
+    buffer.writeRaw(fs.readFileSync(`./assets/icons/${name}.svg`, 'utf-8'))
+  },
+})
+```
+
+```inker
+@svg('user')
+<p>Rendered: @time()</p>
+```
+
+Inside `compile`:
+
+- `token.properties.jsArg` is the **verbatim** argument source between the parens.
+- `buffer.writeRaw(text)` emits verbatim markup.
+- `buffer.outputExpression(jsExpression, filename, line, escape)` evaluates a template expression (a JS source string) in the render scope and emits its value — escaped when `escape` is `true`.
+- A `seekable: false` tag rejects any argument; `block: true` is rejected (only inline tags ship for now).
+
+> **Inker deviation (named):** Edge runs `compile` once at template *compilation* (it emits JS). Inker parses in Rust and renders by walking the JSON AST, so `compile` runs at **render** time — the authoring model is identical, there is just no compile phase to imitate. Because a tag name changes how a template *parses*, `registerTag` clears the AST cache; register your tags during boot, before rendering. Registering a name that collides with a built-in directive, or an invalid identifier, throws `E_INKER_INVALID_PATH`; an unregistered `@word` is inert (rendered as literal text, Edge parity).
+
+Types `InkerTag`, `InkerTagBuffer`, `InkerTagToken`, `InkerTagParser` are exported from `@c9up/inker`.
+
+## Debugging — `@eval` / `@dump`
+
+`@eval(expr)` evaluates an expression for its side effects and emits nothing; `@dump(expr)` pretty-prints a value inside a `<pre class="inker-dump">` for debugging:
+
+```inker
+@eval(logger.debug('rendering invoice'))
+@dump(invoice)
+```
 
 ## Main API
 
@@ -78,10 +235,12 @@ import { Templates, InkerRenderError } from '@c9up/inker'
 const templates = new Templates({
   root: '/abs/path/to/templates',
   cacheMode: 'auto',  // 'auto' (default) | 'mtime' | 'never'
+  helpers: new Map(), // optional registered helpers
 })
 
 await templates.render(name, data)      // async; loads <root>/<name>.inker
-templates.renderString(source, data)    // sync; renders an in-memory string
+templates.renderString(source, data)    // sync; renders an in-memory string (no disk directives)
+templates.registerTag(definition)       // register a custom @tag (clears the cache)
 templates.clearCache()                  // drop the entire AST cache
 templates.mount('admin', '/abs/admin')  // named disk → render 'admin::dashboard'
 templates.unmount('admin')              // remove a named disk
@@ -89,33 +248,11 @@ templates.unmount('admin')              // remove a named disk
 
 ### `render(name, data)`
 
-Async. Resolves `<root>/<name>.inker` from disk, parses (cached), renders with the supplied data object:
-
-```ts
-const html = await templates.render('invoice', {
-  customer: { name: 'Alice' },
-  total: 42,
-})
-```
-
-Missing templates throw `InkerRenderError({ code: 'E_INKER_TEMPLATE_NOT_FOUND', context: { templatePath } })` — strict by default; no silent fallback. The original `fs.readFile` ENOENT is preserved on `.cause`.
+Async. Resolves `<root>/<name>.inker` from disk, parses (cached), composes layouts / partials / components, and renders with the supplied data. Missing templates throw `InkerRenderError({ code: 'E_INKER_TEMPLATE_NOT_FOUND', context: { templatePath } })` — strict by default; the original `fs.readFile` ENOENT is preserved on `.cause`.
 
 ### `renderString(source, data)`
 
-Sync. Useful for inline templates, one-shot rendering, and the controller-side `inker.render()` Story 53.5 builds on top:
-
-```ts
-const fragment = templates.renderString(
-  '<li>{{ item.title }}</li>',
-  { item: { title: 'Widget' } },
-)
-```
-
-No cache key — the caller is responsible for caching its own template sources.
-
-### `clearCache()`
-
-Drops every cached AST. Used by Story 53.5's provider on `shutdown` and by tests asserting cache-bust behaviour.
+Sync. Renders an in-memory string. It cannot resolve disk-backed directives (`@layout`, `@include`, `@component`, `{{> body }}`) — those throw `E_INKER_DISK_REQUIRED`; use `render(name, data)` instead. Custom tags and every in-string directive (`@if`, `@each`, …) work.
 
 ### `mount(diskName, dir)` / `unmount(diskName)`
 
@@ -128,12 +265,12 @@ await templates.render('admin::dashboard')   // <admin>/dashboard.inker
 await templates.render('home')                // <default root>/home.inker
 ```
 
-A **bare** name always resolves against the default (constructor `root`) disk; a `disk::name` name resolves against the mounted disk — exactly like Edge. References inside a template are resolved the same way, so cross-disk composition is explicit:
+A **bare** name always resolves against the default (constructor `root`) disk; a `disk::name` name resolves against the mounted disk — exactly like Edge. References inside a template resolve the same way, so cross-disk composition is explicit:
 
 ```inker
-{% layout 'admin::layout' %}
-{% include 'admin::partials/sidebar' %}
-{% component 'admin::button' { label: 'Save' } %}
+@layout('admin::layout')
+@include('admin::partials/sidebar')
+@component('admin::button', { label: 'Save' })
 ```
 
 This is how a **package ships its own views**: it resolves the host's shared renderer, `mount`s its package templates dir under its own namespace, and renders `pkg::template` — see how [Station](./station) mounts its admin views. Containment is enforced against each disk's **own** root (the same path-shape validation and symlink guard as the default root), so mounting a directory never widens traversal out of any root. A disk name must be identifier-shaped (`[A-Za-z0-9_-]+`); path separators and `::` are rejected. `unmount(name)` removes a disk (no-op if absent). Re-mounting a name overwrites its directory.
@@ -146,22 +283,11 @@ The `cacheMode` option resolves ONCE at construction:
 
 | Mode      | Behaviour                                                                           |
 |-----------|-------------------------------------------------------------------------------------|
-| `'auto'`  | `process.env.NODE_ENV === 'production' ? 'never' : 'mtime'`                         |
+| `'auto'`  | `process.env.NODE_ENV === 'production' ? 'never' : 'mtime'`                          |
 | `'mtime'` | Dev posture — `stat()` on every render; reparse when mtime advances                 |
 | `'never'` | Prod posture — **never invalidate**; first render wins forever (until `clearCache`) |
 
-Note: `'never'` means "never re-stat / never invalidate", not "never cache" — cached forever is the prod posture. Use `clearCache()` to force a re-read.
-
-```ts
-// dev (auto-derived from NODE_ENV !== 'production')
-const dev = new Templates({ root })
-
-// CI / test scenario where you want explicit hot-reload
-const reload = new Templates({ root, cacheMode: 'mtime' })
-
-// explicit prod (also implicit when NODE_ENV=production)
-const prod = new Templates({ root, cacheMode: 'never' })
-```
+`'never'` means "never re-stat / never invalidate", not "never cache" — cached forever is the prod posture. Use `clearCache()` (or `registerTag`, which clears it) to force a re-read.
 
 ## Errors
 
@@ -174,10 +300,9 @@ try {
   await templates.render('invoice', {})
 } catch (e) {
   if (e instanceof InkerRenderError) {
-    console.error(e.code)              // 'E_INKER_UNKNOWN_IDENTIFIER'
-    console.error(e.context.line)      // 4
-    console.error(e.context.column)    // 12
-    console.error(e.context.expression)// 'customer.name'
+    console.error(e.code)                 // 'E_INKER_UNKNOWN_IDENTIFIER'
+    console.error(e.context.line)         // 4
+    console.error(e.context.column)       // 12
     console.error(e.context.templatePath) // '/abs/path/invoice.inker'
   }
 }
@@ -185,56 +310,51 @@ try {
 
 | Code                              | When                                                                                     |
 |-----------------------------------|------------------------------------------------------------------------------------------|
-| `E_INKER_TEMPLATE_NOT_FOUND`      | The `<root>/<name>.inker` file does not exist (ENOENT). Original error on `.cause`.      |
-| `E_INKER_PARSE_ERROR`             | Lexer or path parser rejected the source (empty interpolation, JS-expression, bad path). |
-| `E_INKER_UNKNOWN_IDENTIFIER`      | The data object did not own the resolved member-access path (strict; no silent fallback).|
-| `E_INKER_INVALID_PATH`            | The constructor's `root` is relative, missing, or points at a file.                      |
-| `E_INKER_UNCLOSED_INTERPOLATION`  | The lexer hit EOF or an asymmetric brace before a matching close.                        |
+| `E_INKER_TEMPLATE_NOT_FOUND`      | The `<root>/<name>.inker` file does not exist (ENOENT). Original error on `.cause`.       |
+| `E_INKER_PARSE_ERROR`             | Lexer or parser rejected the source.                                                     |
+| `E_INKER_UNKNOWN_IDENTIFIER`      | An expression referenced an unknown identifier or navigated into `null`/`undefined`.     |
+| `E_INKER_INVALID_EXPRESSION`      | An expression failed to compile or produced a non-interpolable value.                    |
+| `E_INKER_INVALID_ITERABLE`        | `@each` was given a value that is not an array / object / Map / Set.                      |
+| `E_INKER_UNKNOWN_HELPER`          | An unknown helper name was called in an expression.                                      |
+| `E_INKER_UNKNOWN_TAG`             | A `@tag` was parsed as a custom tag but no handler is registered.                         |
+| `E_INKER_DISK_REQUIRED`          | A disk-backed directive (`@layout`/`@include`/`@component`) was used from `renderString`. |
+| `E_INKER_INVALID_PATH`            | Invalid constructor `root`, disk name, or `registerTag` definition.                      |
+| `E_INKER_UNCLOSED_INTERPOLATION` / `E_INKER_UNCLOSED_BLOCK` / `E_INKER_MISMATCHED_BLOCK_END` | Structural source errors (unbalanced braces / block tags). |
 
-All errors include `context.line` / `context.column` (1-based, source-position) when the failure is source-locatable, and `context.expression` (the verbatim text of the offending interpolation).
+All errors include `context.line` / `context.column` (1-based) when the failure is source-locatable.
 
 ## HTML-escape vs raw
 
 ```inker
-<!-- xss-safe by default -->
-{{ comment.body }}
-
-<!-- explicit raw output -->
-{{{ comment.body }}}
+{{ comment.body }}     <!-- xss-safe by default -->
+{{{ comment.body }}}   <!-- explicit raw output -->
 ```
 
-The escape map matches the canonical OWASP HTML-context escape set:
+The escape map covers the HTML-context set plus the two JS line-separator code points (which can break inline `<script>` context):
 
-| Char | Escapes to |
-|------|------------|
-| `&`  | `&amp;`    |
-| `<`  | `&lt;`     |
-| `>`  | `&gt;`     |
-| `"`  | `&quot;`   |
-| `'`  | `&#39;`    |
+| Char        | Escapes to  |
+|-------------|-------------|
+| `&`         | `&amp;`     |
+| `<`         | `&lt;`      |
+| `>`         | `&gt;`      |
+| `"`         | `&quot;`    |
+| `'`         | `&#39;`     |
+| `` ` ``     | `&#96;`     |
+| U+2028      | `&#x2028;`  |
+| U+2029      | `&#x2029;`  |
 
-`null` and `undefined` coerce to the empty string in both escape and raw modes — no `"null"` / `"undefined"` strings ever bleed into the output.
+`null` and `undefined` coerce to the empty string in both escape and raw modes — no `"null"` / `"undefined"` strings ever bleed into the output. A `SafeString` returned by a helper (or an expression) is emitted raw even inside `{{ }}`.
 
 ## Strict-by-default
 
-Inker shares the framework posture established by Atlas, Rune, and Warden: misconfiguration throws loud, descriptively, immediately. Specifically:
+Inker shares the framework posture established by Atlas, Rune, and Warden: misconfiguration throws loud, descriptively, immediately.
 
 - Missing templates throw — they do not return `null`.
-- Unknown identifiers throw with the path consumed so far — they do not render blank.
+- Unknown identifiers throw with the source position — they do not render blank.
 - Invalid root paths throw at construction — they do not lazy-fail at first render.
 - Parse errors throw with line + column — they do not best-effort partial render.
 
 The trade-off is fewer "blank invoice" production bugs at the cost of more discipline up front; for the framework's data-rendering surface (admin pages, invoices, emails), this is the right side of the trade.
-
-## Limitations in 53.1
-
-These are deliberate and tracked by the named follow-up story:
-
-- **No layouts / partials** — Story 53.2 adds `{% layout %}` / `{% include %}`.
-- **No control flow** — Story 53.3 adds `@if` / `@each` / `@component` (Adonis-style block tags).
-- **No helpers** — Story 53.4 adds `t()` / `csrfField()` / `url()` / `asset()` and the helpers-aware expression evaluator.
-- **No Ream provider** — Story 53.5 adds `inker.render(ctx, name, data)` and the container-singleton wiring.
-- **No `@c9up/inker/testing`** — Story 53.6 adds the agnostic fake renderer with `assertRendered(name, dataMatcher)` style assertions.
 
 ## Aurora islands
 
@@ -244,6 +364,7 @@ A helper can return a [SafeString](#html-escape-vs-raw) of server-rendered [Auro
 
 - Resolve `root` to an absolute path against your project layout — do not pass relative paths.
 - Leave `cacheMode` on `'auto'` so prod gets the fast cached-forever posture without ceremony.
+- Register all custom tags at boot (before the first render) — `registerTag` clears the cache.
 - Wrap every `render()` / `renderString()` call in a `try/catch` only at the route boundary — let the strict-by-default errors bubble through helpers and view models so misconfiguration is loud.
-- Bind `Templates` as a container singleton (Story 53.5's `InkerProvider` will do this for you) — never re-instantiate per request.
+- Bind `Templates` as a container singleton (the `InkerProvider` does this) — never re-instantiate per request.
 - For multi-tenant scenarios with different template roots, keep one `Templates` instance per tenant — the cache is per-instance by design.

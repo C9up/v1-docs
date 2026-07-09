@@ -60,15 +60,19 @@ silencieusement ou d'échouer à la première requête. Câblez `InkerProvider` 
 ses peers `@c9up/rosetta` / routeur) avant Station. Un hôte qui n'enregistre
 aucune ressource n'en a jamais besoin.
 
-> **Migration en cours.** Chaque page d'admin — 404, `list`, `show`, le
-> formulaire `create` / `edit` et `login` — est désormais rendue via inker
-> (`templates/list.inker`, `templates/show.inker`, `templates/form.inker`,
-> `templates/login.inker`). Chaque handler construit un view-model pur et inker
-> prend en charge l'échappement HTML. Les vues formulaire et login émettent leur
-> champ CSRF caché via le helper canonique `{{ csrfField() }}` d'inker (protégé
-> pour qu'un host sans CSRF continue de rendre la page). La couche de vues TS
-> écrite à la main qui subsiste (`escape.ts` et les vestiges `renderXxxPage`) est
-> retirée dans une story ultérieure, maintenant qu'aucune page n'en dépend.
+> **La couche de vues d'admin est intégralement rendue via inker.** Chaque page
+> d'admin — 404, `list`, `show`, le formulaire `create` / `edit` et `login` —
+> est rendue via inker (`templates/list.inker`, `templates/show.inker`,
+> `templates/form.inker`, `templates/login.inker`). Chaque handler construit un
+> view-model pur et inker prend en charge l'échappement HTML. Les vues formulaire
+> et login émettent leur champ CSRF caché via le helper canonique
+> `{{ csrfField() }}` d'inker (protégé pour qu'un host sans CSRF continue de
+> rendre la page). La couche de vues TS écrite à la main a été **retirée** — il
+> ne reste aucune implémentation de vues parallèle, et l'auto-échappement `{{ }}`
+> d'inker prend en charge tout l'échappement des vues. Le seul échappeur TS qui
+> subsiste est un petit helper local pour les bodies d'erreur 404 / 405 envoyés
+> en `text/html` hors du renderer inker ; il échappe les cinq mêmes caractères
+> qu'inker.
 
 ## Autorisation
 

@@ -55,15 +55,17 @@ degrading silently or erroring on the first request. Wire `InkerProvider` (and
 its `@c9up/rosetta` / router peers) before Station. A host that registers no
 resources never needs it.
 
-> **Migration in progress.** Every admin page — 404, `list`, `show`, the
-> `create` / `edit` form, and `login` — now renders through inker
-> (`templates/list.inker`, `templates/show.inker`, `templates/form.inker`,
+> **The admin view layer renders entirely through inker.** Every admin page —
+> 404, `list`, `show`, the `create` / `edit` form, and `login` — renders through
+> inker (`templates/list.inker`, `templates/show.inker`, `templates/form.inker`,
 > `templates/login.inker`). Each handler builds a pure view-model and inker owns
 > the HTML-escaping. The form and login views emit their CSRF hidden input via
 > inker's canonical `{{ csrfField() }}` helper (guarded so a host without CSRF
-> still renders). The hand-rolled TS view layer that remains (`escape.ts` and the
-> `renderXxxPage` remnants) is retired in a follow-up story now that no page
-> depends on it.
+> still renders). The hand-rolled TS view layer has been **retired** — there is
+> no parallel view implementation left, and inker's `{{ }}` auto-escaping owns
+> all view escaping. The only TS escaper that remains is a tiny local helper for
+> the 404 / 405 error bodies that are sent as `text/html` outside the inker
+> renderer; it escapes the same five characters as inker.
 
 ## Authorization
 
