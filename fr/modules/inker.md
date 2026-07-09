@@ -106,12 +106,23 @@ Des block tags façon Adonis. `@if` / `@elseif` / `@else` / `@endif`, sa négati
 
 `(value, index)` lie l'élément et sa position (index numérique pour les tableaux/Sets, clé de propriété pour les objets). Itérer une valeur `null`/`undefined` lève `E_INKER_INVALID_ITERABLE` et vous oriente vers l'encadrement de la boucle dans un `@if()`.
 
-`@let` ajoute une liaison à portée de bloc pour chaque frère qui le suit, évaluée dans une grammaire d'expression pure restreinte :
+`@let` ajoute une liaison à portée de bloc pour chaque frère qui le suit, évaluée comme une expression JavaScript complète :
 
 ```inker
 @let(total = cart.items.reduce((s, i) => s + i.price, 0))
 <p>Total: {{ total }}</p>
 ```
+
+Il prend aussi en charge la déstructuration d'objets et de tableaux, y compris le renommage, les valeurs par défaut et le rest — exactement comme Edge :
+
+```inker
+@let({ name, email } = user)
+@let([first, second, ...rest] = items)
+@let({ role = 'guest' } = session)
+<p>{{ name }} — {{ role }}</p>
+```
+
+Les noms de liaison sont validés au parsing : un identifiant invalide, un mot réservé ou une clé de prototype-pollution (`__proto__`/`constructor`/`prototype`) lève `E_INKER_INVALID_EXPRESSION` avant même le rendu du template.
 
 ## Layouts & sections
 

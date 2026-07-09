@@ -106,12 +106,23 @@ Adonis-style block tags. `@if` / `@elseif` / `@else` / `@endif`, its negation `@
 
 `(value, index)` binds the element and its position (numeric index for arrays/Sets, property key for objects). Iterating a `null`/`undefined` value throws `E_INKER_INVALID_ITERABLE` and points you at wrapping the loop in `@if()`.
 
-`@let` adds a block-scoped binding for every sibling that follows it, evaluated in a restricted pure-expression grammar:
+`@let` adds a block-scoped binding for every sibling that follows it, evaluated as a full JavaScript expression:
 
 ```inker
 @let(total = cart.items.reduce((s, i) => s + i.price, 0))
 <p>Total: {{ total }}</p>
 ```
+
+It also supports object and array destructuring, including rename, defaults, and rest — exactly like Edge:
+
+```inker
+@let({ name, email } = user)
+@let([first, second, ...rest] = items)
+@let({ role = 'guest' } = session)
+<p>{{ name }} — {{ role }}</p>
+```
+
+Binding names are validated at parse time: an invalid identifier, a reserved word, or a prototype-pollution key (`__proto__`/`constructor`/`prototype`) raises `E_INKER_INVALID_EXPRESSION` before the template renders.
 
 ## Layouts & sections
 
