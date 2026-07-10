@@ -192,6 +192,55 @@ vérification manque — middleware non câblé, `csrf: false`, ou `/admin/*` ex
 les écritures renvoient `403` et Station journalise un diagnostic pointant la
 mauvaise configuration.
 
+## Affectation de masse & validation
+
+Station valide chaque corps de requête **create**/**update** de l'admin contre
+un schéma [`@c9up/rune`](./rune) qu'elle dérive — une seule fois, au montage — à
+partir des métadonnées `@Column` atlas de l'entité. Colonnes inscriptibles
+uniquement : la clé primaire, les horodatages gérés par le framework (`created_at`
+/ `updated_at` / `deleted_at` et toute colonne `autoCreate`/`autoUpdate`), la
+colonne de suppression logique et les relations sont toutes exclues. Comme le
+schéma ne contient que les colonnes déclarées, **la protection contre
+l'affectation de masse est intrinsèque** — un corps portant `role`,
+`passwordHash`, la PK ou un horodatage voit ces clés écartées automatiquement ;
+elles n'atteignent jamais le dépôt.
+
+Les envois de formulaire arrivent sous forme de chaînes, et rune **ne** convertit
+pas les types : la dérivation ajoute donc la coercition nécessaire. Les colonnes
+`number`/`integer` acceptent une chaîne numérique (`"42"` → `42` ; une valeur non
+numérique échoue) et les colonnes booléennes sont lues comme des cases à cocher
+(case cochée → `true`, case **absente** → `false`, de sorte qu'une case décochée
+efface la colonne à l'édition). Les autres colonnes valident en tant que chaînes.
+Une colonne est requise lorsque le modèle ne déclare ni nullabilité ni valeur par
+défaut.
+
+Une entrée invalide **échoue en fermeture stricte avant toute écriture en base**
+— aucune ligne créée, aucune entité mutée, aucun événement d'audit émis. La
+réponse suit l'idiome de négociation de contenu d'AdonisJS :
+
+- **JSON / XHR** → `422` avec `{ errors: [{ field, rule, message }] }` (la forme
+  AdonisJS/VineJS, identique à celle du handler `E_VALIDATION_ERROR` de ream).
+- **Navigateur (avec session)** → le pattern PRG : l'entrée soumise et les
+  erreurs par champ sont flashées dans `ctx.session`, puis `redirect().back()`
+  vers le formulaire, qui relit le flash et re-rend avec les valeurs + erreurs.
+  Aucun corps re-POSTé au rafraîchissement. (Enregistrez le `SessionMiddleware`
+  de ream pour l'activer.)
+- **Navigateur (sans session)** → repli gracieux : le formulaire est re-rendu en
+  ligne avec un `422` afin que les valeurs + erreurs ne soient jamais perdues
+  silencieusement.
+
+`@c9up/rune` est un pair optionnel, consommé via un import dynamique tolérant (le
+même point de couture qu'atlas). Lorsqu'un admin avec écriture est monté mais que
+rune n'est pas installé, Station **refuse de démarrer** plutôt que d'accepter des
+corps non validés — il n'y a aucun repli vers une affectation de masse non
+vérifiée.
+
+> **Réserve sur le caractère requis.** Le caractère requis est déduit des seules
+> métadonnées du modèle : une colonne dont la valeur par défaut vit côté base (un
+> `SERIAL`, un `DEFAULT` SQL) sans défaut déclaré au modèle peut être traitée
+> comme requise et rejeter une création qui l'omet légitimement. Déclarez le
+> défaut sur le modèle, ou marquez la colonne nullable, pour l'assouplir.
+
 ## Note de migration (depuis les callbacks de politique 54.4)
 
 La table de callbacks `defineResource({ policies })` — l'API `PolicyFn`

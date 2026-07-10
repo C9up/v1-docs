@@ -180,6 +180,48 @@ out of `csrf.exceptRoutes` (the default host already does both). If the check is
 missing — middleware unwired, `csrf: false`, or `/admin/*` excepted — writes
 return `403` and Station logs one diagnostic pointing at the misconfiguration.
 
+## Mass-assignment & validation
+
+Station validates every admin **create**/**update** body against a
+[`@c9up/rune`](./rune) schema it derives — once, at mount — from the resource
+entity's atlas `@Column` metadata. Writable columns only: the primary key,
+framework-managed timestamps (`created_at` / `updated_at` / `deleted_at` and any
+`autoCreate`/`autoUpdate` column), the soft-delete column, and relations are all
+excluded. Because the schema contains only declared columns, **mass-assignment
+protection is inherent** — a body carrying `role`, `passwordHash`, the PK, or a
+timestamp has those keys dropped automatically; they never reach the repository.
+
+Form posts arrive as strings, and rune does **not** coerce, so the derivation
+adds the coercion the wire shape needs: `number`/`integer` columns accept a
+numeric string (`"42"` → `42`; a non-numeric value fails), and boolean columns
+are read as checkboxes (a checked box → `true`, an **absent** box → `false`, so
+an unchecked box clears the column on edit). Other columns validate as strings.
+A column is required when the model declares neither nullability nor a default.
+
+Invalid input **fail-closes before any database write** — no row is created, no
+entity mutated, no audit event emitted. The response follows the AdonisJS
+content-negotiation idiom:
+
+- **JSON / XHR** → `422` with `{ errors: [{ field, rule, message }] }` (the
+  AdonisJS/VineJS shape, matching ream's own `E_VALIDATION_ERROR` handler).
+- **Browser (with a session)** → the PRG pattern: the submitted input and
+  per-field errors are flashed to `ctx.session`, then `redirect().back()` to the
+  form, which re-reads the flash and re-renders with the values + errors. No body
+  is re-POSTed on refresh. (Register ream's `SessionMiddleware` to enable this.)
+- **Browser (no session)** → a graceful fallback: the form is re-rendered inline
+  at `422` so the values + errors are never silently lost.
+
+`@c9up/rune` is an optional peer, consumed through a tolerant dynamic import
+(the same seam as atlas). When a write-capable admin is mounted but rune is not
+installed, Station **refuses to boot** rather than accept unvalidated bodies —
+there is no fallback to unchecked mass-assignment.
+
+> **Requiredness caveat.** Requiredness is inferred from model metadata only, so
+> a column whose default lives DB-side (a `SERIAL`, a SQL `DEFAULT`) with no
+> model-declared default may be treated as required and reject a create that
+> legitimately omits it. Declare the default on the model, or mark the column
+> nullable, to relax it.
+
 ## Migration note (from the 54.4 policy callbacks)
 
 The `defineResource({ policies })` callback table — the per-action
