@@ -67,6 +67,25 @@ resources never needs it.
 > the 404 / 405 error bodies that are sent as `text/html` outside the inker
 > renderer; it escapes the same five characters as inker.
 
+## Pagination
+
+The list view paginates through atlas's [`ModelQuery.paginate(page, perPage)`](./atlas)
+rather than a hand-rolled page/count/`ceil` computation. A single
+`repo.query().orderBy(pk, "desc").paginate(page, perPage)` call runs the parallel
+`COUNT(*)` + `LIMIT/OFFSET` fetch and returns a `Paginator` whose
+`.meta` = `{ total, perPage, currentPage, lastPage, firstPage }` drives the table
+caption and pager. Station no longer duplicates the `lastPage = ceil(total / perPage)`
+math — atlas owns it.
+
+Two thin policy wrappers stay on top:
+
+- **`MAX_PER_PAGE` clamp (100).** atlas floors `perPage` to ≥ 1 but does not cap it,
+  so Station still clamps `?perPage` down to `100` (warning once per process on the
+  first over-cap request).
+- **Redirect-to-last-page.** Requesting a page past the end (`page > meta.lastPage`
+  while `meta.total > 0`) 302-redirects to `/admin/<name>?page=<lastPage>&perPage=<perPage>`
+  so the caller never lands on an empty page.
+
 ## Authorization
 
 Station authorizes every admin action exclusively through Warden's unified

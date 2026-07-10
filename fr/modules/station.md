@@ -74,6 +74,26 @@ aucune ressource n'en a jamais besoin.
 > en `text/html` hors du renderer inker ; il échappe les cinq mêmes caractères
 > qu'inker.
 
+## Pagination
+
+La vue liste pagine via [`ModelQuery.paginate(page, perPage)`](./atlas) d'atlas
+plutôt qu'avec un calcul page/count/`ceil` fait main. Un seul appel
+`repo.query().orderBy(pk, "desc").paginate(page, perPage)` exécute le `COUNT(*)`
+parallèle + la récupération `LIMIT/OFFSET` et renvoie un `Paginator` dont le
+`.meta` = `{ total, perPage, currentPage, lastPage, firstPage }` alimente la
+légende du tableau et le pager. Station ne duplique plus le calcul
+`lastPage = ceil(total / perPage)` — c'est atlas qui le possède.
+
+Deux fines couches de politique subsistent par-dessus :
+
+- **Plafond `MAX_PER_PAGE` (100).** atlas ramène `perPage` à ≥ 1 mais ne le
+  plafonne pas ; Station borne donc toujours `?perPage` à `100` (avertissement
+  une seule fois par processus à la première requête au-dessus du plafond).
+- **Redirection vers la dernière page.** Demander une page au-delà de la fin
+  (`page > meta.lastPage` alors que `meta.total > 0`) redirige en 302 vers
+  `/admin/<name>?page=<lastPage>&perPage=<perPage>`, pour que l'appelant ne
+  tombe jamais sur une page vide.
+
 ## Autorisation
 
 Station autorise chaque action d'admin exclusivement via la couche
