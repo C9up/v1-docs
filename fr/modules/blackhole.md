@@ -140,6 +140,19 @@ Les formulaires rendus et les SPA lisent le token via les helpers `@c9up/inker` 
 
 Dans un contrôleur, le token brut est `ctx.request.csrfToken`.
 
+### Signal de fermeture stricte — `request.csrfProtected`
+
+Le middleware publie aussi `ctx.request.csrfProtected : boolean` — `true` **uniquement** lorsque le CSRF était activé, la méthode gardée, la route non exceptée, **et** le token validé. C'est la réponse fiable à « cette requête a-t-elle été vérifiée CSRF ? ». Contrairement à `csrfToken` (semé sur chaque requête qui passe, même un `GET`, une route `csrf: false` ou un chemin excepté), un consommateur qui doit **fermer strictement** — refuser de muter tant que le CSRF n'a pas été réellement appliqué — lit ce flag, jamais la simple présence d'un token :
+
+```ts
+if (ctx.request.csrfProtected !== true) {
+  // blackhole non câblé, csrf: false, ou route exceptée → refus
+  return ctx.response.status(403).send('CSRF requis')
+}
+```
+
+`@c9up/station` utilise exactement cela pour fermer strictement chaque route d'écriture admin.
+
 ## Rate Limiting
 
 Suit les requêtes par IP client dans une fenêtre de temps glissante.

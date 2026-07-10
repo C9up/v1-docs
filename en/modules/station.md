@@ -143,6 +143,24 @@ runs in dev-preview open mode: every action is allowed and Station emits a loud
 boot warning that the admin is mounted without auth. This mode is for local
 development only — never production.
 
+## CSRF enforcement (fail-closed)
+
+Every admin **write** route (`create`, `update`, `destroy`, plus login and
+logout) requires an active, **verified** CSRF token. Station enforces this by
+reading `ctx.request.csrfProtected` — the trustworthy signal published by the
+host's [`@c9up/blackhole`](./blackhole) middleware, which is `true` only when
+CSRF was enabled, the method guarded, the route not excepted, and the token
+validated. A request that is not CSRF-verified is refused with `403` **before**
+any authorization or database work — a forged request never touches the repo.
+
+Station hand-rolls **no** CSRF logic of its own: inker's `{{ csrfField() }}`
+emits the token field, blackhole verifies the double-submit, ream carries the
+`csrfProtected` signal, and Station enforces it. To wire it, register the
+blackhole middleware with `csrf: true` in `start/kernel.ts` and keep `/admin/*`
+out of `csrf.exceptRoutes` (the default host already does both). If the check is
+missing — middleware unwired, `csrf: false`, or `/admin/*` excepted — writes
+return `403` and Station logs one diagnostic pointing at the misconfiguration.
+
 ## Migration note (from the 54.4 policy callbacks)
 
 The `defineResource({ policies })` callback table — the per-action

@@ -153,6 +153,25 @@ tourne en mode aperçu-dev ouvert : chaque action est autorisée et Station éme
 un avertissement de boot bruyant indiquant que l'admin est monté sans auth. Ce
 mode est réservé au développement local — jamais à la production.
 
+## Application du CSRF (fermeture stricte)
+
+Chaque route d'**écriture** admin (`create`, `update`, `destroy`, plus login et
+logout) exige un token CSRF actif et **vérifié**. Station l'applique en lisant
+`ctx.request.csrfProtected` — le signal fiable publié par le middleware
+[`@c9up/blackhole`](./blackhole) de l'hôte, qui vaut `true` uniquement lorsque le
+CSRF était activé, la méthode gardée, la route non exceptée et le token validé.
+Une requête non vérifiée CSRF est refusée avec `403` **avant** toute autorisation
+ou travail base de données — une requête forgée n'atteint jamais le dépôt.
+
+Station n'implémente **aucune** logique CSRF propre : le `{{ csrfField() }}`
+d'inker émet le champ token, blackhole vérifie le double-submit, ream transporte
+le signal `csrfProtected`, et Station l'applique. Pour le câbler, enregistrez le
+middleware blackhole avec `csrf: true` dans `start/kernel.ts` et gardez `/admin/*`
+hors de `csrf.exceptRoutes` (l'hôte par défaut fait déjà les deux). Si la
+vérification manque — middleware non câblé, `csrf: false`, ou `/admin/*` excepté —
+les écritures renvoient `403` et Station journalise un diagnostic pointant la
+mauvaise configuration.
+
 ## Note de migration (depuis les callbacks de politique 54.4)
 
 La table de callbacks `defineResource({ policies })` — l'API `PolicyFn`

@@ -140,6 +140,19 @@ Rendered forms and SPAs read the token through `@c9up/inker` helpers:
 
 In a controller, the raw token is `ctx.request.csrfToken`.
 
+### Fail-close signal — `request.csrfProtected`
+
+The middleware also publishes `ctx.request.csrfProtected: boolean` — `true` **only** when CSRF was enabled, the request method guarded, the route not excepted, **and** the token validated. It is the trustworthy answer to "was this request CSRF-verified?". Unlike `csrfToken` (seeded on every passing request, even a `GET`, a `csrf: false` route, or an excepted path), a consumer that must **fail-close** — refuse to mutate unless CSRF was genuinely enforced — reads this flag, never the mere presence of a token:
+
+```ts
+if (ctx.request.csrfProtected !== true) {
+  // blackhole unwired, csrf: false, or this route is excepted → refuse
+  return ctx.response.status(403).send('CSRF required')
+}
+```
+
+`@c9up/station` uses exactly this to fail-close every admin write route.
+
 ## Rate Limiting
 
 Tracks requests per client IP within a sliding time window.
