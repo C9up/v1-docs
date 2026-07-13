@@ -262,6 +262,142 @@ const series = await repo
   .interval('1m')
 ```
 
+## Migrations & schema management
+
+Evolve a time-series schema the same disciplined, tracked way you run atlas/Lucid
+migrations. Extend `Migration`, drive the fluent `EonSchema`, and run the files
+through an `EonMigrationRunner`.
+
+```typescript
+// database/eon-migrations/0001_create_metrics.ts
+import { Migration } from '@c9up/eon'
+
+export default class extends Migration {
+  up() {
+    // Database retention (KEEP / DURATION / PRECISION). KEEP >= 3 × DURATION.
+    this.schema.createDatabase('metrics', {
+      keep: '90d',
+      duration: '10d',
+      precision: 'ms',
+    })
+    this.schema.createStable('meters', (t) => {
+      t.timestamp('ts')
+      t.float('current')
+      t.int('voltage')
+      t.int('groupid').tag()          // `.tag()` re-homes the column as a TAG
+      t.nchar('location', 24).tag()
+    }, { keep: '365d' })              // optional STABLE KEEP (3.3.x+)
+  }
+
+  down() {
+    this.schema.dropStable('meters')
+  }
+}
+```
+
+The `StableBuilder` is deliberately **thinner** than atlas's `TableBuilder`:
+TDengine columns have no `DEFAULT`, no per-column `PRIMARY KEY` choice (the first
+`TIMESTAMP` is always the key), no `UNIQUE`, no foreign keys, no SQL secondary
+indexes — so `defaultTo` / `primary` / `unique` / `references` / `increments` have
+**no analogue and are absent**. Column methods: `timestamp` / `int` /
+`bigInteger` / `float` / `double` / `bool` / `varchar(n)` / `nchar(n)` /
+`binary(n)` / `decimal(p, s?)` / `json`, plus `.tag()`. `alterStable` exposes
+`addColumn(name).<type>()` / `modifyColumn` / `dropColumn` / `addTag` / `modifyTag`
+/ `dropTag` / `renameTag`; `createDatabase` / `alterDatabase` (one option per
+statement) / `createTable` (basic, no tags) / `dropTable` / `raw(sql)`.
+
+Every statement is compiled in **Rust** (`compileStatementNative`) — identifiers
+through `quote_ident`, option values validated (durations, `PRECISION` /
+`CACHEMODEL` / `WAL_LEVEL` allowlists, `KEEP >= 3 × DURATION`). The TypeScript side
+never string-builds SQL.
+
+### The runner
+
+```typescript
+import { EonMigrationRunner } from '@c9up/eon'
+
+const runner = new EonMigrationRunner(conn, {
+  migrationsDir: 'database/eon-migrations', // default
+  tableName: 'ream_eon_migrations',         // default (ream_ = protected system table)
+})
+
+await runner.migrate()   // run pending (filename order), record each
+await runner.status()    // [{ name, state: 'applied' | 'pending', batch? }]
+await runner.rollback()  // reverse the last batch (files in reverse), run down()
+await runner.reset()     // roll back everything
+await runner.refresh()   // reset + migrate (alias: fresh)
+await runner.dryRun()    // [{ name, sql[] }] — compute SQL, execute nothing
+```
+
+**Two named TDengine deviations from atlas:**
+
+1. **No transactions / no engine rollback.** TDengine DDL is non-transactional, so
+   a batch cannot be applied atomically. The runner executes statements
+   **sequentially**; a mid-migration failure leaves earlier statements applied.
+   The mitigation is idempotent DDL — `createStable` / `createDatabase` /
+   `createTable` default to `IF NOT EXISTS`, drops to `IF EXISTS` — so a re-run
+   converges. `down()` is best-effort: some operations (a `MODIFY` length
+   extension, a dropped column's data) are irreversible.
+2. **No `UNIQUE`, no auto-increment.** The tracking table is a basic table
+   `ream_eon_migrations(executed_at TIMESTAMP, name VARCHAR(255), batch INT)`; the
+   applied set is de-duped **by name in JS**, and each record is written with a
+   strictly-increasing `executed_at` so rollback can delete it by that unique
+   timestamp key (TDengine only allows a `DELETE` predicate on the primary
+   timestamp column).
+
+> Out of scope: schema auto-diff / `db push` (atlas's `checkSchema` territory) —
+> this is versioned `up()`/`down()` migrations only.
+
+## Testing
+
+Write fast, deterministic unit tests against `@c9up/eon` with no docker, mirroring
+`@c9up/atlas/testing`. Exported from `@c9up/eon/testing`.
+
+### `FakeEonConnection` — in-memory store
+
+A hand-rolled `EonConnection` double (TDengine has no embeddable engine, so unlike
+atlas's real in-memory SQLite this is a narrow double, **not** a SQL engine):
+
+```typescript
+import { FakeEonConnection } from '@c9up/eon/testing'
+
+const conn = new FakeEonConnection()
+await syncSuperTable(conn, Meters)                 // real compiled DDL
+conn.statements   // → ['CREATE STABLE IF NOT EXISTS `meters` (…) TAGS (…)']
+await conn.query('SELECT `ts`, `current` FROM `t` WHERE `groupid` = 2 LIMIT 10')
+conn.reset()
+```
+
+- `exec(sql)` **records** every statement (assert against `conn.statements`) and
+  updates a per-table row store for recognised `CREATE` / `INSERT` / `DELETE`.
+- `query(sql)` answers **only** flat `SELECT [cols] FROM t [WHERE col <op> val]
+  [LIMIT n]`. Windowed / aggregate SQL (`INTERVAL` / `FILL` / `PARTITION BY` /
+  `avg(...)`) throws `E_EON_FAKE_UNSUPPORTED` — use the docker harness
+  (`describeIfTdengine`) for those.
+- `ingestColumnar` / `schemaless` need a live connector → `E_EON_FAKE_UNSUPPORTED`.
+
+### `factory` — time-series points
+
+```typescript
+import { factory } from '@c9up/eon/testing'
+
+const MeterFactory = factory(Meters, () => ({
+  ts: Date.now(),
+  current: 10.5,
+  groupid: 2,
+})).state('spike', (d) => { d.current = 999 })
+
+MeterFactory.make()                       // plain data object
+MeterFactory.merge({ groupid: 7 }).apply('spike').makeStubbed()  // instance
+await MeterFactory.create(conn)           // persist via a literal INSERT (child-routed)
+await MeterFactory.createMany(100, conn)
+```
+
+Hydration resolves columns via the decorator metadata getters, never
+`key in instance` (the `@Column() declare x` pitfall). `create()` is a test-only
+insert routed to the deterministic child table (`childTableName`) — not the
+`SuperTableRepository` ingest API.
+
 ## Pinned versions
 
 - TDengine server: `3.3.6.13`
