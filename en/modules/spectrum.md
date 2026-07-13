@@ -184,7 +184,7 @@ export default {
 Once registered, resolve the logger from the container:
 
 ```typescript
-const logger = app.container.make('logger')
+const logger = await app.container.make('logger')
 logger.info('App booted')
 ```
 

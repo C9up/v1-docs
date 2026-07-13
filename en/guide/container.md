@@ -18,8 +18,10 @@ class UserService {
 }
 
 // No registration needed — the container auto-constructs it
-const service = container.make(UserService)
+const service = await container.make(UserService)
 ```
+
+`make()` and `resolve()` are **async** — they return `Promise<T>` and must be `await`ed (AdonisJS Fold parity). Forgetting the `await` hands you a pending `Promise`, not the instance, and the next method call fails with `X is not a function`. Pass a type argument — `make<T>()` — instead of casting the result with `as T`.
 
 `make()` is an alias for `resolve()`. Both are interchangeable.
 
@@ -29,15 +31,21 @@ Use explicit bindings when you need to control how an instance is created — fo
 
 ### `singleton(token, factory)`
 
-The factory runs once. Every subsequent call returns the same cached instance.
+The factory runs once. Every subsequent call returns the same cached instance. The factory receives a `resolver` (AdonisJS Fold parity) and may be `async` — the container `await`s it. When a factory resolves another binding, make it `async` and `await` the nested `make()`.
 
 ```typescript
 container.singleton('db', () => {
   return new DatabaseManager(config.get('database'))
 })
 
-const db1 = container.make('db')
-const db2 = container.make('db')
+// A factory that depends on another binding must be async and await it:
+container.singleton('reporting', async (resolver) => {
+  const db = await resolver.make('db')
+  return new ReportingService(db)
+})
+
+const db1 = await container.make('db')
+const db2 = await container.make('db')
 // db1 === db2
 ```
 
@@ -50,8 +58,8 @@ container.bind('requestLogger', () => {
   return new Logger()
 })
 
-const logger1 = container.make('requestLogger')
-const logger2 = container.make('requestLogger')
+const logger1 = await container.make('requestLogger')
+const logger2 = await container.make('requestLogger')
 // logger1 !== logger2
 ```
 
@@ -64,7 +72,7 @@ const pool = await createConnectionPool(config)
 container.bindValue('pool', pool)
 
 // Anywhere later:
-const p = container.make('pool') // the exact same pool object
+const p = await container.make('pool') // the exact same pool object
 ```
 
 ## `@Service()` — singleton by default
@@ -85,7 +93,7 @@ export class UserRepository {
 The container resolves `UserRepository` by class reference:
 
 ```typescript
-const repo = container.make(UserRepository)
+const repo = await container.make(UserRepository)
 ```
 
 Override the scope or register under a custom string token with `as`:
@@ -266,7 +274,7 @@ afterEach(() => {
 })
 
 test('places an order without real payment', async () => {
-  const orders = container.make(OrderService)
+  const orders = await container.make(OrderService)
   await orders.placeOrder(100)
   // assert side-effects without hitting Stripe
 })

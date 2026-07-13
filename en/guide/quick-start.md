@@ -284,7 +284,7 @@ import { Emitter } from '@c9up/ream/events'
 import TaskCreated from './events/TaskCreated.js'
 import LogTaskCreated from './listeners/LogTaskCreated.js'
 
-const emitter = app.container.make(Emitter)
+const emitter = await app.container.make(Emitter)
 emitter.on(TaskCreated, LogTaskCreated)
 ```
 

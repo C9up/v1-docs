@@ -23,7 +23,7 @@ export default class DatabaseProvider extends Provider {
 
   /** Phase 2 — async. Verify connections and prepare the module. */
   async boot(): Promise<void> {
-    const db = this.app.container.make('db') as DatabaseManager
+    const db = await this.app.container.make<DatabaseManager>('db')
     await db.connect()
   }
 
@@ -34,13 +34,13 @@ export default class DatabaseProvider extends Provider {
 
   /** Phase 4 — async. HTTP server is now accepting requests. */
   async ready(): Promise<void> {
-    const db = this.app.container.make('db') as DatabaseManager
+    const db = await this.app.container.make<DatabaseManager>('db')
     console.log(`Database ready — connected to ${db.host}`)
   }
 
   /** Shutdown — cleanup in reverse provider order. */
   async shutdown(): Promise<void> {
-    const db = this.app.container.make('db') as DatabaseManager
+    const db = await this.app.container.make<DatabaseManager>('db')
     await db.disconnect()
   }
 }
@@ -179,12 +179,12 @@ export default class AppProvider extends Provider {
 
   async boot(): Promise<void> {
     // Verify the mail service can connect
-    const mail = this.app.container.make<MailService>('mail')
+    const mail = await this.app.container.make<MailService>('mail')
     await mail.verify()
   }
 
   async shutdown(): Promise<void> {
-    const mail = this.app.container.make<MailService>('mail')
+    const mail = await this.app.container.make<MailService>('mail')
     await mail.drain()
   }
 }
@@ -212,7 +212,7 @@ export default class CacheProvider extends Provider {
   }
 
   async boot(): Promise<void> {
-    const cache = this.app.container.make<RedisCache>('cache')
+    const cache = await this.app.container.make<RedisCache>('cache')
     await cache.ping()
   }
 }

@@ -24,7 +24,7 @@ import { RpcProvider } from '@c9up/ream/rpc/provider'
 // 1. Register the provider (in your providers list).
 
 // 2. Register methods — anywhere after boot, via the container.
-const rpc = app.container.make('rpc')
+const rpc = await app.container.make('rpc')
 
 // Closure handler:
 rpc.method('task.validate', (ctx, params) => validate(params)).guard('jwt')
@@ -67,7 +67,7 @@ export default { schemaPath: './app/graphql/schema.graphql' }
 
 ```ts
 // Register resolvers via the container-bound engine.
-const gql = app.container.make('graphql')
+const gql = await app.container.make('graphql')
 
 gql.resolver('Query', 'tasks', TaskResolver, 'tasks')
 gql.resolver('Mutation', 'createTask', TaskResolver, 'createTask', {

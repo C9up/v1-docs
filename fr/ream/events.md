@@ -48,7 +48,7 @@ set de providers recommandé), puis résous l'emitter via le token `events`.
 ```
 
 ```ts
-const emitter = app.container.make('events')   // ou 'emitter'
+const emitter = await app.container.make('events')   // ou 'emitter'
 ```
 
 Le provider binde trois tokens vers le même emitter — `events` (principal),

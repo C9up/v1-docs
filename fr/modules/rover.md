@@ -58,7 +58,7 @@ Une fois enregistre, l'instance `Mail` est disponible depuis le conteneur IoC :
 ```typescript
 import { Mail } from '@c9up/rover'
 
-const mail = app.container.resolve(Mail)
+const mail = await app.container.resolve(Mail)
 ```
 
 ## Envoi de mail
@@ -68,7 +68,7 @@ Utilisez `Mail.send()` avec l'API fluente `MessageBuilder` :
 ```typescript
 import { Mail } from '@c9up/rover'
 
-const mail = app.container.resolve(Mail)
+const mail = await app.container.resolve(Mail)
 
 await mail.send((message) => {
   message

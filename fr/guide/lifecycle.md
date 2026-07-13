@@ -121,7 +121,7 @@ Au moment où `boot()` s'exécute, chaque provider a déjà enregistré ses liai
 ```typescript
 export default class AtlasProvider extends Provider {
   async boot(): Promise<void> {
-    const db = this.app.container.make('db') as DatabaseManager
+    const db = await this.app.container.make<DatabaseManager>('db')
     await db.connect()
     await db.query('SELECT 1') // vérifier la connexion
   }
@@ -191,7 +191,7 @@ L'arrêt est déclenché par `app.terminate()` (appelé depuis les gestionnaires
 ```typescript
 export default class AtlasProvider extends Provider {
   async shutdown(): Promise<void> {
-    const db = this.app.container.make('db') as DatabaseManager
+    const db = await this.app.container.make<DatabaseManager>('db')
     await db.disconnect()
   }
 }
@@ -272,7 +272,7 @@ Trois proxies singleton sont initialisés par l'Ignitor avant l'exécution de to
 ```typescript
 import app from '@c9up/ream/services/app'
 
-app.container.make(MyService)
+await app.container.make(MyService)
 app.config.get('database')
 app.inProduction
 ```

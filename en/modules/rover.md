@@ -58,7 +58,7 @@ Once registered, the `Mail` instance is available from the IoC container:
 ```typescript
 import { Mail } from '@c9up/rover'
 
-const mail = app.container.resolve(Mail)
+const mail = await app.container.resolve(Mail)
 ```
 
 ## Sending Mail
@@ -68,7 +68,7 @@ Use `Mail.send()` with the fluent `MessageBuilder` API:
 ```typescript
 import { Mail } from '@c9up/rover'
 
-const mail = app.container.resolve(Mail)
+const mail = await app.container.resolve(Mail)
 
 await mail.send((message) => {
   message

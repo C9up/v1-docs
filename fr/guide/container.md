@@ -18,8 +18,10 @@ class UserService {
 }
 
 // Aucun enregistrement nécessaire — le conteneur la construit automatiquement
-const service = container.make(UserService)
+const service = await container.make(UserService)
 ```
+
+`make()` et `resolve()` sont **asynchrones** — ils retournent `Promise<T>` et doivent être `await`és (parité AdonisJS Fold). Oublier le `await` vous rend une `Promise` en attente, et non l'instance ; l'appel de méthode suivant échoue avec `X is not a function`. Passez un argument de type — `make<T>()` — au lieu de caster le résultat avec `as T`.
 
 `make()` est un alias de `resolve()`. Les deux sont interchangeables.
 
@@ -29,15 +31,21 @@ Utilisez les liaisons explicites lorsque vous devez contrôler la façon dont un
 
 ### `singleton(token, factory)`
 
-La factory s'exécute une seule fois. Chaque appel suivant retourne la même instance mise en cache.
+La factory s'exécute une seule fois. Chaque appel suivant retourne la même instance mise en cache. La factory reçoit un `resolver` (parité AdonisJS Fold) et peut être `async` — le conteneur l'`await`e. Lorsqu'une factory résout une autre liaison, rendez-la `async` et `await`ez le `make()` imbriqué.
 
 ```typescript
 container.singleton('db', () => {
   return new DatabaseManager(config.get('database'))
 })
 
-const db1 = container.make('db')
-const db2 = container.make('db')
+// Une factory qui dépend d'une autre liaison doit être async et l'awaiter :
+container.singleton('reporting', async (resolver) => {
+  const db = await resolver.make('db')
+  return new ReportingService(db)
+})
+
+const db1 = await container.make('db')
+const db2 = await container.make('db')
 // db1 === db2
 ```
 
@@ -50,8 +58,8 @@ container.bind('requestLogger', () => {
   return new Logger()
 })
 
-const logger1 = container.make('requestLogger')
-const logger2 = container.make('requestLogger')
+const logger1 = await container.make('requestLogger')
+const logger2 = await container.make('requestLogger')
 // logger1 !== logger2
 ```
 
@@ -64,7 +72,7 @@ const pool = await createConnectionPool(config)
 container.bindValue('pool', pool)
 
 // N'importe où ensuite :
-const p = container.make('pool') // exactement le même objet pool
+const p = await container.make('pool') // exactement le même objet pool
 ```
 
 ## `@Service()` — singleton par défaut
@@ -85,7 +93,7 @@ export class UserRepository {
 Le conteneur résout `UserRepository` par référence de classe :
 
 ```typescript
-const repo = container.make(UserRepository)
+const repo = await container.make(UserRepository)
 ```
 
 Surchargez la portée ou enregistrez sous un token de chaîne personnalisé avec `as` :
@@ -266,7 +274,7 @@ afterEach(() => {
 })
 
 test('places an order without real payment', async () => {
-  const orders = container.make(OrderService)
+  const orders = await container.make(OrderService)
   await orders.placeOrder(100)
   // vérifier les effets de bord sans passer par Stripe
 })
