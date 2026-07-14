@@ -162,3 +162,14 @@ read path for reports and exports (AdonisJS Lucid `pojo()`):
 const rows = await User.query().where('active', true).pojo()
 // rows: Array<{ id: number; full_name: string; ... }>
 ```
+
+## Sideloaded context
+
+Thread arbitrary context onto every instance a query hydrates (AdonisJS Lucid
+`sideload`) — e.g. the current tenant/user, readable from hooks or computed
+properties via `entity.$sideloaded`:
+
+```ts
+const posts = await Post.query().sideload({ tenantId }).exec()
+posts[0].$sideloaded // { tenantId }
+```

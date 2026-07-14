@@ -166,3 +166,14 @@ lecture rapide pour les rapports et exports (parité AdonisJS Lucid `pojo()`) :
 const rows = await User.query().where('active', true).pojo()
 // rows : Array<{ id: number; full_name: string; ... }>
 ```
+
+## Contexte sideloaded
+
+Attache un contexte arbitraire à chaque instance hydratée par une requête (parité
+AdonisJS Lucid `sideload`) — p. ex. le tenant/utilisateur courant, lisible depuis
+les hooks ou les propriétés calculées via `entity.$sideloaded` :
+
+```ts
+const posts = await Post.query().sideload({ tenantId }).exec()
+posts[0].$sideloaded // { tenantId }
+```
