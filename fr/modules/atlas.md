@@ -86,9 +86,79 @@ entity.hasDomainEvents() // boolean
 entity.clearDomainEvents()
 ```
 
+## BaseModel — Active Record (parité AdonisJS Lucid)
+
+Étendez `BaseModel` (au lieu de `BaseEntity`) pour l'API Active Record façon Lucid : finders/créateurs statiques et `instance.save()` / `instance.delete()` qui délèguent à un dépôt lié à la connexion. `@Entity('table')` est **optionnel** — le nom de table est inféré du nom de classe (`User` → `users`) ; surchargez via `static table`.
+
+```typescript
+import { BaseModel, Column, PrimaryKey } from '@c9up/atlas'
+
+class User extends BaseModel {
+  @PrimaryKey() declare id: number
+  @Column() declare email: string
+  @Column() declare role: string
+
+  static table = 'app_users'      // optionnel — inféré sinon
+  static connection = 'analytics' // connexion nommée optionnelle
+}
+
+// Finders statiques
+const user  = await User.find(1)
+const admin = await User.findBy({ role: 'admin' })   // clause objet
+const users = await User.findManyBy({ role: 'user' })
+const first = await User.first()
+const rows  = await User.query().where('role', 'admin').exec()
+
+// Créateurs statiques
+const u = await User.create({ email: 'a@b.co', role: 'user' })
+await User.updateOrCreate({ email: 'a@b.co' }, { role: 'admin' })
+await User.updateOrCreateMany('email', batch)   // en lot, keyé, transactionnel
+
+// Persistance d'instance
+if (user) {
+  user.email = 'new@b.co'
+  await user.save()    // UPDATE des colonnes dirty (INSERT si nouveau)
+  await user.delete()  // DELETE de la ligne ; met $isDeleted
+}
+```
+
+### État du modèle (parité Lucid)
+
+```typescript
+user.$isPersisted     // true dès que la ligne est en base (après save/fetch)
+user.$isNew           // jamais persisté
+user.$isLocal         // créé en mémoire (vs récupéré de la base)
+user.$isDeleted       // mis à true après delete()
+user.$primaryKeyValue // la valeur de la colonne PK
+user.isDirty('email')
+```
+
+### Protection contre l'assignation de masse
+
+`static fillable` / `static guarded` sont appliqués sur `create`, `createMany` et `updateOrCreate` — pas seulement sur `fill()` — donc une colonne `guarded` ne peut pas être posée depuis un payload brut :
+
+```typescript
+class User extends BaseModel {
+  static guarded = ['role'] // jamais assignable en masse
+}
+await User.create({ email: 'a@b.co', role: 'admin' }) // lève MassAssignmentError
+```
+
+### Visibilité de sérialisation
+
+```typescript
+class User extends BaseModel {
+  static hidden = ['password'] // allowlist au niveau classe
+}
+user.makeVisible('password').toJSON() // révéler sur CETTE instance
+user.makeHidden('email').toJSON()     // cacher sur CETTE instance
+```
+
+Surface statique complète : `find`, `findOrFail`, `findBy`, `findByOrFail`, `findMany`, `findManyBy`, `all`, `first`, `firstOrFail`, `query`, `create`, `createMany`, `firstOrCreate`, `firstOrNew`, `updateOrCreate`, `updateOrCreateMany`, `fetchOrCreateMany`, `fetchOrNewUpMany`, `truncate`.
+
 ## Repository
 
-`BaseRepository` fournit des opérations CRUD typées, appuyées par une connexion à la base de données. La connexion est résolue depuis le conteneur IoC via `@Inject('db')`.
+`BaseRepository` fournit des opérations CRUD typées, appuyées par une connexion à la base de données. La connexion est résolue depuis le conteneur IoC via `@Inject('db')`. C'est la même surface que celle déléguée par `BaseModel` — utilisez-le directement si vous préférez la séparation Data Mapper.
 
 ```typescript
 import { inject, Inject } from '@c9up/ream'
