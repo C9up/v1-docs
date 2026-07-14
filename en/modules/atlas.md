@@ -59,6 +59,22 @@ honor it:
 @Column({ columnName: 'USR_MAIL' }) declare email: string
 ```
 
+### Date columns
+
+`@column.date()` / `@column.dateTime()` hydrate to a **`@c9up/chronos` `DateTime`** — the Ream date engine, exactly as AdonisJS Lucid hydrates date columns to a Luxon `DateTime`. Reads return a `DateTime`, writes lower it back to an ISO 8601 string, and `autoCreate` / `autoUpdate` stamp `DateTime.now()`:
+
+```typescript
+import { DateTime } from '@c9up/chronos'
+
+class Meeting extends BaseModel {
+  @column.dateTime() declare startsAt: DateTime | null
+  @column.dateTime({ autoCreate: true }) declare createdAt: DateTime | null
+}
+
+const m = await Meeting.create({ startsAt: new DateTime('2026-06-09T12:34:56Z') })
+m.startsAt.toISO()          // '2026-06-09T12:34:56Z'
+```
+
 `@ManyToMany` requires explicit pivot configuration. The pivot table name is mandatory; foreign keys default to `${singular_table}_id` when omitted:
 
 ```typescript

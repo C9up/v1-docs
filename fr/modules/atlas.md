@@ -59,6 +59,22 @@ et hydratation le respectent tous :
 @Column({ columnName: 'USR_MAIL' }) declare email: string
 ```
 
+### Colonnes date
+
+`@column.date()` / `@column.dateTime()` hydratent vers un **`DateTime` de `@c9up/chronos`** — le moteur date de Ream, exactement comme AdonisJS Lucid hydrate ses colonnes date vers un `DateTime` Luxon. Les lectures renvoient un `DateTime`, les écritures le ramènent à une chaîne ISO 8601, et `autoCreate` / `autoUpdate` posent `DateTime.now()` :
+
+```typescript
+import { DateTime } from '@c9up/chronos'
+
+class Meeting extends BaseModel {
+  @column.dateTime() declare startsAt: DateTime | null
+  @column.dateTime({ autoCreate: true }) declare createdAt: DateTime | null
+}
+
+const m = await Meeting.create({ startsAt: new DateTime('2026-06-09T12:34:56Z') })
+m.startsAt.toISO()          // '2026-06-09T12:34:56Z'
+```
+
 `@ManyToMany` requiert une configuration pivot explicite. Le nom de la table pivot est obligatoire ; les clés étrangères ont pour valeur par défaut `${table_singulière}_id` si omises :
 
 ```typescript
