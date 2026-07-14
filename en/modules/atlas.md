@@ -50,6 +50,15 @@ class OrderItem extends BaseEntity {
 declare total: number
 ```
 
+By default a property maps to its `snake_case` column (`userId` → `user_id`).
+Override that per-column for legacy/non-conventional schemas with `columnName`
+(AdonisJS Lucid parity) — reads, writes, `where`/`orderBy` and hydration all
+honor it:
+
+```typescript
+@Column({ columnName: 'USR_MAIL' }) declare email: string
+```
+
 `@ManyToMany` requires explicit pivot configuration. The pivot table name is mandatory; foreign keys default to `${singular_table}_id` when omitted:
 
 ```typescript
