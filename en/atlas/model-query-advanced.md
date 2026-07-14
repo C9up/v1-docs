@@ -138,6 +138,27 @@ For a fixed list of statements you don't need to read between, use
 ```ts
 repo.query().where('id', id).forUpdate().first()
 repo.query().where('id', id).forShare().first()
+
+// Postgres-only weaker locks (mirror AdonisJS/Knex):
+repo.query().where('id', id).forNoKeyUpdate().first()
+repo.query().where('id', id).forKeyShare().first()
+
+// Modifiers — compose onto any base lock:
+repo.query().forUpdate().skipLocked().all() // skip rows already locked
+repo.query().forUpdate().noWait().all()      // error instead of waiting
 ```
 
-Only use row locks inside a transaction boundary.
+`forNoKeyUpdate`/`forKeyShare` are Postgres-only (ignored elsewhere with a
+warning). Locks are silently dropped on SQLite. Only use row locks inside a
+transaction boundary.
+
+## Plain-object reads with `pojo()`
+
+Skip model hydration entirely — no `BaseEntity` instances, no dirty-tracking, no
+`@column({ consume })`, no preloads. Returns the raw snake_case DB rows. A fast
+read path for reports and exports (AdonisJS Lucid `pojo()`):
+
+```ts
+const rows = await User.query().where('active', true).pojo()
+// rows: Array<{ id: number; full_name: string; ... }>
+```

@@ -141,6 +141,28 @@ migrations).
 ```ts
 repo.query().where('id', id).forUpdate().first()
 repo.query().where('id', id).forShare().first()
+
+// Verrous plus faibles, Postgres uniquement (parité AdonisJS/Knex) :
+repo.query().where('id', id).forNoKeyUpdate().first()
+repo.query().where('id', id).forKeyShare().first()
+
+// Modificateurs — se composent sur n'importe quel verrou de base :
+repo.query().forUpdate().skipLocked().all() // ignore les lignes déjà verrouillées
+repo.query().forUpdate().noWait().all()      // erreur au lieu d'attendre
 ```
 
-Utiliser les verrous de ligne uniquement dans une transaction.
+`forNoKeyUpdate`/`forKeyShare` sont réservés à Postgres (ignorés ailleurs avec un
+avertissement). Les verrous sont silencieusement ignorés sur SQLite. Utiliser les
+verrous de ligne uniquement dans une transaction.
+
+## Lectures en objets bruts avec `pojo()`
+
+Court-circuite entièrement l'hydratation des modèles — aucune instance
+`BaseEntity`, aucun suivi des changements, aucun `@column({ consume })`, aucun
+preload. Retourne les lignes brutes de la base (colonnes snake_case). Chemin de
+lecture rapide pour les rapports et exports (parité AdonisJS Lucid `pojo()`) :
+
+```ts
+const rows = await User.query().where('active', true).pojo()
+// rows : Array<{ id: number; full_name: string; ... }>
+```

@@ -154,6 +154,19 @@ user.makeVisible('password').toJSON() // révéler sur CETTE instance
 user.makeHidden('email').toJSON()     // cacher sur CETTE instance
 ```
 
+`toJSON()` délègue à trois hooks surchargeables — surcharge uniquement la couche
+voulue (parité AdonisJS Lucid `serializeAttributes` / `serializeRelations` / `serializeComputed`) :
+
+```typescript
+class Account extends BaseModel {
+  @Column() declare balance: number
+  // Personnalise seulement la couche attributs ; relations/computed inchangés.
+  protected override serializeAttributes() {
+    return { ...super.serializeAttributes(), balance: Math.round(this.balance) }
+  }
+}
+```
+
 Surface statique complète : `find`, `findOrFail`, `findBy`, `findByOrFail`, `findMany`, `findManyBy`, `all`, `first`, `firstOrFail`, `query`, `create`, `createMany`, `firstOrCreate`, `firstOrNew`, `updateOrCreate`, `updateOrCreateMany`, `fetchOrCreateMany`, `fetchOrNewUpMany`, `truncate`.
 
 ## Repository

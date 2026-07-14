@@ -154,6 +154,19 @@ user.makeVisible('password').toJSON() // reveal on THIS instance
 user.makeHidden('email').toJSON()     // hide on THIS instance
 ```
 
+`toJSON()` delegates to three overridable hooks — override just the layer you
+need (AdonisJS Lucid `serializeAttributes` / `serializeRelations` / `serializeComputed`):
+
+```typescript
+class Account extends BaseModel {
+  @Column() declare balance: number
+  // Customize only the attribute layer; relations/computed keep default behavior.
+  protected override serializeAttributes() {
+    return { ...super.serializeAttributes(), balance: Math.round(this.balance) }
+  }
+}
+```
+
 The full static surface: `find`, `findOrFail`, `findBy`, `findByOrFail`, `findMany`, `findManyBy`, `all`, `first`, `firstOrFail`, `query`, `create`, `createMany`, `firstOrCreate`, `firstOrNew`, `updateOrCreate`, `updateOrCreateMany`, `fetchOrCreateMany`, `fetchOrNewUpMany`, `truncate`.
 
 ## Repository
