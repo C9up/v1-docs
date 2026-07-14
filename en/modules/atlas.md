@@ -176,7 +176,9 @@ class Account extends BaseModel {
 }
 ```
 
-The full static surface: `find`, `findOrFail`, `findBy`, `findByOrFail`, `findMany`, `findManyBy`, `all`, `first`, `firstOrFail`, `query`, `create`, `createMany`, `firstOrCreate`, `firstOrNew`, `updateOrCreate`, `updateOrCreateMany`, `fetchOrCreateMany`, `fetchOrNewUpMany`, `truncate`.
+The full static surface: `find`, `findOrFail`, `findBy`, `findByOrFail`, `findMany`, `findManyBy`, `all`, `first`, `firstOrFail`, `query`, `create`, `createMany`, `firstOrCreate`, `firstOrNew`, `updateOrCreate`, `updateOrCreateMany`, `fetchOrCreateMany`, `fetchOrNewUpMany`, `truncate`, plus the hook-muting `createQuietly` / `createManyQuietly`.
+
+Instances add `saveQuietly()` / `deleteQuietly()` — persist/remove without firing lifecycle hooks (AdonisJS Lucid parity, handy for seeders/backfills). `save()` throws once the instance is deleted (`$isDeleted`), and `$isDirty` reports unsaved changes.
 
 ## Repository
 
