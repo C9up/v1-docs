@@ -12,8 +12,12 @@ Atlas already enforces several guardrails:
 ## Unsafe surfaces to control
 
 - `whereRaw(sql, bindings)`
-- `joinRaw(fragment)`
+- `joinRaw(fragment, bindings?)`
+- `havingRaw(sql, bindings)`
 - dynamic column selection/order from HTTP inputs
+
+Strict mode (`setAtlasStrictMode(true)` / `ATLAS_STRICT=1`) disables all three raw
+methods (`whereRaw`, `joinRaw`, `havingRaw`).
 
 ## Recommended hardening
 

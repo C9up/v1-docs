@@ -12,8 +12,12 @@ Atlas applique déjà plusieurs garde-fous:
 ## Surfaces sensibles à contrôler
 
 - `whereRaw(sql, bindings)`
-- `joinRaw(fragment)`
+- `joinRaw(fragment, bindings?)`
+- `havingRaw(sql, bindings)`
 - sélection/tri de colonnes pilotés par entrées HTTP
+
+Le mode strict (`setAtlasStrictMode(true)` / `ATLAS_STRICT=1`) désactive les trois
+méthodes raw (`whereRaw`, `joinRaw`, `havingRaw`).
 
 ## Durcissement recommandé
 
