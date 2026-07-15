@@ -184,6 +184,12 @@ const rows = await User.query().where('active', true).pojo()
 // rows : Array<{ id: number; full_name: string; ... }>
 ```
 
+Un `select()` partiel de colonnes simples **inclut automatiquement la clé
+primaire**, pour que l'entité hydratée reste sauvegardable (un `save()` ultérieur
+fait un UPDATE, pas un INSERT). Pour les projections agrégat/alias
+(`select('COUNT(*) as n')`) la PK ne peut être déduite — utiliser `pojo()` ;
+appeler `save()` sur une telle entité lève `E_MISSING_PRIMARY_KEY`.
+
 ## Contexte sideloaded
 
 Attache un contexte arbitraire à chaque instance hydratée par une requête (parité

@@ -179,6 +179,11 @@ const rows = await User.query().where('active', true).pojo()
 // rows: Array<{ id: number; full_name: string; ... }>
 ```
 
+A partial `select()` of plain columns **auto-includes the primary key**, so the
+hydrated entity is still saveable (a later `save()` UPDATEs rather than INSERTs). For
+aggregate/alias projections (`select('COUNT(*) as n')`) the PK can't be inferred —
+use `pojo()`; calling `save()` on such an entity throws `E_MISSING_PRIMARY_KEY`.
+
 ## Sideloaded context
 
 Thread arbitrary context onto every instance a query hydrates (AdonisJS Lucid
