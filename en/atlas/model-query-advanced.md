@@ -10,6 +10,12 @@ const q = repo.query()
   .whereExpr('total', '+ tax', '>=', 100)
 ```
 
+The optional `extraExpression` (2nd arg of the 4-arg form) is an **arithmetic**
+fragment only — columns, numbers, `+ - * / ,`, parentheses and functions. Bare
+SQL keywords (`OR`, `AND`, `IS`, `NOT`, `SELECT`, …) are rejected so the fragment
+can't alter the predicate's logic; the compared value is always bound. Reach for
+`whereRaw` (with bindings) for anything beyond arithmetic.
+
 Use `whereRaw` only for truly dialect-specific SQL fragments and always with bindings.
 
 ## Strict mode for hardening

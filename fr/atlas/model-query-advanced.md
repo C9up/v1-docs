@@ -10,6 +10,13 @@ const q = repo.query()
   .whereExpr('total', '+ tax', '>=', 100)
 ```
 
+L'`extraExpression` optionnelle (2e arg de la forme à 4 args) est un fragment
+**arithmétique** uniquement — colonnes, nombres, `+ - * / ,`, parenthèses et
+fonctions. Les mots-clés SQL bruts (`OR`, `AND`, `IS`, `NOT`, `SELECT`, …) sont
+rejetés pour que le fragment ne puisse pas altérer la logique du prédicat ; la
+valeur comparée est toujours bindée. Utiliser `whereRaw` (avec bindings) pour
+tout ce qui dépasse l'arithmétique.
+
 Garder `whereRaw` seulement pour des fragments SQL réellement spécifiques au dialecte, toujours avec bindings.
 
 ## Mode strict pour durcir
