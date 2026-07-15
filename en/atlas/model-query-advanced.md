@@ -53,6 +53,10 @@ const rows = repo.query()
   .exec()
 ```
 
+Inside the callback: `on` / `andOn` / `orOn` join two **columns**; `onVal` /
+`andOnVal` / `orOnVal` join a column to a **bound value** (AdonisJS/Knex parity) —
+the value is parameterised (never inlined) and threaded through the compiler ahead
+of the `WHERE` params. `joinRaw(fragment, bindings?)` accepts its own `?` bindings.
 Use `joinOn(table, left, right)` for simple join-on-column cases.
 
 ## Cursor pagination
