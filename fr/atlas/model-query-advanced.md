@@ -60,6 +60,12 @@ AdonisJS/Knex) — la valeur est paramétrée (jamais inline) et threadée dans 
 compilateur avant les params du `WHERE`. `joinRaw(fragment, bindings?)` accepte ses
 propres bindings `?`. Utiliser `joinOn(table, left, right)` pour les cas simples join-on-column.
 
+Avec un join et le `SELECT *` **par défaut**, la projection est restreinte aux
+colonnes du modèle (`<table>.col…`) pour qu'une table jointe ne puisse pas écraser
+les champs du modèle à l'hydratation — passer un `select()` explicite pour l'élargir.
+Les identifiants de join doivent être un strict `[table.]column` (lettres/chiffres/
+underscore) ; sinon une erreur est levée (utiliser `joinRaw` pour les expressions).
+
 ## Pagination curseur
 
 ```ts

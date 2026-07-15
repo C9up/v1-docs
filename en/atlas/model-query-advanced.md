@@ -59,6 +59,12 @@ the value is parameterised (never inlined) and threaded through the compiler ahe
 of the `WHERE` params. `joinRaw(fragment, bindings?)` accepts its own `?` bindings.
 Use `joinOn(table, left, right)` for simple join-on-column cases.
 
+With a join and the **default** `SELECT *`, the projection is scoped to the model's
+own columns (`<table>.col…`) so a joined table can't clobber the model's fields on
+hydration — pass an explicit `select()` to widen it. Join identifiers must be a
+strict `[table.]column` (letters/digits/underscore); anything else throws (use
+`joinRaw` for expressions).
+
 ## Cursor pagination
 
 ```ts
