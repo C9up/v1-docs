@@ -32,7 +32,7 @@ pnpm dev
 | `@c9up/atom` | Exact decimal arithmetic (Rust + NAPI + WASM) | [C9up/atom](https://github.com/C9up/atom) |
 | `@c9up/chronos` | Date/time + recurrence (Rust + NAPI + WASM) | [C9up/chronos](https://github.com/C9up/chronos) |
 | `@c9up/rune` | Schema validation engine (Rust + TS fallback) | [C9up/rune](https://github.com/C9up/rune) |
-| `@c9up/rosetta` | i18n + ICU MessageFormat (Rust + NAPI + WASM) | [C9up/rosetta](https://github.com/C9up/rosetta) |
+| `@c9up/rosetta` | i18n + ICU MessageFormat (pure TypeScript) | [C9up/rosetta](https://github.com/C9up/rosetta) |
 
 ### Auth & security
 

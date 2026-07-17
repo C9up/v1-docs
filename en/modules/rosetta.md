@@ -4,7 +4,7 @@ Status: **Present (Adonis-like manager architecture, still evolving)**.
 
 - Package: `@c9up/rosetta`
 - Role: single i18n source for the ecosystem (`ream`, `rune`, etc.)
-- Runtime: TypeScript manager + **required** Rust N-API engine for translation (`t()` and `has()` throw if the binary is not loaded)
+- Runtime: pure TypeScript, no native binary and no build toolchain
 
 ## Implemented Architecture
 
@@ -16,7 +16,7 @@ Rosetta now behaves as an i18n manager, not a simple key/value helper:
 - explicit and implicit fallback chains
 - async loaders for message catalogs
 - `Intl`-based formatters
-- required Rust ICU engine for `t()` and `has()` — no JS/TS fallback
+- dependency-free ICU parser with a per-process AST cache
 
 ## Manager API
 
@@ -216,26 +216,35 @@ Supported files:
 - `resources/lang/en.yaml`
 - `resources/lang/en.yml`
 
-## Native Runtime (Rust N-API)
+## Runtime
 
-Rosetta includes native packaging and verification:
+Rosetta is pure TypeScript. There is no native binary to build, no platform
+matrix, and no install step beyond `pnpm add @c9up/rosetta` — the same code
+runs on glibc, on musl/Alpine and in the browser.
 
-```bash
-cd packages/rosetta
-pnpm run build:napi   # cargo build --release + copy index.<platform>.node
-pnpm run test:napi    # smoke test for native exports and runtime behavior
-```
+- Parsing: each ICU message is parsed to an AST once per process, then cached,
+  so repeated `t()` calls on the same message never re-parse.
+- Rendering: `Intl` does the locale-sensitive work, so CLDR plural rules and
+  number/date formatting come from the runtime's own ICU data and stay current
+  with it. Every locale the runtime knows is supported, not a fixed list.
+- Full ICU MessageFormat support: plural/select/selectordinal, number
+  skeletons, date/time styles, nested patterns, offsets and apostrophe
+  escaping.
 
-Current Linux artifact example:
+### Removed in 0.2.0: the Rust N-API engine
 
-- `packages/rosetta/index.linux-x64-gnu.node`
+Earlier versions shipped a Rust N-API engine and required its binary. It was
+removed after being measured against the TypeScript path: parsing in Rust was
+slower end to end, because the resulting AST has to cross the N-API boundary as
+JSON and `JSON.parse` on the JavaScript side costs about as much as parsing the
+message in TypeScript outright. Rendering could not move to Rust either — it
+needs ECMA-402, which lives in the runtime; the Rust engine's hand-written CLDR
+tables disagreed with `Intl` on half of a differential corpus.
 
-Runtime behavior:
-
-- The Rust ICU engine is **required** — there is no JS/TS fallback.
-- `t()` and `has()` throw `ROSETTA_NAPI_REQUIRED` if the binary is not loaded.
-- Build the NAPI binary: `cd packages/rosetta && pnpm build:napi`.
-- Full ICU MessageFormat support: plural/select/selectordinal (CLDR rules for 30+ languages), date/number formatting, nested message patterns.
+Migration: delete any `pnpm build:napi` step from your build. The public
+`isNativeAvailable()` export is gone; it reported whether the binary had
+loaded, and there is no binary. No other API changed, and no message renders
+differently.
 
 ## Rune Integration
 

@@ -4,7 +4,7 @@ Statut: **Present (architecture de manager type Adonis, encore en evolution)**.
 
 - Package: `@c9up/rosetta`
 - Role: source i18n unique pour l'ecosysteme (`ream`, `rune`, etc.)
-- Runtime: manager TypeScript + moteur Rust N-API **requis** pour la traduction (`t()` et `has()` levent une erreur si le binaire n'est pas charge)
+- Runtime: TypeScript pur, aucun binaire natif ni toolchain de build
 
 ## Architecture Implantee
 
@@ -16,7 +16,7 @@ Rosetta se comporte maintenant comme un vrai manager i18n:
 - chaines de fallback explicites et implicites
 - loaders asynchrones pour les catalogues
 - formatters `Intl`
-- moteur ICU Rust requis pour `t()` et `has()` — pas de fallback JS/TS
+- parser ICU sans dépendance, avec cache d'AST par processus
 
 ## API Manager
 
@@ -216,26 +216,37 @@ Fichiers supportes:
 - `resources/lang/en.yaml`
 - `resources/lang/en.yml`
 
-## Runtime Natif (Rust N-API)
+## Runtime
 
-Rosetta embarque une chaine complete de packaging natif:
+Rosetta est du TypeScript pur. Aucun binaire natif à construire, aucune matrice
+de plateformes, aucune étape d'installation au-delà de `pnpm add @c9up/rosetta` —
+le même code tourne sur glibc, sur musl/Alpine et dans le navigateur.
 
-```bash
-cd packages/rosetta
-pnpm run build:napi   # cargo build --release + copie index.<platform>.node
-pnpm run test:napi    # smoke test exports + comportement runtime natif
-```
+- Parsing: chaque message ICU est parsé en AST une seule fois par processus,
+  puis mis en cache; les `t()` répétés sur le même message ne reparsent jamais.
+- Rendu: `Intl` fait le travail sensible à la locale, donc les règles de pluriel
+  CLDR et le formatage des nombres et des dates viennent des données ICU du
+  runtime et restent à jour avec lui. Toutes les locales connues du runtime sont
+  supportées, pas une liste figée.
+- Support ICU MessageFormat complet: plural/select/selectordinal, skeletons de
+  nombres, styles de date/heure, motifs imbriqués, offsets et échappement par
+  apostrophe.
 
-Exemple artefact Linux:
+### Supprimé en 0.2.0: le moteur Rust N-API
 
-- `packages/rosetta/index.linux-x64-gnu.node`
+Les versions précédentes embarquaient un moteur Rust N-API et exigeaient son
+binaire. Il a été supprimé après mesure face au chemin TypeScript: parser en
+Rust était plus lent de bout en bout, parce que l'AST produit doit traverser la
+frontière N-API en JSON et que le `JSON.parse` côté JavaScript coûte à peu près
+le prix du parsing complet du message en TypeScript. Le rendu ne pouvait pas
+migrer vers Rust non plus: il exige ECMA-402, qui vit dans le runtime; les
+tables CLDR écrites à la main du moteur Rust divergeaient d'`Intl` sur la moitié
+d'un corpus différentiel.
 
-Comportement runtime:
-
-- Le moteur ICU Rust est **requis** — pas de fallback JS/TS.
-- `t()` et `has()` levent `ROSETTA_NAPI_REQUIRED` si le binaire n'est pas charge.
-- Construisez le binaire NAPI: `cd packages/rosetta && pnpm build:napi`.
-- Support ICU MessageFormat complet: plural/select/selectordinal (regles CLDR pour 30+ langues), formatage date/nombre, patterns de messages imbriques.
+Migration: retirez toute étape `pnpm build:napi` de votre build. L'export public
+`isNativeAvailable()` disparaît; il indiquait si le binaire était chargé, et il
+n'y a plus de binaire. Aucune autre API ne change, et aucun message ne s'affiche
+différemment.
 
 ## Integration Rune
 
