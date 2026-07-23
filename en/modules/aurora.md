@@ -154,7 +154,7 @@ router.get('/dashboard', async (ctx) => {
 
 That's it. `aurora.render(ctx, name, props)`:
 
-1. Resolves `resources/pages/${name}.js` (dynamic import — picks up file changes on every request)
+1. Resolves `resources/pages/${name}.js` (dynamic import — picks up edits to the page file on the next request; see [Dev live-reload](#dev-live-reload-hmr) for its transitive imports)
 2. Calls the factory with `props`, runs SSR via `renderToString`
 3. Wraps the markup in a full HTML document with:
    - the importmap that aliases `@c9up/aurora` → `/__assets/aurora/index.js`
@@ -196,6 +196,32 @@ The module-level `aurora.render(ctx, name, props)` (the agnostic core) still wor
 ### Why plain JS (and not TS)?
 
 Because **the same module must load in Node AND in the browser**, without a build step on the app side. Aurora's package itself ships JS in `dist/` and is loaded via the importmap. Your pages live in `resources/pages/*.js` and are loaded the same way. If you want types on a page, write a `.d.ts` next to it — your editor will pick it up; the runtime stays JS.
+
+### Dev live-reload (HMR)
+
+Pages are dynamic-imported per request, so aurora dev-busts the **page module** by mtime — a direct edit to `resources/pages/Foo.js` shows up on the next request with no restart. But a page's **transitive** imports (the components, layouts and services it pulls from `resources/pages/**` subfolders) resolve to stable URLs that Node's ESM loader caches for the whole process lifetime. Edit one of those and the SSR HTML stays stale (with a hydration warning) until you restart.
+
+This is the same gap AdonisJS closes with [`hot-hook`](https://github.com/Julien-R44/hot-hook) — a Node loader-hook that tracks the ESM graph and invalidates a boundary's **entire subtree** on change. Wire it into your app; aurora itself needs no change (its computed `import()` is already graph-aware compatible, and its dev `?v=` mtime bust coexists with hot-hook's own versioning):
+
+```bash
+pnpm add -D hot-hook @hot-hook/runner
+```
+
+```jsonc
+// package.json
+{
+  "scripts": {
+    "dev": "hot-runner --node-args=--import=tsx --node-args=--import=hot-hook/register bin/server.ts"
+  },
+  "hotHook": {
+    "boundaries": ["./resources/pages/*.js"]
+  }
+}
+```
+
+Now editing a page **or** any component/layout/service it imports hot-reloads the SSR with no restart. Edits outside the pages tree (`app/`, `config/`, `start/`, `providers/`) trigger a full restart via `hot-runner`, exactly as before.
+
+> **Point `boundaries` at page _entries_ only** — `./resources/pages/*.js` (direct children), **not** `**/*.js`. hot-hook requires every file matching `boundaries` to be dynamically imported; a component that is statically imported but happens to match the glob is flagged "wrongly imported" and forces a full reload. Keep pages as direct children of `resources/pages/` and components in subfolders (`atoms/`, `molecules/`, …) — they become hot-reloadable as downstream deps of a page boundary. Mirrors Adonis's `["./app/controllers/**/*.ts"]` (entrypoints only).
 
 ## Low-level — direct hydration
 
