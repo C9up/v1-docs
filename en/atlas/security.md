@@ -16,8 +16,10 @@ Atlas already enforces several guardrails:
 - `havingRaw(sql, bindings)`
 - dynamic column selection/order from HTTP inputs
 
-Strict mode (`setAtlasStrictMode(true)` / `ATLAS_STRICT=1`) disables all three raw
-methods (`whereRaw`, `joinRaw`, `havingRaw`).
+Strict mode (`setAtlasStrictMode(true)` / `ATLAS_STRICT=1`) disables every raw
+surface of the typed layer — `whereRaw`, `joinRaw`, `havingRaw` and the
+repository's `raw()`. The connection-level `db.query()` / `db.execute()` remain
+the explicit, always-parameterised break-glass.
 
 ## Recommended hardening
 

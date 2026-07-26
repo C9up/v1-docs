@@ -1,121 +1,148 @@
-# Atom — Decimal
+# Atom — Decimal And Money
 
-Status: **Present (TS + Rust N-API)**.
+Status: **Present (TS + Rust N-API/WASM + BigInt fallback)**.
 
 - Package: `@c9up/atom`
-- Goal: exact decimal arithmetic for finance/accounting use cases.
+- Goal: exact decimal arithmetic for finance, accounting, statistics, and reports.
 
 ## Quick Examples
 
-Basic setup:
-
 ```ts
-import { Atom, Decimal, decimal, isNativeAvailable } from '@c9up/atom'
+import {
+  Atom,
+  Decimal,
+  configureAtomContext,
+  decimal,
+  isNativeAvailable,
+  money,
+  withAtomContext,
+} from '@c9up/atom'
 
-isNativeAvailable() // boolean
-const price = decimal('19.99')
-const qty = new Decimal(3)
-price.times(qty).toString() // "59.97"
-```
+isNativeAvailable() // true when NAPI/WASM loaded, false when using TS fallback
 
-Aggregates and stats:
-
-```ts
+decimal('0.1').plus('0.2').toString() // "0.3"
+new Decimal('19.99').times(3).toString() // "59.97"
 Atom.sum('1.2', '2.3', '3.5').toString() // "7"
-Atom.avg('1', '2', '3').toString() // "2"
-Atom.median('1', '3', '2').toString() // "2"
-Atom.mode('1', '2', '2').map((x) => x.toString()) // ["2"]
-Atom.stddev('2', '4', '4', '4', '5', '5', '7', '9').toString() // "2"
 ```
 
-Instance operations:
+Prefer string or bigint inputs for exact business data. Unsafe JS integer
+numbers are rejected instead of being rounded silently.
 
 ```ts
-const a = new Decimal('19.99')
-a.plus('0.01').toString() // "20"
-a.div('3', { precision: 4 }).toString() // "6.6633"
-a.quantize('0.05').toString() // "20"
-a.percent('15').toString() // "2.9985"
+new Decimal('9007199254740993') // exact
+new Decimal(9007199254740993) // throws
+new Decimal(1e-7).toString() // "0.0000001"
 ```
 
-Conversion and locale:
+## Decimal API
 
-```ts
-const amount = Decimal.fromMinorUnits(12345, 2) // "123.45"
-amount.toMinorUnits(2) // 12345n
-Decimal.parseLocale('1 234,56', 'fr-FR').toString() // "1234.56"
-amount.toLocale('fr-FR') // "123,45"
-```
+Static helpers:
 
-## Complete Reference
-
-`Atom` namespace methods:
-- `Atom.decimal(value)`
-- `Atom.sum(...values)` and `Atom.sum(iterable)`
-- `Atom.avg(...values)` and `Atom.avg(iterable)`
-- `Atom.median(...values)` and `Atom.median(iterable, options?)`
-- `Atom.mode(...values)` and `Atom.mode(iterable)`
-- `Atom.stddev(...values)` and `Atom.stddev(iterable, options?)`
-- `Atom.min(...values)` and `Atom.min(iterable)`
-- `Atom.max(...values)` and `Atom.max(iterable)`
-- `Atom.parseLocale(value, locales?)`
-
-Root named exports:
-- `decimal`
-- `sum`, `avg`, `median`, `mode`, `stddev`, `min`, `max`
-- `Decimal`
-- `isNativeAvailable`
-
-`Decimal` static methods:
-- `Decimal.from(value)`
-- `Decimal.zero()`
-- `Decimal.one()`
+- `Decimal.from(value)` / `Decimal.parse(value)`
+- `Decimal.tryParse(value)` / `Decimal.safeParse(value)`
+- `Decimal.isDecimal(value)`
+- `Decimal.zero()` / `Decimal.one()`
 - `Decimal.fromMinorUnits(value, scale)`
-- `Decimal.parseLocale(value, locales?)`
+- `Decimal.parseLocale(value, localesOrRosetta?)`
 
-`Decimal` instance methods:
+Instance helpers:
+
 - Arithmetic: `plus`, `minus`, `times`, `div`, `mod`, `pow`, `sqrt`
 - Comparison: `cmp`, `eq`, `lt`, `lte`, `gt`, `gte`, `between`
-- Bounds: `min`, `max`, `clamp`
-- Sign checks: `abs`, `neg`, `isZero`, `isPositive`, `isNegative`, `isInteger`
-- Scale/rounding: `trunc`, `floor`, `ceil`, `round`, `quantize`, `toScale`, `toFixed`
+- Bounds/sign: `min`, `max`, `clamp`, `abs`, `neg`, sign checks
+- Rounding: `trunc`, `floor`, `ceil`, `round`, `toScale`, `toFixed`, `quantize`
 - Finance: `toMinorUnits`, `percent`, `applyPercent`, `percentageOf`, `allocate`
 - Serialization: `toParts`, `toString`, `toJSON`, `toNumber`, `toLocale`
 
-## Passing Atom Objects To Atom APIs
-
-All APIs accept `DecimalInput` (`string | number | bigint | Decimal`), so you can pass one `Decimal` into another API directly.
+Aggregates:
 
 ```ts
-import { Atom, Decimal } from '@c9up/atom'
-
-const subtotal = new Decimal('19.99')
-const tax = new Decimal('4.00')
-
-const total = subtotal.plus(tax) // Decimal + Decimal
-const cloned = Decimal.from(total) // create from existing Decimal
-const max = Atom.max(subtotal, tax, total) // mixed Decimal inputs
+Atom.avg('1', '2', '3').toString() // "2"
+Atom.median('1', '3', '2').toString() // "2"
+Atom.mode('1', '2', '2').map(String) // ["2"]
+Atom.mode([]) // []
+Atom.stddev('2', '4', '4', '4', '5', '5', '7', '9').toString() // "2"
 ```
 
-## Exactness
+## Money API
 
-Atom uses decimal-string arithmetic (not floating IEEE operations), so:
+`Money` binds an amount to a currency and scale. It rejects currency-mismatched
+operations and defaults to common ISO minor units.
 
 ```ts
-new Decimal('0.1').plus('0.2').toString() // "0.3"
+import { Money, money } from '@c9up/atom'
+
+money('19.99', 'EUR').toString() // "19.99 EUR"
+Money.fromMinorUnits(1999n, 'USD').toString() // "19.99 USD"
+
+const parts = money('10.00', 'USD').allocate([1, 1, 1])
+parts.map((part) => part.toString()) // ["3.34 USD", "3.33 USD", "3.33 USD"]
+
+money('19.99', 'USD').format({ locale: 'en-US' }) // "$19.99"
 ```
 
-## Native Runtime (Rust N-API)
+Use `{ exact: false, mode }` when a multiplication/division must round back to
+the currency scale.
+
+```ts
+money('10.00', 'USD').times('1.075').toString() // "10.75 USD"
+```
+
+## Context Defaults
+
+Atom has process-local defaults for precision and rounding. Explicit per-call
+options always win.
+
+```ts
+configureAtomContext({ precision: 8, roundMode: 'trunc', quantizeMode: 'half-up' })
+
+decimal('1').div('3').toString() // "0.33333333"
+
+withAtomContext({ precision: 2 }, () => decimal('1').div('8').toString()) // "0.12"
+```
+
+## Locale
+
+```ts
+Decimal.parseLocale('1 234,56', 'fr-FR').toString() // "1234.56"
+Decimal.parseLocale('١٬٢٣٤٫٥٦', 'ar-EG').toString() // "1234.56"
+new Decimal('1234.56').toLocale('fr-FR') // "1 234,56" depending on locale spaces
+```
+
+Malformed grouping is rejected instead of being stripped silently.
+
+## Atlas
+
+`@c9up/atom/atlas` mirrors Adonis Lucid's `prepare` / `consume` column pattern.
+Atlas stays agnostic; Atom owns the bridge.
+
+```ts
+import { Column } from '@c9up/atlas'
+import { Decimal } from '@c9up/atom'
+import { decimalColumn } from '@c9up/atom/atlas'
+
+class Invoice {
+  @Column(decimalColumn({ scale: 2, nullable: false }))
+  total!: Decimal
+}
+```
+
+For low-level use, `decimalAtlasAdapter` remains available.
+
+## Runtime
+
+Runtime order:
+
+1. Node loads the prebuilt NAPI binary when available.
+2. Browser builds load the WASM glue when available.
+3. Unsupported platforms transparently use the TypeScript BigInt fallback.
+
+Useful package commands:
 
 ```bash
-cd packages/atom
-pnpm run build:napi
-pnpm run test:napi
+pnpm test
+pnpm test:napi
+pnpm test:coverage
+pnpm bench
+pnpm build:wasm && node scripts/verify-wasm.mjs
 ```
-
-Runtime behavior:
-
-- The Rust engine is **required** — there is no JS/TS fallback.
-- Decimal ops throw `ATOM_ENGINE_NOT_FOUND` if the binary is not loaded.
-- Build the NAPI binary: `cd packages/atom && pnpm build:napi`.
-- Browser usage: build the WASM target with `cd packages/atom && pnpm build:wasm`.

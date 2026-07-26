@@ -83,6 +83,14 @@ await user.related('orders').attach({
 
 **Reserved keys.** Pivot extras MUST NOT use the FK column names (`foreignKey`/`otherKey`) or the timestamp column names from `pivotTimestamps`. atlas throws at `attach()` time when a caller passes one of those keys in extras (silent FK override / duplicate timestamp column would otherwise corrupt the row).
 
+**Atomic writes (Adonis Lucid parity).** `related('skills').create/save/createMany/saveMany`
+run the whole chain — persist an unsaved parent, write the related row(s), insert
+the pivot row(s) — inside ONE transaction. Any failure rolls the whole thing back:
+no orphan related row, no pivot pointing at a missing parent. Domain events are
+flushed only after the transaction commits.
+
+**`sync()` semantics (Adonis Lucid parity).** `sync(target)` reconciles the pivot to exactly `target`: missing rows are attached, rows absent from the target are detached, and **already-attached rows whose pivot attributes changed are UPDATED in place** (only the changed rows, only `updated_at` bumped — a no-op `sync` writes nothing). Pass `sync(target, true)` for an additive sync (attach + update, never detach). The read and all three writes run inside a **single managed transaction** — atomic, rolled back on any failure, so a concurrent writer can't wedge the pivot into a half-synced state. Object-form keys (`sync({ 1: {...} })`) arrive as strings from JS; a canonical integer is coerced back to a number before binding and the diff compares by string identity, so an integer related PK never gets a `text` bind (which Postgres rejects) and never churns.
+
 ## Best practices
 
 - Always name pivot tables explicitly for many-to-many.

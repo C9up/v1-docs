@@ -16,8 +16,10 @@ Atlas applique déjà plusieurs garde-fous:
 - `havingRaw(sql, bindings)`
 - sélection/tri de colonnes pilotés par entrées HTTP
 
-Le mode strict (`setAtlasStrictMode(true)` / `ATLAS_STRICT=1`) désactive les trois
-méthodes raw (`whereRaw`, `joinRaw`, `havingRaw`).
+Le mode strict (`setAtlasStrictMode(true)` / `ATLAS_STRICT=1`) désactive toutes les
+surfaces SQL brut de la couche typée — `whereRaw`, `joinRaw`, `havingRaw` et le
+`raw()` du repository. Le break-glass reste `db.query()` / `db.execute()` au niveau
+de la connexion (toujours paramétré).
 
 ## Durcissement recommandé
 

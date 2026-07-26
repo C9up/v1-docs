@@ -27,7 +27,11 @@ import { setAtlasStrictMode } from '@c9up/atlas'
 setAtlasStrictMode(true)
 ```
 
-En mode strict, `whereRaw()` et `joinRaw()` lèvent une erreur pour bloquer les usages risqués.
+En mode strict, `whereRaw()`, `joinRaw()`, `havingRaw()` **et** le `raw()` du
+repository lèvent une erreur — ils durcissent toutes les surfaces SQL brut de la
+couche typée. Le break-glass reste `db.query()` / `db.execute()` au niveau de la
+connexion (toujours paramétré) : un chemin explicite et greppable, jamais un
+contournement silencieux du mode strict.
 
 ## Filtrage relationnel
 
@@ -94,6 +98,14 @@ repo.query().where('id', 10).increment('attempts', 1)
 
 Pour des critères SQL complexes non couverts par les clauses sûres, passer par du raw SQL paramétré.
 
+Sur un modèle `@SoftDeletes`, le DML bulk respecte le scope soft-delete comme les
+lectures : `update`/`increment`/`decrement` **ne touchent pas** les lignes déjà
+supprimées (scope par défaut), et `delete()` **soft-delete** (pose `deleted_at`)
+au lieu d'un `DELETE` dur — cohérent avec le `delete()` d'instance. Pour un vrai
+`DELETE`, utiliser `forceDelete()` ; `restore()` efface `deleted_at` en masse.
+`withTrashed()` / `onlyTrashed()` élargissent / restreignent le scope avant la
+mutation.
+
 ## Transactions
 
 Atlas reprend l'API de transactions de Lucid. Dans les deux cas la transaction
@@ -143,6 +155,25 @@ Les appels `transaction()` imbriqués réutilisent la même connexion via
 `SAVEPOINT` (rollback partiel). Passer le `trx` actif à un repository avec
 `repo.useTransaction(trx)`.
 
+**Hooks après-commit.** `trx.after('commit', cb)` / `trx.after('rollback', cb)`
+enregistrent des effets de bord qui ne s'exécutent qu'une fois la transaction
+durable (parité AdonisJS Lucid) ; les erreurs d'un hook sont avalées pour qu'un
+effet post-commit ne puisse pas faire remonter un échec sur une transaction que
+l'appelant a déjà vue réussir. Dans une transaction imbriquée (SAVEPOINT), un
+hook `commit` est transféré au parent, donc il ne se déclenche qu'au commit
+**racine** — et est abandonné si la transaction externe rollback ensuite. Atlas
+s'en sert en interne pour flusher les domain events : un repo lié à une
+transaction externe (`repo.useTransaction(trx)`) n'émet ses events qu'après le
+commit de cette transaction externe, jamais au release du savepoint interne.
+
+Conséquence observable : sur un chemin **transactionnel** (tout ce qui passe par
+une transaction managée — `firstOrCreate`, `updateOrCreateMany`,
+`related().create`, …), un échec de ton sink `onDomainEvents` est **avalé** —
+l'écriture est déjà committée, un effet de bord tardif ne peut pas l'annuler. Sur
+un `create()` / `save()` non transactionnel, le dispatch est inline et un échec du
+sink **remonte** à l'appelant (la ligne est quand même écrite — le dispatch suit
+l'INSERT). Si tu dois observer les échecs de dispatch, fais-le dans le sink.
+
 > Ne jamais émuler une transaction en envoyant `BEGIN`/`COMMIT` via
 > `db.execute()` sur une connexion du pool : chaque appel peut atterrir sur une
 > connexion différente, les instructions se dispersent — rien n'est atomique et
@@ -187,8 +218,16 @@ const rows = await User.query().where('active', true).pojo()
 Un `select()` partiel de colonnes simples **inclut automatiquement la clé
 primaire**, pour que l'entité hydratée reste sauvegardable (un `save()` ultérieur
 fait un UPDATE, pas un INSERT). Pour les projections agrégat/alias
-(`select('COUNT(*) as n')`) la PK ne peut être déduite — utiliser `pojo()` ;
-appeler `save()` sur une telle entité lève `E_MISSING_PRIMARY_KEY`.
+(`select('COUNT(*) as n')`) la PK ne peut être déduite — utiliser `pojo()`. Les
+opérations prémisées sur une row existante (`delete()`, `forceDelete()`,
+`restore()`, `refresh()`, `fresh()`, `load*()`) exigent une entité **persistée** :
+elles lèvent `E_MODEL_NOT_PERSISTED` sur une instance locale (même avec une PK
+posée à la main — ce n'est pas une row) et `E_MISSING_PRIMARY_KEY` sur une
+projection persistée sans PK. `save()` lève aussi `E_MISSING_PRIMARY_KEY` sur une
+telle projection. `related().create/save` **persiste le parent d'abord** dans une
+transaction managée (parité AdonisJS/Lucid), pose le FK sur l'enfant, puis l'écrit —
+atomique, rollback en cas d'échec ; un parent issu d'une projection sans PK est
+rejeté (`E_MISSING_PRIMARY_KEY`).
 
 ## Contexte sideloaded
 

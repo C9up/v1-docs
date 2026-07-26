@@ -26,7 +26,11 @@ import { setAtlasStrictMode } from '@c9up/atlas'
 setAtlasStrictMode(true)
 ```
 
-In strict mode, `whereRaw()` and `joinRaw()` throw to prevent unsafe patterns.
+In strict mode, `whereRaw()`, `joinRaw()`, `havingRaw()` **and** the repository's
+`raw()` throw — hardening every raw-SQL surface of the typed layer. The
+connection-level `db.query()` / `db.execute()` stay available as the explicit,
+always-parameterised break-glass — a greppable escape hatch, never a silent
+bypass of strict mode.
 
 ## Relation filtering patterns
 
@@ -93,6 +97,13 @@ repo.query().where('id', 10).increment('attempts', 1)
 
 For complex SQL criteria unsupported by safe clauses, use explicit raw SQL with parameter bindings.
 
+On a `@SoftDeletes` model, bulk DML honours the soft-delete scope just like reads:
+`update`/`increment`/`decrement` **skip** already-deleted rows (default scope), and
+`delete()` **soft-deletes** (stamps `deleted_at`) rather than issuing a hard
+`DELETE` — consistent with the instance-level `delete()`. For a real `DELETE` use
+`forceDelete()`; `restore()` clears `deleted_at` in bulk. `withTrashed()` /
+`onlyTrashed()` widen / restrict the scope before the mutation.
+
 ## Transactions
 
 Atlas mirrors Lucid's transaction API. Either way the transaction is **pinned to
@@ -141,6 +152,24 @@ const trx = await db.transaction({ isolationLevel: 'repeatable read' })
 Nested `transaction()` calls reuse the same connection via `SAVEPOINT` (partial
 rollback). Hand the active `trx` to a repository with `repo.useTransaction(trx)`.
 
+**After-commit hooks.** `trx.after('commit', cb)` / `trx.after('rollback', cb)`
+register side effects that run only once the transaction is durable (AdonisJS
+Lucid parity); hook errors are swallowed so a post-commit side effect can't
+surface a failure on a transaction the caller already saw succeed. Inside a
+nested (SAVEPOINT) transaction a `commit` hook is forwarded to the parent, so it
+fires only when the ROOT commits — and is discarded if the outer transaction
+later rolls back. Atlas uses this internally to flush domain events: a repo bound
+to an external transaction (`repo.useTransaction(trx)`) emits its events only
+after that outer transaction commits, never on the inner savepoint release.
+
+One observable consequence: on a **transactional** path (anything routed through a
+managed transaction — `firstOrCreate`, `updateOrCreateMany`, `related().create`,
+…) a failure in your `onDomainEvents` sink is **swallowed** — the write already
+committed, so it can't be undone by a late side-effect error. On a plain
+non-transactional `create()` / `save()` the dispatch runs inline and a sink
+failure **propagates** to the caller (the row is still written — dispatch runs
+after the INSERT). If you need dispatch failures observed, do it inside the sink.
+
 > Never emulate a transaction by issuing `BEGIN`/`COMMIT` through `db.execute()`
 > on a pooled connection: each call may land on a different connection, so the
 > statements scatter — nothing is atomic and a row lock can be stranded on an
@@ -182,7 +211,14 @@ const rows = await User.query().where('active', true).pojo()
 A partial `select()` of plain columns **auto-includes the primary key**, so the
 hydrated entity is still saveable (a later `save()` UPDATEs rather than INSERTs). For
 aggregate/alias projections (`select('COUNT(*) as n')`) the PK can't be inferred —
-use `pojo()`; calling `save()` on such an entity throws `E_MISSING_PRIMARY_KEY`.
+use `pojo()`. Operations premised on an existing row (`delete()`, `forceDelete()`,
+`restore()`, `refresh()`, `fresh()`, `load*()`) require a **persisted** entity:
+they throw `E_MODEL_NOT_PERSISTED` on a local instance (even with a hand-set PK —
+it isn't a row) and `E_MISSING_PRIMARY_KEY` on a persisted projection with no PK.
+`save()` also throws `E_MISSING_PRIMARY_KEY` on such a projection. `related().create/save`
+**persists the parent first** inside a managed transaction (AdonisJS/Lucid parity),
+sets the child FK, then writes the child — atomic, rolled back on failure; a parent
+from a projection with no PK is rejected (`E_MISSING_PRIMARY_KEY`).
 
 ## Sideloaded context
 

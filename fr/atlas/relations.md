@@ -83,6 +83,14 @@ await user.related('orders').attach({
 
 **Clés réservées.** Les extras pivot NE DOIVENT PAS utiliser les noms de colonnes FK (`foreignKey`/`otherKey`) ni les noms de colonnes timestamp de `pivotTimestamps`. atlas throw à l'appel de `attach()` quand un appelant passe l'une de ces clés en extra (un override silencieux de FK / une colonne timestamp dupliquée corromprait la ligne).
 
+**Écritures atomiques (parité Adonis Lucid).** `related('skills').create/save/createMany/saveMany`
+exécutent toute la chaîne — persister un parent non sauvegardé, écrire la/les
+ligne(s) liée(s), insérer la/les ligne(s) pivot — dans UNE transaction. Tout
+échec annule l'ensemble : pas de ligne liée orpheline, pas de pivot pointant vers
+un parent inexistant. Les domain events ne sont flushés qu'après le commit.
+
+**Sémantique de `sync()` (parité Adonis Lucid).** `sync(target)` réconcilie le pivot pour qu'il corresponde exactement à `target` : les lignes manquantes sont attachées, les lignes absentes de la cible sont détachées, et **les lignes déjà attachées dont les attributs pivot ont changé sont MISES À JOUR sur place** (seules les lignes modifiées, seul `updated_at` est bump — un `sync` sans changement n'écrit rien). Passer `sync(target, true)` pour un sync additif (attach + update, jamais de detach). La lecture et les trois écritures s'exécutent dans **une seule transaction managée** — atomique, annulée en cas d'échec, pour qu'un writer concurrent ne puisse pas figer le pivot dans un état à demi synchronisé. Les clés en forme objet (`sync({ 1: {...} })`) arrivent en `string` depuis JS ; un entier canonique est recoercé en nombre avant le bind et le diff compare par identité de chaîne, si bien qu'une PK liée entière ne reçoit jamais un bind `text` (rejeté par Postgres) et ne subit aucun churn.
+
 ## Bonnes pratiques
 
 - Nommer explicitement la pivot table en many-to-many.
