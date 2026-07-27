@@ -113,4 +113,4 @@ Le gate de dérive refuse la publication quand la registre npm contient déjà u
 
 Toute autre erreur (pas de tag sur HEAD, mismatch tag-vs-`Cargo.toml`, registre npm injoignable) est fail-closed : aucun override possible.
 
-Voir [ADR-006](../../../_bmad-output/planning-artifacts/adr-006-ream-cli-versioning.md) pour la justification complète et la sémantique des gates.
+Voir ADR-006 (artefact de planification interne) pour la justification complète et la sémantique des gates.

@@ -75,9 +75,8 @@ strict `[table.]column` (letters/digits/underscore); anything else throws (use
 const page = await repo.query()
   .orderBy('id', 'asc')
   .cursorPaginate({
-    perPage: 20,
+    limit: 20,
     orderBy: ['id'],
-    cursor: null,
   })
 ```
 
@@ -230,3 +229,290 @@ properties via `entity.$sideloaded`:
 const posts = await Post.query().sideload({ tenantId }).exec()
 posts[0].$sideloaded // { tenantId }
 ```
+
+## JSON predicates
+
+Filter on a JSON/JSONB column by path or by containment. Every value — the path
+**and** the compared value — crosses the boundary as a bound param; only the
+column is a quoted identifier.
+
+```ts
+// Compare a value at a JSONPath ($.a.b, $.items[0]); the operator defaults to `=`.
+repo.query().whereJsonPath('data', '$.address.city', 'Paris')
+repo.query().whereJsonPath('data', '$.total', '>', 1000)
+
+// Structural equality — the column's JSON must match `value`.
+repo.query().whereJson('prefs', { theme: 'dark', compact: true })
+
+// Containment (Postgres/MySQL): `@>` superset / `<@` subset.
+repo.query().whereJsonSupersetOf('tags', ['urgent'])
+repo.query().whereJsonSubsetOf('scopes', ['read', 'write', 'admin'])
+```
+
+Each has the full `and*` / `or*` / `whereNot*` family: `andWhereJsonPath`,
+`orWhereJsonPath`; `whereJson` / `andWhereJson` / `orWhereJson` / `whereNotJson` /
+`andWhereNotJson` / `orWhereNotJson`; and for containment both the `*Of` spelling
+and Lucid's bare spelling — `whereJsonSuperset` / `whereJsonSubset` and their
+`and*` / `or*` / `whereNot*` / `orWhereNot*` variants.
+
+> Containment is Postgres/MySQL only — SQLite has no JSON containment operator, so
+> the compiler raises `E_UNSUPPORTED` there rather than emitting broken SQL. A
+> JSONPath must start at the document root (`$`).
+
+## Pivot filters (`@ManyToMany`)
+
+Inside an m2m `preload` callback, filter loaded relations by a column on the
+**pivot** table (not the related table). These are recorded separately and applied
+to the pivot lookup by the m2m resolver — inert on non-m2m relations.
+
+```ts
+userRepo.query()
+  .preload('roles', (q) =>
+    q.wherePivot('active', true)
+     .whereInPivot('scope', ['admin', 'owner'])
+     .pivotColumns(['notes']),
+  )
+```
+
+The full family:
+
+- `wherePivot(col, [op,] value)` + `andWherePivot` / `orWherePivot`
+- `whereInPivot(col, values)` / `whereNotInPivot(col, values)` + `and*` / `or*`
+  (plus the earlier alias `wherePivotIn`)
+- `whereNotPivot(col, [op,] value)` — negates the comparison — + `and*` / `or*`
+- `whereNullPivot(col)` / `whereNotNullPivot(col)` + `and*` / `or*`
+
+Extra pivot columns requested with `pivotColumns([...])` are read off each loaded
+relation as `$extras.pivot_<col>`. An `or*` pivot filter is compiled inside a
+parenthesised group, so it can never escape the `pivot_fk IN (parents)` scoping
+that keeps the preload correct.
+
+## GROUP BY / HAVING
+
+```ts
+const rows = await repo.query()
+  .select({ status: 'status', n: 'COUNT(*)' })
+  .groupBy('status')
+  .having('COUNT(*)', '>', 5)
+  .havingBetween('COUNT(*)', [5, 100])
+  .orderByRaw('COUNT(*) DESC')
+  .pojo()
+```
+
+- `having(col, op, value)` / `orHaving(col, op, value)`
+- `havingIn(col, values)` / `havingNotIn(col, values)`
+- `havingBetween(col, [lo, hi])` / `havingNotBetween(col, [lo, hi])`
+- `havingNull(col)` / `havingNotNull(col)`
+- `havingRaw(sql, bindings?)`, `groupByRaw(sql)`, `orderByRaw(sql)`
+
+A bare `having` column resolves through the entity column map (honouring
+`@Column({ columnName })`); an aggregate expression or a `withCount` / `withAggregate`
+alias is left verbatim so `having` can reference it. `havingRaw`, `groupByRaw` and
+`orderByRaw` are raw-SQL surfaces — they throw under `setAtlasStrictMode(true)` /
+`ATLAS_STRICT`, exactly like `whereRaw`.
+
+## Set operations
+
+Combine the query with another whole query — a `ModelQuery` on the same model, or a
+callback that builds one.
+
+```ts
+const ids = await repo.query().select('id').where('region', 'eu')
+  .union((q) => q.select('id').where('vip', true))
+  .exec()
+
+repo.query().intersect((q) => q.where('active', true))
+repo.query().except((q) => q.where('banned', true))
+```
+
+Available: `union` / `unionAll`, `intersect` / `intersectAll`, `except` / `exceptAll`.
+The other query's bindings are re-indexed into the outer parameter list.
+
+> `intersectAll` / `exceptAll` are Postgres/MySQL only — SQLite's compound grammar
+> has no `INTERSECT ALL` / `EXCEPT ALL`, so the compiler raises `E_UNSUPPORTED`
+> there instead of emitting a syntax error.
+
+## Common Table Expressions (CTE)
+
+```ts
+// Recursive walk of an adjacency tree.
+const tree = await repo.query()
+  .withRecursive('subtree', (q) =>
+    q.select('id', 'parent_id').where('id', rootId)
+     .unionAll((r) => r.select('c.id', 'c.parent_id')
+       .from('categories as c')
+       .innerJoin('subtree', 's.id', 'c.parent_id')),
+    ['id', 'parent_id'],
+  )
+  .exec()
+```
+
+- `with(name, query)` — a plain `WITH name AS (…)`
+- `withRecursive(name, query, columns?)` — a self-referencing CTE (the recursive
+  term is a `union` / `unionAll` inside `query`); one recursive entry makes the
+  whole `WITH` clause recursive
+- `withMaterialized(name, query)` / `withNotMaterialized(name, query)` — the
+  Postgres 12+ / SQLite 3.35+ planner hint (MySQL raises `E_UNSUPPORTED`)
+
+The CTE name is validated as an identifier; the sub-query's bindings are re-indexed
+into the outer list.
+
+## Outer joins and `ON` constraints
+
+Beyond `innerJoin` / `leftJoin` / `rightJoin`, Atlas exposes the outer spellings and
+`fullOuterJoin`:
+
+```ts
+repo.query().leftOuterJoin('profiles', 'users.id', 'profiles.user_id')
+repo.query().rightOuterJoin('teams', 'users.team_id', 'teams.id')
+repo.query().fullOuterJoin('audits', 'users.id', 'audits.user_id') // Postgres
+```
+
+`leftOuterJoin` / `rightOuterJoin` are aliases of `leftJoin` / `rightJoin`.
+`fullOuterJoin` is Postgres — MySQL and SQLite lack `FULL OUTER JOIN`.
+
+The callback `ON` builder carries the full Lucid/Knex constraint set alongside
+`on` / `andOn` / `orOn` and `onVal` / `andOnVal` / `orOnVal`:
+
+```ts
+repo.query().leftJoin('orders', (j) =>
+  j.on('users.id', 'orders.user_id')
+   .onIn('orders.status', ['paid', 'shipped'])
+   .onNotNull('orders.confirmed_at')
+   .onBetween('orders.total', [10, 1000])
+   .onExists((s) => s.select('1').from('refunds').whereColumn('refunds.order_id', '=', 'orders.id')))
+```
+
+Each `on*` value is parameterised: `onIn` / `onNotIn` (bound `IN` list), `onNull` /
+`onNotNull`, `onBetween` / `onNotBetween` (inclusive), and `onExists` / `onNotExists`
+(a builder or a callback). Identifiers are dialect-quoted; the operator is
+allowlisted.
+
+## Lucid-parity helpers
+
+```ts
+// Exactly one row, or throw — a second match is a bug first() would hide.
+const user = await repo.query().where('email', email).sole()
+
+// Top-N-per-parent in a has-many preload (windowed, not a global LIMIT).
+authorRepo.query().preload('posts', (q) =>
+  q.groupLimit(3).groupOrderBy('created_at', 'desc'))
+
+// Postgres DISTINCT ON — first row per distinct set.
+repo.query().distinctOn('user_id').orderBy('user_id').orderBy('created_at', 'desc')
+
+// Distinct aggregates.
+const uniqueTotal = await repo.query().sumDistinct('amount')
+const uniqueAvg = await repo.query().avgDistinct('score')
+
+// Dialect-conditional clauses.
+repo.query()
+  .ifDialect('postgres', (q) => q.distinctOn('user_id'))
+  .unlessDialect('sqlite', (q) => q.forUpdate())
+
+// First matching [guard, callback]; a trailing bare callback is the default.
+repo.query().match(
+  [sort === 'new', (q) => q.orderBy('created_at', 'desc')],
+  [sort === 'top', (q) => q.orderBy('score', 'desc')],
+  (q) => q.orderBy('id'),
+)
+
+// A leading SQL comment on the compiled statement (for pg_stat_statements etc).
+repo.query().comment('dashboard:active-users').exec()
+```
+
+`groupLimit` compiles to a `ROW_NUMBER() OVER (PARTITION BY <fk> …)` window and is
+meaningful only in a has-many preload callback; a plain `.limit()` caps the whole
+result set across parents. `distinctOn` is Postgres-only (the compiler refuses it
+elsewhere rather than return a silently different result set). `comment()` rejects a
+`*/` terminator so a comment can never break out of the `/* … */` wrapper.
+
+> The plain conditional helpers `if(condition, cb, elseCb?)` / `unless(...)` live on
+> the connection-level `db.query()` builder; on a model query use `match` or the
+> dialect-scoped `ifDialect` / `unlessDialect`.
+
+## Query timeouts
+
+```ts
+// Client-side race only: the awaiter rejects after 2s; the driver still finishes
+// the query server-side (Lucid's default timeout semantics).
+await repo.query().where('active', true).timeout(2000).exec()
+
+// { cancel: true } ALSO aborts the query server-side.
+await repo.query().where('active', true).timeout(2000, { cancel: true }).exec()
+```
+
+With `{ cancel: true }` Atlas applies an in-session **statement** timeout on the same
+connection — Postgres `statement_timeout`, MySQL `MAX_EXECUTION_TIME` (SELECT only) —
+so the server aborts the running query rather than leaving it to complete after the
+client has already given up. SQLite has no server-side statement timeout, so only the
+client race applies there. There is no separate KILL-by-PID cancellation path (that
+route is unavailable under the driver); cancellation is always the in-session
+statement timeout. Calling `timeout()` with no argument clears it.
+
+## Connection-level writes and upserts
+
+`db.table()` / `db.from()` (the connection-level builder, not a model query) exposes
+Lucid's insert / upsert surface. The builders are lazy and chainable — the statement
+runs on `await` / `.exec()`, so the Lucid clause order works:
+
+```ts
+// Insert one row, upsert on a conflict target.
+await db.table('users')
+  .insert({ email, name })
+  .onConflict('email')
+  .merge()                      // UPDATE the row on conflict …
+  .returning(['id'])
+
+await db.table('users').insert({ email, name }).onConflict('email').ignore() // … or do nothing
+
+// Insert many in one statement — missing keys are filled with NULL (Lucid semantics).
+await db.table('audit_logs').multiInsert([
+  { user_id: 1, action: 'login' },
+  { user_id: 2, action: 'logout' },
+])
+
+// Update / delete on the current WHERE, optionally RETURNING.
+await db.from('users').where('id', 1).update({ is_active: false }).returning(['id'])
+```
+
+`insert(row)` resolves to the RETURNING rows (or `[insertId]` on MySQL/SQLite, `[]`
+otherwise). `merge(...)` may name columns or pass `{ col: value | db.raw(...) }`
+custom assignments; `ignore()` is `DO NOTHING` / `INSERT IGNORE`; `returning(...)`
+names the columns to return. On a model query, `update()` / `delete()` /
+`forceDelete()` / `restore()` return the same lazy `DmlBuilder` and take an optional
+`returning` list.
+
+## The paginator result
+
+`repo.query().paginate(page, perPage)` resolves to a `Paginator<T>` — the items plus
+Lucid-parity metadata and page-URL helpers.
+
+```ts
+const page = await repo.query().orderBy('id').paginate(2, 20)
+
+page.all()            // T[] — the rows on this page
+page.total            // total rows across all pages
+page.perPage          // 20
+page.currentPage      // 2
+page.lastPage         // ceil(total / perPage)
+page.firstPage        // 1
+page.hasPages         // more than one page?
+page.hasMorePages     // is there a page after this one?
+
+// Page URLs — set a base + carried query string first.
+page.baseUrl('/users').queryString({ sort: 'name' })
+page.getUrl(3)                 // '/users?sort=name&page=3'
+page.getNextPageUrl()          // next page URL, or null on the last page
+page.getPreviousPageUrl()      // previous page URL, or null on the first page
+page.getUrlsForRange(1, 5)     // [{ page, url, isActive }, …], clamped to [1, lastPage]
+
+// Serialize for an API response (snake_case meta via the naming strategy).
+page.serialize({ fields: ['id', 'name'] })
+page.toJSON()                  // { data, meta }
+```
+
+`getUrl` returns `''` until a `baseUrl` is set. `serialize` / `toJSON` emit
+`{ data, meta }`; the `meta` keys are remapped through the naming strategy's
+`paginationMetaKeys` (snake_case by default) and include the page URLs once a
+`baseUrl` is present.

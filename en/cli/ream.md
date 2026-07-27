@@ -113,4 +113,4 @@ The drift gate refuses to publish when the npm registry already has a version gr
 
 Any other failure (no tag on HEAD, tag-vs-`Cargo.toml` mismatch, npm registry unreachable) is fail-closed: there is no override.
 
-See [ADR-006](../../../_bmad-output/planning-artifacts/adr-006-ream-cli-versioning.md) for the full rationale and gate semantics.
+See ADR-006 (internal planning artifact) for the full rationale and gate semantics.

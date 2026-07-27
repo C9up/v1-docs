@@ -4,6 +4,28 @@ export default defineConfig({
   title: 'Ream',
   description: 'Rust-powered Node.js framework',
 
+  // Inline code containing Vue-mustache syntax (`{{ … }}`) — common in the
+  // inker / blackhole template docs — must not be compiled as a Vue
+  // interpolation. VitePress applies `v-pre` to code BLOCKS but not to inline
+  // code, so a valid-JS mustache (e.g. `{{ csrfField() }}`) silently compiles
+  // and then throws at SSR render. Escape the braces in the rendered <code>
+  // output: it displays literally and Vue never sees a `{{`.
+  markdown: {
+    config(md) {
+      const prev = md.renderer.rules.code_inline
+      md.renderer.rules.code_inline = (tokens, idx, options, env, self) => {
+        const rendered = prev
+          ? prev(tokens, idx, options, env, self)
+          : `<code${self.renderAttrs(tokens[idx])}>${md.utils.escapeHtml(
+              tokens[idx].content,
+            )}</code>`
+        return rendered
+          .replace(/\{\{/g, '&#123;&#123;')
+          .replace(/\}\}/g, '&#125;&#125;')
+      }
+    },
+  },
+
   locales: {
     en: {
       label: 'English',
@@ -100,12 +122,20 @@ export default defineConfig({
                 { text: 'Relations', link: '/en/atlas/relations' },
                 { text: 'Query Builder', link: '/en/atlas/query-builder' },
                 { text: 'Advanced ModelQuery', link: '/en/atlas/model-query-advanced' },
+                { text: 'Lifecycle Hooks', link: '/en/atlas/lifecycle-hooks' },
                 { text: 'Repository Patterns', link: '/en/atlas/repository-patterns' },
                 { text: 'Migrations', link: '/en/atlas/migrations' },
+                { text: 'Schema Builder', link: '/en/atlas/schema-builder' },
+                { text: 'Schema Dump & Verify', link: '/en/atlas/schema-dump' },
+                { text: 'Seeders', link: '/en/atlas/seeders' },
+                { text: 'Factories', link: '/en/atlas/factories' },
+                { text: 'Connections', link: '/en/atlas/connections' },
                 { text: 'Domain Events', link: '/en/atlas/domain-events' },
                 { text: 'SQL Security', link: '/en/atlas/security' },
                 { text: 'Performance', link: '/en/atlas/performance' },
+                { text: 'Observability', link: '/en/atlas/observability' },
                 { text: 'API Reference', link: '/en/atlas/api-reference' },
+                { text: 'Error Handling', link: '/en/atlas/error-handling' },
                 { text: 'Recipes', link: '/en/atlas/recipes' },
                 { text: 'Troubleshooting', link: '/en/atlas/troubleshooting' },
               ],
@@ -218,12 +248,20 @@ export default defineConfig({
                 { text: 'Relations', link: '/fr/atlas/relations' },
                 { text: 'Query Builder', link: '/fr/atlas/query-builder' },
                 { text: 'ModelQuery avancé', link: '/fr/atlas/model-query-advanced' },
+                { text: 'Hooks de cycle de vie', link: '/fr/atlas/lifecycle-hooks' },
                 { text: 'Patterns Repository', link: '/fr/atlas/repository-patterns' },
                 { text: 'Migrations', link: '/fr/atlas/migrations' },
+                { text: 'Schema Builder', link: '/fr/atlas/schema-builder' },
+                { text: 'Dump & Vérif du schéma', link: '/fr/atlas/schema-dump' },
+                { text: 'Seeders', link: '/fr/atlas/seeders' },
+                { text: 'Factories', link: '/fr/atlas/factories' },
+                { text: 'Connexions', link: '/fr/atlas/connections' },
                 { text: 'Domain Events', link: '/fr/atlas/domain-events' },
                 { text: 'Sécurité SQL', link: '/fr/atlas/security' },
                 { text: 'Performance', link: '/fr/atlas/performance' },
+                { text: 'Observabilité', link: '/fr/atlas/observability' },
                 { text: 'API Reference', link: '/fr/atlas/api-reference' },
+                { text: 'Gestion des erreurs', link: '/fr/atlas/error-handling' },
                 { text: 'Recipes', link: '/fr/atlas/recipes' },
                 { text: 'Troubleshooting', link: '/fr/atlas/troubleshooting' },
               ],
