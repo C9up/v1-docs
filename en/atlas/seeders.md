@@ -115,7 +115,7 @@ await runSeederDirectory('database/seeders', db, {
 
 ## Console commands
 
-The commands are Ream-idiomatic `{ name, description, run }` objects — the same
+The commands are Ream-idiomatic classes — the same
 shape as the migration commands — registered under `reamrc.commands`. Each
 factory takes the `seedersDir` (and, for `db:seed`, optional `naturalSort` /
 `environment` defaults).

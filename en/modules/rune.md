@@ -13,7 +13,7 @@ const CreateOrderSchema = schema({
   email:        rules.string().email(),
 })
 
-const result = CreateOrderSchema.validate({
+const result = CreateOrderSchema.validateResult({
   total:        42.50,
   customerName: '  Alice  ',
   email:        'alice@example.com',
@@ -24,6 +24,13 @@ const result = CreateOrderSchema.validate({
 // result.data.customerName === 'Alice'   (trimmed)
 // result.errors         === []
 ```
+
+> **Which method?** `validateResult()` is synchronous and never throws — the one
+> used above. `validate()` is the VineJS contract: **async**, resolves to the
+> validated data, and throws `errors.E_VALIDATION_ERROR` (HTTP 422) on failure.
+> `validateResultAsync()` is the async result-based form, and the only one that
+> can run `unique` / `exists` — `validateResult()` throws outright on a schema
+> carrying them.
 
 ## Rules
 
@@ -74,7 +81,7 @@ const s = schema({
   nickname: rules.string().optional(),
 })
 
-s.validate({ name: 'Alice' })
+s.validateResult({ name: 'Alice' })
 // valid: true — nickname is absent but optional
 ```
 
@@ -114,7 +121,7 @@ const s = schema({
   username: rules.string().trim().min(3),
 })
 
-s.validate({ username: '  Al  ' })
+s.validateResult({ username: '  Al  ' })
 // Transforms 'Al' (trimmed), then min(3) fails
 // errors: [{ field: 'username', rule: 'min', message: 'Minimum 3' }]
 ```
@@ -153,7 +160,7 @@ const CreateOrderSchema = schema({
 
 router.post('/orders', async (ctx) => {
   const body = JSON.parse(ctx.request!.body)
-  const result = CreateOrderSchema.validate(body)
+  const result = CreateOrderSchema.validateResult(body)
 
   if (!result.valid) {
     ctx.response!.status = 422
@@ -222,28 +229,28 @@ Some rules can't answer synchronously — a uniqueness check or a foreign-key
 existence check has to hit the database. Rune keeps these off the sync path and
 runs them through the async validators.
 
-### `validateAsync` / `validateOrThrowAsync`
+### `validateResultAsync` / `validateOrThrowAsync`
 
 A schema that carries any async rule (`unique`, `exists`, or a `useAsync` rule)
 **must** be run asynchronously:
 
 ```ts
-const result = await UserSchema.validateAsync(body)
-// result: ValidationResult<T> — same shape as validate(), never throws
+const result = await UserSchema.validateResultAsync(body)
+// result: ValidationResult<T> — same shape as validateResult(), never throws
 
 const data = await UserSchema.validateOrThrowAsync(body)
 // returns the validated T, or throws RuneValidationError (E_VALIDATION_ERROR, HTTP 422)
 ```
 
-`validateAsync` runs the sync rules first, then awaits the async rules for each
+`validateResultAsync` runs the sync rules first, then awaits the async rules for each
 field. An async rule only runs when the field **passed its sync rules** and has a
 present, non-null value — a DB lookup is skipped for an already-invalid or absent
 field (Lucid parity).
 
-> The sync `validate()` **throws** on a schema that has async rules rather than
-> silently skipping them:
-> `rune: this schema has async rules (unique/exists/useAsync) — call validateAsync() instead of validate().`
-> The same applies to `validateOrThrow()`, which calls `validate()` internally.
+> The synchronous `validateResult()` **throws** on a schema that has async
+> rules rather than silently skipping them:
+> `rune: this schema has async rules (unique/exists/useAsync) — call validateResultAsync() (result-based) or validate() (throwing) instead of validateResult().`
+> The same applies to `validateOrThrow()`, which calls `validateResult()` internally.
 
 ### DB-backed rules: `unique` / `exists`
 
@@ -273,7 +280,7 @@ const RegisterSchema = schema({
   }),
 })
 
-const result = await RegisterSchema.validateAsync({
+const result = await RegisterSchema.validateResultAsync({
   email: 'alice@example.com',
   countryId: 42,
 })

@@ -8,9 +8,10 @@ like AdonisJS Lucid).
 
 ## Console commands
 
-Atlas commands are plain `{ name, description, run }` objects. Register them in
-`reamrc.commands` and dispatch them through the console kernel (Atlas has no
-global entity registry — you list your models, as in Lucid).
+Atlas commands are classes carrying their name, description and inputs as
+statics. Default-export one from a file in `commands/` — the console kernel
+discovers that directory automatically — and run it with `ream <command>`
+(Atlas has no global entity registry — you list your models, as in Lucid).
 
 | Command | What it does |
 | --- | --- |

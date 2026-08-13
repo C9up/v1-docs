@@ -120,10 +120,11 @@ await runSeederDirectory('database/seeders', db, {
 
 ## Commandes console
 
-Les commandes sont des objets `{ name, description, run }` idiomatiques à Ream —
-la même forme que les commandes de migration — enregistrés sous
-`reamrc.commands`. Chaque factory prend le `seedersDir` (et, pour `db:seed`, des
-valeurs par défaut optionnelles `naturalSort` / `environment`).
+Les commandes sont des classes idiomatiques à Ream — la même forme que les
+commandes de migration — exportées par défaut depuis un fichier de `commands/`,
+que le noyau console découvre automatiquement. Chaque factory prend le
+`seedersDir` (et, pour `db:seed`, des valeurs par défaut optionnelles
+`naturalSort` / `environment`).
 
 ```ts
 export interface SeederCommandOptions {

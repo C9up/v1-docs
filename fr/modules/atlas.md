@@ -757,7 +757,7 @@ Sortie didactique en cas de dérive :
 
 ### Commande CLI (`atlas:check`)
 
-Atlas fournit une commande pour le ConsoleKernel de Ream (l'équivalent `ace` d'AdonisJS). Listez vos modèles, enregistrez la commande dans `reamrc.ts`, et lancez-la via votre entrée console.
+Atlas fournit une commande pour le ConsoleKernel de Ream (l'équivalent `ace` d'AdonisJS). Listez vos modèles dans un fichier de `commands/` : le noyau console découvre ce dossier automatiquement, il n'y a rien à déclarer dans `reamrc.ts`.
 
 ```typescript
 // commands/atlas-check.ts
@@ -765,26 +765,14 @@ import { schemaCheckCommand } from '@c9up/atlas'
 import { User } from '#models/user'
 import { Post } from '#models/post'
 export default schemaCheckCommand([User, Post])
-
-// reamrc.ts
-export default defineConfig({
-  // ...providers...
-  commands: [() => import('./commands/atlas-check.js')],
-})
-
-// bin/console.ts — entrée console (boote en mode console : DB ouverte, pas de serveur HTTP)
-import { Ignitor } from '@c9up/ream'
-new Ignitor(APP_ROOT, { importer })
-  .useRcFile((await import('../reamrc.js')).default)
-  .console()
-  .handle(process.argv.slice(2))
 ```
 
 Puis :
 
 ```bash
-node bin/console.ts atlas:check         # échec (exit 1) sur dérive — idéal en CI
-node bin/console.ts atlas:check --warn  # rapport non bloquant (exit 0)
+ream atlas:check         # échec (exit 1) sur dérive — idéal en CI
+ream atlas:check --warn  # rapport non bloquant (exit 0)
+ream atlas:check --help  # arguments et flags de la commande
 ```
 
 ### API programmatique

@@ -263,6 +263,35 @@ Formate une erreur survenue au démarrage pour le terminal et l'écrit dans `std
 })
 ```
 
+## `isReamError(error, ...codes)`
+
+Teste en une fois qu'une valeur **est** une erreur du framework et qu'elle porte
+l'un des codes attendus :
+
+```typescript
+import { isReamError } from '@c9up/ream'
+
+try {
+  await ace.exec('provision')
+} catch (error) {
+  if (isReamError(error, 'E_CONSOLE_MISSING_FLAG', 'E_CONSOLE_MISSING_ARGUMENT')) {
+    console.error(error.hint)   // narrowing : `error` est une ReamError ici
+    return
+  }
+  throw error
+}
+```
+
+Sans code, il répond simplement « est-ce une `ReamError` ». Avec un ou
+plusieurs, il vérifie aussi le code — et TypeScript restreint `error.code` au(x)
+littéral(aux) demandé(s), donc une faute de frappe dans un code se voit à la
+compilation.
+
+C'est la forme que prend `instanceof MonErreur` dans Ream : le framework porte
+**un** type d'erreur muni d'un code, parce qu'une erreur peut naître en Rust et
+être reconstruite en TypeScript à la traversée de NAPI — ce qu'une classe par
+code ne sait pas faire.
+
 ## Singletons de service
 
 Trois proxies singleton sont initialisés par l'Ignitor avant l'exécution de tout fichier de préchargement. Importez-les dans les fichiers de routes, les fichiers kernel et les providers.

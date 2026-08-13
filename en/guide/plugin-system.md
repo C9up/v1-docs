@@ -91,7 +91,7 @@ Inserts a `() => import('<importPath>'),` entry into the `commands: [ ... ]` arr
 await codemods.registerCommand('@community/your-plugin/commands/my-command.js')
 ```
 
-The import path must point at a module whose default export matches the `Command` shape in `packages/ream/src/console/CommandRunner.ts:8` (`{ name, description, run }`). The `ConsoleKernel` (`packages/ream/src/Ignitor.ts:566`) auto-loads every `commands[]` entry at boot. Errors raised by `registerCommand` use the `[configure]` prefix — the missing-file and missing-`defineConfig({})` cases each carry the import path in the message so the failure points at the user's config, not the plugin code.
+The import path must point at a module whose default export satisfies the command contract in `packages/ream/src/console/types.ts`: a class carrying `commandName`, `description` and, optionally, `options` / `args` / `flags` as statics. The `ConsoleKernel` (`packages/ream/src/Ignitor.ts`) loads every `commands[]` entry when the console starts. That array is for commands shipped by packages: an application's own commands are discovered automatically in `commands/` and must not be declared there too — registering both ways raises `E_CONSOLE_DUPLICATE_COMMAND`. Errors raised by `registerCommand` use the `[configure]` prefix — the missing-file and missing-`defineConfig({})` cases each carry the import path in the message so the failure points at the user's config, not the plugin code.
 
 ### `registerMiddleware(importPath, options?)`
 

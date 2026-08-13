@@ -263,6 +263,33 @@ Formats a boot-time error for the terminal and writes it to `stderr`. `ReamError
 })
 ```
 
+## `isReamError(error, ...codes)`
+
+Checks in one go that a value **is** a framework error and that it carries one
+of the codes you expect:
+
+```typescript
+import { isReamError } from '@c9up/ream'
+
+try {
+  await ace.exec('provision')
+} catch (error) {
+  if (isReamError(error, 'E_CONSOLE_MISSING_FLAG', 'E_CONSOLE_MISSING_ARGUMENT')) {
+    console.error(error.hint)   // narrowed: `error` is a ReamError here
+    return
+  }
+  throw error
+}
+```
+
+With no code it simply answers "is this a `ReamError`". With one or more, it
+checks the code too — and TypeScript narrows `error.code` to the literal(s) you
+asked for, so a typo in a code shows up at compile time.
+
+This is what `instanceof MyError` becomes in Ream: the framework carries **one**
+error type with a code, because an error can be raised in Rust and rebuilt in
+TypeScript across the NAPI boundary — which a class per code cannot do.
+
 ## Service singletons
 
 Three singleton proxies are initialized by the Ignitor before any preload file runs. Import them in route files, kernel files, and providers.

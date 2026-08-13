@@ -8,10 +8,11 @@ l'introspection du catalogue — Atlas ne délègue jamais à `pg_dump`/`mysqldu
 
 ## Commandes console
 
-Les commandes Atlas sont de simples objets `{ name, description, run }`.
-Enregistrez-les dans `reamrc.commands` et dispatchez-les via le noyau console
-(Atlas n'a pas de registre global d'entités — vous listez vos modèles, comme
-dans Lucid).
+Les commandes Atlas sont des classes portant leur nom, leur description et
+leurs entrées en statiques. Exportez-en une par défaut depuis un fichier de
+`commands/` — le noyau console découvre ce dossier automatiquement — puis
+lancez-la avec `ream <commande>` (Atlas n'a pas de registre global d'entités —
+vous listez vos modèles, comme dans Lucid).
 
 | Commande | Rôle |
 | --- | --- |

@@ -91,7 +91,7 @@ Insère une entrée `() => import('<importPath>'),` dans le tableau `commands: [
 await codemods.registerCommand('@community/your-plugin/commands/my-command.js')
 ```
 
-Le chemin d'import doit pointer vers un module dont l'export par défaut respecte la forme `Command` de `packages/ream/src/console/CommandRunner.ts:8` (`{ name, description, run }`). Le `ConsoleKernel` (`packages/ream/src/Ignitor.ts:566`) charge automatiquement chaque entrée `commands[]` au boot. Les erreurs levées par `registerCommand` utilisent le préfixe `[configure]` — les cas fichier-manquant et `defineConfig({})`-manquant portent chacun le chemin d'import dans le message afin que l'échec pointe sur la config de l'utilisateur, pas sur le code du plugin.
+Le chemin d'import doit pointer vers un module dont l'export par défaut respecte le contrat de commande de `packages/ream/src/console/types.ts` : une classe portant `commandName`, `description` et, optionnellement, `options` / `args` / `flags` en statiques. Le `ConsoleKernel` (`packages/ream/src/Ignitor.ts`) charge chaque entrée `commands[]` au démarrage de la console. Ce tableau est réservé aux commandes livrées par des paquets : les commandes de l'application, elles, sont découvertes automatiquement dans `commands/` et n'ont pas à y être déclarées — les inscrire aux deux endroits produit une erreur `E_CONSOLE_DUPLICATE_COMMAND`. Les erreurs levées par `registerCommand` utilisent le préfixe `[configure]` — les cas fichier-manquant et `defineConfig({})`-manquant portent chacun le chemin d'import dans le message afin que l'échec pointe sur la config de l'utilisateur, pas sur le code du plugin.
 
 ### `registerMiddleware(importPath, options?)`
 
