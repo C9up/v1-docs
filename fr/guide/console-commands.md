@@ -459,6 +459,7 @@ retour d'`exec()` ne promet donc rien qui manquerait à l'exécution.
 ```ts
 await this.prompt.ask('Nom du modèle', { default: 'User' })
 await this.prompt.secure('Mot de passe', {
+  // saisie masquée — une astérisque par caractère tapé
   validate: (value) => (value.length < 6 ? 'Au moins 6 caractères' : true),
 })
 await this.prompt.confirm('Continuer ?')

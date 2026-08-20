@@ -449,6 +449,7 @@ runs, including a class declared without `BaseCommand` — so the return type of
 ```ts
 await this.prompt.ask('Model name', { default: 'User' })
 await this.prompt.secure('Password', {
+  // masked input — one asterisk per character typed
   validate: (value) => (value.length < 6 ? 'At least 6 characters' : true),
 })
 await this.prompt.confirm('Continue?')
