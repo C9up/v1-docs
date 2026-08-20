@@ -55,3 +55,18 @@ Full details: [Aurora → Tailwind classes (`cn`)](./aurora.md#tailwind-classes-
 A `@c9up/tailwind` stub package used to live in the workspace; it scaffolded `tailwind.config.ts` + `postcss.config.js` + an `app.css` entry via `ream configure @c9up/tailwind`. It was never published to npm, was retired on 2026-05-01 (Epic 41.1, decision: Kill), and the workspace folder was deleted on 2026-05-01 (Epic 41.5). There is no replacement Ream package — the recipe above is the canonical Tailwind-in-Ream setup.
 
 Reasoning: AdonisJS ships no `@adonisjs/tailwind`, the Adonis ↔ Tailwind path is `@adonisjs/vite` + `@tailwindcss/vite`, and Photon already covers the Vite side. A framework-owned stub adds no value over the recipe above. Full survey + decision frame: `_bmad-output/planning-artifacts/architecture.md` → "Tailwind integration decision (Epic 41.1)".
+
+## Without Vite
+
+An app using the Tailwind CLI rather than the Vite plugin declares the watcher in `reamrc.ts` instead, and `ream dev` runs it alongside the server:
+
+```ts
+export default {
+  assets: {
+    devServer: { command: 'pnpm', args: ['css:watch'] },
+    build: { command: 'pnpm', args: ['css'] },
+  },
+}
+```
+
+See [ream-cli → Assets](/en/modules/ream-cli). No `concurrently` needed: stopping the server stops the watcher.

@@ -37,3 +37,22 @@ ream doctor
 
 - very fast startup (native binary)
 - command surface is still evolving
+
+## Assets
+
+`ream dev` runs the server and whatever builds your assets as one thing, and `ream build` builds the assets before TypeScript. Declare them in `reamrc.ts`:
+
+```ts
+export default {
+  assets: {
+    devServer: { command: 'pnpm', args: ['css:watch'] },
+    build: { command: 'pnpm', args: ['css'] },
+  },
+}
+```
+
+Output is line-prefixed per process, and when one stops the other is stopped with it — a Ctrl-C leaves no orphan watcher holding the output file. This is what spares an app from wiring `concurrently -k` itself, the same way `node ace serve` does in AdonisJS.
+
+`ream build` runs the assets **first** and stops there if they fail, rather than shipping a dist with a stale stylesheet.
+
+Both keys are optional: with no `assets`, `ream dev` and `ream build` behave exactly as before, with the server owning the terminal.

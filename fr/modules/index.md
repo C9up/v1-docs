@@ -28,6 +28,8 @@ Cette page liste l'etat des modules de l'ecosysteme.
 | Archive | `@c9up/archive` | Présent | Stockage de blobs avec drivers S3 + mémoire |
 | Nova | `@c9up/nova` | Présent | Web Push (VAPID + abonnement + livraison `nova.push()` via `web-push` + template de migration pour stockage durable + snippet driver Atlas dans la doc + scaffold Service Worker + intégration test `helix.nova.fake`) |
 | Helix | `@c9up/helix` | Présent | Test runner — `TestClient`, workers parallèles (`--threads`), utilisé par chaque e2e du kitchen-sink |
+| Quasar | `@c9up/quasar` | Présent | Connexions Redis — connexions nommées, pub/sub sur son propre socket, health checks |
+| Helix plugin | `@c9up/helix-plugin-ream` | Présent | Le pont ream↔helix — plugin `apiClient()` + runner de `ream test` |
 | Rover | `@c9up/rover` | Présent | Transport mail — SMTP + log + transports pluggables (rename de Spark) |
 
 Chaque ligne du tableau ci-dessus a une page dédiée — choisis-la dans la sidebar **Modules**.
