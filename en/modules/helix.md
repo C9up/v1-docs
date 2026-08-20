@@ -39,7 +39,7 @@ HyperServer — no in-process mock. Same providers, middleware, NAPI
 binaries, and pragmas as production.
 
 ```ts
-import { TestClient } from '@c9up/helix'
+import { TestClient } from '@c9up/ream/testing'
 import { Ignitor } from '@c9up/ream'
 
 const client = new TestClient(async (port) => {
@@ -61,6 +61,35 @@ res.expect(200).expectJson({ ok: true })
 The socket-level inactivity timeout is **30 s** (matches the
 `helix test --timeout=60000` per-test budget), so signup → argon2 →
 sqlite insert → JWT sign chains have headroom.
+
+## Ream apps: the `@c9up/helix-plugin-ream` bridge
+
+helix knows nothing about Ream, and Ream knows nothing about helix. The plugin
+that joins them is published separately — the same split as
+`@japa/plugin-adonisjs`:
+
+```sh
+pnpm add -D @c9up/helix-plugin-ream
+```
+
+```ts
+// tests/bootstrap.ts
+import { configure } from '@c9up/helix'
+import { apiClient } from '@c9up/helix-plugin-ream'
+
+await configure({ plugins: [apiClient({ boot: () => bootApp() })] })
+```
+
+The app boots once for the run and `ctx.client` carries a booted `TestClient`:
+
+```ts
+test('health', async ({ client }) => {
+  await client.get('/health').assertOk()
+})
+```
+
+`ream test` reads its suites from the rc file through the same package
+(`@c9up/helix-plugin-ream/runner`).
 
 ## CLI runner (`helix test`)
 
