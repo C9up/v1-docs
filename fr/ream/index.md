@@ -57,3 +57,26 @@ propriété top-level `ctx.session` (parité AdonisJS) — `ctx.session.get()` /
 consommateurs et la session guard de Warden lisent `ctx.session` directement
 plutôt que de la pêcher dans `ctx.store`. Vaut `undefined` si aucun middleware de
 session n'a tourné.
+
+### Drivers de session
+
+Trois drivers sont livrés avec ream :
+
+| driver | où vit la session | notes |
+|---|---|---|
+| `cookie` | dans le cookie signé lui-même | aucun état serveur ; un payload de plus de ~4 Ko ne rentre pas |
+| `memory` | dans le process | suffisant pour une instance, perdu au redémarrage |
+| `redis` | sur un serveur Redis | partagé entre instances, survit aux redémarrages |
+
+Le driver `redis` reçoit un client, ou nomme une connexion [Quasar](/fr/modules/quasar) :
+
+```ts
+// config/session.ts
+export default {
+  driver: 'redis',
+  connection: 'sessions',   // une connexion quasar ; omettez-la pour la connexion par défaut
+  prefix: 'ream:session:',
+}
+```
+
+Rien n'est ouvert pendant la lecture de la config : la connexion est résolue à la première requête qui touche une session. `@c9up/quasar` est une peer **optionnelle** — les sessions cookie et memory n'y touchent jamais. Une application qui détient déjà un client peut le passer directement via `client` au lieu de nommer une connexion.

@@ -102,3 +102,15 @@ Les deux methodes levent une erreur si le driver configure ne supporte pas l'inv
 - definir une politique TTL explicite
 - eviter de mettre en cache des objets tres volumineux sans compression
 - invalider par tags sur les domaines critiques
+
+## Redis via Quasar
+
+Un store peut nommer une connexion [Quasar](/fr/modules/quasar) au lieu de recevoir un client — la forme AdonisJS, où le module Redis possède le socket :
+
+```ts
+stores: {
+  redis: { driver: drivers.redis({ connection: 'cache' }) },
+}
+```
+
+Le client est résolu à la première commande, pas pendant la lecture de la config : déclarer un store n'ouvre donc jamais de connexion à lui seul. `drivers.redis({ client })` fonctionne toujours : `@c9up/quasar` est une peer **optionnelle**, et echo tourne sans elle.

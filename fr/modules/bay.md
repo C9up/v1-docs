@@ -95,3 +95,17 @@ const failed = await queue.failedJobs()
 - rendre les handlers idempotents
 - gerer explicitement les erreurs metier vs erreurs techniques
 - monitorer retries et jobs en echec
+
+## Redis via Quasar
+
+Une queue peut nommer une connexion [Quasar](/fr/modules/quasar) au lieu de recevoir un client :
+
+```ts
+import { RedisDriver, quasarConnection } from '@c9up/bay'
+
+new RedisDriver(quasarConnection('jobs'), { visibilityTimeoutMs: 30_000 })
+```
+
+Le client est résolu à la première commande : déclarer une queue redis n'ouvre donc jamais de connexion à elle seule. Passer un client directement fonctionne toujours : `@c9up/quasar` est une peer **optionnelle**.
+
+La garde LMOVE reste active — elle avertit lorsque le serveur est antérieur à Redis 6.2 et que `pop()` dégrade la livraison d'at-least-once à at-most-once.

@@ -1134,3 +1134,15 @@ interface JwtStrategyConfig {
 - [Middleware](/en/guide/middleware) — Writing and registering middleware classes
 - [Routing](/en/guide/routing) — Route-level guards, roles, and permissions
 - [Blackhole (Security)](/en/modules/blackhole) — Rust-side request filtering
+
+## JWT blacklist on Redis
+
+Token revocation can live on a [Quasar](/en/modules/quasar) connection rather than in memory:
+
+```ts
+import { RedisBlacklistDriver, quasarConnection } from '@c9up/warden'
+
+new RedisBlacklistDriver(quasarConnection())
+```
+
+The connection resolves on the first revocation check, so an app whose blacklist is never consulted opens no socket for it. Passing a client directly still works: `@c9up/quasar` is an **optional** peer.

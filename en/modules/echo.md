@@ -102,3 +102,15 @@ Both methods throw if the configured driver does not implement tag-based invalid
 - define an explicit TTL policy
 - avoid caching very large objects without compression
 - use tag-based invalidation for critical domains
+
+## Redis through Quasar
+
+A store can name a [Quasar](/en/modules/quasar) connection instead of being handed a client — the AdonisJS shape, where the Redis module owns the socket:
+
+```ts
+stores: {
+  redis: { driver: drivers.redis({ connection: 'cache' }) },
+}
+```
+
+The client is resolved on the first command, not while the config is read, so declaring a store never dials on its own. `drivers.redis({ client })` still works: `@c9up/quasar` is an **optional** peer, and echo runs without it.
