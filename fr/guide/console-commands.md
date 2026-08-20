@@ -1,6 +1,6 @@
 # Commandes console
 
-L'équivalent d'`ace` chez AdonisJS. Une commande est une classe, ses entrées
+La console de Ream. Une commande est une classe, ses entrées
 sont déclarées, et le CLI la lance directement :
 
 ```bash
@@ -21,8 +21,8 @@ est découvert automatiquement, sous-dossiers compris. Les fichiers préfixés
 d'un `_` sont ignorés (ce sont des helpers, pas des commandes).
 
 ```ts
-import { BaseCommand, args, flags } from '@c9up/ream/ace'
-import type { CommandOptions } from '@c9up/ream/ace'
+import { BaseCommand, args, flags } from '@c9up/ream/console'
+import type { CommandOptions } from '@c9up/ream/console'
 
 export default class Provision extends BaseCommand {
   static commandName = 'provision'
@@ -114,7 +114,7 @@ constructor(@Inject('mailer') private mailer: Mailer) {
 }
 ```
 
-Chaque exécution obtient sa propre instance : deux `ace.exec()` ne partagent
+Chaque exécution obtient sa propre instance : deux `consoleApp.exec()` ne partagent
 aucun état.
 
 Sans `startApp`, il n'y a pas de conteneur : la commande est construite
@@ -175,7 +175,7 @@ n'est pas appelé pour une entrée optionnelle absente.
 
 ## `this.parsed`
 
-Toutes les entrées analysées, dans la forme d'Ace. `this.parsed` décrit **ce qui
+Toutes les entrées analysées, dans la forme du parseur. `this.parsed` décrit **ce qui
 a été tapé** ; les propriétés de la commande, elles, portent les valeurs
 assignées.
 
@@ -187,7 +187,7 @@ this.parsed.flags        // { 'user-email': 'ada@example.ch' }  ← nom de LIGNE
 ```
 
 Également : `this.parsed.unknownFlags` — les *noms* des flags passés mais non
-déclarés —, `this.parsed.extraArgs` (aussi exposé sous le nom d'Ace, `_`) — les
+déclarés —, `this.parsed.extraArgs` (aussi exposé sous `_`) — les
 positionnels au-delà de ce que la commande déclare, normalement une erreur, et
 conservés seulement pour une commande `allowUnknownFlags` dont le rôle est de
 faire suivre ce qu'elle reçoit — et `this.parsed.nodeArgs`, les arguments avec
@@ -196,7 +196,7 @@ lesquels node lui-même a été lancé.
 ## Flags globaux
 
 Un flag que **toutes** les commandes acceptent, sans qu'aucune ait à le
-redéclarer (Ace `kernel.defineFlag`) :
+redéclarer (`kernel.defineFlag`) :
 
 ```ts
 kernel.defineFlag('verbose', { type: 'boolean', description: 'Tout dire' })
@@ -217,7 +217,7 @@ implémentés, et ils s'écrivent avant ou après le nom de la commande
 indifféremment. Une commande qui redéclare le nom garde la main de bout en bout :
 son flag est parsé, et le listener global n'est pas appelé.
 
-`ace.exec()` **n'accepte pas** les flags globaux, comme chez Ace : ils
+`consoleApp.exec()` **n'accepte pas** les flags globaux : ils
 appartiennent à la ligne de commande. Passer `--no-ansi` à `exec()`, c'est passer
 un flag que la commande ne déclare pas, et l'entendre dire est précisément
 l'intérêt.
@@ -243,7 +243,7 @@ export default class Welcome extends BaseCommand {
 }
 ```
 
-Et l'application peut en définir dans `reamrc.ts` — `commandsAliases` chez Ace,
+Et l'application peut en définir dans `reamrc.ts` — `commandsAliases`,
 et la forme qui accepte des flags :
 
 ```ts
@@ -364,11 +364,11 @@ command.assertTableRows([['Ada', 'ada@example.ch']])
 ```
 
 Un `@args.spread()` optionnel qu'on ne renseigne pas vaut `undefined`, pas un
-tableau vide (Ace) : une commande qui distingue « aucune cible donnée » de « une
+tableau vide : une commande qui distingue « aucune cible donnée » de « une
 liste vide de cibles » ne le peut pas contre un `[]` silencieux.
 
 `assertTableRows` compare les **données**, pas la mise en page : une colonne qui
-s'élargit ne casse pas le test. Comme chez Ace, la vérification est une
+s'élargit ne casse pas le test. La vérification est une
 *inclusion* — chaque ligne attendue doit être présente, dans n'importe quel
 ordre — et l'en-tête compte comme une ligne, donc le restituer est optionnel :
 
@@ -392,13 +392,13 @@ Provision.serialize()   // métadonnées en données pures
 
 Utile pour une commande construite à l'exécution, ou dans un paquet qui ne doit
 pas importer les décorateurs du framework. `this.isMain` indique si la commande
-a été appelée depuis la ligne de commande plutôt que par `ace.exec()`.
+a été appelée depuis la ligne de commande plutôt que par `consoleApp.exec()`.
 
 `serialize()` décrit le **contrat** (nom, `namespace`, description, help, alias,
 options, entrées) et reste sérialisable en JSON : les fonctions `parse` en sont
 retirées. C'est aussi ce que `ream list --json` imprime.
 
-Le reste de la surface statique d'Ace est là :
+Le reste de la surface statique est là :
 
 ```ts
 Provision.boot()               // donne à CETTE classe ses propres déclarations
@@ -411,9 +411,9 @@ Provision.validate({ args: ['Ada'], unknownFlags: [] })
 la hiérarchie partagerait une seule liste. `validate()` applique les règles que
 le parseur applique déjà en parsant — arguments requis, flags requis, valeur
 manquante, nombre invalide, flag inconnu — son intérêt étant l'entrée construite
-à la main, jamais passée par un parseur (le cas que documente Ace).
+à la main, jamais passée par un parseur.
 
-`defineArgument()` refuse deux ordres impossibles, comme Ace : un argument après
+`defineArgument()` refuse deux ordres impossibles : un argument après
 un `spread` (qui consomme la fin, donc rien derrière lui n'est atteignable) et
 un argument requis derrière un optionnel (le rendre requis serait une promesse
 que la ligne de commande ne peut pas tenir). Les décorateurs appliquent les
@@ -421,7 +421,7 @@ mêmes règles — c'est le même contrôle.
 
 ### Valeurs vides
 
-Une valeur vide est **refusée** par défaut, comme chez Ace : `ream note "$MSG"`
+Une valeur vide est **refusée** par défaut : `ream note "$MSG"`
 avec `MSG` non défini est presque toujours une variable de shell qui n'a pas été
 substituée, pas une note vide. `allowEmptyValue` dit le contraire quand le vide
 a un sens :
@@ -438,7 +438,7 @@ La règle est appliquée par le parseur **et** par `validate()` : `--tag` seul v
 alors la chaîne vide au lieu de lever.
 
 Côté instance : `this.hydrate()` — qui assigne **par déclaration**, donc les
-positionnels y sont acceptés sous forme de liste (forme Ace) ou indexés par
+positionnels y sont acceptés sous forme de liste (la forme analysée) ou indexés par
 propriété (ce que contient `this.parsed.args`), et les flags par nom de flag ou
 de propriété ; idempotent, appelé par le noyau avant `run()` —
 `this.exec()` — qui hydrate, exécute `run()` et **relance** l'erreur, à la
@@ -454,7 +454,7 @@ retour d'`exec()` ne promet donc rien qui manquerait à l'exécution.
 
 ## Poser des questions
 
-`this.prompt` couvre la surface d'Ace :
+`this.prompt` couvre toute la surface de prompt :
 
 ```ts
 await this.prompt.ask('Nom du modèle', { default: 'User' })
@@ -474,7 +474,7 @@ await this.prompt.autocomplete('Votre ville', villes, { limit: 10 })
 Options communes : `default`, `name`, `hint`, `validate` (retourne `true` ou le
 message d'erreur), `result` (transforme la valeur retournée), et `format`.
 
-`format` **ne change pas la valeur retournée** : comme chez Ace, il ne concerne
+`format` **ne change pas la valeur retournée** : il ne concerne
 que l'affichage. Utilisez `result` pour transformer. (Le formatage à la frappe
 demande le mode raw ; ici `format` ne s'applique donc qu'au défaut affiché.)
 
@@ -525,7 +525,7 @@ injecte une valeur que le vrai prompt refuserait donne une confiance imméritée
 **Écart assumé :** les prompts de sélection se répondent en tapant un numéro,
 pas avec les flèches. La navigation clavier suppose le mode raw, la gestion du
 curseur et le redessin — une bibliothèque de widgets, ce qu'est enquirer. Le
-reste (noms de méthodes, options, traps) suit Ace.
+reste — noms de méthodes, options, traps — est là.
 
 ## Découvrir et inspecter
 
@@ -545,7 +545,7 @@ ream provision --help     # arguments, flags, valeurs par défaut
 
 `list` et `help` sont des **commandes** enregistrées, pas des branches dans le
 dispatcher :
-`ace.hasCommand('list')` répond vrai, `ace.exec('list', ['--json'])` fonctionne,
+`consoleApp.hasCommand('list')` répond vrai, `consoleApp.exec('list', ['--json'])` fonctionne,
 `ream help list` donne son aide, et `ream list --bad` est refusé comme n'importe
 quel flag inconnu. Une invocation nue (`ream`) exécute cette commande par défaut.
 
@@ -611,16 +611,16 @@ génère toujours un littéral.
 
 ## Exécuter une commande depuis le code
 
-L'équivalent du service `ace` d'Adonis. Utile pour tester une commande sans
+La façade programmatique. Utile pour tester une commande sans
 lancer de process, ou en déclencher une depuis l'application.
 
 ```ts
-import ace from '@c9up/ream/services/ace'
+import consoleApp from '@c9up/ream/services/console'
 
-await ace.boot()
+await consoleApp.boot()
 
-if (ace.hasCommand('make:controller')) {
-  const command = await ace.exec('make:controller', ['user', '--resource'])
+if (consoleApp.hasCommand('make:controller')) {
+  const command = await consoleApp.exec('make:controller', ['user', '--resource'])
 
   command.exitCode  // 0 si tout s'est bien passé, 1 sur un échec non traité
   command.result    // ce que run() a retourné
@@ -628,42 +628,42 @@ if (ace.hasCommand('make:controller')) {
 }
 ```
 
-`exec()` **rejette** quand la commande échoue, comme Ace : l'erreur est
+`exec()` **rejette** quand la commande échoue : l'erreur est
 enregistrée sur la commande (`error`, `exitCode` à 1) *puis* relancée, pour
 qu'un appelant ne puisse pas prendre un échec pour un succès en oubliant de
 regarder. Le code de sortie du process n'est pas touché — seule la ligne de
 commande en dispose.
 
 Pour inspecter une commande qui échoue au lieu d'attraper l'erreur, deux
-chemins, tous deux ceux d'Ace : `kernel.create(Commande, argv)` construit
+chemins : `kernel.create(Commande, argv)` construit
 l'instance sans la jouer (analysée, injectée, hydratée) et vous la pilotez ; ou
 `handle()` puis `kernel.getMainCommand()`.
 
 Lèvent aussi, avant même l'exécution : nom inconnu
 (`E_CONSOLE_COMMAND_NOT_FOUND`), argument requis manquant, flag inconnu.
 
-`hasCommand()` est **synchrone**, comme chez Ace : appelez `await ace.boot()`
+`hasCommand()` est **synchrone** : appelez `await consoleApp.boot()`
 d'abord. Une version asynchrone renverrait une Promise, toujours vraie, et
-`if (ace.hasCommand(x))` prendrait toutes les branches.
+`if (consoleApp.hasCommand(x))` prendrait toutes les branches.
 
-`ace.getCommands()` renvoie les **métadonnées** (`serialize()`, alias du fichier
+`consoleApp.getCommands()` renvoie les **métadonnées** (`serialize()`, alias du fichier
 rc compris), pas les classes : c'est la surface d'introspection, et distribuer
 les constructeurs inviterait à instancier une commande hors du noyau, là où rien
 n'injecte ses dépendances ni ne joue son cycle de vie. `kernel.find(nom)` donne
 la classe quand elle est réellement nécessaire.
 
-Le reste de l'introspection d'Ace est là, sur la façade comme sur le noyau :
+Le reste de l'introspection est là, sur la façade comme sur le noyau :
 
 ```ts
-ace.getCommand('make:controller')      // métadonnées, ou null
-ace.getNamespaceCommands('make')       // les commandes d'un namespace
-ace.getNamespaceCommands()             // celles qui n'en ont pas
-ace.getNamespaces()                    // ['db', 'make', …]
-ace.getAliases()                       // les noms d'alias enregistrés
-ace.getAliasCommand('resource')        // la commande derrière un alias
-ace.getCommandAliases('make:controller')
-ace.getCommandSuggestions('make:contoller')  // les noms proches
-ace.getNamespaceSuggestions('mak')
+consoleApp.getCommand('make:controller')      // métadonnées, ou null
+consoleApp.getNamespaceCommands('make')       // les commandes d'un namespace
+consoleApp.getNamespaceCommands()             // celles qui n'en ont pas
+consoleApp.getNamespaces()                    // ['db', 'make', …]
+consoleApp.getAliases()                       // les noms d'alias enregistrés
+consoleApp.getAliasCommand('resource')        // la commande derrière un alias
+consoleApp.getCommandAliases('make:controller')
+consoleApp.getCommandSuggestions('make:contoller')  // les noms proches
+consoleApp.getNamespaceSuggestions('mak')
 ```
 
 Toutes lisent le registre, donc toutes exigent `boot()` : répondre depuis un
@@ -684,7 +684,7 @@ de l'application si elle l'a remplacée) et `kernel.getMainCommand()` l'instance
 lancée depuis la ligne de commande, une fois construite. Un noyau ne pilote
 **qu'une** ligne de commande : un second `handle()` lève.
 
-La commande par défaut se remplace par sous-classement, comme chez Ace :
+La commande par défaut se remplace par sous-classement :
 
 ```ts
 class MonNoyau extends Kernel {
@@ -707,7 +707,7 @@ rien à qui s'est trompé de frappe) ; tout le reste est imprimé en entier.
 ```ts
 // Depuis la racine du paquet, elle s'appelle `ConsoleExceptionHandler` : Ream
 // exporte déjà un `ExceptionHandler` HTTP.
-import { ExceptionHandler } from '@c9up/ream/ace'
+import { ExceptionHandler } from '@c9up/ream/console'
 
 class MonHandler extends ExceptionHandler {
   override async render(error: unknown, kernel: Kernel) {
@@ -772,13 +772,13 @@ loader-manifeste peut les publier sans que la classe les répète dans
 `static aliases`. Un loader peut aussi être une fonction asynchrone qui le
 construit à la demande.
 
-Le chargement est **paresseux**, comme chez Ace : `boot()` ne lit que les
+Le chargement est **paresseux** : `boot()` ne lit que les
 métadonnées. Lister les commandes, en décrire une, répondre à `hasCommand()` —
 tout se fait sans importer quoi que ce soit. `getCommand()` n'est appelé que
 quand `find()` a besoin de la classe, c'est-à-dire quand la commande est
 réellement demandée, et une seule fois. (Le loader du dossier `commands/`
 importe les fichiers pour en lire les métadonnées : sans manifeste il n'y a pas
-d'autre moyen — c'est aussi ce que fait le `FsLoader` d'Ace.)
+d'autre moyen — c'est aussi ce que fait le `FsLoader`.)
 
 ### Manifeste de commandes
 
@@ -816,28 +816,28 @@ d'exécution reçoivent l'**instance**, dont le type est le contrat structurel :
 le nom se lit sur sa classe.
 
 Tous les chemins passent par `find()` — `ream <commande>`, `ream` nu et
-`ace.exec()` —, donc un outil à l'écoute les voit tous. `loading` / `loaded` se
+`consoleApp.exec()` —, donc un outil à l'écoute les voit tous. `loading` / `loaded` se
 déclenchent quand la commande est **trouvée**, pas au boot : démarrer ne fait
 que lire ce que les loaders proposent. `executed` ne part **pas** quand la
 commande a échoué : ce hook compte des exécutions terminées.
 
 ### `find()` et l'UI d'un `exec()`
 
-`kernel.find(nom)` est **asynchrone et lève** quand rien ne correspond (Ace) ;
+`kernel.find(nom)` est **asynchrone et lève** quand rien ne correspond ;
 les alias y sont résolus. `exec()` accepte une UI :
 
 ```ts
 const ui = new Ui()
 ui.switchMode('raw')
-await ace.exec('report', [], { ui })   // sortie capturée, celle du noyau intacte
+await consoleApp.exec('report', [], { ui })   // sortie capturée, celle du noyau intacte
 ```
 
 Les commandes sont chargées à la première utilisation, une seule fois, même si
-plusieurs appels partent en parallèle. `exec()` s'en charge ; `await ace.boot()`
+plusieurs appels partent en parallèle. `exec()` s'en charge ; `await consoleApp.boot()`
 le force explicitement.
 
-La façade est aussi dans le conteneur (`await container.resolve('ace')`), et
-`ignitor.ace()` la construit hors de tout contexte de service.
+La façade est aussi dans le conteneur (`await container.resolve('console')`), et
+`ignitor.consoleApp()` la construit hors de tout contexte de service.
 
 ## Commandes livrées par un paquet
 

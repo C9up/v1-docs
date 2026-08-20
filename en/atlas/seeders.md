@@ -144,7 +144,7 @@ export default makeSeederCommand({ seedersDir: 'database/seeders' })
 ```
 
 ```sh
-node ace make:seeder CountrySeeder
+ream make:seeder CountrySeeder
 # → Created database/seeders/1700000000000_CountrySeeder.ts
 ```
 
@@ -163,7 +163,7 @@ export default dbSeedCommand({ seedersDir: 'database/seeders' })
 ```
 
 ```sh
-node ace db:seed
+ream db:seed
 # → Seeded: 1700000000000_CountrySeeder, 1700000000001_CurrencySeeder
 ```
 
@@ -182,7 +182,7 @@ Flags:
   prompting.
 
 ```sh
-node ace db:seed --files=CountrySeeder,CurrencySeeder --connection=pg
+ream db:seed --files=CountrySeeder,CurrencySeeder --connection=pg
 ```
 
 If no connection is available (or the named `--connection` is not registered),
