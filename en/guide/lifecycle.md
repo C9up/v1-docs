@@ -43,7 +43,8 @@ new Ignitor(APP_ROOT, config)
 |---|---|---|
 | `APP_ROOT` | `URL` | `new URL('../', import.meta.url)` from `bin/server.ts` |
 | `config.port` | `number` | Port to listen on (default `3000`) |
-| `config.serverFactory` | `(port: number) => HyperServerLike` | Factory that creates the HTTP server instance |
+| `config.host` | `string` | Address to bind to. Falls back to `process.env.HOST`, then `0.0.0.0` in production and `localhost` elsewhere |
+| `config.serverFactory` | `(port: number, host: string) => HyperServerLike` | Factory that creates the HTTP server instance |
 | `config.importer` | `(filePath: string) => Promise<unknown>` | Custom module loader (optional) |
 | `config.watchDirs` | `string[]` | Directories to watch for hot-reload in dev mode |
 
