@@ -66,6 +66,10 @@ position — `parameter $1: 'abc' is not a valid uuid` — rather than as an
 operator error. Where Postgres cannot infer a type (a bare `SELECT ?`), the
 binding falls back to text, as before.
 
+A temporal binding accepts every shape Postgres itself accepts, so a full
+instant (`2026-03-10T00:00:00.000Z`) is valid for a `date` column and keeps its
+date part. atlas is never stricter than the database it drives.
+
 ## Health and lifecycle
 
 ```ts

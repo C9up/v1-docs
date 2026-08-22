@@ -70,6 +70,11 @@ pas est signalée par sa position — `parameter $1: 'abc' is not a valid uuid` 
 plutôt que par une erreur d'opérateur. Là où Postgres ne peut pas inférer le
 type (un `SELECT ?` isolé), la liaison retombe sur `text`, comme avant.
 
+Une liaison temporelle accepte toutes les formes que Postgres accepte : un
+instant complet (`2026-03-10T00:00:00.000Z`) convient donc à une colonne `date`
+et n'en garde que la date. atlas n'est jamais plus strict que la base qu'il
+pilote.
+
 ## État de santé et cycle de vie
 
 ```ts
