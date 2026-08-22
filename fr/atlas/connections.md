@@ -61,6 +61,15 @@ const { rowsAffected } = await db.execute('DELETE FROM sessions WHERE expired = 
 - `execute(sql, params?)` exécute une instruction pour son effet et résout
   `{ rowsAffected }`.
 
+Sur PostgreSQL, une liaison n'a besoin d'aucun transtypage `::type` : atlas
+demande à Postgres le type qu'il infère pour chaque paramètre et y convertit la
+valeur, si bien que
+`rawQuery('SELECT * FROM users WHERE company_id = ?', [uuid])` fonctionne sur
+une colonne `uuid` à partir d'une simple chaîne JS. Une valeur qui ne convient
+pas est signalée par sa position — `parameter $1: 'abc' is not a valid uuid` —
+plutôt que par une erreur d'opérateur. Là où Postgres ne peut pas inférer le
+type (un `SELECT ?` isolé), la liaison retombe sur `text`, comme avant.
+
 ## État de santé et cycle de vie
 
 ```ts

@@ -58,6 +58,14 @@ const { rowsAffected } = await db.execute('DELETE FROM sessions WHERE expired = 
 - `execute(sql, params?)` runs a statement for effect and resolves
   `{ rowsAffected }`.
 
+On PostgreSQL a binding needs no `::type` cast: atlas asks Postgres which type
+it infers for each placeholder and converts the value into it, so
+`rawQuery('SELECT * FROM users WHERE company_id = ?', [uuid])` works against a
+`uuid` column from a plain JS string. A value that does not fit is reported by
+position — `parameter $1: 'abc' is not a valid uuid` — rather than as an
+operator error. Where Postgres cannot infer a type (a bare `SELECT ?`), the
+binding falls back to text, as before.
+
 ## Health and lifecycle
 
 ```ts
