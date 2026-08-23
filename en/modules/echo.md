@@ -87,7 +87,7 @@ Both methods throw if the configured driver does not implement tag-based invalid
 
 ## Current limitations
 
-- Redis `flush()` uses prefix pattern scanning (`keys`) and should be used carefully on very large datasets
+- Redis `flush()` walks a `SCAN` cursor over the prefix — never `KEYS`, which blocks the server. It still touches every prefixed key, so it stays a heavy operation on a large dataset; it throws on a client without `scan` rather than falling back to `KEYS`
 - tag behavior depends on concrete driver capabilities
 
 ## Production checklist

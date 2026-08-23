@@ -87,7 +87,7 @@ Les deux methodes levent une erreur si le driver configure ne supporte pas l'inv
 
 ## Limites actuelles
 
-- `flush()` Redis utilise un pattern par prefix (`keys`) et doit etre utilise avec prudence sur tres gros volumes
+- `flush()` Redis parcourt un curseur `SCAN` sur le préfixe — jamais `KEYS`, qui bloque le serveur. Il touche quand même toutes les clés préfixées, donc reste une opération lourde sur un gros jeu de données ; il lève une erreur sur un client sans `scan` plutôt que de retomber sur `KEYS`
 - les capacites tags dependent du driver concret
 
 ## Checklist prod
