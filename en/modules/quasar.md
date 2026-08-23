@@ -119,6 +119,35 @@ await quasar.disconnectAll()   // same, without waiting for in-flight commands
 
 `QuasarProvider.shutdown()` calls `quitAll()`. Without it a stopped process keeps its sockets, and ioredis' reconnection timer keeps the event loop alive: the server looks hung instead of exiting.
 
+## Subscriber events
+
+The pub/sub socket is opened lazily and kept internal, so nothing outside could
+attach a listener to it before the first `subscribe()`. Its lifecycle is
+re-emitted on the connection under Adonis' names:
+
+```ts
+quasar.connection().on('subscriber:ready', () => { /* … */ })
+quasar.connection().on('subscriber:error', (error) => { /* … */ })
+// also: subscriber:connect, subscriber:close, subscriber:reconnecting, subscriber:end
+```
+
+Without this a pub/sub connection that drops is invisible. The last failure is
+also readable as `connection.lastSubscriberError`.
+
+Subscriptions report themselves the same way:
+
+```ts
+quasar.connection().on('subscription:ready', ({ count }) => { /* … */ })
+quasar.connection().on('subscription:error', ({ error }) => { /* … */ })
+// and psubscription:ready / psubscription:error for patterns
+```
+
+A failed subscription **does not reject**. Adonis' `subscribe` returns void, so
+code written against it never awaits the call, and a rejection nobody handles
+would take the process down. Failure arrives through `onError`, the
+`subscription:error` event, and — unlike Adonis — the connection logger, so an
+app that wires neither still sees it.
+
 ## Errors
 
 Connection errors are reported through an optional structural logger — quasar is a leaf and must not import a framework logger, so unlike Adonis' required `Logger` this one is optional and falls back to the console:

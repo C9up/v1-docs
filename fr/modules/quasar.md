@@ -119,6 +119,36 @@ await quasar.disconnectAll()   // pareil, sans attendre les commandes en vol
 
 `QuasarProvider.shutdown()` appelle `quitAll()`. Sans cela, un process arrêté conserve ses sockets et le timer de reconnexion d'ioredis maintient la boucle d'événements en vie : le serveur paraît bloqué au lieu de sortir.
 
+## Événements du subscriber
+
+Le socket pub/sub est ouvert paresseusement et reste interne : rien à
+l'extérieur ne pouvait y attacher un écouteur avant le premier `subscribe()`.
+Son cycle de vie est réémis sur la connexion, sous les noms d'Adonis :
+
+```ts
+quasar.connection().on('subscriber:ready', () => { /* … */ })
+quasar.connection().on('subscriber:error', (error) => { /* … */ })
+// également : subscriber:connect, subscriber:close, subscriber:reconnecting, subscriber:end
+```
+
+Sans cela, une connexion pub/sub qui tombe est invisible. La dernière erreur est
+aussi lisible via `connection.lastSubscriberError`.
+
+Les abonnements se signalent de la même façon :
+
+```ts
+quasar.connection().on('subscription:ready', ({ count }) => { /* … */ })
+quasar.connection().on('subscription:error', ({ error }) => { /* … */ })
+// et psubscription:ready / psubscription:error pour les motifs
+```
+
+Un abonnement en échec **ne rejette pas**. Le `subscribe` d'Adonis renvoie
+`void`, donc le code écrit pour Adonis n'attend jamais l'appel, et un rejet que
+personne ne gère ferait tomber le process. L'échec passe par `onError`, par
+l'événement `subscription:error` et — contrairement à Adonis — par le logger de
+la connexion, pour qu'une app qui ne branche ni l'un ni l'autre le voie quand
+même.
+
 ## Erreurs
 
 Les erreurs de connexion passent par un logger structurel optionnel — quasar est une feuille et ne doit pas importer le logger d'un framework, donc contrairement au `Logger` obligatoire d'Adonis celui-ci est optionnel et retombe sur la console :
