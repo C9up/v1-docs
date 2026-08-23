@@ -43,6 +43,47 @@ ream make:provider Stripe
 ream make:migration create_orders_table
 ```
 
+### Customising what gets generated
+
+Every `make:` template can be overridden per project, the way AdonisJS lets an
+app publish and edit its stubs. Publish one, edit it, and the generator uses
+your copy from then on:
+
+```bash
+ream stubs:publish --list          # what can be published, and the variables each exposes
+ream stubs:publish controller      # writes stubs/make/controller.stub
+ream stubs:publish                 # publishes every one
+ream stubs:publish controller --force   # overwrite a stub you already published
+```
+
+A stub is plain text with `{{ variable }}` placeholders:
+
+```
+// stubs/make/controller.stub
+import type { HttpContext } from '@c9up/ream'
+
+export class {{ className }} {
+  async index({ response }: HttpContext) {
+    response.status(200).json([])
+  }
+}
+```
+
+A published stub is generated FROM the built-in template, so it starts as an
+exact copy of what you already get. Delete the file to go back to the default.
+
+**Two named deviations from AdonisJS**, both because this generator is a Rust
+binary rather than a Node process:
+
+- Stubs are **substituted, not rendered by a template engine**. Adonis stubs run
+  through tempura (`{{#var}}`, conditionals, partials); here `{{ name }}` is
+  replaced and nothing else. An unknown placeholder is left visible rather than
+  silently emptied.
+- **The stub does not choose its destination.** An Adonis stub calls
+  `exports({ to: … })` and names its own path. Ours supplies the file contents
+  only — the CLI keeps computing and validating the path, so an editable file
+  cannot redirect a write.
+
 ## Package Configuration
 
 > If you also want to install the package in one step, see [Add a Package](#add-a-package).
