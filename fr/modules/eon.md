@@ -93,6 +93,24 @@ interface EonConnection {
 }
 ```
 
+### Arrêt : `close()` ne suffit pas
+
+`close()` ferme une connexion et laisse délibérément intactes les ressources
+globales au process du connecteur. Ces ressources maintiennent Node en vie : un
+service qui a fermé toutes ses connexions **resterait pendu au lieu de sortir**.
+Appelez `destroyEonConnector()` une fois, après la dernière fermeture :
+
+```typescript
+import { destroyEonConnector } from '@c9up/eon'
+
+await conn.close()
+await destroyEonConnector()   // le process peut désormais sortir
+```
+
+`EonProvider.shutdown()` le fait déjà pour vous (uniquement si une vraie
+connexion ws était ouverte). C'est réversible : un boot ultérieur se reconnecte
+normalement.
+
 `exec` / `query` ne prennent que du **SQL littéral**. TDengine lie les placeholders positionnels `?` exclusivement via le chemin STMT (le travail d'ingestion en masse), donc le tableau `params` du compilateur n'est pas passé à `exec` — un statement compilé sans paramètre s'exécute en SQL littéral.
 
 ### Les timestamps sont des `BigInt`
@@ -334,9 +352,16 @@ await runner.rollback()  // annule le dernier lot (fichiers en ordre inverse), e
 await runner.reset()     // annule tout
 await runner.refresh()   // reset + migrate (alias : fresh)
 await runner.dryRun()    // [{ name, sql[] }] — calcule le SQL, n'exécute rien
+await runner.forceUnlock() // libère un verrou laissé par un process tué -> boolean
 ```
 
-**Deux déviations TDengine nommées par rapport à atlas :**
+Comme atlas, chaque commande mutante s'exécute **sous un verrou de migration** :
+deux processus qui démarrent en même temps ne peuvent pas migrer simultanément.
+`refresh` tient un seul verrou sur tout le rollback + re-migration, pour qu'aucune
+autre exécution ne s'engouffre dans l'intervalle. Ne passez `disableLocks: true`
+que là où des exécutions concurrentes sont impossibles par construction.
+
+**Trois déviations TDengine nommées par rapport à atlas :**
 
 1. **Pas de transactions / pas de rollback moteur.** La DDL TDengine n'est pas
    transactionnelle, un lot ne peut donc pas être appliqué atomiquement. Le runner
@@ -352,6 +377,18 @@ await runner.dryRun()    // [{ name, sql[] }] — calcule le SQL, n'exécute rie
    est écrit avec un `executed_at` strictement croissant afin que le rollback puisse
    le supprimer par cette clé temporelle unique (TDengine n'autorise un prédicat
    `DELETE` que sur la colonne timestamp primaire).
+3. **Le verrou est l'existence d'une table, pas la valeur d'une ligne.** atlas
+   (parité Lucid/Knex) sérialise les runners avec un `UPDATE … WHERE is_locked = 0`
+   conditionnel. TDengine n'a pas d'`UPDATE` conditionnel : cette forme exacte est
+   impossible — mais la garantie, elle, ne l'est pas. `CREATE TABLE` **sans**
+   `IF NOT EXISTS` est un compare-and-swap atomique : le mnode sérialise les
+   métadonnées, donc sur N créateurs concurrents exactement un réussit et les
+   autres reçoivent l'erreur `1539`. Créer `ream_eon_migrations_lock`, **c'est**
+   prendre le verrou ; le supprimer le relâche, et `forceUnlock()` nettoie un
+   verrou bloqué via le `DROP` symétrique sans `IF EXISTS` (`9731` = rien n'était
+   tenu). Vérifié contre un TDengine 3.3.5.0 réel : huit runners concurrents,
+   exactement un migre. L'API reste celle d'atlas (`disableLocks`, `forceUnlock`)
+   — seul le primitif sous-jacent diffère.
 
 > Hors périmètre : auto-diff de schéma / `db push` (le territoire `checkSchema`
 > d'atlas) — il s'agit uniquement de migrations `up()`/`down()` versionnées.
