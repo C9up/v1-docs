@@ -204,6 +204,46 @@ const routes = router.namedManifest()
 // → { 'users.show': '/users/:id', ... }
 ```
 
+## Les doublons sont refusés
+
+Enregistrer deux fois la même méthode et le même chemin, ou réutiliser un nom de
+route pour un chemin différent, lève au lieu d'écraser en silence :
+
+```
+E_DUPLICATE_ROUTE       Duplicate route found. "GET: /admin" route already exists.
+E_DUPLICATE_ROUTE_NAME  A route with name "users.show" already exists
+```
+
+Un écrasement silencieux, c'est ainsi qu'un endpoint authentifié se fait masquer
+par une route ultérieure non gardée sur le même chemin — sans rien dans les logs.
+Un même nom sur les verbes d'un **seul** chemin reste permis :
+`route(['PUT','PATCH'], …)` et `resource().update` sont une seule route logique.
+
+## Matchers
+
+`.where()` contraint un paramètre. Le matcher d'une route **remplace** le matcher
+global pour ce paramètre, ce qui permet à une route d'assouplir ce que l'app a
+restreint :
+
+```typescript
+router.where('id', /^[0-9]+$/)                            // global
+router.get('/posts/:id', show).where('id', /^[a-z-]+$/)   // cette route prend des slugs
+```
+
+## Paramètres attrape-tout
+
+Un segment `*` avale le reste du chemin, et `params['*']` est le **tableau des
+segments** — les joindre effacerait la frontière entre un segment contenant un
+`/` encodé et un vrai séparateur :
+
+```typescript
+router.get('/assets/*', serve)
+// GET /assets/css/main.css → params['*'] === ['css', 'main.css']
+```
+
+`request.param('*')` les joint par commodité ; `request.params()` donne le
+tableau. Un matcher sur `*` est testé contre **chaque** segment.
+
 ## Builder de route fluide
 
 Chaque enregistrement de route retourne un `RouteBuilder` qui supporte le chaînage complet :

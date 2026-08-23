@@ -114,3 +114,26 @@ stores: {
 ```
 
 Le client est résolu à la première commande, pas pendant la lecture de la config : déclarer un store n'ouvre donc jamais de connexion à lui seul. `drivers.redis({ client })` fonctionne toujours : `@c9up/quasar` est une peer **optionnelle**, et echo tourne sans elle.
+
+## Écouter le cache
+
+```ts
+cache.on('cache:miss', ({ key, store }) => metrics.miss(store, key))
+cache.once('cache:hit', logFirstHit)
+cache.off('cache:miss', handler)
+```
+
+Enregistré sur le gestionnaire de magasins, un écouteur atteint aussi les
+magasins construits **ensuite** — ils sont paresseux, donc un écouteur posé au
+démarrage manquerait sinon tout magasin pas encore touché. Un écouteur qui lève
+est avalé : il observe l'opération, il n'a pas le droit de la faire échouer.
+
+## Purger et déconnecter
+
+```ts
+await cache.prune()          // retire maintenant les entrées expirées connues
+await cache.disconnectAll()  // depuis un crochet d'arrêt
+```
+
+Un pilote bâti sur un client **injecté** ne le déconnecte délibérément pas :
+echo n'a pas ouvert cette connexion, et quasar la possède.

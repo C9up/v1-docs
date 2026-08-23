@@ -149,3 +149,105 @@ export default {
 ```
 
 Nothing is dialled while the config is read: the connection resolves on the first request that touches a session. `@c9up/quasar` is an **optional** peer — cookie and memory sessions never reach for it. An app that already holds a client can pass it directly as `client` instead of naming a connection.
+
+## The request
+
+Beyond `input()` / `all()` / `qs()`, the request carries what AdonisJS's does:
+
+```ts
+ctx.request.id()            // the x-request-id the proxy set, or undefined
+ctx.request.completeUrl()   // protocol://host/path, `true` to keep the query
+ctx.request.parsedUrl()     // { pathname, search, query }
+ctx.request.ajax()          // X-Requested-With: xmlhttprequest
+ctx.request.pjax()
+ctx.request.prefetch()      // a speculative fetch, not a real navigation
+ctx.request.types()         // every accepted media type, best first
+ctx.request.languages()     // …and languages, charsets, encodings
+ctx.request.cookiesList()
+ctx.request.serialize()     // a JSON-safe view, for logs
+```
+
+`body()` returns the request body; `all()` returns the body **merged with the
+query string** — two different things, as upstream.
+
+`id()` does not invent a UUID when the header is absent: a correlation id nobody
+else knows correlates nothing.
+
+`serialize()` and `toJSON()` deliberately omit the body — it may hold
+credentials, and a log line is the last place they should land.
+
+`prefetch()` is worth checking before anything with a side effect. A browser may
+fetch a link the user never clicks; counting that as a visit, or acting on it,
+attributes an intention nobody had.
+
+### Where the user came from
+
+```ts
+const back = ctx.request.getPreviousUrl(['admin.example.com'], '/dashboard')
+```
+
+The `Referer` header is **supplied by the client**. Redirecting back to it
+unchecked is an open redirect, so the host must be this request's own or one of
+the hosts you list; anything else falls back.
+
+## The response
+
+```ts
+ctx.response.onFinish(() => unlink(tempFile))   // after the answer is sent
+await ctx.response.stream(fs.createReadStream(path))
+ctx.response.attachment(path, 'rapport-échéance.pdf')
+ctx.response.cookie('prefs', { theme: 'dark' }, { maxAge: '2h' })
+```
+
+- **`onFinish`** runs the work that must happen but must not delay the reply — a
+  temp file deleted, a metric recorded. A callback that throws does not stop the
+  others: by then the client already has its answer.
+- **`maxAge`** takes seconds or a duration string. `'2h'` previously reached the
+  header as the invalid `Max-Age=2h`, and the cookie was dropped without a word.
+- **`plainCookie`** packs its value as base64url JSON, so an object comes back an
+  object and a number a number. Pass `encode: false` for a value a browser script
+  must read verbatim, or one that is already protected.
+- **`attachment`** escapes the filename and adds the RFC 6266 extended form, so a
+  non-ASCII name survives a Latin-1 header instead of arriving mangled.
+
+Two named deviations on `stream()`: the response crosses a NAPI boundary, so the
+stream is **consumed** rather than piped, and no Node `ServerResponse` reaches an
+`onFinish` callback. For real streaming, use `response.sse()`.
+
+## Encryption
+
+```ts
+const token = encryption.encrypt(userId, 3_600_000, 'password-reset')
+encryption.decrypt(token, 'password-reset')   // the id
+encryption.decrypt(token, 'session')          // null
+```
+
+`purpose` is what stops a value sealed for one use being replayed into another —
+a reset token presented as a session cookie fails here rather than being
+honoured. `expiresIn` is in milliseconds. Both work on `sign()` / `unsign()` too.
+
+The APP_KEY is validated at construction: absent throws `E_MISSING_APP_KEY`,
+shorter than 16 characters throws `E_INSECURE_APP_KEY`.
+
+> **Named deviation.** Ream encrypts with **aes-256-gcm**, where authentication
+> is part of the cipher. AdonisJS uses `aes-256-cbc` plus a hand-assembled HMAC —
+> encrypt-then-MAC done by hand is a known source of subtle breaks, and there is
+> no reason to reproduce it. The consequence, plainly: a cookie encrypted by an
+> AdonisJS app **cannot be decrypted here**. Migrating invalidates the encrypted
+> cookies already in users' browsers — they are signed out once, at deploy.
+> Everything the app *calls* behaves the same.
+
+## Application mode
+
+```ts
+async start() {
+  if (this.app.getMode() !== 'run') return
+  await startQueueWorkers()
+}
+```
+
+`getMode()` is `run` or `warmup`. A codegen or listing command sets `warmup`, so
+a provider can skip its **side effects** — starting workers, opening a connection
+— while still registering every binding. It must never change *which* bindings
+exist: the app being inspected has to match the app that runs, or the generated
+types describe something else. `setMode()` refuses after boot.

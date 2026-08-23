@@ -235,3 +235,23 @@ interface LogConfig {
 
 - [Blackhole (Security)](/en/modules/blackhole) — Rust-side request filtering
 - [Event Bus](/en/ream/events) — Event-driven architecture
+
+## Transport targets
+
+A migrated `config/logger.ts` declares its output the AdonisJS way:
+
+```ts
+transport: {
+  targets: targets()
+    .pushIf(!app.inProduction, targets.pretty())
+    .pushIf(app.inProduction, targets.file({ destination: 1 }))
+    .toArray(),
+}
+```
+
+Named deviation: upstream targets name pino transports running in worker
+threads. Spectrum writes through its own `LogChannel`s, so a target is a
+**description** that is realised at construction — `pino-pretty` becomes the
+human console, `pino/file` with a path becomes a file, and with a descriptor
+(`destination: 1`) becomes JSON on the process output, which is what a
+containerised app ships to its collector. An explicit `channels` list still wins.

@@ -204,6 +204,45 @@ const routes = router.namedManifest()
 // → { 'users.show': '/users/:id', ... }
 ```
 
+## Duplicates are refused
+
+Registering the same method and path twice, or reusing a route name for a
+different path, throws instead of overwriting silently:
+
+```
+E_DUPLICATE_ROUTE       Duplicate route found. "GET: /admin" route already exists.
+E_DUPLICATE_ROUTE_NAME  A route with name "users.show" already exists
+```
+
+A silent overwrite is how an authenticated endpoint gets shadowed by a later,
+unguarded route on the same path — with nothing in the logs. One name across the
+verbs of a **single** path is still allowed: `route(['PUT','PATCH'], …)` and
+`resource().update` are one logical route.
+
+## Matchers
+
+`.where()` constrains a param. A route's own matcher **replaces** the global one
+for that param, so a route can loosen what the app narrowed:
+
+```typescript
+router.where('id', /^[0-9]+$/)                            // global
+router.get('/posts/:id', show).where('id', /^[a-z-]+$/)   // this route takes slugs
+```
+
+## Catch-all params
+
+A `*` segment swallows the rest of the path, and `params['*']` is the **array of
+segments** — joining them would lose the boundary between a segment containing an
+encoded `/` and a real separator:
+
+```typescript
+router.get('/assets/*', serve)
+// GET /assets/css/main.css → params['*'] === ['css', 'main.css']
+```
+
+`request.param('*')` joins them for convenience; `request.params()` gives the
+array. A matcher on `*` is tested against **every** segment.
+
 ## Fluent Route Builder
 
 Every route registration returns a `RouteBuilder` that supports full chaining:

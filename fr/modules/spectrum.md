@@ -176,3 +176,24 @@ interface LogConfig {
 
 - [Blackhole (Sécurité)](/fr/modules/blackhole) — Filtrage de sécurité
 - [Event bus](/fr/ream/events) — Architecture event-driven
+
+## Cibles de transport
+
+Un `config/logger.ts` migré déclare sa sortie à la façon AdonisJS :
+
+```ts
+transport: {
+  targets: targets()
+    .pushIf(!app.inProduction, targets.pretty())
+    .pushIf(app.inProduction, targets.file({ destination: 1 }))
+    .toArray(),
+}
+```
+
+Déviation nommée : chez AdonisJS une cible désigne un transport pino tournant
+dans un worker thread. Spectrum écrit par ses propres `LogChannel`, donc une
+cible est une **description** réalisée à la construction — `pino-pretty` devient
+la console lisible, `pino/file` avec un chemin devient un fichier, et avec un
+descripteur (`destination: 1`) devient du JSON sur la sortie du processus, ce
+qu'une app conteneurisée envoie à son collecteur. Une liste `channels` explicite
+l'emporte toujours.

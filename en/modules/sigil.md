@@ -208,3 +208,27 @@ Each is built via `pnpm build:napi` on a native runner (no cross-compilation) an
 - **40.4** — Prebuilt NAPI binaries in CI for the 5 target platforms. Hardened runtime detection with the `[SIGIL_NAPI_REQUIRED]` error path + a `pnpm build:napi` script.
 
 > Story 40.2 (originally scoped as "ream/crypto delegates to Sigil") is being re-evaluated: 40.1 deleted the stubs outright instead of converting them to facades. The duplicate argon2 path in `@c9up/warden` is independent and is still tracked by story 40.3.
+
+## AdonisJS config shape
+
+```ts
+import { defineConfig, drivers } from '@c9up/sigil'
+
+export default defineConfig({
+  default: 'scrypt',
+  list: {                                   // `drivers` also works
+    scrypt: drivers.scrypt({ cost: 16384, blockSize: 8 }),
+    argon: drivers.argon2({ memory: 65536 }),
+  },
+})
+```
+
+> **The names are swapped.** AdonisJS's `Hash` wraps ONE driver — sigil calls
+> that `Hasher` — and its `HashManager` is the multi-driver one, which sigil
+> calls `Hash`. `HashManager` is exported as an alias so a migrated
+> `import { HashManager }` resolves to the class that manages drivers.
+
+Named deviation: `drivers.*` returns a plain descriptor rather than a lazy config
+provider. The call site is identical, and there is nothing to import lazily since
+one Rust engine holds every driver. Hashes are PHC-formatted and cross-verify
+with `@adonisjs/hash`, so existing password hashes keep working.

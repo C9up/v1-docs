@@ -320,3 +320,34 @@ const data = await ProfileSchema.validateOrThrowAsync({ handle: 'alice' })
 
 - [Atlas (ORM)](/en/modules/atlas) — Validate before saving entities
 - [Warden (Auth)](/en/modules/warden) — Authenticate and authorize users
+
+## The Rust engine is required
+
+A schema carrying nothing the engine cannot run **is run by the engine** —
+`RuneNativeRequiredError` (`RUNE_NAPI_REQUIRED`) is thrown when the binary is
+absent, rather than falling back.
+
+There is a TypeScript validator, and it used to take over with a one-time
+warning. That made a schema's verdict depend on whether a prebuilt binary
+happened to load: two deployments of the same code could disagree on whether a
+payload is valid, and the one that fell back lost the reason to have Rust at all.
+
+The TypeScript path stays for what the engine genuinely cannot do — a custom
+rule, a translator, a messages provider. There it is the only implementation,
+not a second one free to diverge.
+
+## Field-aware callbacks
+
+`in`, `notIn` and `enum` accept a callback receiving the field, so a list that
+depends on the request is computed per validation:
+
+```ts
+rune.enum((field) => field.meta.admin ? ['member', 'owner'] : ['member'])
+rune.string().in((field) => allowedFor(field.meta.tenant))
+```
+
+`enum().getChoices()` reads the list back, so a form renders the same options the
+validator will accept — from one declaration instead of two.
+
+Also: `union().otherwise(cb)` reports when no branch matched, and
+`record().validateKeys(cb)` checks the key SET rather than the values.

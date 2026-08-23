@@ -523,3 +523,52 @@ Voir le [catalogue complet](../errors/#erreurs-photon) pour cause + fix par code
 - [Routing](/fr/guide/routing) — Definir les routes qui rendent des pages Photon
 - [Middleware](/fr/guide/middleware) — Ajouter l'authentification avant le rendu
 - [Warden (Auth)](/fr/modules/warden) — Proteger les pages avec des guards
+
+## Helpers de props
+
+Un contrôleur Inertia migré appelle les mêmes helpers — l'implémentation est la
+nôtre, la surface est la leur.
+
+```ts
+ctx.photon.render('Dashboard', {
+  user,                                              // envoyé à chaque visite
+  permissions: always(perms),                        // survit à un rechargement partiel
+  auditLogs: optional(() => Audit.all()),            // seulement si demandé
+  stats: defer(() => Stats.heavy(), 'panels'),       // récupéré ensuite
+  rows: merge(nextPage).matchOn('id'),               // ajouté, dédupliqué
+  countries: once(() => Country.all()),              // mis en cache par le client
+  users: scroll(() => User.query().paginate(p, 20)), // défilement infini
+})
+```
+
+- **`defer`** annonce le nom sans exécuter le résolveur ; le client demande
+  chaque groupe dans une requête suivante. `{ rescue: true }` laisse un panneau
+  lent échouer sans emporter tout le rechargement.
+- **`merge` / `deepMerge`** étiquettent la prop pour que le client combine au
+  lieu de remplacer. `matchOn('id')` empêche une ligne renvoyée entre deux pages
+  d'apparaître en double.
+- **`once`** énonce toujours les conditions de cache, et n'exécute pas du tout le
+  résolveur pour une clé que le client détient encore.
+- **`scroll`** étiquette le **tableau** `data` de la valeur, pas la prop — le
+  curseur à côté doit être remplacé à chaque fois, jamais accumulé.
+  `nextPage: null` est ainsi que le client cesse de demander.
+
+Un rappel nu est une prop paresseuse, invoquée à chaque rendu, et une promesse
+est attendue : `{ total: () => Order.count() }` envoie le nombre.
+
+## Erreurs de validation
+
+`props.errors` est partagé avec chaque page, pour qu'un composant de formulaire
+lise `errors.email` sans garde. L'en-tête `x-photon-error-bag` les cadre, ce qui
+permet à deux formulaires d'une même page de garder leurs messages séparés.
+
+## Champs au niveau réponse
+
+```ts
+ctx.photon.clearHistory()        // à appeler au logout
+ctx.photon.encryptHistory()
+ctx.photon.flash(() => ctx.session.flashMessages.all())
+```
+
+`clearHistory` compte au logout : sans lui, le bouton retour rejoue des pages
+construites avec les données de la session précédente, depuis le cache du client.

@@ -47,3 +47,37 @@ const meta = await storage.getMetaData('avatars/1.png')  // alias de getMetadata
 ## Drivers
 
 - `local`: adossé au système de fichiers, driver par défaut
+
+## Envoyer depuis le système de fichiers local
+
+```ts
+await disk.moveFromFs(request.file('avatar').tmpPath, `avatars/${user.id}.png`)
+await disk.copyFromFs(new URL('./seed.png', import.meta.url), 'seed.png')
+```
+
+C'est la paire qui suit un upload multipart. `copy()` déplace **à l'intérieur**
+d'un disque et ne voit pas un chemin local quand le disque est distant : ce n'est
+donc pas un substitut. `moveFromFs` ne supprime la source qu'après l'écriture
+réussie — un envoi échoué qui aurait aussi détruit l'unique copie n'est pas un
+échange acceptable.
+
+## Poignées de fichier et instantanés
+
+```ts
+const avatar = disk.file(`avatars/${user.id}.png`)
+if (await avatar.exists()) return avatar.getUrl()
+
+const snapshot = await avatar.toSnapshot()   // à ranger près de l'enregistrement
+disk.fromSnapshot(snapshot).name             // reconstruit sans aller-retour
+```
+
+Un instantané ne porte pas la visibilité : les métadonnées reconstruites disent
+donc `private`. Deviner « public » pour un fichier dont on ignore l'accès est
+l'erreur qui a une conséquence.
+
+## Délais de requête
+
+Chaque requête S3/GCS est bornée — 30 secondes par défaut, `requestTimeoutMs`
+pour changer, `0` pour désactiver. Sans borne, une connexion bloquée ne se
+résout jamais : le handler qui l'attend attend indéfiniment, et il en suffit de
+quelques-unes pour que le serveur cesse de servir.

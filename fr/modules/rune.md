@@ -293,3 +293,34 @@ non `useAsync(rule)`).
 
 - [Atlas (ORM)](/fr/modules/atlas) — Valider avant de sauvegarder les entités
 - [Warden (Auth)](/fr/modules/warden) — Authentifier les utilisateurs
+
+## Le moteur Rust est requis
+
+Un schéma ne portant rien que le moteur ne sache exécuter **est exécuté par le
+moteur** — `RuneNativeRequiredError` (`RUNE_NAPI_REQUIRED`) est levée si le
+binaire est absent, plutôt qu'un repli.
+
+Il existe un validateur TypeScript, et il prenait le relais avec un
+avertissement unique. Le verdict d'un schéma dépendait alors du chargement d'un
+binaire préconstruit : deux déploiements du même code pouvaient diverger sur la
+validité d'un payload, et celui qui repliait perdait la raison d'avoir du Rust.
+
+Le chemin TypeScript reste pour ce que le moteur ne sait vraiment pas faire —
+une règle custom, un traducteur, un fournisseur de messages. Là, il est la seule
+implémentation, pas une seconde libre de diverger.
+
+## Rappels recevant le champ
+
+`in`, `notIn` et `enum` acceptent un rappel qui reçoit le champ, de sorte qu'une
+liste dépendant de la requête est calculée par validation :
+
+```ts
+rune.enum((field) => field.meta.admin ? ['member', 'owner'] : ['member'])
+rune.string().in((field) => allowedFor(field.meta.tenant))
+```
+
+`enum().getChoices()` relit la liste, pour qu'un formulaire affiche exactement
+les options que le validateur acceptera — depuis une seule déclaration.
+
+Également : `union().otherwise(cb)` rapporte quand aucune branche n'a matché, et
+`record().validateKeys(cb)` contrôle l'ENSEMBLE des clés plutôt que les valeurs.

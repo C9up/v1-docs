@@ -114,3 +114,26 @@ stores: {
 ```
 
 The client is resolved on the first command, not while the config is read, so declaring a store never dials on its own. `drivers.redis({ client })` still works: `@c9up/quasar` is an **optional** peer, and echo runs without it.
+
+## Listening to the cache
+
+```ts
+cache.on('cache:miss', ({ key, store }) => metrics.miss(store, key))
+cache.once('cache:hit', logFirstHit)
+cache.off('cache:miss', handler)
+```
+
+Registered on the store manager, a listener also reaches stores built **later** —
+stores are lazy, so one registered at boot would otherwise miss every store not
+yet touched. A listener that throws is swallowed: it observes the operation, it
+does not get to fail it.
+
+## Pruning and disconnecting
+
+```ts
+await cache.prune()          // drop known-expired entries now
+await cache.disconnectAll()  // from a shutdown hook
+```
+
+A driver built on an **injected** client deliberately does not disconnect it:
+echo did not open that connection, and quasar owns it.

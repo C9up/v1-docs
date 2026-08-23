@@ -523,3 +523,52 @@ See the [full catalog](../errors/#photon-errors) for cause + fix per code.
 - [Routing](/en/guide/routing) — Define routes that render Photon pages
 - [Middleware](/en/guide/middleware) — Add authentication before rendering
 - [Warden (Auth)](/en/modules/warden) — Protect pages with guards
+
+## Prop helpers
+
+A migrated Inertia controller calls the same helpers — the implementation is
+ours, the surface is theirs.
+
+```ts
+ctx.photon.render('Dashboard', {
+  user,                                              // sent every visit
+  permissions: always(perms),                        // survives a partial reload
+  auditLogs: optional(() => Audit.all()),            // only when asked for
+  stats: defer(() => Stats.heavy(), 'panels'),       // fetched afterwards
+  rows: merge(nextPage).matchOn('id'),               // appended, deduped
+  countries: once(() => Country.all()),              // cached by the client
+  users: scroll(() => User.query().paginate(p, 20)), // infinite scroll
+})
+```
+
+- **`defer`** announces the name and does not run the resolver; the client asks
+  for each group in a follow-up request. `{ rescue: true }` lets one slow panel
+  fail without taking the whole reload with it.
+- **`merge` / `deepMerge`** label the prop so the client combines instead of
+  replacing. `matchOn('id')` is what stops a row re-sent between two pages from
+  appearing twice.
+- **`once`** states the caching terms always, and does not run the resolver at
+  all for a key the client still holds.
+- **`scroll`** labels the value's `data` **array**, not the prop — the cursor
+  beside it must be replaced each time, never accumulated. `nextPage: null` is
+  how the client stops asking.
+
+A bare callback is a lazy prop, invoked on every render, and a promise is
+awaited: `{ total: () => Order.count() }` sends the number.
+
+## Validation errors
+
+`props.errors` is shared with every page, so a form component can read
+`errors.email` unconditionally. The `x-photon-error-bag` header scopes them,
+which is how two forms on one page keep their messages apart.
+
+## Response-level fields
+
+```ts
+ctx.photon.clearHistory()        // call it on logout
+ctx.photon.encryptHistory()
+ctx.photon.flash(() => ctx.session.flashMessages.all())
+```
+
+`clearHistory` matters at logout: without it the back button replays pages built
+from the previous session's data, straight out of the client's own cache.

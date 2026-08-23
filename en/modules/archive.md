@@ -47,3 +47,34 @@ const meta = await storage.getMetaData('avatars/1.png')  // alias of getMetadata
 ## Drivers
 
 - `local`: filesystem-backed, default driver
+
+## Uploading from the local filesystem
+
+```ts
+await disk.moveFromFs(request.file('avatar').tmpPath, `avatars/${user.id}.png`)
+await disk.copyFromFs(new URL('./seed.png', import.meta.url), 'seed.png')
+```
+
+This is the pair that follows a multipart upload. `copy()` moves **within** a
+disk and cannot see a local path when the disk is remote, so it is not a
+substitute. `moveFromFs` unlinks the source only after the write succeeded — a
+failed upload that also destroyed the only copy is not a trade worth making.
+
+## File handles and snapshots
+
+```ts
+const avatar = disk.file(`avatars/${user.id}.png`)
+if (await avatar.exists()) return avatar.getUrl()
+
+const snapshot = await avatar.toSnapshot()   // store it beside the record
+disk.fromSnapshot(snapshot).name             // rebuilt without a round-trip
+```
+
+A snapshot carries no visibility, so rebuilt metadata reports `private`. Guessing
+"public" for a file whose access is unknown is the error with a consequence.
+
+## Request timeouts
+
+Every S3/GCS request is bounded — 30 seconds by default, `requestTimeoutMs` to
+change it, `0` to disable. Without a bound a stalled connection never settles:
+the handler awaiting it waits forever, and enough of them stop the server serving.

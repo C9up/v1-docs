@@ -184,3 +184,82 @@ await mail.send((msg) => {
 
 - [Warden (Auth)](/fr/modules/warden) — Envoyer des emails de reinitialisation de mot de passe ou de verification
 - [Bay (Queue)](/fr/modules/bay) — Mettre les emails en file d'attente pour un envoi en arriere-plan
+
+## Configuration
+
+```ts
+import { defineConfig, transports } from '@c9up/rover'
+
+export default defineConfig({
+  default: 'smtp',
+  from: 'noreply@acme.com',
+  mailers: {                                    // `transports` marche aussi
+    smtp: transports.smtp({ host: env.get('SMTP_HOST') }),
+    ses: transports.ses({ region: 'eu-west-1', accessKeyId, secretAccessKey }),
+  },
+})
+```
+
+Chaque transport livré s'enregistre au chargement de l'entrée du paquet —
+`smtp`, `log`, `ses`, `mailgun`, `sparkpost`, `resend`, `brevo`, `sendgrid`.
+Il n'y a pas de helper `postmark` : rover n'a pas ce transport, donc une config
+qui le nomme échoue à la **compilation** plutôt qu'au démarrage.
+
+## Mails dépêchables
+
+```ts
+class WelcomeMail extends BaseMail {
+  from = 'noreply@acme.com'
+  subject = 'Bienvenue'
+  constructor(private user: User) { super() }
+  prepare() {
+    this.message.to(this.user.email).htmlView('emails/welcome', { user: this.user })
+  }
+}
+
+await new WelcomeMail(user).send(mail.use('smtp'))
+```
+
+`message` est public, ce qui permet à un test de le lire :
+
+```ts
+mails.assertSent(WelcomeMail, (mail) => mail.message.hasTo(user.email))
+```
+
+## Inspecter un message
+
+`has*` répond, `assert*` lève et rapporte ce qu'il a vraiment reçu :
+
+```ts
+message.hasTo('ada@acme.test')
+message.assertSubject('Bienvenue')
+message.assertHtmlIncludes('Bonjour')
+message.toObject()
+```
+
+Les adresses sont stockées sous leur forme d'affichage, donc `hasFrom('a@b.c')`
+retrouve l'adresse à l'intérieur de `"Nom" <a@b.c>`.
+
+## Corps texte et enveloppe
+
+```ts
+message.textView('emails/welcome.txt', { user })   // à côté de htmlView
+message.envelope({ from: 'bounces+reader@acme.com' })
+```
+
+Un message HTML seul passe moins bien les filtres anti-spam et est illisible en
+client texte. L'enveloppe est ce qu'utilisent les serveurs : un retour en erreur
+part vers l'expéditeur d'enveloppe, pas vers l'auteur visible.
+
+## Arrêt
+
+```ts
+await mail.closeAll()
+```
+
+Réel sur SMTP — cela draine le pool de nodemailer. Un processus qui sort sans ça
+laisse le serveur tenir des sockets jusqu'à expiration.
+
+Les noms d'affichage et adresses portant CR, LF ou NUL sont **refusés** : un saut
+de ligne ne peut pas être échappé dans un en-tête, il le termine, et l'accepter
+est ainsi qu'un formulaire de contact devient un relais ouvert.

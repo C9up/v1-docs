@@ -187,3 +187,24 @@ La phase requête se résout en l'un de :
 
 - [Warden (Auth)](/fr/modules/warden) — Authentification au niveau applicatif
 - [Middleware](/fr/guide/middleware) — Pipeline middleware Node.js
+
+## Options CSRF
+
+```ts
+csrf: {
+  enabled: true,
+  enableXsrfCookie: true,                                    // défaut
+  exceptRoutes: (req) => req.path.startsWith('/webhooks/'),  // ou une liste de motifs
+  cookieOptions: { sameSite: 'lax' },                        // `cookie` marche aussi
+}
+```
+
+- **`enableXsrfCookie`** commande le cookie lisible `XSRF-TOKEN`. Une app
+  entièrement rendue serveur envoie le jeton dans le champ `_csrf` et n'en a pas
+  l'usage — et un cookie qu'on ne pose pas est une chose de moins à fuir. Le
+  jeton reste disponible pour le champ de formulaire.
+- **`exceptRoutes`** accepte des motifs ou un prédicat. La forme tableau est
+  évaluée en Rust avec le reste du contrôle ; un **prédicat tourne en JS avant**,
+  une fonction ne pouvant pas traverser la frontière NAPI.
+- **`cookieOptions`** est la clé d'AdonisJS ; `cookie` est la nôtre. Les deux
+  fonctionnent.

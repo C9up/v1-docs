@@ -187,3 +187,22 @@ The request phase resolves to one of:
 
 - [Warden (Auth)](/en/modules/warden) — Application-level authentication and authorization
 - [Middleware](/en/guide/middleware) — Node.js middleware pipeline
+
+## CSRF options
+
+```ts
+csrf: {
+  enabled: true,
+  enableXsrfCookie: true,                                    // default
+  exceptRoutes: (req) => req.path.startsWith('/webhooks/'),  // or a pattern list
+  cookieOptions: { sameSite: 'lax' },                        // `cookie` also works
+}
+```
+
+- **`enableXsrfCookie`** gates the readable `XSRF-TOKEN` cookie. An all-SSR app
+  sends the token in the `_csrf` field and has no use for it — and a cookie not
+  set is one less thing to leak. The token stays available for the form field.
+- **`exceptRoutes`** takes patterns or a predicate. The array form is evaluated
+  in Rust with the rest of the check; a **predicate runs in JS before it**, since
+  a function cannot cross the NAPI boundary.
+- **`cookieOptions`** is the AdonisJS key; `cookie` is ours. Both work.

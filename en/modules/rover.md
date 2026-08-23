@@ -194,3 +194,82 @@ await mail.send((msg) => {
 
 - [Warden (Auth)](/en/modules/warden) — Send password reset or verification emails after auth events
 - [Bay (Queue)](/en/modules/bay) — Queue mail jobs for background delivery
+
+## Config
+
+```ts
+import { defineConfig, transports } from '@c9up/rover'
+
+export default defineConfig({
+  default: 'smtp',
+  from: 'noreply@acme.com',
+  mailers: {                                    // `transports` also works
+    smtp: transports.smtp({ host: env.get('SMTP_HOST') }),
+    ses: transports.ses({ region: 'eu-west-1', accessKeyId, secretAccessKey }),
+  },
+})
+```
+
+Every bundled transport registers itself when the package entry loads —
+`smtp`, `log`, `ses`, `mailgun`, `sparkpost`, `resend`, `brevo`, `sendgrid`.
+There is no `postmark` helper: rover has no such transport, so a config naming
+it fails to **compile** rather than at boot.
+
+## Dispatchable mails
+
+```ts
+class WelcomeMail extends BaseMail {
+  from = 'noreply@acme.com'
+  subject = 'Welcome'
+  constructor(private user: User) { super() }
+  prepare() {
+    this.message.to(this.user.email).htmlView('emails/welcome', { user: this.user })
+  }
+}
+
+await new WelcomeMail(user).send(mail.use('smtp'))
+```
+
+`message` is public, which is what lets a test read it:
+
+```ts
+mails.assertSent(WelcomeMail, (mail) => mail.message.hasTo(user.email))
+```
+
+## Inspecting a message
+
+`has*` answers, `assert*` throws and reports what it actually got:
+
+```ts
+message.hasTo('ada@acme.test')
+message.assertSubject('Welcome')
+message.assertHtmlIncludes('Hello')
+message.toObject()
+```
+
+Addresses are stored in their display form, so `hasFrom('a@b.c')` matches inside
+`"Name" <a@b.c>`.
+
+## Text bodies and the envelope
+
+```ts
+message.textView('emails/welcome.txt', { user })   // beside htmlView
+message.envelope({ from: 'bounces+reader@acme.com' })
+```
+
+An HTML-only message scores worse with spam filters and is unreadable in a text
+client. The envelope is what mail servers use: a bounce goes to the envelope
+sender, not to the visible author.
+
+## Shutting down
+
+```ts
+await mail.closeAll()
+```
+
+Real on SMTP — it drains nodemailer's pool. A process that exits without it
+leaves the server holding sockets until they time out.
+
+Display names and addresses carrying CR, LF or NUL are **rejected**: a line break
+cannot be escaped in a header, it ends it, and accepting one is how a contact
+form becomes an open relay.
