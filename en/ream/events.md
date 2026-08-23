@@ -16,7 +16,7 @@ import { Emitter } from '@c9up/ream'
 
 // String events
 emitter.on('user:registered', (user) => sendWelcome(user))
-emitter.emit('user:registered', { id: 1 })
+await emitter.emit('user:registered', { id: 1 })
 
 // Class-based events (typed)
 class TaskDeclared extends BaseEvent {
@@ -30,6 +30,35 @@ await emitter.onAny('order.*', (name, data) => audit(name, data))
 
 // Request / reply
 const user = await emitter.request('query:user.find', { id: 1 })
+```
+
+### `emit` resolves once the listeners are done
+
+`emit()` returns a promise and resolves after every listener has finished —
+awaiting it is how a handler makes sure the work it triggered actually happened
+before it answers. Listeners run in **parallel**; `emitSerial()` runs them one
+after another, for when a listener seeds what the next one reads.
+
+```ts
+await emitter.emit('order:placed', order)        // in parallel
+await emitter.emitSerial('order:placed', order)  // one at a time
+```
+
+Not awaiting it keeps the fire-and-forget shape. A listener that throws is
+reported through the error channel and does **not** cancel the others: one
+failing subscriber must not silently cancel the reaction to an event it does not
+own.
+
+### Managing listeners
+
+```ts
+emitter.once('boot:ready', run)         // the next occurrence only
+emitter.off('boot:ready', run)          // remove one
+emitter.listenIf(config.audit, 'x', fn) // register only when the flag holds
+emitter.listenerCount('x')              // how many, or all of them with no arg
+emitter.clearListeners('x')             // drop one event's listeners
+emitter.clearAllListeners()             // drop everything
+emitter.onError((event, error) => report(event, error))
 ```
 
 Listener **classes** are resolved through the IoC container, so they get full

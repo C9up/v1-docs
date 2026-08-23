@@ -196,6 +196,50 @@ Surface statique complète : `find`, `findOrFail`, `findBy`, `findByOrFail`, `fi
 
 Les instances ajoutent `saveQuietly()` / `deleteQuietly()` — persister/supprimer sans déclencher les hooks de cycle de vie (parité AdonisJS Lucid, pratique pour seeders/backfills). `save()` lève une erreur dès que l'instance est supprimée (`$isDeleted`), et `$isDirty` indique les changements non sauvegardés.
 
+### Clés primaires auto-assignées
+
+Posez `selfAssignPrimaryKey` quand l'app produit l'id — un UUID dans un hook
+`beforeCreate`, un id choisi par l'appelant — pour que l'insert ne le redemande
+pas à la base.
+
+```ts
+class Invoice extends BaseModel {
+  static selfAssignPrimaryKey = true
+  @PrimaryKey() declare id: string
+}
+```
+
+Sans lui, la valeur renvoyée par la base écrase l'id que l'app venait de choisir,
+et toutes les références déjà distribuées pointent sur la mauvaise ligne.
+
+### Sérialiser un sous-ensemble
+
+`serialize()` taille le parent **et** ses relations en une passe. Le faire après
+coup signifie que les colonnes exclues ont déjà été sérialisées — y compris
+celles qu'on voulait justement écarter.
+
+```ts
+post.serialize({ fields: ['id', 'title'] })
+post.serialize({ fields: { omit: ['password'] } })
+post.serialize({
+  fields: ['id', 'title'],
+  relations: { author: { fields: ['id', 'name'] } },
+})
+```
+
+`pick` l'emporte sur `omit` quand les deux sont donnés — l'expression d'intention
+la plus étroite.
+
+### Clés pivot du many-to-many
+
+Les deux orthographes sont acceptées, donc une déclaration de relation AdonisJS
+se transpose telle quelle :
+
+| atlas | AdonisJS |
+|---|---|
+| `foreignKey` | `pivotForeignKey` |
+| `otherKey` | `pivotRelatedForeignKey` |
+
 ## Repository
 
 `BaseRepository` fournit des opérations CRUD typées, appuyées par une connexion à la base de données. La connexion est résolue depuis le conteneur IoC via `@Inject('db')`. C'est la même surface que celle déléguée par `BaseModel` — utilisez-le directement si vous préférez la séparation Data Mapper.
@@ -407,6 +451,59 @@ const { sql } = new QueryBuilder('orders')
   .with('totals', RawSql.sql`SELECT user_id, SUM(total) AS sum FROM orders GROUP BY user_id`)
   .toSQL()
 ```
+
+### Vider des clauses
+
+Un builder passé à un helper qui a ajouté un filtre, un tri ou une tranche se
+remet à zéro clause par clause au lieu d'être reconstruit — ce qu'il faut à un
+scope partagé ou à une requête de base réutilisable.
+
+```ts
+query.clearSelect().clearWhere().clearOrder().clearHaving().clearLimit().clearOffset()
+```
+
+### HAVING EXISTS
+
+Une sous-requête corrélée dans `HAVING` filtre des **groupes** par quelque chose
+d'extérieur à l'agrégat — « les groupes qui ont encore une commande ouverte » —
+qu'aucune combinaison de `having(count)` n'exprime.
+
+```ts
+db.from('users')
+  .groupBy('role')
+  .havingExists((sub) => sub.from('orders').whereRaw('orders.role = users.role'))
+```
+
+`andHavingExists`, `orHavingExists`, `havingNotExists`, `andHavingNotExists` et
+`orHavingNotExists` complètent la famille.
+
+### Pagination par curseur
+
+```ts
+const page = await Post.query().cursorPaginate({
+  limit: 20,
+  orderBy: 'id',
+  direction: 'desc',       // un fil du plus récent — la raison même du curseur
+  cursor: previousCursor,
+})
+```
+
+`direction` pilote l'`ORDER BY` **et** l'opérateur de comparaison. `nextCursor`
+vaut `null` sur la dernière page — c'est ainsi que le client cesse de demander.
+
+### Transactions
+
+`trx.isCompleted` dit si une transaction a déjà été validée ou annulée. Une
+fonction qui en reçoit une ne peut pas le savoir autrement, et une requête sur
+une transaction terminée échoue au niveau du driver avec un message qui ne parle
+pas de transaction.
+
+```ts
+if (!trx.isCompleted) await trx.rollback()
+```
+
+Un savepoint suit son propre état : le relâcher ne marque pas sa transaction
+parente comme terminée.
 
 ## Schema Builder
 

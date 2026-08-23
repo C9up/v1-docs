@@ -60,13 +60,85 @@ session n'a tourné.
 
 ### Drivers de session
 
-Trois drivers sont livrés avec ream :
+Cinq drivers sont livrés avec ream :
 
 | driver | où vit la session | notes |
 |---|---|---|
 | `cookie` | dans le cookie signé lui-même | aucun état serveur ; un payload de plus de ~4 Ko ne rentre pas |
-| `memory` | dans le process | suffisant pour une instance, perdu au redémarrage |
+| `memory` | dans le process | suffisant pour une instance, perdu au redémarrage ; plafonné à 10 000 sessions vivantes |
+| `file` | un fichier par session sur disque | survit à un redémarrage sans Redis ; une seule machine |
+| `database` | une table `sessions` | partagé entre instances qui partagent une base |
 | `redis` | sur un serveur Redis | partagé entre instances, survit aux redémarrages |
+
+Le driver `file` reçoit le répertoire où écrire ; le driver `database` reçoit une
+connexion exposant `query()` / `execute()` et, optionnellement, le nom de table :
+
+```ts
+// config/session.ts
+export default { driver: 'file', location: app.tmpPath('sessions') }
+
+// ou
+export default {
+  driver: 'database',
+  dbConnection: db.connection(),
+  tableName: 'sessions',   // défaut
+}
+```
+
+La table `database` est `id` (varchar, clé primaire), `data` (text) et
+`expires_at` (bigint, epoch ms). Rien ne la purge tout seul — appelez
+`driver.prune()` depuis une tâche planifiée.
+
+### Configuration de session
+
+Les deux orthographes sont acceptées, donc un `config/session.ts` AdonisJS tourne
+sans modification :
+
+```ts
+export default defineConfig({
+  store: 'redis',                          // AdonisJS ; `driver` marche aussi
+  stores: { redis: { driver: 'redis' } },  // le magasin nommé fournit le driver
+  age: '2h',                               // AdonisJS ; `maxAge: 7200` marche aussi
+})
+```
+
+`age` accepte des secondes ou une durée (`30m`, `2h`, `7d`). Une valeur illisible
+lève à la construction plutôt que de devenir `NaN` — ce qui expirerait toutes les
+sessions d'un coup.
+
+### Messages flash
+
+`flashAll()` ne prend **aucun argument** : il lit l'input de la requête, ce qui
+repeuple un formulaire après un retour.
+
+```ts
+session.flashAll()                       // tout l'input
+session.flashOnly(['email'])             // seulement ces clés
+session.flashExcept(['password'])        // tout sauf celles-ci
+session.flash({ notice: 'Enregistré' })  // une paire ou un objet
+session.flashErrors({ email: 'Pris' })   // dans `errorsBag`
+session.flashValidationErrors(error)     // inputErrorsBag + errorsBag + input
+```
+
+`reflash()` / `reflashOnly(clés)` / `reflashExcept(clés)` conservent le flash du
+tour PRÉCÉDENT pour un tour de plus — ce qu'il faut à une chaîne de redirections
+pour qu'un message survive.
+
+Les templates lisent les mêmes données via `flashMessages`, `old()` et les tags
+`@error` / `@errors` / `@inputError` / `@flashMessage`.
+
+### URL intentionnelle
+
+Retenez où allait l'utilisateur avant de l'envoyer vers la page de connexion,
+puis relisez-la après :
+
+```ts
+session.setIntendedUrl(ctx.request.url(true))
+// …après une connexion réussie
+return response.redirect(session.pullIntendedUrl() ?? '/dashboard')
+```
+
+`getIntendedUrl()` lit sans consommer ; `clearIntendedUrl()` l'efface.
 
 Le driver `redis` reçoit un client, ou nomme une connexion [Quasar](/fr/modules/quasar) :
 

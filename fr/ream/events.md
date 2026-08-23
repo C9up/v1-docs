@@ -17,7 +17,7 @@ import { Emitter } from '@c9up/ream'
 
 // Events string
 emitter.on('user:registered', (user) => sendWelcome(user))
-emitter.emit('user:registered', { id: 1 })
+await emitter.emit('user:registered', { id: 1 })
 
 // Events à base de classe (typés)
 class TaskDeclared extends BaseEvent {
@@ -31,6 +31,36 @@ await emitter.onAny('order.*', (name, data) => audit(name, data))
 
 // Request / reply
 const user = await emitter.request('query:user.find', { id: 1 })
+```
+
+### `emit` se résout quand les écouteurs ont fini
+
+`emit()` renvoie une promesse qui se résout une fois **tous** les écouteurs
+terminés — l'attendre, c'est ainsi qu'un handler s'assure que le travail qu'il a
+déclenché a bien eu lieu avant de répondre. Les écouteurs tournent en
+**parallèle** ; `emitSerial()` les enchaîne, pour quand l'un prépare ce que le
+suivant lit.
+
+```ts
+await emitter.emit('order:placed', order)        // en parallèle
+await emitter.emitSerial('order:placed', order)  // un à la fois
+```
+
+Ne pas l'attendre garde la forme « on tire et on oublie ». Un écouteur qui lève
+est rapporté sur le canal d'erreur et **n'annule pas** les autres : un abonné
+défaillant ne doit pas annuler en silence la réaction à un événement qu'il ne
+possède pas.
+
+### Gérer les écouteurs
+
+```ts
+emitter.once('boot:ready', run)         // la prochaine occurrence seulement
+emitter.off('boot:ready', run)          // en retirer un
+emitter.listenIf(config.audit, 'x', fn) // n'enregistre que si le drapeau tient
+emitter.listenerCount('x')              // combien, ou tous sans argument
+emitter.clearListeners('x')             // vide un événement
+emitter.clearAllListeners()             // vide tout
+emitter.onError((event, error) => report(event, error))
 ```
 
 Les **classes** listener sont résolues via le container IoC : elles bénéficient

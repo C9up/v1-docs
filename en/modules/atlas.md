@@ -196,6 +196,48 @@ The full static surface: `find`, `findOrFail`, `findBy`, `findByOrFail`, `findMa
 
 Instances add `saveQuietly()` / `deleteQuietly()` — persist/remove without firing lifecycle hooks (AdonisJS Lucid parity, handy for seeders/backfills). `save()` throws once the instance is deleted (`$isDeleted`), and `$isDirty` reports unsaved changes.
 
+### Self-assigned primary keys
+
+Set `selfAssignPrimaryKey` when the app produces the id — a UUID from a
+`beforeCreate` hook, an id chosen by the caller — so the insert does not ask the
+database for one back.
+
+```ts
+class Invoice extends BaseModel {
+  static selfAssignPrimaryKey = true
+  @PrimaryKey() declare id: string
+}
+```
+
+Without it, the value the database returns overwrites the id the app just chose,
+and every reference already handed out points at the wrong row.
+
+### Serializing a subset
+
+`serialize()` trims the parent **and** its relations in one pass. Doing it
+afterwards means the excluded columns were already serialized — including the
+ones deliberately left out.
+
+```ts
+post.serialize({ fields: ['id', 'title'] })
+post.serialize({ fields: { omit: ['password'] } })
+post.serialize({
+  fields: ['id', 'title'],
+  relations: { author: { fields: ['id', 'name'] } },
+})
+```
+
+`pick` wins over `omit` when both are given — the narrower statement of intent.
+
+### Many-to-many pivot keys
+
+Both spellings are accepted, so an AdonisJS relation declaration ports as-is:
+
+| atlas | AdonisJS |
+|---|---|
+| `foreignKey` | `pivotForeignKey` |
+| `otherKey` | `pivotRelatedForeignKey` |
+
 ## Repository
 
 `BaseRepository` provides typed CRUD operations backed by a database connection. The connection is resolved from the IoC container via `@Inject('db')`. It is the same surface `BaseModel` delegates to — use it directly when you prefer Data Mapper separation.
@@ -407,6 +449,58 @@ const { sql } = new QueryBuilder('orders')
   .with('totals', RawSql.sql`SELECT user_id, SUM(total) AS sum FROM orders GROUP BY user_id`)
   .toSQL()
 ```
+
+### Clearing clauses
+
+A builder handed to a helper that added a filter, an order or a slice can be
+reset clause by clause instead of rebuilt — which is what a shared scope or a
+reusable base query needs.
+
+```ts
+query.clearSelect().clearWhere().clearOrder().clearHaving().clearLimit().clearOffset()
+```
+
+### HAVING EXISTS
+
+A correlated subquery in `HAVING` filters **groups** by something outside the
+aggregate — "the groups that still have an open order" — which no combination of
+`having(count)` expresses.
+
+```ts
+db.from('users')
+  .groupBy('role')
+  .havingExists((sub) => sub.from('orders').whereRaw('orders.role = users.role'))
+```
+
+`andHavingExists`, `orHavingExists`, `havingNotExists`, `andHavingNotExists` and
+`orHavingNotExists` complete the family.
+
+### Cursor pagination
+
+```ts
+const page = await Post.query().cursorPaginate({
+  limit: 20,
+  orderBy: 'id',
+  direction: 'desc',       // a newest-first feed — the usual reason for a cursor
+  cursor: previousCursor,
+})
+```
+
+`direction` drives both the `ORDER BY` and the comparison operator. `nextCursor`
+is `null` on the last page — that is how the client stops asking.
+
+### Transactions
+
+`trx.isCompleted` says whether a transaction has already committed or rolled
+back. A helper handed one cannot otherwise tell whether it is still usable, and
+a statement on a finished transaction fails at the driver with an error that
+says nothing about the transaction.
+
+```ts
+if (!trx.isCompleted) await trx.rollback()
+```
+
+A savepoint tracks its own state: releasing it does not mark its parent complete.
 
 ## Schema Builder
 

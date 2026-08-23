@@ -774,6 +774,72 @@ L'interface `SessionStore` est volontairement minimale — `get(key)`, `put(key,
 
 ---
 
+## BasicAuthStrategy
+
+HTTP Basic (le guard `basic_auth` d'AdonisJS). Le navigateur demande, puis
+renvoie les identifiants à **chaque** requête — d'où sa pertinence pour un
+endpoint machine-à-machine ou un outil interne derrière TLS, et son inadéquation
+pour une connexion utilisateur.
+
+```ts
+import { basicAuthGuard, safeCompare } from '@c9up/warden'
+
+basicAuthGuard({
+  realm: 'Espace admin',                  // affiché dans l'invite du navigateur
+  verifyCredentials: async (uid, password) => {
+    const user = await User.findBy('email', uid)
+    if (!user || !(await hash.verify(user.password, password))) return null
+    return { id: user.id, email: user.email }
+  },
+})
+```
+
+Deux choses qu'il fait pour vous :
+
+- L'en-tête est découpé sur le **premier** deux-points (RFC 7617) — un mot de
+  passe peut en contenir, un nom d'utilisateur non. Découper sur le dernier
+  accepterait la mauvaise paire.
+- Un utilisateur inconnu et un mot de passe faux renvoient le **même** message.
+  Les distinguer transforme l'endpoint en oracle de noms d'utilisateurs.
+
+`strategy.challenge` donne la valeur `WWW-Authenticate` à envoyer avec un 401
+pour que le navigateur demande. `safeCompare(a, b)` est exporté pour une app qui
+vérifie un secret partagé en clair — un `===` simple sort plus tôt sur une
+divergence précoce, et cet écart est mesurable.
+
+---
+
+## Authentifier un client de test
+
+Chaque guard répond à `authenticateAsClient(...)` par ce qu'un client doit
+envoyer pour être cet utilisateur (la couture de test d'AdonisJS). Le `loginAs()`
+du client de test l'applique :
+
+```ts
+await client.get('/dashboard').loginAs(sessionGuard, user)
+await client.get('/api/me').loginAs(jwtGuard, user)
+await client.get('/keys').loginAs(apiKeyGuard, seededKey)
+await client.get('/admin').loginAs(basicGuard, 'ada', 'secret')
+```
+
+C'est le **guard** qui décide quoi envoyer : le test ne reproduit donc jamais la
+façon dont ce guard authentifie, et la requête emprunte le même chemin de
+vérification qu'en production. Un test qui forge son en-tête ne prouve que le bon
+fonctionnement de la forge.
+
+| guard | répond par | reçoit |
+|---|---|---|
+| jwt | `authorization: Bearer <signé>` | l'utilisateur |
+| session | une entrée de session sous la clé du guard | l'utilisateur |
+| api-key | `authorization` + l'en-tête de clé | la **clé** (émise hors bande) |
+| basic | `authorization: Basic <base64>` | uid + mot de passe |
+
+Un guard session renvoie des **valeurs** de session, que seul quelque chose
+détenant le driver peut persister — configurez `sessionSeeder` sur le client de
+test. Sans lui, `loginAs()` lève au lieu d'envoyer la requête non authentifiée.
+
+---
+
 ## Dual-guard : session pour le web, JWT pour l'API
 
 `AuthManager` tient une **map** de stratégies nommées et en choisit une **par route**, si bien qu'une même app sert une surface web authentifiée par cookie et une API à token Bearer côte à côte. C'est le pendant des deux starter kits AdonisJS — `session` ≈ le kit **web**, `jwt` (access tokens) ≈ le kit **api**.
