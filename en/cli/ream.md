@@ -72,17 +72,28 @@ export class {{ className }} {
 A published stub is generated FROM the built-in template, so it starts as an
 exact copy of what you already get. Delete the file to go back to the default.
 
-**Two named deviations from AdonisJS**, both because this generator is a Rust
-binary rather than a Node process:
+A stub can also choose where it writes, the way an Adonis stub opens with
+`{{{ exports({ to: … }) }}}`. That line is JavaScript, which a Rust binary
+cannot evaluate, so the same declaration is written as front matter:
 
-- Stubs are **substituted, not rendered by a template engine**. Adonis stubs run
-  through tempura (`{{#var}}`, conditionals, partials); here `{{ name }}` is
-  replaced and nothing else. An unknown placeholder is left visible rather than
-  silently emptied.
-- **The stub does not choose its destination.** An Adonis stub calls
-  `exports({ to: … })` and names its own path. Ours supplies the file contents
-  only — the CLI keeps computing and validating the path, so an editable file
-  cannot redirect a write.
+```
+---
+to: src/http/{{ module }}/{{ className }}.ts
+---
+export class {{ className }} {
+}
+```
+
+Omit the front matter and the default path is used. The declared path goes
+through the same validation as any generated path — no absolute paths, no `..`
+— which is what `app.httpControllersPath()` enforces on the Adonis side.
+
+**One named deviation from AdonisJS**, because this generator is a Rust binary
+rather than a Node process: stubs are **substituted, not rendered by a template
+engine**. Adonis runs them through tempura (`{{#var}}`, conditionals, partials);
+here `{{ name }}` is replaced and nothing else. An unknown placeholder is left
+visible rather than silently emptied, and a malformed stub is an error rather
+than a silent fallback to the built-in.
 
 ## Package Configuration
 

@@ -73,17 +73,28 @@ Un stub publié est généré À PARTIR du template intégré : il démarre donc
 une copie exacte de ce que vous obtenez déjà. Supprimez le fichier pour revenir
 au comportement par défaut.
 
-**Deux déviations nommées par rapport à AdonisJS**, toutes deux dues au fait que
-ce générateur est un binaire Rust et non un process Node :
+Un stub peut aussi choisir où il écrit, comme un stub Adonis qui s'ouvre sur
+`{{{ exports({ to: … }) }}}`. Cette ligne est du JavaScript, qu'un binaire Rust
+ne peut pas évaluer : la même déclaration s'écrit donc en front matter :
 
-- Les stubs sont **substitués, pas rendus par un moteur de template**. Ceux
-  d'Adonis passent par tempura (`{{#var}}`, conditions, partiels) ; ici
-  `{{ name }}` est remplacé, rien de plus. Un marqueur inconnu reste visible au
-  lieu d'être silencieusement vidé.
-- **Le stub ne choisit pas sa destination.** Un stub Adonis appelle
-  `exports({ to: … })` et nomme son chemin. Le nôtre ne fournit que le contenu :
-  le CLI continue de calculer et de valider le chemin, pour qu'un fichier
-  éditable ne puisse pas rediriger une écriture.
+```
+---
+to: src/http/{{ module }}/{{ className }}.ts
+---
+export class {{ className }} {
+}
+```
+
+Sans front matter, le chemin par défaut est utilisé. Le chemin déclaré passe par
+la même validation que n'importe quel chemin généré — pas de chemin absolu, pas
+de `..` — ce que `app.httpControllersPath()` impose côté Adonis.
+
+**Une déviation nommée par rapport à AdonisJS**, parce que ce générateur est un
+binaire Rust et non un process Node : les stubs sont **substitués, pas rendus
+par un moteur de template**. Ceux d'Adonis passent par tempura (`{{#var}}`,
+conditions, partiels) ; ici `{{ name }}` est remplacé, rien de plus. Un marqueur
+inconnu reste visible au lieu d'être silencieusement vidé, et un stub mal formé
+est une erreur plutôt qu'un repli silencieux sur le template intégré.
 
 ## Configuration de packages
 
