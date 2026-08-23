@@ -50,7 +50,24 @@ await quasar.connection().set('user:42', payload, 'EX', 60)
 await quasar.connection('cache').get('user:42')
 ```
 
-Every ioredis command is callable straight on a connection. The raw client stays reachable as `connection.ioConnection` for anything not wrapped here — named after Adonis' `ioConnection` rather than `client`, because `CLIENT` is itself a Redis command.
+Every ioredis command is callable straight on a connection **and on the manager**, where it runs on the default connection:
+
+```ts
+await quasar.set('user:42', payload, 'EX', 60)   // default connection
+```
+
+The raw client stays reachable as `connection.ioConnection` for anything not wrapped here — named after Adonis' `ioConnection` rather than `client`, because `CLIENT` is itself a Redis command.
+
+A connection also reports its state the way Adonis does: `connectionName`, `status`, `subscriberStatus`, `autoPipelineQueueSize`, `lastError`, and `isConnecting()` / `isReady()` / `isClosed()`.
+
+### LUA scripts
+
+```ts
+quasar.defineCommand('incrementBy', { lua: 'return redis.call("incrby", KEYS[1], ARGV[1])', numberOfKeys: 1 })
+await quasar.runCommand('incrementBy', 'visits', 5)
+```
+
+A script defined on the manager is applied to every open connection **and remembered**, so a connection opened later gets it too.
 
 ## Pub/sub
 
@@ -62,7 +79,14 @@ await quasar.publish('orders', JSON.stringify(order))
 
 Redis puts a subscribed client into a mode where it accepts nothing but subscribe/unsubscribe, so a connection that both publishes and listens needs two sockets. The second one opens **lazily**, on the first subscribe, and never at all for a connection that only runs commands — meanwhile ordinary commands keep working on the first.
 
-Re-subscribing to a channel replaces its handler instead of stacking a second one: a reload must not double-deliver.
+Subscribing twice to one channel **stacks** the handlers — both are called, as in Adonis. Two modules listening to the same channel both receive; replacing would make the second subscribe silently stop the first. Pass the handler back to drop just that one:
+
+```ts
+await quasar.unsubscribe('orders', handler)   // others keep receiving
+await quasar.unsubscribe('orders')            // drops all, leaves the channel
+```
+
+`subscribe` / `psubscribe` accept Adonis' `{ onSubscription, onError }`. **Named deviation:** ours also rejects on failure, so `await quasar.subscribe(...)` surfaces the error even when no `onError` was passed — Adonis reports it only through that callback, so an app that never opts in can end up silently unsubscribed. `onError` still fires, so Adonis code keeps working unchanged.
 
 ## Health
 
@@ -78,6 +102,28 @@ const memory = await new QuasarMemoryUsageCheck(quasar.connection())
 
 Both return `{ status: 'ok' | 'warning' | 'error', message }` rather than throwing — a health endpoint reports, it does not crash.
 
+## Closing connections
+
+Following Adonis exactly: `quit()` and `disconnect()` act on **one** connection — the default one when no name is given — and the `*All` variants act on every open one.
+
+```ts
+await quasar.quit()            // the DEFAULT connection only
+await quasar.quit('cache')     // that one
+await quasar.quitAll()         // every open connection
+await quasar.disconnectAll()   // same, without waiting for in-flight commands
+```
+
+`quit` closes gracefully, letting in-flight commands finish; `disconnect` drops the socket now.
+
 ## Shutdown
 
-`QuasarProvider.shutdown()` QUITs every open connection. Without it a stopped process keeps its sockets, and ioredis' reconnection timer keeps the event loop alive: the server looks hung instead of exiting.
+`QuasarProvider.shutdown()` calls `quitAll()`. Without it a stopped process keeps its sockets, and ioredis' reconnection timer keeps the event loop alive: the server looks hung instead of exiting.
+
+## Errors
+
+Connection errors are reported through an optional structural logger — quasar is a leaf and must not import a framework logger, so unlike Adonis' required `Logger` this one is optional and falls back to the console:
+
+```ts
+new QuasarManager(config, logger)   // logger?: { error(payload, message): void }
+quasar.doNotLogErrors()             // you handle them: connection().on('error', …)
+```

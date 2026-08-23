@@ -50,7 +50,24 @@ await quasar.connection().set('user:42', payload, 'EX', 60)
 await quasar.connection('cache').get('user:42')
 ```
 
-Toutes les commandes ioredis s'appellent directement sur une connexion. Le client brut reste accessible via `connection.ioConnection` pour ce qui n'est pas enveloppé ici — nommé d'après l'`ioConnection` d'Adonis plutôt que `client`, parce que `CLIENT` est elle-même une commande Redis.
+Toutes les commandes ioredis s'appellent directement sur une connexion **et sur le manager**, où elles s'exécutent sur la connexion par défaut :
+
+```ts
+await quasar.set('user:42', payload, 'EX', 60)   // connexion par défaut
+```
+
+Le client brut reste accessible via `connection.ioConnection` pour ce qui n'est pas enveloppé ici — nommé d'après l'`ioConnection` d'Adonis plutôt que `client`, parce que `CLIENT` est elle-même une commande Redis.
+
+Une connexion expose aussi son état comme chez Adonis : `connectionName`, `status`, `subscriberStatus`, `autoPipelineQueueSize`, `lastError`, et `isConnecting()` / `isReady()` / `isClosed()`.
+
+### Scripts LUA
+
+```ts
+quasar.defineCommand('incrementBy', { lua: 'return redis.call("incrby", KEYS[1], ARGV[1])', numberOfKeys: 1 })
+await quasar.runCommand('incrementBy', 'visits', 5)
+```
+
+Un script défini sur le manager est appliqué à toutes les connexions ouvertes **et mémorisé**, pour qu'une connexion ouverte plus tard l'obtienne aussi.
 
 ## Pub/sub
 
@@ -62,7 +79,14 @@ await quasar.publish('orders', JSON.stringify(order))
 
 Redis place un client abonné dans un mode où il n'accepte plus que subscribe/unsubscribe : une connexion qui publie *et* écoute a donc besoin de deux sockets. Le second s'ouvre **paresseusement**, à la première souscription, et jamais pour une connexion qui ne fait que des commandes — pendant ce temps, les commandes ordinaires continuent de passer sur le premier.
 
-Se réabonner à un canal remplace son handler au lieu d'en empiler un second : un rechargement ne doit pas livrer deux fois.
+S'abonner deux fois à un canal **empile** les handlers — les deux sont appelés, comme chez Adonis. Deux modules qui écoutent le même canal reçoivent tous les deux ; remplacer ferait taire silencieusement le premier. Repassez le handler pour ne retirer que celui-là :
+
+```ts
+await quasar.unsubscribe('orders', handler)   // les autres continuent de recevoir
+await quasar.unsubscribe('orders')            // retire tout et quitte le canal
+```
+
+`subscribe` / `psubscribe` acceptent les `{ onSubscription, onError }` d'Adonis. **Déviation nommée :** chez nous la promesse rejette aussi en cas d'échec, donc `await quasar.subscribe(...)` fait remonter l'erreur même sans `onError` — Adonis ne la signale que par ce callback, si bien qu'une app qui ne l'utilise pas peut se retrouver silencieusement désabonnée. `onError` est toujours appelé, le code Adonis fonctionne donc tel quel.
 
 ## Santé
 
@@ -78,6 +102,28 @@ const memory = await new QuasarMemoryUsageCheck(quasar.connection())
 
 Les deux renvoient `{ status: 'ok' | 'warning' | 'error', message }` au lieu de lever : un endpoint de santé rapporte, il ne plante pas.
 
+## Fermer les connexions
+
+Exactement comme Adonis : `quit()` et `disconnect()` agissent sur **une** connexion — celle par défaut si aucun nom n'est donné — et les variantes `*All` sur toutes les connexions ouvertes.
+
+```ts
+await quasar.quit()            // la connexion PAR DÉFAUT uniquement
+await quasar.quit('cache')     // celle-là
+await quasar.quitAll()         // toutes les connexions ouvertes
+await quasar.disconnectAll()   // pareil, sans attendre les commandes en vol
+```
+
+`quit` ferme proprement en laissant finir les commandes en vol ; `disconnect` coupe le socket immédiatement.
+
 ## Arrêt
 
-`QuasarProvider.shutdown()` envoie QUIT à toutes les connexions ouvertes. Sans cela, un process arrêté conserve ses sockets et le timer de reconnexion d'ioredis maintient la boucle d'événements en vie : le serveur paraît bloqué au lieu de sortir.
+`QuasarProvider.shutdown()` appelle `quitAll()`. Sans cela, un process arrêté conserve ses sockets et le timer de reconnexion d'ioredis maintient la boucle d'événements en vie : le serveur paraît bloqué au lieu de sortir.
+
+## Erreurs
+
+Les erreurs de connexion passent par un logger structurel optionnel — quasar est une feuille et ne doit pas importer le logger d'un framework, donc contrairement au `Logger` obligatoire d'Adonis celui-ci est optionnel et retombe sur la console :
+
+```ts
+new QuasarManager(config, logger)   // logger?: { error(payload, message): void }
+quasar.doNotLogErrors()             // vous les gérez : connection().on('error', …)
+```
