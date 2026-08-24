@@ -37,6 +37,27 @@ const html = await templates.render('invoice', {
 
 The constructor throws `InkerRenderError({ code: 'E_INKER_INVALID_PATH' })` if `root` is relative, missing, or points at a file rather than a directory.
 
+### Checking a template without rendering it
+
+`compile(name)` and `compileRaw(source, name?)` parse and stop — the syntax
+check a linter, a CI step, or an editor integration wants. They throw an
+`InkerRenderError` carrying `code`, `line` and `column`, and return nothing when
+the template is valid. Rendering is not a substitute: it needs data and it runs
+the template's expressions.
+
+```ts
+try {
+  templates.compile('invoice')
+} catch (error) {
+  console.error(error.code, error.context.line)
+}
+```
+
+> **Inker deviation (named):** Edge's `compile` returns the compiled JavaScript
+> function. Inker's compiler is in Rust and produces an opaque native AST
+> handle, which means nothing on this side of the bridge — so these report
+> whether the template parses rather than handing back the artifact.
+
 ## Interpolation & expressions
 
 Inker mirrors Adonis Edge for output:

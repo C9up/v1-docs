@@ -179,6 +179,20 @@ class Auditor {
 
 Un singleton qui lit une valeur liée à la requête pendant sa construction n'est **pas** mis en cache au niveau applicatif — il appartient à cette requête. Celui qui n'en lit aucune est mis en cache exactement comme avant.
 
+### Liaisons contextuelles
+
+Donner à une seule classe une autre implémentation d'une dépendance, en laissant toutes les autres sur la liaison du conteneur :
+
+```typescript
+container.when(UsersController).asksFor(Hash).provide(() => new Argon2())
+// ou en un appel
+container.contextualBinding(UsersController, Hash, () => new Argon2())
+```
+
+La clé est la classe qui **déclare** la dépendance, pas un ancêtre : si `AdminController` dépend de `PasswordService` et que c'est `PasswordService` qui demande `Hash`, la liaison à écrire est `when(PasswordService)`.
+
+`resolveFor(parent, token)` résout comme si `parent` avait demandé, aussi bien sur le conteneur que sur un résolveur de requête.
+
 ## Pipeline unifié
 
 Le même middleware fonctionne pour les requêtes HTTP et les events du bus :

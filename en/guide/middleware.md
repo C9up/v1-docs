@@ -296,6 +296,24 @@ A singleton that reads a request-bound value while it is being built is **not**
 cached application-wide — it belongs to that request. One that reads none is
 cached exactly as before.
 
+### Contextual bindings
+
+Give one class a different implementation of a dependency, leaving everyone else
+on the container's binding:
+
+```typescript
+container.when(UsersController).asksFor(Hash).provide(() => new Argon2())
+// or in one call
+container.contextualBinding(UsersController, Hash, () => new Argon2())
+```
+
+It keys on the class that **declares** the dependency, not on an ancestor: if
+`AdminController` depends on `PasswordService` and `PasswordService` is the one
+asking for `Hash`, the binding to write is `when(PasswordService)`.
+
+`resolveFor(parent, token)` resolves as if `parent` had asked, on both the
+container and a request resolver.
+
 ## Next Steps
 
 - [Routing](/en/guide/routing) — Controllers, groups, and named routes
