@@ -58,6 +58,45 @@ consommateurs et la session guard de Warden lisent `ctx.session` directement
 plutôt que de la pêcher dans `ctx.store`. Vaut `undefined` si aucun middleware de
 session n'a tourné.
 
+### Associer une session à un utilisateur
+
+`session.tag(userId)` associe la session à un utilisateur, ce qui permet de
+retrouver ensuite toutes les sessions qu'il détient — c'est sur ça que reposent
+« me déconnecter de tous mes appareils » et « vos sessions actives ». On associe
+à la connexion, on dissocie à la déconnexion :
+
+```typescript
+await ctx.session.tag(String(user.id))   // connexion
+await ctx.session.untag(String(user.id)) // déconnexion
+```
+
+Pour fermer toutes les sessions d'un utilisateur, on les liste depuis le store
+et on détruit chacune :
+
+```typescript
+for (const { id } of await store.tagged(user.id)) {
+  await store.destroy(id)
+}
+```
+
+Seuls les stores qui tiennent un index interrogeable savent répondre :
+**memory**, **redis** et **database**. `session.supportsTagging()` indique si
+celui configuré en fait partie ; appeler `tag()` sur un store qui ne peut pas
+lève une erreur au lieu de ne rien faire — une connexion qui croit avoir associé
+la session laisserait la fonctionnalité ne déconnecter personne, en silence.
+
+Le store database utilise une colonne `user_id` nullable sur la table des
+sessions, comme AdonisJS. Le store redis tient un set par utilisateur et élague
+les membres dont la clé de session a expiré, Redis ne sachant pas faire expirer
+les membres d'un set individuellement.
+
+### État de la session
+
+`session.fresh` (créée pendant cette requête), `session.isEmpty` (rien de
+stocké, données flash comprises), `session.hasBeenModified` (l'écriture AdonisJS
+de `isDirty()`), et `session.readonly` — toujours `false`, ream n'ayant pas de
+mode session en lecture seule.
+
 ### Drivers de session
 
 Cinq drivers sont livrés avec ream :

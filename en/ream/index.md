@@ -56,6 +56,42 @@ top-level `ctx.session` (AdonisJS parity) — `ctx.session.get()` / `.put()` /
 guard read `ctx.session` directly rather than fishing it out of `ctx.store`. It's
 `undefined` when no session middleware ran.
 
+### Tagging a session to a user
+
+`session.tag(userId)` associates the session with a user, so every session that
+user holds can be found later — what "log out from all my devices" and "your
+active sessions" are built on. Tag at login, untag at logout:
+
+```typescript
+await ctx.session.tag(String(user.id))   // login
+await ctx.session.untag(String(user.id)) // logout
+```
+
+To end every session a user has, list them from the store and destroy each:
+
+```typescript
+for (const { id } of await store.tagged(user.id)) {
+  await store.destroy(id)
+}
+```
+
+Only the stores that keep a queryable index can answer: **memory**, **redis**
+and **database**. `session.supportsTagging()` says whether the configured one
+does; calling `tag()` on a store that cannot throws rather than doing nothing,
+because a login that believes it tagged the session would leave the feature
+silently logging nobody out.
+
+The database store uses a nullable `user_id` column on the sessions table, as
+AdonisJS does. The redis store keeps a set per user and prunes members whose
+session key has expired, since Redis cannot expire set members individually.
+
+### Session state
+
+`session.fresh` (created during this request), `session.isEmpty` (nothing
+stored, flash data included), `session.hasBeenModified` (the AdonisJS spelling
+of `isDirty()`), and `session.readonly` — always `false`, since ream has no
+read-only session mode.
+
 ### Session drivers
 
 Five drivers ship with ream:
