@@ -752,6 +752,58 @@ The `SessionStore` interface is intentionally minimal — `get(key)`, `put(key, 
 
 > **`ctx.session`.** The request session lives on `ctx.session` (AdonisJS parity), populated by Ream's `SessionMiddleware`. Register that middleware **before** the auth middleware so `ctx.session` is set when the session strategy resolves the user.
 
+### Remember me
+
+"Keep me signed in" — a credential that outlives the session cookie. Adonis
+calls the flag `useRememberMeTokens`; here, wiring a token driver **is** the
+opt-in:
+
+```ts
+import { MemoryRememberMeTokenDriver, SessionStrategy } from '@c9up/warden'
+
+new SessionStrategy({
+  findUser: (id) => User.find(id),
+  rememberMeTokens: new MemoryRememberMeTokenDriver(), // your own driver in production
+  rememberMeAge: 63_072_000,                           // seconds; 2 years, Adonis' default
+  rememberMeCookieName: 'remember_web',                // Adonis' `remember_<guard>`
+})
+```
+
+At login, mint one and set it as an **httpOnly** cookie; on a request without a
+session, try it; at logout, revoke it:
+
+```ts
+const value = await guard.issueRememberMeToken(user)
+if (value) response.cookie(guard.rememberMeCookieName, value, { httpOnly: true, maxAge: 63_072_000 })
+
+const revived = await guard.authenticateViaRememberMeToken(request.cookie(guard.rememberMeCookieName))
+if (revived) {
+  await guard.login(revived.user, session)
+  // The token was RECYCLED — the browser must take the new value.
+  response.cookie(guard.rememberMeCookieName, revived.cookieValue, { httpOnly: true })
+}
+
+await guard.revokeRememberMeToken(request.cookie(guard.rememberMeCookieName))
+```
+
+What makes this safe, and why each part matters:
+
+- **Only `sha256(secret)` is stored.** A dump of the tokens table does not let
+  anyone sign in — the secret exists solely in the user's cookie.
+- **Every use recycles the secret.** The value the browser held stops working
+  the moment it is used, so a stolen cookie dies as soon as the real user comes
+  back. That is why the caller must write the returned `cookieValue`.
+- **The user is re-read, never trusted from the token.** A token outlives the
+  row it points at; a deleted or disabled account cannot walk back in.
+- **Hashes are compared in constant time**, and a bad secret, an unknown
+  identifier and an expired token are indistinguishable from the outside — a
+  distinguishable "unknown identifier" would let an attacker enumerate them.
+- **One token per login**, so signing out on one device leaves the others alone.
+
+`MemoryRememberMeTokenDriver` is for tests and single-process apps; a cluster
+needs a shared store implementing `RememberMeTokenDriver` (`create` / `find` /
+`update` / `delete` / `deleteAllForUser`).
+
 ---
 
 ## BasicAuthStrategy

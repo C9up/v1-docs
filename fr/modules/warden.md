@@ -772,6 +772,61 @@ L'interface `SessionStore` est volontairement minimale — `get(key)`, `put(key,
 
 > **`ctx.session`.** La session de requête vit sur `ctx.session` (parité AdonisJS), peuplée par le `SessionMiddleware` de Ream. Enregistre ce middleware **avant** le middleware d'auth pour que `ctx.session` soit posé quand la stratégie session résout l'utilisateur.
 
+### Se souvenir de moi
+
+« Rester connecté » — un identifiant qui survit au cookie de session. Adonis
+appelle le drapeau `useRememberMeTokens` ; ici, câbler un driver de tokens
+**est** l'activation :
+
+```ts
+import { MemoryRememberMeTokenDriver, SessionStrategy } from '@c9up/warden'
+
+new SessionStrategy({
+  findUser: (id) => User.find(id),
+  rememberMeTokens: new MemoryRememberMeTokenDriver(), // votre propre driver en production
+  rememberMeAge: 63_072_000,                           // secondes ; 2 ans, le défaut d'Adonis
+  rememberMeCookieName: 'remember_web',                // le `remember_<guard>` d'Adonis
+})
+```
+
+À la connexion, émettez-en un et posez-le en cookie **httpOnly** ; sur une
+requête sans session, essayez-le ; à la déconnexion, révoquez-le :
+
+```ts
+const value = await guard.issueRememberMeToken(user)
+if (value) response.cookie(guard.rememberMeCookieName, value, { httpOnly: true, maxAge: 63_072_000 })
+
+const revived = await guard.authenticateViaRememberMeToken(request.cookie(guard.rememberMeCookieName))
+if (revived) {
+  await guard.login(revived.user, session)
+  // Le token a été RECYCLÉ — le navigateur doit prendre la nouvelle valeur.
+  response.cookie(guard.rememberMeCookieName, revived.cookieValue, { httpOnly: true })
+}
+
+await guard.revokeRememberMeToken(request.cookie(guard.rememberMeCookieName))
+```
+
+Ce qui rend le mécanisme sûr, et pourquoi chaque point compte :
+
+- **Seul `sha256(secret)` est stocké.** Une fuite de la table ne permet à
+  personne de se connecter : le secret n'existe que dans le cookie.
+- **Chaque usage recycle le secret.** La valeur que détenait le navigateur
+  cesse de fonctionner dès qu'elle sert, donc un cookie volé meurt au retour du
+  véritable utilisateur. C'est pourquoi l'appelant doit écrire le
+  `cookieValue` renvoyé.
+- **L'utilisateur est relu, jamais déduit du token.** Un token survit à la
+  ligne qu'il désigne ; un compte supprimé ou désactivé ne doit pas revenir.
+- **Les empreintes sont comparées en temps constant**, et un mauvais secret, un
+  identifiant inconnu et un token expiré sont indiscernables de l'extérieur —
+  un « identifiant inconnu » distinguable permettrait de les énumérer.
+- **Un token par connexion**, pour qu'une déconnexion sur un appareil laisse les
+  autres tranquilles.
+
+`MemoryRememberMeTokenDriver` convient aux tests et aux applications
+mono-process ; un cluster a besoin d'un stockage partagé implémentant
+`RememberMeTokenDriver` (`create` / `find` / `update` / `delete` /
+`deleteAllForUser`).
+
 ---
 
 ## BasicAuthStrategy
