@@ -56,6 +56,16 @@ top-level `ctx.session` (AdonisJS parity) — `ctx.session.get()` / `.put()` /
 guard read `ctx.session` directly rather than fishing it out of `ctx.store`. It's
 `undefined` when no session middleware ran.
 
+### Session lifecycle
+
+`SessionMiddleware` drives it, and the two methods are the AdonisJS ones:
+`session.initiate()` loads the session from its store (idempotent — calling it
+twice is a no-op), and `session.commit()` persists it. `commit()` writes a
+modified session, touches an untouched pre-existing one to slide its expiry,
+writes nothing for a brand-new untouched one, and — when the handler called
+`regenerate()` — writes under the new id before dropping the old, so a crash
+between the two leaves a valid session rather than none.
+
 ### Tagging a session to a user
 
 `session.tag(userId)` associates the session with a user, so every session that

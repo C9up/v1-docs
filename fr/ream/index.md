@@ -58,6 +58,17 @@ consommateurs et la session guard de Warden lisent `ctx.session` directement
 plutôt que de la pêcher dans `ctx.store`. Vaut `undefined` si aucun middleware de
 session n'a tourné.
 
+### Cycle de vie de la session
+
+`SessionMiddleware` le pilote, et les deux méthodes sont celles d'AdonisJS :
+`session.initiate()` charge la session depuis son store (idempotent — un second
+appel ne fait rien), `session.commit()` la persiste. `commit()` écrit une
+session modifiée, touche une session existante non modifiée pour faire glisser
+son expiration, n'écrit rien pour une session neuve et intacte, et — si le
+handler a appelé `regenerate()` — écrit sous le nouvel identifiant avant de
+supprimer l'ancien, pour qu'un crash entre les deux laisse une session valide
+plutôt qu'aucune.
+
 ### Associer une session à un utilisateur
 
 `session.tag(userId)` associe la session à un utilisateur, ce qui permet de
