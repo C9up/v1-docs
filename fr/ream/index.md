@@ -58,6 +58,23 @@ consommateurs et la session guard de Warden lisent `ctx.session` directement
 plutôt que de la pêcher dans `ctx.store`. Vaut `undefined` si aucun middleware de
 session n'a tourné.
 
+### Nettoyage des sessions expirées
+
+Le store **database** balaie les lignes expirées sur une fraction de ses
+écritures (`gcProbability`, un pourcentage, défaut `2` — celui d'AdonisJS).
+Rien d'autre ne les ramasse : un `read()` ne supprime que la ligne qu'il
+regarde, donc une session dont le propriétaire ne revient jamais resterait
+indéfiniment en table.
+
+```typescript
+{ store: 'database', gcProbability: 2 }  // 0 le désactive
+```
+
+Un balayage en échec ne fait jamais échouer la requête qui l'a tiré — la
+session a été écrite, c'est ce dont la requête avait besoin, et la prochaine
+écriture tirée réessaiera. Mettre `gcProbability: 0` et appeler `driver.prune()`
+depuis une tâche planifiée si tu préfères contrôler le moment du DELETE.
+
 ### Cycle de vie de la session
 
 `SessionMiddleware` le pilote, et les deux méthodes sont celles d'AdonisJS :

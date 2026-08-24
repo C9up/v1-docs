@@ -56,6 +56,22 @@ top-level `ctx.session` (AdonisJS parity) — `ctx.session.get()` / `.put()` /
 guard read `ctx.session` directly rather than fishing it out of `ctx.store`. It's
 `undefined` when no session middleware ran.
 
+### Cleaning up expired sessions
+
+The **database** store sweeps expired rows on a fraction of its writes
+(`gcProbability`, a percentage, default `2` — the AdonisJS default). Nothing
+else collects them: a `read()` drops only the row it happens to look at, so a
+session whose owner never returns would sit in the table forever.
+
+```typescript
+{ store: 'database', gcProbability: 2 }  // 0 turns it off
+```
+
+A failed sweep never fails the request that drew it — the session was written,
+which is what the request needed, and the next write that draws will retry.
+Set `gcProbability: 0` and call `driver.prune()` from a scheduled job if you
+prefer to control when the delete runs.
+
 ### Session lifecycle
 
 `SessionMiddleware` drives it, and the two methods are the AdonisJS ones:
