@@ -88,7 +88,7 @@ async function register(app: AppContext) {
 
 | Driver key | Algorithm | Default? | When to choose |
 |---|---|---|---|
-| `argon2` | argon2id | yes | New applications. OWASP-recommended. The Rust binding uses `Argon2::default()` from the `argon2` crate, which selects the **argon2id** variant. |
+| `argon2` | argon2id | yes | New applications. OWASP-recommended. Defaults to **argon2id**; `variant` selects argon2i or argon2d. |
 | `bcrypt` | bcrypt | no | Legacy interop (Rails / PHP / Java). `rounds` configurable (default 12, OWASP minimum 10). |
 | `scrypt` | scrypt | no | Memory-hardness with a different parameter space. `keyLength` and `saltLength` configurable; cost parameters use `scrypt::Params::recommended()` from the Rust `scrypt` crate. |
 
@@ -96,11 +96,21 @@ All drivers run through the `sigil-engine` Rust crate (the native half of `@c9up
 
 ### Honored config keys
 
-Today, only these per-driver keys are read; anything else is silently dropped:
+Every key below is read and passed to the Rust engine. A value the engine
+cannot honour raises at **config time** rather than on a user's first login:
 
-- `argon2` — *no per-driver options yet*; the Rust binding uses `Argon2::default()`. Tunable parameters (`memory`, `iterations`, parallelism) are a future story.
-- `bcrypt` — `rounds: number`.
-- `scrypt` — `keyLength: number`, `saltLength: number`.
+- `argon2` — `variant` (`'d'` | `'i'` | `'id'`, default `id`), `memory` (KiB),
+  `iterations`, `parallelism`, `hashLength` (bytes, default 32), `saltSize`
+  (bytes, 8–48, default 16), `secret` (pepper — not stored in the hash, and
+  required identically at verify).
+- `bcrypt` — `rounds` (default 12, OWASP minimum 10), `version` (char code:
+  `97` = `$2a$`, `98` = `$2b$` default, `120` = `$2x$`, `121` = `$2y$`),
+  `saltSize` (must be 16 — bcrypt fixes it, and any other value would produce
+  a hash no implementation can read).
+- `scrypt` — `cost`, `blockSize`, `parallelization`, `keyLength`, `saltSize`.
+
+`verify()` reads the variant and the parameters back out of the hash string, so
+a password hashed with `argon2i` verifies whatever the current config says.
 
 ## NAPI requirement
 

@@ -88,19 +88,30 @@ async function register(app: AppContext) {
 
 | Clé driver | Algorithme | Par défaut ? | Quand l'utiliser |
 |---|---|---|---|
-| `argon2` | argon2id | oui | Nouvelles applications. Recommandé par l'OWASP. Le binding Rust utilise `Argon2::default()` du crate `argon2`, qui sélectionne la variante **argon2id**. |
+| `argon2` | argon2id | oui | Nouvelles applications. Recommandé par l'OWASP. Par défaut **argon2id** ; `variant` sélectionne argon2i ou argon2d. |
 | `bcrypt` | bcrypt | non | Interopérabilité legacy (Rails / PHP / Java). `rounds` configurable (défaut 12, minimum OWASP 10). |
 | `scrypt` | scrypt | non | Memory-hardness avec un espace de paramètres différent. `keyLength` et `saltLength` configurables ; les paramètres de coût utilisent `scrypt::Params::recommended()` du crate Rust `scrypt`. |
 
 Tous les drivers passent par le crate Rust `sigil-engine` (la moitié native de `@c9up/sigil`) — il n'y a **aucun fallback** JavaScript ou TypeScript. Le hachage de mots de passe doit toucher une implémentation native auditée et à temps constant.
 
-### Clés de config honorées
+### Clés de configuration honorées
 
-Aujourd'hui seules ces clés par driver sont lues ; toute autre clé est silencieusement ignorée :
+Chaque clé ci-dessous est lue et transmise au moteur Rust. Une valeur que le
+moteur ne peut pas honorer lève à la **construction de la config**, et non à la
+première connexion d'un utilisateur :
 
-- `argon2` — *aucune option par driver pour l'instant* ; le binding Rust utilise `Argon2::default()`. Les paramètres ajustables (`memory`, `iterations`, parallélisme) feront l'objet d'une future story.
-- `bcrypt` — `rounds: number`.
-- `scrypt` — `keyLength: number`, `saltLength: number`.
+- `argon2` — `variant` (`'d'` | `'i'` | `'id'`, défaut `id`), `memory` (KiB),
+  `iterations`, `parallelism`, `hashLength` (octets, défaut 32), `saltSize`
+  (octets, 8–48, défaut 16), `secret` (poivre — non stocké dans le hash, et
+  exigé à l'identique à la vérification).
+- `bcrypt` — `rounds` (défaut 12, minimum OWASP 10), `version` (code de
+  caractère : `97` = `$2a$`, `98` = `$2b$` par défaut, `120` = `$2x$`,
+  `121` = `$2y$`), `saltSize` (doit valoir 16 — bcrypt le fixe, et toute autre
+  valeur produirait un hash qu'aucune implémentation ne sait relire).
+- `scrypt` — `cost`, `blockSize`, `parallelization`, `keyLength`, `saltSize`.
+
+`verify()` relit la variante et les paramètres depuis la chaîne du hash : un mot
+de passe haché en `argon2i` se vérifie quelle que soit la config courante.
 
 ## Exigence NAPI
 
