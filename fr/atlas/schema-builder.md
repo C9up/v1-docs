@@ -227,7 +227,7 @@ t.time('opens_at', 3)             // time(name, precision?)
 t.timestamp('seen_at', { useTz: true, precision: 6 })
 t.dateTime('seen_at')             // alias de timestamp
 t.timestamptz('seen_at')          // tz-aware ; normalise les writers en UTC sur pg
-t.json('meta')
+t.json('meta')                    // JSON sur pg (ordre des clés conservé), JSON sur MySQL, TEXT sur SQLite
 t.jsonb('meta')                   // JSONB sur pg, JSON sur MySQL, TEXT sur SQLite
 t.binary('blob', 1024)            // binary(name, length?)
 t.enum('status', ['draft', 'live']) // ENUM natif sur MySQL ; TEXT + CHECK IN ailleurs
@@ -276,10 +276,11 @@ t.timestamp('created_at').notNullable().defaultTo(this.now())
 > à la fin, et le compilateur lève `E_UNSUPPORTED` plutôt que d'ignorer
 > silencieusement l'instruction.
 >
-> `comment` et `collate` ici sont les modificateurs **de colonne** ; les formes
-> au niveau table sont `tableComment` / `tableCollate` (atlas aplatit les
-> modificateurs de colonne sur le table builder, d'où des noms distincts plutôt
-> qu'une déduction par contexte).
+> `comment` et `collate` ici sont les modificateurs **de colonne**, appelés sur
+> le column builder que renvoie une méthode de type. Les formes au niveau table
+> portent les mêmes noms sur le table builder — `t.comment(...)`,
+> `t.collate(...)` — exactement comme chez Lucid/Knex : c'est le receveur qui
+> les distingue.
 
 ## Raccourcis
 
@@ -416,11 +417,11 @@ this.schema.createTable('events', (t) => {
   t.increments('id')
   t.engine('InnoDB')
   t.charset('utf8mb4')
-  t.tableCollate('utf8mb4_unicode_ci')
-  t.tableComment('journal d\'événements append-only')
+  t.collate('utf8mb4_unicode_ci')
+  t.comment('journal d\'événements append-only')
 })
 ```
 
-`tableCollate` / `tableComment` portent un nom distinct des modificateurs **de
-colonne** `collate` / `comment` parce qu'atlas aplatit les modificateurs de
-colonne sur le même builder.
+`collate` / `comment` sur le **table builder** sont les options de table ; les
+mêmes noms sur un **column builder** (`t.string('x').comment(...)`) sont les
+modificateurs de colonne. Lucid/Knex tracent la frontière au même endroit.

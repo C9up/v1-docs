@@ -220,7 +220,7 @@ t.time('opens_at', 3)             // time(name, precision?)
 t.timestamp('seen_at', { useTz: true, precision: 6 })
 t.dateTime('seen_at')             // alias of timestamp
 t.timestamptz('seen_at')          // tz-aware; normalises writers to UTC on pg
-t.json('meta')
+t.json('meta')                    // JSON on pg (key order kept), JSON on MySQL, TEXT on SQLite
 t.jsonb('meta')                   // JSONB on pg, JSON on MySQL, TEXT on SQLite
 t.binary('blob', 1024)            // binary(name, length?)
 t.enum('status', ['draft', 'live']) // native ENUM on MySQL; TEXT + CHECK IN elsewhere
@@ -267,9 +267,10 @@ t.timestamp('created_at').notNullable().defaultTo(this.now())
 > `after` / `first` are MySQL-only — Postgres and SQLite always append, and the
 > compiler raises `E_UNSUPPORTED` rather than dropping the instruction silently.
 >
-> `comment` and `collate` here are the **column** modifiers; the table-level
-> forms are `tableComment` / `tableCollate` (atlas flattens column modifiers onto
-> the table builder, so the two are named apart rather than guessed by context).
+> `comment` and `collate` here are the **column** modifiers, reached off the
+> column builder a type method hands back. The table-level forms carry the same
+> names on the table builder — `t.comment(...)`, `t.collate(...)` — exactly as in
+> Lucid/Knex: the receiver tells them apart.
 
 ## Shortcuts
 
@@ -405,11 +406,11 @@ this.schema.createTable('events', (t) => {
   t.increments('id')
   t.engine('InnoDB')
   t.charset('utf8mb4')
-  t.tableCollate('utf8mb4_unicode_ci')
-  t.tableComment('append-only event log')
+  t.collate('utf8mb4_unicode_ci')
+  t.comment('append-only event log')
 })
 ```
 
-`tableCollate` / `tableComment` are named apart from the `collate` / `comment`
-**column** modifiers because atlas flattens column modifiers onto the same
-builder.
+`collate` / `comment` on the **table** builder are the table options; the same
+names on a **column** builder (`t.string('x').comment(...)`) are the column
+modifiers. Lucid/Knex draw the line the same way.
