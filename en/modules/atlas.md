@@ -171,12 +171,20 @@ await User.create({ email: 'a@b.co', role: 'admin' }) // throws MassAssignmentEr
 
 ### Serialization visibility
 
+Hide a column permanently at its declaration, and trim one response at the call
+site — the two spellings Lucid gives you:
+
 ```typescript
 class User extends BaseModel {
-  static hidden = ['password'] // class-level allowlist
+  @column({ serializeAs: null }) declare password: string // never serialized
 }
-user.makeVisible('password').toJSON() // reveal on THIS instance
-user.makeHidden('email').toJSON()     // hide on THIS instance
+
+user.serialize({ fields: { omit: ['email'] } })      // trim this response
+user.serialize({ fields: ['id', 'email'] })          // or keep only these
+user.serialize({                                     // relations too
+  fields: ['id'],
+  relations: { posts: { fields: ['id', 'title'] } },
+})
 ```
 
 `toJSON()` delegates to three overridable hooks — override just the layer you

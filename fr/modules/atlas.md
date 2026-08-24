@@ -171,12 +171,20 @@ await User.create({ email: 'a@b.co', role: 'admin' }) // lève MassAssignmentErr
 
 ### Visibilité de sérialisation
 
+Cacher une colonne définitivement à sa déclaration, et rogner une réponse au
+point d'appel — les deux écritures que donne Lucid :
+
 ```typescript
 class User extends BaseModel {
-  static hidden = ['password'] // allowlist au niveau classe
+  @column({ serializeAs: null }) declare password: string // jamais sérialisée
 }
-user.makeVisible('password').toJSON() // révéler sur CETTE instance
-user.makeHidden('email').toJSON()     // cacher sur CETTE instance
+
+user.serialize({ fields: { omit: ['email'] } })      // rogner cette réponse
+user.serialize({ fields: ['id', 'email'] })          // ou ne garder que celles-ci
+user.serialize({                                     // les relations aussi
+  fields: ['id'],
+  relations: { posts: { fields: ['id', 'title'] } },
+})
 ```
 
 `toJSON()` délègue à trois hooks surchargeables — surcharge uniquement la couche

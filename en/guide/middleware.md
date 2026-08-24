@@ -274,7 +274,27 @@ export default class WardenMiddleware {
 }
 ```
 
-`ctx.containerResolver` is the per-request resolver Ream populates from the application container; `.make(token)` resolves a class, string, or symbol token. This is how `@c9up/warden` and `@c9up/blackhole` consume host services while staying framework-agnostic.
+`ctx.containerResolver` is the per-request resolver Ream builds with `container.createResolver()` (AdonisJS Fold); `.make(token)` resolves a class, string, or symbol token. This is how `@c9up/warden` and `@c9up/blackhole` consume host services while staying framework-agnostic.
+
+It carries the rest of the AdonisJS resolver surface too — `call()`, `hasBinding()`, `hasAllBindings()`, and `bindValue()`:
+
+```typescript
+// Bound for THIS request only — no other request can see it
+ctx.containerResolver?.bindValue(CurrentTenant, tenant)
+```
+
+Ream binds the `HttpContext` on every request, so a controller or a service it
+depends on can take it as a constructor dependency:
+
+```typescript
+class Auditor {
+  constructor(@inject(HttpContext) private ctx: HttpContext) {}
+}
+```
+
+A singleton that reads a request-bound value while it is being built is **not**
+cached application-wide — it belongs to that request. One that reads none is
+cached exactly as before.
 
 ## Next Steps
 

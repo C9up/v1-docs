@@ -160,7 +160,24 @@ export default class WardenMiddleware {
 }
 ```
 
-`ctx.containerResolver` est le résolveur par requête que Ream alimente depuis le conteneur applicatif ; `.make(token)` résout une classe, une string ou un symbol. C'est ainsi que `@c9up/warden` et `@c9up/blackhole` consomment les services de l'hôte tout en restant agnostiques du framework.
+`ctx.containerResolver` est le résolveur par requête que Ream construit avec `container.createResolver()` (AdonisJS Fold) ; `.make(token)` résout une classe, une string ou un symbol. C'est ainsi que `@c9up/warden` et `@c9up/blackhole` consomment les services de l'hôte tout en restant agnostiques du framework.
+
+Il porte aussi le reste de la surface du résolveur AdonisJS — `call()`, `hasBinding()`, `hasAllBindings()` et `bindValue()` :
+
+```typescript
+// Lié à CETTE requête uniquement — aucune autre ne le voit
+ctx.containerResolver?.bindValue(CurrentTenant, tenant)
+```
+
+Ream lie le `HttpContext` à chaque requête, donc un contrôleur — ou un service dont il dépend — peut le prendre en dépendance de constructeur :
+
+```typescript
+class Auditor {
+  constructor(@inject(HttpContext) private ctx: HttpContext) {}
+}
+```
+
+Un singleton qui lit une valeur liée à la requête pendant sa construction n'est **pas** mis en cache au niveau applicatif — il appartient à cette requête. Celui qui n'en lit aucune est mis en cache exactement comme avant.
 
 ## Pipeline unifié
 
