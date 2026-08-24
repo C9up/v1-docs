@@ -91,7 +91,7 @@ await mail.send((message) => {
     .subject('Your invoice')
     .html('<p>Please find your invoice attached.</p>')
     .text('Please find your invoice attached.')
-    .attach('invoice.pdf', pdfBuffer, 'application/pdf')
+    .attachData(pdfBuffer, { filename: 'invoice.pdf', contentType: 'application/pdf' })
     .header('X-Custom-Header', 'value')
 })
 ```
@@ -116,8 +116,31 @@ await mail.send((message) => {
 | `.subject(text)` | Email subject |
 | `.html(content)` | HTML body |
 | `.text(content)` | Plain text body |
-| `.attach(filename, content, contentType?)` | Attach a file (`Buffer` or `string`) |
+| `.attach(file, options?)` | Attach a file by path or `file://` URL, read when the message is built |
+| `.attachData(content, { filename })` | Attach bytes you already hold (`Buffer` or `string`) |
+| `.embed(file, cid, options?)` | Embed a file inline, referenced by `cid:<cid>` in the HTML |
+| `.embedData(content, cid, options?)` | Embed bytes inline under a `cid` |
 | `.header(key, value)` | Add a custom email header |
+| `.encoding(encoding)` | Body transfer encoding (SMTP only) |
+| `.listUnsubscribe(value, { oneClick? })` | `List-Unsubscribe`, plus the RFC 8058 one-click header |
+| `.listSubscribe(value)` / `.listHelp(value)` | The other RFC 2369 `List-*` headers |
+| `.addListHeader(key, value)` | Any `List-<key>` header (`key` carries no `List-` prefix) |
+| `.icalEvent(ics, options?)` | Attach a calendar invitation from ICS text |
+| `.icalEventFromFile(file, options?)` | …read from a file |
+| `.icalEventFromUrl(url, options?)` | …fetched from a URL (SMTP only) |
+
+> **List-Unsubscribe and deliverability.** Gmail and Yahoo require bulk senders
+> to offer one-click unsubscribe. `oneClick: true` emits the RFC 8058
+> `List-Unsubscribe-Post` header alongside the URL, and refuses a `mailto:`
+> target — it cannot answer a POST.
+
+> **Calendar invitations.** `icalEventFromUrl()` is SMTP-only: nodemailer
+> fetches the URL, while a provider HTTP API takes the bytes. The other two
+> forms work everywhere — for those transports the invitation is sent as a
+> `text/calendar` part, which is how mail clients read it anyway.
+>
+> Named deviation: upstream also accepts an `ical-generator` builder callback.
+> rover carries no such dependency and takes the ICS text instead.
 
 ## Available Transports
 

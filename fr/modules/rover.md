@@ -91,7 +91,7 @@ await mail.send((message) => {
     .subject('Votre facture')
     .html('<p>Veuillez trouver votre facture en piece jointe.</p>')
     .text('Veuillez trouver votre facture en piece jointe.')
-    .attach('facture.pdf', pdfBuffer, 'application/pdf')
+    .attachData(pdfBuffer, { filename: 'facture.pdf', contentType: 'application/pdf' })
     .header('X-Custom-Header', 'valeur')
 })
 ```
@@ -116,8 +116,32 @@ await mail.send((message) => {
 | `.subject(text)` | Objet de l'email |
 | `.html(content)` | Corps HTML |
 | `.text(content)` | Corps en texte brut |
-| `.attach(filename, content, contentType?)` | Joindre un fichier (`Buffer` ou `string`) |
-| `.header(key, value)` | Ajouter un header email personnalise |
+| `.attach(file, options?)` | Joindre un fichier par chemin ou URL `file://`, lu à la construction du message |
+| `.attachData(content, { filename })` | Joindre des octets déjà en main (`Buffer` ou `string`) |
+| `.embed(file, cid, options?)` | Intégrer un fichier en ligne, référencé par `cid:<cid>` dans le HTML |
+| `.embedData(content, cid, options?)` | Intégrer des octets en ligne sous un `cid` |
+| `.header(key, value)` | Ajouter un en-tête personnalisé |
+| `.encoding(encoding)` | Encodage de transfert du corps (SMTP uniquement) |
+| `.listUnsubscribe(value, { oneClick? })` | `List-Unsubscribe`, plus l'en-tête one-click RFC 8058 |
+| `.listSubscribe(value)` / `.listHelp(value)` | Les autres en-têtes `List-*` de la RFC 2369 |
+| `.addListHeader(key, value)` | N'importe quel `List-<key>` (`key` sans le préfixe `List-`) |
+| `.icalEvent(ics, options?)` | Joindre une invitation calendrier depuis du texte ICS |
+| `.icalEventFromFile(file, options?)` | …lue depuis un fichier |
+| `.icalEventFromUrl(url, options?)` | …récupérée depuis une URL (SMTP uniquement) |
+
+> **List-Unsubscribe et délivrabilité.** Gmail et Yahoo exigent des expéditeurs
+> en masse une désinscription en un clic. `oneClick: true` émet l'en-tête RFC
+> 8058 `List-Unsubscribe-Post` à côté de l'URL, et refuse une cible `mailto:` —
+> elle ne peut pas répondre à un POST.
+
+> **Invitations calendrier.** `icalEventFromUrl()` est réservé au SMTP :
+> nodemailer récupère l'URL, alors qu'une API HTTP de fournisseur attend les
+> octets. Les deux autres formes fonctionnent partout — pour ces transports,
+> l'invitation part comme partie `text/calendar`, ce qui est de toute façon la
+> façon dont les clients mail la lisent.
+>
+> Déviation nommée : en amont, un callback de construction `ical-generator` est
+> aussi accepté. rover ne porte pas cette dépendance et prend le texte ICS.
 
 ## Transports disponibles
 
