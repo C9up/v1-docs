@@ -243,6 +243,35 @@ router.get('/assets/*', serve)
 `request.param('*')` joins them for convenience; `request.params()` gives the
 array. A matcher on `*` is tested against **every** segment.
 
+### What that costs the type of `ctx.params`
+
+Because a catch-all yields an array, `ctx.params` is typed
+`Record<string, string | string[]>`. So the idiomatic destructuring reads as a
+union and needs narrowing:
+
+```typescript
+async show({ params }: HttpContext) {
+  await User.find(params.id)        // string | string[] — does not compile
+}
+```
+
+Reach for `request.param()` rather than writing your own accessor. It is
+AdonisJS's own name, returns `string | undefined`, and joins a catch-all with
+`/`:
+
+```typescript
+async show({ request }: HttpContext) {
+  await User.find(request.param('id'))   // string | undefined
+}
+```
+
+> **Named deviation.** AdonisJS types `ctx.params` as `Record<string, any>` and
+> `request.param()` as `any`. The runtime is the same on both sides — a
+> catch-all really is an array — so the `any` only hides it. The honest type is
+> kept: a value that can be an array should not be typed as though it cannot,
+> and the compiler catching it beats a `.toUpperCase()` on an array in
+> production.
+
 ## Fluent Route Builder
 
 Every route registration returns a `RouteBuilder` that supports full chaining:

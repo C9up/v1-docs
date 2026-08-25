@@ -244,6 +244,35 @@ router.get('/assets/*', serve)
 `request.param('*')` les joint par commodité ; `request.params()` donne le
 tableau. Un matcher sur `*` est testé contre **chaque** segment.
 
+
+### Ce que ça coûte au type de `ctx.params`
+
+Comme un attrape-tout rend un tableau, `ctx.params` est typé
+`Record<string, string | string[]>`. La déstructuration idiomatique lit donc une
+union et demande un affinage :
+
+```typescript
+async show({ params }: HttpContext) {
+  await User.find(params.id)        // string | string[] — ne compile pas
+}
+```
+
+Utilise `request.param()` plutôt que d'écrire ton propre accesseur. C'est le nom
+d'AdonisJS lui-même, il rend `string | undefined`, et joint un attrape-tout
+avec `/` :
+
+```typescript
+async show({ request }: HttpContext) {
+  await User.find(request.param('id'))   // string | undefined
+}
+```
+
+> **Déviation nommée.** AdonisJS type `ctx.params` en `Record<string, any>` et
+> `request.param()` en `any`. Le runtime est le même des deux côtés — un
+> attrape-tout est bien un tableau — donc le `any` ne fait que le masquer. Le
+> type honnête est conservé : une valeur qui peut être un tableau ne doit pas
+> être typée comme si elle ne pouvait pas l'être, et une erreur de compilation
+> vaut mieux qu'un `.toUpperCase()` sur un tableau en production.
 ## Builder de route fluide
 
 Chaque enregistrement de route retourne un `RouteBuilder` qui supporte le chaînage complet :
