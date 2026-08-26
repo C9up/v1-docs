@@ -5,8 +5,7 @@ Relay est le module de transport realtime client de Ream (`@c9up/relay`) avec SS
 ## Capacites
 
 - diffusion server → clients via SSE
-- Hubs WebSocket bidirectionnels
-- support du protocole SignalR
+- Hubs bidirectionnels parlant le protocole JSON SignalR sur SSE
 - canaux subscribables
 - autorisation de canaux
 - relai d'événements
@@ -47,6 +46,52 @@ d'upgrade la réponse en SSE. Si les deux ne matchent pas, une
 réponse bufferisée `403 E_UID_HIJACK` est renvoyée et le stream
 n'est jamais ouvert. Le hint est donc purement informationnel —
 le uid canonique vient toujours de `ctx.auth`, jamais du query string.
+
+## Hubs (SignalR)
+
+Un `Hub` est la moitié bidirectionnelle : le client invoque des méthodes côté
+serveur, le serveur pousse vers un client, un groupe, ou tout le monde. On le
+monte depuis un preload (`start/services.ts`), là même où `registerRoutes()`
+est appelé — le provider pose les routes en `start()`, après les preloads :
+
+```ts
+import relay from '@c9up/relay/services/main'
+import { Hub, type HubContext } from '@c9up/relay'
+
+class ChatHub extends Hub {
+  // `onSendMessage` traite l'invocation `sendMessage` : le nom de méthode
+  // après `on`, première lettre en minuscule.
+  async onSendMessage(ctx: HubContext, data: unknown) {
+    ctx.group('room-1').send('message', data)
+  }
+}
+
+relay.hub('/hubs/chat', new ChatHub())
+```
+
+`onConnect` / `onDisconnect` sont des hooks de cycle de vie, non invocables.
+Monter deux fois le même chemin lève une erreur au lieu de remplacer le premier
+hub.
+
+### Le fil
+
+Le transport est le **Server-Sent Events** — ce que relay sert déjà, ce
+qu'utilise le paquet temps réel d'AdonisJS, et un transport SignalR de première
+classe. Un client `@microsoft/signalr` standard configuré en
+`HttpTransportType.ServerSentEvents` le parle sans modification :
+
+| Route | Rôle |
+|---|---|
+| `POST <path>/negotiate` | émet un `connectionId` + `connectionToken` |
+| `GET <path>?id=<token>` | le flux, serveur → client |
+| `POST <path>?id=<token>` | messages encadrés, client → serveur |
+
+`negotiate` n'annonce que les transports que le serveur sait réellement servir.
+Annoncer WebSockets alors que rien ne peut faire l'upgrade envoie chaque client
+dans une impasse : le défaut est donc `ServerSentEvents` seul.
+
+Le customizer passé à `registerRoutes()` s'applique aussi aux trois routes d'un
+hub — un hub a autant besoin du middleware `auth` que le flux d'événements.
 
 ## Bonnes pratiques
 
