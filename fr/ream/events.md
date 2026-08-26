@@ -27,7 +27,7 @@ emitter.on(TaskDeclared, SendNotification)   // classe listener (résolue par DI
 await new TaskDeclared(task).emit()
 
 // Souscriptions wildcard (moteur de pattern Rust)
-await emitter.onAny('order.*', (name, data) => audit(name, data))
+const unsubscribe = await emitter.onAny('order.*', (name, data) => audit(name, data))
 
 // Request / reply
 const user = await emitter.request('query:user.find', { id: 1 })
@@ -66,6 +66,28 @@ emitter.onError((event, error) => report(event, error))
 Les **classes** listener sont résolues via le container IoC : elles bénéficient
 donc de l'injection de dépendances. Les listeners fonction inline marchent
 toujours, même sans container.
+
+### Souscriptions joker
+
+`onAny()` rend la fonction de désabonnement que rend AdonisJS ; `offAny()` prend
+le listener :
+
+```ts
+const unsubscribe = await emitter.onAny(audit)              // tous les events
+const scoped = await emitter.onAny('order.*', audit)        // un motif
+
+await unsubscribe()
+await emitter.offAny(audit)                                 // ou par listener
+```
+
+::: tip Écart nommé
+Les deux sont des promesses, et la fonction de désabonnement est
+`() => Promise<void>` plutôt que `() => void`. S'abonner et se désabonner
+traversent la frontière NAPI vers le bus Rust, et rendre la main avant que
+l'appel n'atterrisse perdrait des events. Elle reste assignable partout où
+AdonisJS attend la forme synchrone — attends-la quand l'assertion suivante
+dépend de la souscription réellement disparue.
+:::
 
 ## Câblage
 
@@ -170,6 +192,57 @@ expect(bus.getEmitted()[0].name).toBe('order.created')
 Pour des assertions contre le vrai bus Rust, `@c9up/helix` expose des helpers
 observateurs (`collect`, `waitForEvent`, `assertEmitted`) via
 `@c9up/ream/events/helix`.
+
+### Simuler des events
+
+`fake()` empêche les events nommés d'atteindre leurs écouteurs **et** le bus, et
+les collecte à la place — un test vérifie donc ce qu'une action a annoncé sans
+exécuter toute la réaction qui s'ensuit (AdonisJS `Emitter.fake`) :
+
+```ts
+const events = emitter.fake(['user:registered'])
+
+await register(payload)
+
+events.assertEmitted('user:registered')
+events.assertEmittedCount('user:registered', 1)
+events.assertNotEmitted('user:deleted')
+
+emitter.restore()
+```
+
+Sans argument, tous les events sont simulés. Rappeler `fake()` abandonne le
+tampon précédent et en démarre un neuf.
+
+Le tampon restaure l'emitter en sortant d'un bloc `using` : un test qui lève au
+milieu ne peut pas laisser les events simulés pour le suivant.
+
+```ts
+{
+  using events = emitter.fake()
+  await register(payload)
+  events.assertEmitted('user:registered')
+}
+// la livraison est de nouveau active ici, quelle que soit la sortie du bloc
+```
+
+Les events à base de classe se simulent par leur classe :
+
+```ts
+const events = emitter.fake([TaskDeclared])
+await new TaskDeclared(task).emit()
+events.assertEmitted(TaskDeclared)
+```
+
+Surface complète du tampon : `all()`, `size()`, `exists()`, `find()`,
+`assertEmitted()`, `assertEmittedCount()`, `assertNotEmitted()`,
+`assertNoneEmitted()`, `flush()`. `exists()`, `find()`, `assertEmitted()` et
+`assertNotEmitted()` prennent un chercheur optionnel pour viser une émission
+parmi plusieurs du même event :
+
+```ts
+events.assertEmitted<{ total: number }>('order:placed', ({ data }) => data.total === 99)
+```
 
 ## Notes
 

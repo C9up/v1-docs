@@ -26,7 +26,7 @@ emitter.on(TaskDeclared, SendNotification)   // listener class (DI-resolved)
 await new TaskDeclared(task).emit()
 
 // Wildcard subscriptions (Rust pattern engine)
-await emitter.onAny('order.*', (name, data) => audit(name, data))
+const unsubscribe = await emitter.onAny('order.*', (name, data) => audit(name, data))
 
 // Request / reply
 const user = await emitter.request('query:user.find', { id: 1 })
@@ -64,6 +64,27 @@ emitter.onError((event, error) => report(event, error))
 Listener **classes** are resolved through the IoC container, so they get full
 dependency injection. Inline function listeners always work, even without a
 container.
+
+### Wildcard subscriptions
+
+`onAny()` hands back the unsubscribe function AdonisJS returns; `offAny()` takes
+the listener:
+
+```ts
+const unsubscribe = await emitter.onAny(audit)              // every event
+const scoped = await emitter.onAny('order.*', audit)        // one pattern
+
+await unsubscribe()
+await emitter.offAny(audit)                                 // or by listener
+```
+
+::: tip Named deviation
+Both are promises, and the unsubscribe function is `() => Promise<void>` rather
+than `() => void`. Subscribing and unsubscribing cross the NAPI boundary into
+the Rust bus, and returning before the call lands would drop events. It is
+assignable wherever AdonisJS expects the synchronous form — await it when the
+next assertion depends on the subscription actually being gone.
+:::
 
 ## Wiring
 
@@ -164,6 +185,57 @@ expect(bus.getEmitted()[0].name).toBe('order.created')
 
 For assertions against the real Rust-backed bus, `@c9up/helix` exposes observer
 helpers (`collect`, `waitForEvent`, `assertEmitted`) via `@c9up/ream/events/helix`.
+
+### Faking events
+
+`fake()` stops the named events reaching their listeners **and** the bus, and
+collects them instead — so a test asserts what an action announced without also
+running every reaction to it (AdonisJS `Emitter.fake`):
+
+```ts
+const events = emitter.fake(['user:registered'])
+
+await register(payload)
+
+events.assertEmitted('user:registered')
+events.assertEmittedCount('user:registered', 1)
+events.assertNotEmitted('user:deleted')
+
+emitter.restore()
+```
+
+With no argument every event is faked. Calling `fake()` again drops the previous
+buffer and starts a fresh one.
+
+The buffer restores the emitter when it leaves a `using` block, so a test that
+throws mid-way cannot leave events faked for the next one:
+
+```ts
+{
+  using events = emitter.fake()
+  await register(payload)
+  events.assertEmitted('user:registered')
+}
+// delivery is live again here, however the block ended
+```
+
+Class-based events are faked by their class:
+
+```ts
+const events = emitter.fake([TaskDeclared])
+await new TaskDeclared(task).emit()
+events.assertEmitted(TaskDeclared)
+```
+
+The full buffer surface: `all()`, `size()`, `exists()`, `find()`,
+`assertEmitted()`, `assertEmittedCount()`, `assertNotEmitted()`,
+`assertNoneEmitted()`, `flush()`. `exists()`, `find()`, `assertEmitted()` and
+`assertNotEmitted()` take an optional finder to narrow to one emission among
+several of the same event:
+
+```ts
+events.assertEmitted<{ total: number }>('order:placed', ({ data }) => data.total === 99)
+```
 
 ## Notes
 

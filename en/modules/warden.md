@@ -804,6 +804,46 @@ What makes this safe, and why each part matters:
 needs a shared store implementing `RememberMeTokenDriver` (`create` / `find` /
 `update` / `delete` / `deleteAllForUser`).
 
+#### The `RememberMeToken` class
+
+For code that handles tokens directly — a custom driver, a migration, an admin
+screen — the AdonisJS class is exported alongside the functions the guard uses.
+Both sit on the same encoding and the same hashing, so they cannot disagree
+about what a token is:
+
+```ts
+import { RememberMeToken, Secret } from '@c9up/warden'
+
+const decoded = RememberMeToken.decode(cookieValue)   // null when malformed
+decoded?.identifier                                    // the public half
+decoded?.secret                                        // Secret<string>
+
+const { secret, hash } = RememberMeToken.seed()
+const transient = RememberMeToken.createTransientToken(user.id, 40, 63_072_000)
+
+const token = RememberMeToken.fromStored(row)
+token.isExpired()
+token.verify(decoded.secret)                           // constant-time
+token.toStored()                                       // back to the driver shape
+```
+
+Secrets come back wrapped in `Secret`, as upstream wraps them, so one cannot
+reach a log by being interpolated into a string:
+
+```ts
+`${decoded.secret}`          // '[redacted]'
+JSON.stringify(decoded)      // {"secret":"[redacted]", ...}
+decoded.secret.release()     // the real value, deliberately
+```
+
+::: tip Two named deviations
+`expiresIn` is in **seconds**, as everywhere else in this module — AdonisJS also
+accepts a duration string there, and taking only the number leaves no ambiguity
+at a call site. And warden ships its own `Secret` rather than importing
+`@c9up/ream`: it has no runtime dependencies and a standalone entry point, so a
+peer import would break the framework-free mode.
+:::
+
 ---
 
 ## BasicAuthStrategy
@@ -1233,6 +1273,39 @@ interface JwtStrategyConfig {
 ```
 
 ---
+
+## Auth events
+
+Wire an emitter and every authentication decision is announced. The event name
+is namespaced by the guard's **driver**, as AdonisJS does — so an app auditing
+session logins is not also told about bearer-token traffic under the same name:
+
+| Driver | Event prefix |
+| --- | --- |
+| `session` | `session_auth:*` |
+| `access_tokens` / `api-key` | `access_tokens_auth:*` |
+| `basic_auth` | `basic_auth:*` |
+| `jwt` | `jwt_auth:*` |
+
+```ts
+auth.setEmitter(emitter)
+
+emitter.on('session_auth:login_succeeded', ({ guardName, user }) => audit(user))
+emitter.on('jwt_auth:authentication_failed', ({ guardName, error }) => alert(error))
+```
+
+The prefix comes from the strategy's driver, not the guard's config key: a guard
+called `web` running a `SessionStrategy` is still the session driver, exactly as
+upstream. `authEventPrefix(driverName)` is exported if you need to build a name
+yourself. `jwt` has no upstream equivalent and becomes `jwt_auth`.
+
+Events: `login_attempted`, `login_succeeded`, `logged_out` (stateful guards
+only), plus `authentication_attempted`, `authentication_succeeded` and
+`authentication_failed` on every guard. The success event is named after the
+guard that actually answered, not the one asked for first.
+
+A listener that throws never breaks a login — authentication is not an event
+bus's business to veto.
 
 ## Error Codes
 

@@ -41,12 +41,34 @@ every function (AdonisJS parity).
 ```ts
 import { HttpContext } from '@c9up/ream'
 
-const ctx = HttpContext.get()        // current context, or undefined outside a request
+const ctx = HttpContext.get()        // current context, or null outside a request
 const ctx2 = HttpContext.getOrFail() // throws if called outside a request
 ```
 
-`get()` returns `undefined` outside a request; `getOrFail()` throws — use it when a
-request context is required.
+`get()` returns `null` outside a request — upstream's contract is
+`HttpContext | null`, so a migrated `=== null` check keeps working. `getOrFail()`
+throws instead; use it when a request context is required.
+
+`runOutsideContext()` runs a callback with the ambient context cleared, so
+background work does not inherit and pin the request's context.
+
+### Turning ambient tracking off
+
+`usingAsyncLocalStorage` reports whether tracking is on, and
+`useAsyncLocalStorage()` switches it:
+
+```ts
+HttpContext.usingAsyncLocalStorage      // true
+HttpContext.useAsyncLocalStorage(false) // get() now always answers null
+```
+
+::: tip Named deviation
+Tracking is **on by default**, where AdonisJS makes it opt-in through
+`useAsyncLocalStorage` in `config/app.ts`. Ream's own middleware and service
+accessors read the ambient context, so defaulting it off would break the
+framework's own wiring rather than just an app's. The switch is there for a
+benchmark or a worker process that wants the cost back.
+:::
 
 ### Request session — `ctx.session`
 
@@ -81,6 +103,35 @@ modified session, touches an untouched pre-existing one to slide its expiry,
 writes nothing for a brand-new untouched one, and — when the handler called
 `regenerate()` — writes under the new id before dropping the old, so a crash
 between the two leaves a valid session rather than none.
+
+### Writing a session store
+
+A store implements `read` / `write` / `destroy` / `touch`. `read()` answers
+`null` when it holds nothing for that id, and the record when it does —
+AdonisJS's `SessionStoreContract`:
+
+```typescript
+class MyStore implements SessionDriver {
+  async read(id: string): Promise<Record<string, unknown> | null> {
+    const row = await lookup(id)
+    return row ?? null      // NOT {}
+  }
+  async write(id: string, data: Record<string, unknown>, ttl: number) { /* … */ }
+  async destroy(id: string) { /* … */ }
+  async touch(id: string, ttl: number) { /* … */ }
+}
+```
+
+::: warning Breaking for custom stores
+`read()` used to return a bare record, so a store had to answer `{}` both for
+"no session here" and for "a session that happens to be empty". The difference
+is load-bearing: a cookie can outlive the row it points at, and that session
+looked live — `commit()` then touched a row that was not there. Return `null`
+for an absent, expired, destroyed or unparseable entry.
+:::
+
+The store is the authority on existence, so `initiate()` marks a session
+**fresh** when the store has nothing for its id, however old the cookie is.
 
 ### Tagging a session to a user
 

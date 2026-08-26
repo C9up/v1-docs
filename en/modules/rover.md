@@ -259,19 +259,68 @@ await new WelcomeMail(user).send(mail.use('smtp'))
 mails.assertSent(WelcomeMail, (mail) => mail.message.hasTo(user.email))
 ```
 
+A mail builds **once**. `build()` returns the message the first call produced, so
+inspecting a mail and then sending it — or sending it twice — does not replay
+`prepare()`:
+
+```ts
+const mail = new WelcomeMail(user)
+await mail.buildWithContents()   // read the rendered html
+await mail.send(mailer)          // recipients and attachments are not doubled
+mail.built                       // true
+```
+
+Without that guard `prepare()` ran again against the same builder, adding every
+recipient and every attachment a second time — the mail went out twice to the
+same address with the attachment doubled.
+
 ## Inspecting a message
 
 `has*` answers, `assert*` throws and reports what it actually got:
 
 ```ts
 message.hasTo('ada@acme.test')
+message.hasTo('ada@acme.test', 'Ada')      // both halves must match
 message.assertSubject('Welcome')
 message.assertHtmlIncludes('Hello')
 message.toObject()
 ```
 
+`hasRecipient` takes the **field first**, as AdonisJS does, and
+`hasAnyRecipient` is the any-field question:
+
+```ts
+message.hasRecipient('to', 'ada@acme.test')     // one named field
+message.hasRecipient('bcc', 'ada@acme.test')    // false — not in that field
+message.hasAnyRecipient('ada@acme.test')        // to / cc / bcc
+message.hasAnyRecipient()                       // is there a recipient at all
+```
+
 Addresses are stored in their display form, so `hasFrom('a@b.c')` matches inside
-`"Name" <a@b.c>`.
+`"Name" <a@b.c>`. With a display name, the comparison is exact.
+
+## Lifecycle events
+
+Every event carries the AdonisJS triple — the mailer that handled it, the
+message, and the templates it was rendered from:
+
+```ts
+emitter.on('mail:sent', ({ mailerName, message, views, messageId }) => {
+  audit.log({ mailer: mailerName, subject: message.subject, template: views.html?.template })
+})
+```
+
+Events: `mail:sending`, `mail:sent`, `mail:failed`, `mail:queueing`,
+`mail:queued`, plus `queued:mail:error` for a background delivery that failed.
+
+The flattened `to` / `cc` / `bcc` lists and `transportName` are ours and stay: a
+listener that only wants the addresses should not have to reach into the
+message, and `transportName` is the same string as `mailerName` under the name
+rover used first.
+
+A message revived from a queue payload reports an empty `views` bag rather than
+a guess — the rendered bodies were serialised, the templates that produced them
+were not.
 
 ## Text bodies and the envelope
 

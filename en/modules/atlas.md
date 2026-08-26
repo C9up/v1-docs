@@ -169,6 +169,62 @@ class User extends BaseModel {
 await User.create({ email: 'a@b.co', role: 'admin' }) // throws MassAssignmentError
 ```
 
+The gate runs on the key as given **and** on the property it resolves to, so a
+column name cannot walk past a guard written against the attribute:
+
+```typescript
+await User.create({ role: 'admin' })   // MassAssignmentError
+await User.create({ is_admin: true })  // MassAssignmentError — resolves to isAdmin
+```
+
+### `fill()` / `merge()` and `$extras`
+
+A payload key is resolved in Lucid's order: a declared property, then the DB
+column name it maps to, then a relation (ignored — set those through their own
+API), then framework state (ignored). Anything left is an extra:
+
+```typescript
+// The DB column name resolves to its property — a payload straight off an API
+// or a raw row keys by `created_at`.
+user.merge({ created_at: '2026-01-01' })   // sets user.createdAt
+
+// An unknown key throws by default…
+user.merge({ comments_count: 3 })          // E_EXTRA_PROPERTIES
+
+// …and is KEPT in $extras when you allow it, rather than dropped.
+user.merge({ comments_count: 3 }, true)
+user.$extras.comments_count                // 3
+```
+
+`$extras` is never a column, so it can never reach an INSERT. `create()` takes
+the same `{ allowExtraProperties: true }` and behaves the same way.
+
+### Serializing `$extras`
+
+Opt in per model. `true` nests the bag under `meta`, as Lucid does — spread at
+the top level, an aggregate could collide with a real column of the same name:
+
+```typescript
+class User extends BaseModel {
+  serializeExtras = true
+}
+
+user.toJSON()   // { id: 1, email: 'a@b.co', meta: { posts_count: 5 } }
+```
+
+A function chooses the shape instead, and receives the bag:
+
+```typescript
+class User extends BaseModel {
+  static serializeExtras = (extras: Record<string, unknown>) => ({
+    total: extras.posts_count,
+  })
+}
+```
+
+Lucid reads `serializeExtras` off the instance; the static form is what atlas
+shipped, so both work and the instance wins.
+
 ### Serialization visibility
 
 Hide a column permanently at its declaration, and trim one response at the call

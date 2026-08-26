@@ -12,6 +12,7 @@ npm install -g @c9up/ream-cli
 
 ```bash
 ream new my-app           # Create a new project (interactive)
+ream new my-app --yes     # …taking the defaults, with no terminal needed
 ream dev                   # Start development server
 ream build                 # Compile TypeScript
 ream start                 # Run production server
@@ -116,12 +117,59 @@ ream migrate:rollback       # Rollback the last batch of migrations
 ream migrate:status         # Show the status of all migrations (applied / pending)
 ```
 
+## Creating a Project
+
+`ream new` asks for a template and a database. Each prompt is skipped by
+passing its flag, and `--yes` takes the default for whatever is left — so the
+command runs in CI, in a container, or from a script, where there is no
+terminal to prompt on:
+
+```bash
+ream new my-app                                # interactive
+ream new my-app --template api --db postgres   # no prompt at all
+ream new my-app --yes                          # api + postgres
+ream new my-app --template slim --yes          # slim + postgres
+```
+
+| Flag | Values | Default |
+| --- | --- | --- |
+| `--template` | `api`, `web`, `microservice`, `slim` | `api` |
+| `--db` | `postgres`, `sqlite` | `postgres` |
+| `--yes`, `-y` | — | take the defaults for anything not passed |
+
+An unknown value is rejected before any prompt runs, so a typo reports itself
+as a command-line error rather than as a missing terminal.
+
 ## Diagnostics
 
 ```bash
 ream doctor    # Environment health checks
 ream info      # Version + environment info
 ```
+
+`ream doctor` checks Node, pnpm, `.env`, `reamrc.ts`, `package.json`,
+`tsconfig.json` — and `@swc-node/register`.
+
+That last one matters more than it looks. `ream dev`, `build`, `console`,
+`test`, `inspect`, `repl`, `migration:*` and `schedule:*` all run your
+TypeScript through that loader, resolved from **your** project's
+`node_modules`: the CLI is a Rust binary and ships no JavaScript dependencies
+of its own. Without it those commands stop, while the generators keep working
+— so a project can look healthy while two thirds of the CLI is unusable.
+
+`ream new` puts it in the generated `package.json`. For a project created
+before, `doctor` names the fix, and each affected command refuses up front
+rather than dying on Node's `ERR_MODULE_NOT_FOUND`:
+
+```
+[XX] @swc-node/register: missing — `ream dev`, `build`, `console`, `test`,
+     `inspect`, `repl`, `migration:*` and `schedule:*` cannot run
+     Fix: Run `pnpm add -D @swc-node/register`
+```
+
+Declared in `package.json` but absent from `node_modules` is a different
+sentence — the manifest is right and the tree is stale, so it says
+`pnpm install` rather than `pnpm add`.
 
 ## Built with Rust
 

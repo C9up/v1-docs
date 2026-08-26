@@ -827,6 +827,46 @@ mono-process ; un cluster a besoin d'un stockage partagé implémentant
 `RememberMeTokenDriver` (`create` / `find` / `update` / `delete` /
 `deleteAllForUser`).
 
+#### La classe `RememberMeToken`
+
+Pour du code qui manipule les jetons directement — un driver maison, une
+migration, un écran d'admin — la classe d'AdonisJS est exportée à côté des
+fonctions qu'utilise le garde. Les deux reposent sur le même encodage et le même
+hachage : elles ne peuvent pas diverger sur ce qu'est un jeton.
+
+```ts
+import { RememberMeToken, Secret } from '@c9up/warden'
+
+const decoded = RememberMeToken.decode(cookieValue)   // null si malformé
+decoded?.identifier                                    // la moitié publique
+decoded?.secret                                        // Secret<string>
+
+const { secret, hash } = RememberMeToken.seed()
+const transient = RememberMeToken.createTransientToken(user.id, 40, 63_072_000)
+
+const token = RememberMeToken.fromStored(row)
+token.isExpired()
+token.verify(decoded.secret)                           // temps constant
+token.toStored()                                       // retour à la forme du driver
+```
+
+Les secrets reviennent enveloppés dans un `Secret`, comme en amont, pour qu'aucun
+ne finisse dans un log en étant interpolé dans une chaîne :
+
+```ts
+`${decoded.secret}`          // '[redacted]'
+JSON.stringify(decoded)      // {"secret":"[redacted]", ...}
+decoded.secret.release()     // la vraie valeur, délibérément
+```
+
+::: tip Deux écarts nommés
+`expiresIn` est en **secondes**, comme partout ailleurs dans ce module —
+AdonisJS y accepte aussi une chaîne de durée, et ne prendre que le nombre lève
+toute ambiguïté au point d'appel. Et warden embarque son propre `Secret` plutôt
+que d'importer `@c9up/ream` : il n'a aucune dépendance runtime et expose un point
+d'entrée autonome, un import de pair casserait le mode sans framework.
+:::
+
 ---
 
 ## BasicAuthStrategy
@@ -1260,6 +1300,41 @@ interface JwtStrategyConfig {
 ```
 
 ---
+
+## Événements d'authentification
+
+Branche un emitter et chaque décision d'authentification est annoncée. Le nom de
+l'événement est préfixé par le **pilote** du garde, comme chez AdonisJS — une app
+qui audite les connexions de session n'entend donc pas parler du trafic par
+jeton porteur sous le même nom :
+
+| Pilote | Préfixe d'événement |
+| --- | --- |
+| `session` | `session_auth:*` |
+| `access_tokens` / `api-key` | `access_tokens_auth:*` |
+| `basic_auth` | `basic_auth:*` |
+| `jwt` | `jwt_auth:*` |
+
+```ts
+auth.setEmitter(emitter)
+
+emitter.on('session_auth:login_succeeded', ({ guardName, user }) => audit(user))
+emitter.on('jwt_auth:authentication_failed', ({ guardName, error }) => alert(error))
+```
+
+Le préfixe vient du pilote de la stratégie, pas de la clé de config du garde : un
+garde nommé `web` portant une `SessionStrategy` reste le pilote session,
+exactement comme en amont. `authEventPrefix(driverName)` est exporté si tu as
+besoin de construire un nom toi-même. `jwt` n'a pas d'équivalent amont et devient
+`jwt_auth`.
+
+Événements : `login_attempted`, `login_succeeded`, `logged_out` (gardes avec état
+seulement), plus `authentication_attempted`, `authentication_succeeded` et
+`authentication_failed` sur chaque garde. L'événement de succès porte le nom du
+garde qui a réellement répondu, pas de celui demandé en premier.
+
+Un écouteur qui lève ne casse jamais une connexion — ce n'est pas au bus
+d'événements de mettre son veto à une authentification.
 
 ## Codes d'erreur
 

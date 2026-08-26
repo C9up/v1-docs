@@ -144,6 +144,26 @@ through ownership; `bob` can `publish` via his direct grant; `carol` can
 `archive` an acme post but not a globex one. No token needs to carry any of
 these — they all resolve from the rights store.
 
+## Auditing decisions
+
+Give the Bouncer an emitter and every ability and policy check announces itself
+on `authorization:finished`:
+
+```ts
+new Bouncer(user, abilities, policies, { emitter })
+
+emitter.on('authorization:finished', ({ user, action, parameters, response }) => {
+  if (!response.authorized) {
+    audit.log({ user: user?.id, action, parameters, reason: response.message })
+  }
+})
+```
+
+`parameters` are the arguments the check ran against — the post, the invoice,
+whatever the decision was about. Without them an audit log can record that Ada
+was denied `editPost` but never *which* post, which is most of what an audit is
+for. Both the ability path and the policy path send the same payload.
+
 ## Migration
 
 Pre-56, authorization was spread across three mechanisms. Each maps cleanly onto

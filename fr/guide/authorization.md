@@ -145,6 +145,27 @@ l'ownership ; `bob` peut `publish` via son grant direct ; `carol` peut `archive`
 un post acme mais pas un post globex. Aucun token n'a besoin de porter quoi que
 ce soit — tout se résout depuis le rights store.
 
+## Auditer les décisions
+
+Donne un emitter au Bouncer et chaque contrôle d'aptitude ou de politique
+s'annonce sur `authorization:finished` :
+
+```ts
+new Bouncer(user, abilities, policies, { emitter })
+
+emitter.on('authorization:finished', ({ user, action, parameters, response }) => {
+  if (!response.authorized) {
+    audit.log({ user: user?.id, action, parameters, reason: response.message })
+  }
+})
+```
+
+`parameters`, ce sont les arguments sur lesquels le contrôle a porté — l'article,
+la facture, ce sur quoi portait la décision. Sans eux, un journal d'audit peut
+consigner qu'Ada s'est vu refuser `editPost` mais jamais *quel* article, ce qui
+est l'essentiel de ce à quoi sert un audit. Le chemin aptitude et le chemin
+politique envoient la même charge utile.
+
 ## Migration
 
 Avant 56, l'autorisation était éparpillée sur trois mécanismes. Chacun se mappe

@@ -18,6 +18,52 @@ router.use([
 ])
 ```
 
+### Le configurer
+
+```typescript
+const bodyParser = new BodyParserMiddleware({
+  allowedMethods: ['POST', 'PUT', 'PATCH', 'DELETE'],
+  json:      { limit: '1mb' },
+  form:      { limit: '1mb' },
+  raw:       { limit: '1mb' },
+  multipart: { limit: '20mb', maxFields: 1000, maxFiles: 1000 },
+})
+```
+
+`allowedMethods` décide quelles requêtes voient leur corps parsé — AdonisJS
+prend les quatre ci-dessus par défaut, si bien qu'un GET portant un
+content-type JSON est laissé intact. Une requête dont le `content-length` dit
+qu'il n'y a pas de corps est sautée aussi.
+
+Chaque limite **lève** `E_REQUEST_ENTITY_TOO_LARGE` (413) au lieu d'écrire sa
+propre réponse : ton gestionnaire d'exceptions négocie donc la réponse — une app
+HTML reçoit une page d'erreur plutôt qu'une enveloppe JSON qu'elle n'a jamais
+demandée, et peut surcharger le rendu.
+
+Un parser se désactive en ne lui donnant aucun type — il n'y a pas de drapeau
+`enabled`, et en passer un échoue bruyamment plutôt que de réactiver en silence
+un parser que tu avais coupé :
+
+```typescript
+new BodyParserMiddleware({ raw: { types: [] } })   // aucun parsing raw
+```
+
+::: tip maxFiles est à nous
+AdonisJS ne borne un corps multipart que par la taille totale et le nombre de
+champs : dix mille fichiers d'un octet passent. `maxFiles` est une borne
+anti-déni-de-service, à la même échelle que `maxFields`, pour ne jamais rejeter
+un envoi qu'AdonisJS aurait accepté.
+:::
+
+::: warning Pas de `multipart.tmpDir`
+Les fichiers envoyés sont gardés en mémoire et ne sont jamais écrits dans un
+répertoire temporaire — le parseur multipart Rust rend le corps d'un bloc.
+L'option était acceptée et lue par rien : une app la pointant vers un volume
+n'obtenait silencieusement rien. Elle est désormais refusée à la construction.
+Choisis la destination au moment de stocker le fichier :
+`await file.moveToDisk(directory)`.
+:::
+
 ## Lire les fichiers
 
 Utilisez `request.file(field, options?)` pour un seul fichier et `request.files(field, options?)` pour plusieurs fichiers sous le même champ.

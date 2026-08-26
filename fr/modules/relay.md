@@ -73,6 +73,37 @@ relay.hub('/hubs/chat', new ChatHub())
 Monter deux fois le même chemin lève une erreur au lieu de remplacer le premier
 hub.
 
+### Arguments d'invocation
+
+Une méthode de hub reçoit **tous** les arguments envoyés par le client :
+
+```ts
+class MathHub extends Hub {
+  async onSum(ctx: HubContext, a: number, b: number, c: number) {
+    ctx.send('result', a + b + c)
+  }
+}
+
+// client : connection.invoke('Sum', 1, 2, 3)
+```
+
+Une méthode qui déclare un seul paramètre n'est pas affectée — les arguments en
+trop sont simplement ignorés, comme dans tout appel JavaScript. Seul le premier
+argument passait jusqu'ici, et les autres disparaissaient sans que rien ne le
+signale.
+
+### Ce qui n'est pas supporté
+
+Le streaming n'est pas implémenté. Une `StreamInvocation` reçoit une
+**Completion d'erreur** qui en nomme la raison, au lieu d'être jetée :
+l'identifiant d'invocation est la poignée qu'attend l'observable du client, et
+le protocole promet une Completion — en jeter une laisse donc l'observable
+suspendu pour toute la durée de la connexion.
+
+`StreamItem` et `CancelInvocation` sont ignorés, ce qui est la réponse correcte
+pour les deux — un item appartient à un flux dont l'invocation d'ouverture a
+déjà été refusée, et une annulation vise un flux qui n'a jamais démarré.
+
 ### Le fil
 
 Le transport est le **Server-Sent Events** — ce que relay sert déjà, ce

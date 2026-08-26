@@ -250,19 +250,69 @@ await new WelcomeMail(user).send(mail.use('smtp'))
 mails.assertSent(WelcomeMail, (mail) => mail.message.hasTo(user.email))
 ```
 
+Un mail se construit **une fois**. `build()` rend le message produit par le
+premier appel : inspecter un mail puis l'envoyer — ou l'envoyer deux fois — ne
+rejoue pas `prepare()` :
+
+```ts
+const mail = new WelcomeMail(user)
+await mail.buildWithContents()   // lire le html rendu
+await mail.send(mailer)          // destinataires et pièces jointes non doublés
+mail.built                       // true
+```
+
+Sans cette garde, `prepare()` repassait sur le même constructeur et ajoutait
+chaque destinataire et chaque pièce jointe une seconde fois — le mail partait
+deux fois à la même adresse, pièce jointe doublée.
+
 ## Inspecter un message
 
 `has*` répond, `assert*` lève et rapporte ce qu'il a vraiment reçu :
 
 ```ts
 message.hasTo('ada@acme.test')
+message.hasTo('ada@acme.test', 'Ada')      // les deux moitiés doivent coller
 message.assertSubject('Bienvenue')
 message.assertHtmlIncludes('Bonjour')
 message.toObject()
 ```
 
+`hasRecipient` prend le **champ d'abord**, comme AdonisJS, et `hasAnyRecipient`
+pose la question « n'importe quel champ » :
+
+```ts
+message.hasRecipient('to', 'ada@acme.test')     // un champ nommé
+message.hasRecipient('bcc', 'ada@acme.test')    // false — pas dans ce champ
+message.hasAnyRecipient('ada@acme.test')        // to / cc / bcc
+message.hasAnyRecipient()                       // y a-t-il un destinataire
+```
+
 Les adresses sont stockées sous leur forme d'affichage, donc `hasFrom('a@b.c')`
-retrouve l'adresse à l'intérieur de `"Nom" <a@b.c>`.
+retrouve l'adresse à l'intérieur de `"Nom" <a@b.c>`. Avec un nom d'affichage, la
+comparaison est exacte.
+
+## Événements de cycle de vie
+
+Chaque événement porte le triplet d'AdonisJS — le mailer qui l'a traité, le
+message, et les templates dont il a été rendu :
+
+```ts
+emitter.on('mail:sent', ({ mailerName, message, views, messageId }) => {
+  audit.log({ mailer: mailerName, subject: message.subject, template: views.html?.template })
+})
+```
+
+Événements : `mail:sending`, `mail:sent`, `mail:failed`, `mail:queueing`,
+`mail:queued`, plus `queued:mail:error` pour une livraison de fond qui a échoué.
+
+Les listes aplaties `to` / `cc` / `bcc` et `transportName` sont à nous et
+restent : un écouteur qui ne veut que les adresses n'a pas à aller les chercher
+dans le message, et `transportName` est la même chaîne que `mailerName` sous le
+nom que rover a utilisé en premier.
+
+Un message ressuscité depuis une charge utile de file rapporte un sac `views`
+vide plutôt qu'une supposition — les corps rendus ont été sérialisés, pas les
+templates qui les ont produits.
 
 ## Corps texte et enveloppe
 

@@ -170,10 +170,52 @@ tableau ; `@HasOneThrough` (alias `hasOneThrough`) renvoie une seule ligne. Les
 deux prennent la cible liée, la cible intermédiaire, et un objet d'options
 `{ firstKey, secondKey, localKey, secondLocalKey, onQuery }` :
 
-- `firstKey` — FK sur la table intermédiaire pointant vers le parent (défaut `${parent}_id`).
-- `secondKey` — FK sur la table liée pointant vers l'intermédiaire (défaut `${intermediate}_id`).
+- `firstKey` — FK sur la table intermédiaire pointant vers le parent (défaut `${parent}_${parentPk}`).
+- `secondKey` — FK sur la table liée pointant vers l'intermédiaire (défaut `${intermediate}_${intermediatePk}`).
 - `localKey` — colonne de jointure locale côté parent (défaut PK du parent).
 - `secondLocalKey` — colonne de jointure locale côté intermédiaire matchée par `secondKey` (défaut PK de l'intermédiaire).
+
+## Clés étrangères par défaut
+
+Toute relation dont tu ne nommes pas la clé étrangère la dérive de la stratégie
+de nommage du modèle et de sa **vraie clé primaire**, en snake_case — c'est le
+`relationForeignKey` / `relationPivotForeignKey` de Lucid :
+
+```ts
+@Entity('users')
+class User extends BaseEntity {
+  @PrimaryKey() declare id: number
+}
+// clé étrangère par défaut -> user_id
+
+@Entity('accounts')
+class Account extends BaseEntity {
+  @PrimaryKey() declare uuid: string
+}
+// clé étrangère par défaut -> account_uuid, et non account_id
+```
+
+Pour un `id` classique, c'est exactement ce que c'était déjà. Un modèle clé par
+autre chose recevait jusqu'ici une colonne qui n'existe pas.
+
+Pour changer la règle sur tout un modèle, `static namingStrategy` :
+
+```ts
+class Prefixed extends CamelCaseNamingStrategy {
+  override relationForeignKey(_kind, parentClass, parentPk) {
+    return `fk_${camelToSnake(parentClass)}_${parentPk}`
+  }
+}
+```
+
+::: warning Écart nommé
+Ici, `relationForeignKey` rend un nom de **colonne**. La méthode du même nom
+chez Lucid rend l'attribut du modèle en camelCase, qu'elle passe ensuite dans
+`columnName()` ; celle qui rend une colonne, en amont, c'est
+`relationPivotForeignKey`. Atlas résout les relations par colonne de bout en
+bout, donc une seule méthode répond pour les deux — une surcharge doit rendre un
+nom de colonne.
+:::
 
 ```ts
 import { BaseEntity, Entity, PrimaryKey, Column, HasManyThrough, HasOneThrough } from '@c9up/atlas'

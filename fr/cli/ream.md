@@ -11,7 +11,8 @@ npm install -g @c9up/ream-cli
 ## Gestion de projet
 
 ```bash
-ream new my-app           # Creer un nouveau projet (interactif)
+ream new my-app           # Créer un nouveau projet (interactif)
+ream new my-app --yes     # …en prenant les défauts, sans terminal
 ream dev                   # Demarrer le serveur de dev
 ream build                 # Compiler TypeScript
 ream start                 # Lancer en production
@@ -117,12 +118,60 @@ ream migrate:rollback       # Annuler le dernier batch de migrations
 ream migrate:status         # Afficher le statut de toutes les migrations (appliquees / en attente)
 ```
 
+## Créer un projet
+
+`ream new` demande un gabarit et une base de données. Chaque question se saute
+en passant son drapeau, et `--yes` prend le défaut pour ce qui reste — la
+commande tourne donc en CI, dans un conteneur ou depuis un script, là où il n'y
+a aucun terminal pour répondre :
+
+```bash
+ream new my-app                                # interactif
+ream new my-app --template api --db postgres   # aucune question
+ream new my-app --yes                          # api + postgres
+ream new my-app --template slim --yes          # slim + postgres
+```
+
+| Drapeau | Valeurs | Défaut |
+| --- | --- | --- |
+| `--template` | `api`, `web`, `microservice`, `slim` | `api` |
+| `--db` | `postgres`, `sqlite` | `postgres` |
+| `--yes`, `-y` | — | prend les défauts pour ce qui n'est pas passé |
+
+Une valeur inconnue est rejetée **avant** toute question : une faute de frappe
+se signale comme une erreur de ligne de commande, pas comme un terminal absent.
+
 ## Diagnostics
 
 ```bash
-ream doctor    # Verification de l'environnement
+ream doctor    # Vérification de l'environnement
 ream info      # Version + infos environnement
 ```
+
+`ream doctor` vérifie Node, pnpm, `.env`, `reamrc.ts`, `package.json`,
+`tsconfig.json` — et `@swc-node/register`.
+
+Ce dernier compte plus qu'il n'en a l'air. `ream dev`, `build`, `console`,
+`test`, `inspect`, `repl`, `migration:*` et `schedule:*` font tous passer ton
+TypeScript par ce chargeur, résolu depuis les `node_modules` de **ton** projet :
+le CLI est un binaire Rust et n'embarque aucune dépendance JavaScript. Sans lui
+ces commandes s'arrêtent alors que les générateurs continuent de marcher — un
+projet peut donc paraître sain pendant que les deux tiers du CLI sont
+inutilisables.
+
+`ream new` l'inscrit dans le `package.json` généré. Pour un projet créé avant,
+`doctor` nomme le correctif, et chaque commande concernée refuse en amont plutôt
+que de mourir sur un `ERR_MODULE_NOT_FOUND` de Node :
+
+```
+[XX] @swc-node/register: missing — `ream dev`, `build`, `console`, `test`,
+     `inspect`, `repl`, `migration:*` and `schedule:*` cannot run
+     Fix: Run `pnpm add -D @swc-node/register`
+```
+
+Déclaré dans `package.json` mais absent de `node_modules`, c'est une autre
+phrase — le manifeste est juste, c'est l'arbre qui est périmé, donc il dit
+`pnpm install` et non `pnpm add`.
 
 ## Construit en Rust
 

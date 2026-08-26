@@ -169,10 +169,51 @@ rows. `@HasManyThrough` (alias `hasManyThrough`) returns an array; `@HasOneThrou
 through target, and a `{ firstKey, secondKey, localKey, secondLocalKey, onQuery }`
 options object:
 
-- `firstKey` — FK on the intermediate table pointing at the parent (default `${parent}_id`).
-- `secondKey` — FK on the related table pointing at the intermediate (default `${intermediate}_id`).
+- `firstKey` — FK on the intermediate table pointing at the parent (default `${parent}_${parentPk}`).
+- `secondKey` — FK on the related table pointing at the intermediate (default `${intermediate}_${intermediatePk}`).
 - `localKey` — parent-side local join column (default parent PK).
 - `secondLocalKey` — intermediate-side local join column matched by `secondKey` (default intermediate PK).
+
+## Default foreign keys
+
+Every relation whose foreign key you do not name derives it from the model's
+naming strategy and its **real primary key**, snake-cased — Lucid's
+`relationForeignKey` / `relationPivotForeignKey`:
+
+```ts
+@Entity('users')
+class User extends BaseEntity {
+  @PrimaryKey() declare id: number
+}
+// default FK -> user_id
+
+@Entity('accounts')
+class Account extends BaseEntity {
+  @PrimaryKey() declare uuid: string
+}
+// default FK -> account_uuid, not account_id
+```
+
+For the usual `id` this is exactly what it always was. A model keyed by
+anything else used to get a column that does not exist.
+
+Override the rule for a whole model with `static namingStrategy`:
+
+```ts
+class Prefixed extends CamelCaseNamingStrategy {
+  override relationForeignKey(_kind, parentClass, parentPk) {
+    return `fk_${camelToSnake(parentClass)}_${parentPk}`
+  }
+}
+```
+
+::: warning Named deviation
+`relationForeignKey` returns a **column** name here. Lucid's method of the same
+name returns the model attribute in camelCase and runs it through
+`columnName()`; the one that returns a column upstream is
+`relationPivotForeignKey`. Atlas resolves relations by column throughout, so one
+method answers for both — an override must return a column name.
+:::
 
 ```ts
 import { BaseEntity, Entity, PrimaryKey, Column, HasManyThrough, HasOneThrough } from '@c9up/atlas'

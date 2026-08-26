@@ -42,12 +42,37 @@ faire transiter `ctx` à travers chaque fonction (parité AdonisJS).
 ```ts
 import { HttpContext } from '@c9up/ream'
 
-const ctx = HttpContext.get()        // contexte courant, ou undefined hors requête
+const ctx = HttpContext.get()        // contexte courant, ou null hors requête
 const ctx2 = HttpContext.getOrFail() // lève si appelé hors d'une requête
 ```
 
-`get()` retourne `undefined` hors d'une requête ; `getOrFail()` lève — à utiliser
-quand un contexte de requête est requis.
+`get()` retourne `null` hors d'une requête — le contrat amont est
+`HttpContext | null`, donc un `=== null` migré continue de marcher.
+`getOrFail()` lève à la place ; à utiliser quand un contexte de requête est
+requis.
+
+`runOutsideContext()` exécute une callback avec le contexte ambiant effacé, pour
+qu'un travail de fond n'hérite pas du contexte de la requête et ne le retienne
+pas.
+
+### Couper le suivi ambiant
+
+`usingAsyncLocalStorage` dit si le suivi est actif, et `useAsyncLocalStorage()`
+le bascule :
+
+```ts
+HttpContext.usingAsyncLocalStorage      // true
+HttpContext.useAsyncLocalStorage(false) // get() répond désormais toujours null
+```
+
+::: tip Écart nommé
+Le suivi est **actif par défaut**, là où AdonisJS le rend opt-in via
+`useAsyncLocalStorage` dans `config/app.ts`. Nos propres middlewares et
+accesseurs de services lisent le contexte ambiant : le couper par défaut
+casserait le câblage du framework lui-même, pas seulement celui d'une app.
+L'interrupteur existe pour un benchmark ou un process worker qui veut récupérer
+le coût.
+:::
 
 ### Session de requête — `ctx.session`
 
@@ -83,7 +108,37 @@ appel ne fait rien), `session.commit()` la persiste. `commit()` écrit une
 session modifiée, touche une session existante non modifiée pour faire glisser
 son expiration, n'écrit rien pour une session neuve et intacte, et — si le
 handler a appelé `regenerate()` — écrit sous le nouvel identifiant avant de
-supprimer l'ancien, pour qu'un crash entre les deux laisse une session valide
+supprimer l'ancien, pour qu'un crash entre les deux laisse une session valide plutôt qu'aucune.
+
+### Écrire un stockage de session
+
+Un stockage implémente `read` / `write` / `destroy` / `touch`. `read()` répond
+`null` quand il ne détient rien pour cet identifiant, et l'enregistrement quand
+il détient quelque chose — c'est le `SessionStoreContract` d'AdonisJS :
+
+```typescript
+class MyStore implements SessionDriver {
+  async read(id: string): Promise<Record<string, unknown> | null> {
+    const row = await lookup(id)
+    return row ?? null      // PAS {}
+  }
+  async write(id: string, data: Record<string, unknown>, ttl: number) { /* … */ }
+  async destroy(id: string) { /* … */ }
+  async touch(id: string, ttl: number) { /* … */ }
+}
+```
+
+::: warning Cassant pour les stockages maison
+`read()` rendait un enregistrement nu : un stockage devait donc répondre `{}`
+aussi bien pour « aucune session ici » que pour « une session qui se trouve être
+vide ». La différence porte : un cookie peut survivre à la ligne qu'il désigne,
+et cette session paraissait vivante — `commit()` allait alors toucher une ligne
+absente. Renvoie `null` pour une entrée absente, expirée, détruite ou illisible.
+:::
+
+Le stockage fait autorité sur l'existence : `initiate()` marque donc une session
+**fraîche** quand le stockage n'a rien pour son identifiant, quel que soit l'âge
+du cookie.
 plutôt qu'aucune.
 
 ### Associer une session à un utilisateur

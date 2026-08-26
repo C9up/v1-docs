@@ -169,6 +169,65 @@ class User extends BaseModel {
 await User.create({ email: 'a@b.co', role: 'admin' }) // lève MassAssignmentError
 ```
 
+Le filtre s'applique à la clé telle que fournie **et** à la propriété qu'elle
+résout, pour qu'un nom de colonne ne passe pas devant une garde écrite contre
+l'attribut :
+
+```typescript
+await User.create({ role: 'admin' })   // MassAssignmentError
+await User.create({ is_admin: true })  // MassAssignmentError — résout vers isAdmin
+```
+
+### `fill()` / `merge()` et `$extras`
+
+Une clé de charge utile est résolue dans l'ordre de Lucid : propriété déclarée,
+puis nom de colonne DB correspondant, puis relation (ignorée — celles-là se
+posent par leur propre API), puis état interne du framework (ignoré). Ce qui
+reste est un extra :
+
+```typescript
+// Le nom de colonne résout vers sa propriété — une charge utile venant
+// directement d'une API ou d'une row brute est clé par `created_at`.
+user.merge({ created_at: '2026-01-01' })   // pose user.createdAt
+
+// Une clé inconnue lève par défaut…
+user.merge({ comments_count: 3 })          // E_EXTRA_PROPERTIES
+
+// …et est CONSERVÉE dans $extras quand on l'autorise, au lieu d'être jetée.
+user.merge({ comments_count: 3 }, true)
+user.$extras.comments_count                // 3
+```
+
+`$extras` n'est jamais une colonne, il ne peut donc jamais atteindre un INSERT.
+`create()` prend le même `{ allowExtraProperties: true }` et se comporte pareil.
+
+### Sérialiser `$extras`
+
+À activer par modèle. `true` niche le sac sous `meta`, comme Lucid — étalé au
+premier niveau, un agrégat pourrait entrer en collision avec une vraie colonne
+du même nom :
+
+```typescript
+class User extends BaseModel {
+  serializeExtras = true
+}
+
+user.toJSON()   // { id: 1, email: 'a@b.co', meta: { posts_count: 5 } }
+```
+
+Une fonction choisit la forme à la place, et reçoit le sac :
+
+```typescript
+class User extends BaseModel {
+  static serializeExtras = (extras: Record<string, unknown>) => ({
+    total: extras.posts_count,
+  })
+}
+```
+
+Lucid lit `serializeExtras` sur l'instance ; la forme statique est celle qu'atlas
+a publiée, donc les deux marchent et l'instance gagne.
+
 ### Visibilité de sérialisation
 
 Cacher une colonne définitivement à sa déclaration, et rogner une réponse au

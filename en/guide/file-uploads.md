@@ -18,6 +18,49 @@ router.use([
 ])
 ```
 
+### Configuring it
+
+```typescript
+const bodyParser = new BodyParserMiddleware({
+  allowedMethods: ['POST', 'PUT', 'PATCH', 'DELETE'],
+  json:      { limit: '1mb' },
+  form:      { limit: '1mb' },
+  raw:       { limit: '1mb' },
+  multipart: { limit: '20mb', maxFields: 1000, maxFiles: 1000 },
+})
+```
+
+`allowedMethods` decides which requests get a body parsed at all — AdonisJS
+defaults to the four above, so a GET carrying a JSON content-type is left
+untouched. A request whose `content-length` says there is no body is skipped too.
+
+Every limit **throws** `E_REQUEST_ENTITY_TOO_LARGE` (413) rather than writing its
+own response, so your exception handler negotiates the reply: an HTML app gets an
+error page instead of a JSON envelope it never asked for, and can override the
+rendering.
+
+A parser is turned off by giving it no types — there is no `enabled` flag, and
+passing one fails loudly rather than quietly re-enabling a parser you switched
+off:
+
+```typescript
+new BodyParserMiddleware({ raw: { types: [] } })   // no raw parsing
+```
+
+::: tip maxFiles is ours
+AdonisJS bounds a multipart body by total size and field count only, so ten
+thousand one-byte files pass. `maxFiles` is a denial-of-service bound at the same
+scale as `maxFields`, so it never rejects an upload AdonisJS would have accepted.
+:::
+
+::: warning No `multipart.tmpDir`
+Uploaded files are held in memory and never written to a temporary directory —
+the Rust multipart parser hands the body over whole. The option was accepted and
+read by nothing, so an app pointing it at a volume was silently getting nothing;
+it is now refused at construction. Choose the destination when you store the
+file: `await file.moveToDisk(directory)`.
+:::
+
 ## Reading files
 
 Use `request.file(field, options?)` for a single upload and `request.files(field, options?)` for multiple uploads under the same field.

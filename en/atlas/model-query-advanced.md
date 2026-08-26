@@ -207,6 +207,29 @@ const rows = await User.query().where('active', true).pojo()
 // rows: Array<{ id: number; full_name: string; ... }>
 ```
 
+`pojo()` is chainable into `first()`, which is how Lucid's own code uses it:
+
+```ts
+const row = await User.query().where('email', email).pojo().first()
+// row: { id: number; full_name: string; ... } | null
+```
+
+::: tip Named deviation
+Lucid's `pojo()` is a flag on the builder, so the whole builder surface stays
+available after it. `ModelQuery<T>` is constrained to `T extends BaseEntity` and
+cannot be re-parametrised to a plain record, so ours is a terminal view: it is
+awaitable for the rows and chainable into `first()`.
+:::
+
+For a single column, `pluck()` skips hydration the same way and returns the
+values rather than the rows. It rejects object and relation columns, which
+Knex's does not:
+
+```ts
+const emails = await User.query().where('active', true).pluck<string>('email')
+// ['ada@acme.test', 'grace@acme.test']
+```
+
 A partial `select()` of plain columns **auto-includes the primary key**, so the
 hydrated entity is still saveable (a later `save()` UPDATEs rather than INSERTs). For
 aggregate/alias projections (`select('COUNT(*) as n')`) the PK can't be inferred —

@@ -214,6 +214,30 @@ const rows = await User.query().where('active', true).pojo()
 // rows : Array<{ id: number; full_name: string; ... }>
 ```
 
+`pojo()` s'enchaîne avec `first()`, ce que fait le code de Lucid lui-même :
+
+```ts
+const row = await User.query().where('email', email).pojo().first()
+// row : { id: number; full_name: string; ... } | null
+```
+
+::: tip Écart nommé
+Chez Lucid, `pojo()` est un drapeau posé sur le constructeur de requête, donc
+toute sa surface reste disponible ensuite. `ModelQuery<T>` est contraint à
+`T extends BaseEntity` et ne peut pas être re-paramétré vers un enregistrement
+brut : le nôtre est donc une vue terminale, attendable pour les lignes et
+enchaînable avec `first()`.
+:::
+
+Pour une seule colonne, `pluck()` saute l'hydratation de la même façon et rend
+les valeurs plutôt que les lignes. Il refuse les colonnes objet et relation, ce
+que celui de Knex ne fait pas :
+
+```ts
+const emails = await User.query().where('active', true).pluck<string>('email')
+// ['ada@acme.test', 'grace@acme.test']
+```
+
 Un `select()` partiel de colonnes simples **inclut automatiquement la clé
 primaire**, pour que l'entité hydratée reste sauvegardable (un `save()` ultérieur
 fait un UPDATE, pas un INSERT). Pour les projections agrégat/alias

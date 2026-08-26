@@ -72,6 +72,35 @@ relay.hub('/hubs/chat', new ChatHub())
 `onConnect` / `onDisconnect` are lifecycle hooks and are not invocable.
 Mounting the same path twice throws rather than replacing the first hub.
 
+### Invocation arguments
+
+A hub method receives **every** argument the client sent:
+
+```ts
+class MathHub extends Hub {
+  async onSum(ctx: HubContext, a: number, b: number, c: number) {
+    ctx.send('result', a + b + c)
+  }
+}
+
+// client: connection.invoke('Sum', 1, 2, 3)
+```
+
+A method declaring one parameter is unaffected — the extras are simply ignored,
+as in any JavaScript call. Only the first argument used to be passed, and the
+rest went nowhere without anything reporting it.
+
+### What is not supported
+
+Streaming is not implemented. A `StreamInvocation` gets an **error Completion**
+naming the reason, rather than being dropped: the invocation id is the handle
+the client's observable waits on, and the protocol promises a Completion, so a
+dropped one leaves the observable pending for the lifetime of the connection.
+
+`StreamItem` and `CancelInvocation` are ignored, which is the correct response
+for both — an item belongs to a stream whose opening invocation was already
+refused, and a cancel targets a stream that was never started.
+
 ### The wire
 
 The transport is **Server-Sent Events** — what relay already serves, what
