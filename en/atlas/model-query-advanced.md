@@ -196,6 +196,21 @@ repo.query().forUpdate().noWait().all()      // error instead of waiting
 warning). Locks are silently dropped on SQLite. Only use row locks inside a
 transaction boundary.
 
+### A builder is a whole promise
+
+`await query` runs it, and so do the other two halves of the promise protocol:
+
+```ts
+const rows = await User.query().where('active', true)
+
+await User.query().where('active', true).finally(() => span.end())
+const safe = await User.query().whereRaw(untrusted).catch(() => [])
+```
+
+`catch` and `finally` used to throw "not a function" — a value that answers to
+`then` and nothing else surprises anyone who treats it as the promise it looks
+like.
+
 ## Plain-object reads with `pojo()`
 
 Skip model hydration entirely — no `BaseEntity` instances, no dirty-tracking, no
@@ -410,6 +425,26 @@ Each `on*` value is parameterised: `onIn` / `onNotIn` (bound `IN` list), `onNull
 `onNotNull`, `onBetween` / `onNotBetween` (inclusive), and `onExists` / `onNotExists`
 (a builder or a callback). Identifiers are dialect-quoted; the operator is
 allowlisted.
+
+## The builder is a whole promise
+
+Awaiting a builder runs it — and so do the other two halves of the promise
+protocol:
+
+```ts
+const users = await User.query().where('active', true)
+
+await User.query().where('active', true).finally(() => span.end())
+
+const rows = await User.query().whereRaw(suspect).catch(() => [])
+```
+
+`await query` worked while `query.catch(fn)` and `query.finally(fn)` threw "not
+a function". A value that answers to `then` and nothing else surprises anyone
+treating it as the promise it looks like, and Lucid's builder carries all three.
+
+`exec()` memoizes, so awaiting the same builder twice shares one round-trip.
+Call `clone()` for a fresh one.
 
 ## Lucid-parity helpers
 

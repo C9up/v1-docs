@@ -175,10 +175,21 @@ les membres d'un set individuellement.
 
 ### État de la session
 
-`session.fresh` (créée pendant cette requête), `session.isEmpty` (rien de
-stocké, données flash comprises), `session.hasBeenModified` (l'écriture AdonisJS
-de `isDirty()`), et `session.readonly` — toujours `false`, ream n'ayant pas de
-mode session en lecture seule.
+```ts
+ctx.session.fresh                  // aucune ligne stockée à la lecture
+ctx.session.isEmpty                // rien de stocké, données flash comprises
+ctx.session.hasBeenModified        // l'écriture AdonisJS de isDirty()
+ctx.session.hasRegeneratedSession  // regenerate() a tourné sur cette requête
+ctx.session.readonly               // toujours false — pas de mode lecture seule
+ctx.session.flashKey               // où vit le sac flash dans la charge utile
+ctx.session.responseFlashMessages  // ce qui est flashé pour la PROCHAINE requête
+ctx.session.config                 // { fresh, ttl }
+```
+
+`hasRegeneratedSession` compte quand quelque chose en dehors de la session
+détient l'identifiant — un cookie déjà écrit, un stockage externe qui s'y
+indexe. C'était suivi en interne et jamais exposé : seule la session pouvait en
+tenir compte.
 
 ### Drivers de session
 
@@ -337,9 +348,33 @@ ctx.response.cookie('prefs', { theme: 'dark' }, { maxAge: '2h' })
 - **`attachment`** échappe le nom de fichier et ajoute la forme étendue RFC 6266,
   pour qu'un nom non-ASCII survive à un en-tête Latin-1 au lieu d'arriver illisible.
 
-Deux déviations nommées sur `stream()` : la réponse traverse une frontière NAPI,
-donc le flux est **consommé** plutôt que tuyauté, et aucun `ServerResponse` Node
-n'atteint un rappel `onFinish`. Pour du vrai streaming, utilisez `response.sse()`.
+`stream()` pousse les morceaux sur la socket à mesure qu'ils sont lus — voir
+[l'envoi de fichiers](/fr/guide/file-uploads#servir-des-fichiers) pour le
+détail, y compris les cas où un corps est bufferisé et ce qui le borne. Une
+déviation nommée subsiste : la réponse traverse une frontière NAPI, donc aucun
+`ServerResponse` Node n'atteint un rappel `onFinish`.
+
+### Demander à la réponse dans quel état elle est
+
+```ts
+ctx.response.isPending      // rien d'envoyé — un middleware peut encore écrire
+ctx.response.finished       // la réponse est partie
+ctx.response.headersSent    // vrai exactement quand finished, voir ci-dessous
+ctx.response.hasContent     // un corps a été posé
+ctx.response.hasStream      // le corps est un flux encore en cours
+ctx.response.hasLazyBody    // l'un ou l'autre
+ctx.response.setRequestId() // renvoie le x-request-id de l'appelant
+```
+
+`headersSent` vaut ici la même chose que `finished` plutôt que de suivre un
+drapeau séparé : en-têtes et corps traversent la frontière NAPI ensemble, en une
+étape, donc ils partent ensemble.
+
+`setRequestId()` renvoie le `x-request-id` envoyé par l'appelant. Ream *lit*
+déjà cet en-tête dans `ctx.id` — en validant sa forme et en en générant un s'il
+manque — mais ne le renvoyait jamais : l'appelant ne pouvait pas relier une
+réponse à l'identifiant qu'il avait émis. Rien n'est renvoyé si le client n'en a
+pas envoyé.
 
 ## Chiffrement
 
@@ -356,6 +391,34 @@ aussi pour `sign()` / `unsign()`.
 
 L'APP_KEY est validée à la construction : absente elle lève `E_MISSING_APP_KEY`,
 plus courte que 16 caractères `E_INSECURE_APP_KEY`.
+
+N'importe quelle valeur JSON peut être scellée, pas seulement une chaîne :
+
+```ts
+const signed = encryption.sign({ id: 1, roles: ['admin'] })
+encryption.unsign<{ id: number; roles: string[] }>(signed)
+```
+
+Un `0`, `false`, `""` ou `null` signé est une vraie valeur et revient comme
+telle ; un document JSON signé qui n'est pas des nôtres reste refusé — élargir
+la charge utile n'a pas élargi ce qui compte comme enveloppe valide.
+
+### `verifier`, `child` et `base64`
+
+```ts
+encryption.verifier.sign(payload, expiresIn, purpose)   // signer sans chiffrer
+encryption.verifier.unsign<T>(value, purpose)
+encryption.algorithm                                    // 'aes-256-gcm'
+encryption.base64.encode(value)                         // url-safe, sans padding
+encryption.base64.decode(value)                         // null si ça ne fait pas l'aller-retour
+
+const previous = encryption.child(ANCIENNE_APP_KEY)     // rotation de clés
+previous.unsign(cookieEncoreEnCirculation)
+```
+
+`child()` est ce sur quoi repose la rotation de clés : on garde le signeur de
+l'ancien secret pour lire ce qui est déjà dans les navigateurs pendant que le
+nouveau écrit.
 
 > **Déviation nommée.** Ream chiffre en **aes-256-gcm**, où l'authentification
 > fait partie du chiffre. AdonisJS utilise `aes-256-cbc` plus un HMAC assemblé à

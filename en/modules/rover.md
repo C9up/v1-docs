@@ -322,6 +322,44 @@ A message revived from a queue payload reports an empty `views` bag rather than
 a guess — the rendered bodies were serialised, the templates that produced them
 were not.
 
+## The watch body and prepared headers
+
+```ts
+message.watch('<p>on the wrist</p>')            // Apple Watch body
+message.watchView('emails/wrist', { user })     // …from a template
+message.assertWatchIncludes(/wrist/i)
+
+message.preparedHeader('X-Signature', 'a=b; c=d')
+```
+
+::: warning Named deviation — and an upstream bug
+`watch()` writes nodemailer's `watchHtml`. AdonisJS writes a bare `watch` field,
+which nodemailer's mail composer never reads (`lib/mail-composer/index.js` only
+looks at `watchHtml`), so **upstream's watch body never reaches the wire**.
+`watchHtml()` is the same method under the field's own name.
+:::
+
+`preparedHeader` marks a value nodemailer must pass through untouched. Normal
+headers get folded and MIME-encoded; a value that is already exactly what must
+go on the wire — a signature, a pre-encoded id — is corrupted by that. The flag
+only means something where MIME encoding happens: the SES transport emits such a
+header verbatim, and the provider REST transports, which encode nothing, flatten
+it to its string.
+
+## Handing the mailer a queue later
+
+```ts
+mail.setMessenger(queue)      // chainable, returns the mailer
+
+await mail.sendCompiled(builtMessage)          // already composed
+await mail.sendLaterCompiled(builtMessage)     // …and queued
+```
+
+The constructor takes a queue too, but a queue is often resolved later than the
+mailer — a provider booting after this one, a test swapping it. The `*Compiled`
+pair sends a message that is already built, which is what a queue worker holds:
+composed and serialised elsewhere, nothing left to render.
+
 ## Text bodies and the envelope
 
 ```ts

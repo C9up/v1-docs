@@ -164,10 +164,20 @@ session key has expired, since Redis cannot expire set members individually.
 
 ### Session state
 
-`session.fresh` (created during this request), `session.isEmpty` (nothing
-stored, flash data included), `session.hasBeenModified` (the AdonisJS spelling
-of `isDirty()`), and `session.readonly` — always `false`, since ream has no
-read-only session mode.
+```ts
+ctx.session.fresh                  // no stored row when it was read
+ctx.session.isEmpty                // nothing stored, flash data included
+ctx.session.hasBeenModified        // the AdonisJS spelling of isDirty()
+ctx.session.hasRegeneratedSession  // regenerate() ran this request
+ctx.session.readonly               // always false — ream has no read-only mode
+ctx.session.flashKey               // where the flash bag lives inside the payload
+ctx.session.responseFlashMessages  // what has been flashed for the NEXT request
+ctx.session.config                 // { fresh, ttl }
+```
+
+`hasRegeneratedSession` matters when something outside the session holds the id
+— a cookie already written, an external store keyed by it. It was tracked
+internally and never exposed, so only the session itself could act on it.
 
 ### Session drivers
 
@@ -323,9 +333,32 @@ ctx.response.cookie('prefs', { theme: 'dark' }, { maxAge: '2h' })
 - **`attachment`** escapes the filename and adds the RFC 6266 extended form, so a
   non-ASCII name survives a Latin-1 header instead of arriving mangled.
 
-Two named deviations on `stream()`: the response crosses a NAPI boundary, so the
-stream is **consumed** rather than piped, and no Node `ServerResponse` reaches an
-`onFinish` callback. For real streaming, use `response.sse()`.
+`stream()` pushes chunks to the socket as they are read — see
+[file uploads](/en/guide/file-uploads#sending-files) for the whole story,
+including when a body is buffered instead and what bounds it. One named
+deviation remains: the response crosses a NAPI boundary, so no Node
+`ServerResponse` reaches an `onFinish` callback.
+
+### Asking the response what state it is in
+
+```ts
+ctx.response.isPending      // nothing sent yet — a middleware can still write
+ctx.response.finished       // the answer has gone out
+ctx.response.headersSent    // true exactly when finished, see below
+ctx.response.hasContent     // a body has been set
+ctx.response.hasStream      // the body is a stream still draining
+ctx.response.hasLazyBody    // either of the two
+ctx.response.setRequestId() // echo the caller's x-request-id back
+```
+
+`headersSent` equals `finished` here rather than tracking a separate flag:
+headers and body cross the NAPI boundary together in one step, so they leave
+together.
+
+`setRequestId()` echoes the `x-request-id` the caller sent. Ream already *reads*
+that header into `ctx.id` — validating its shape and generating one when it is
+missing — but never sent it back, so a caller could not tie a response to the id
+it issued. Nothing is echoed when the client sent none.
 
 ## Encryption
 
@@ -341,6 +374,33 @@ honoured. `expiresIn` is in milliseconds. Both work on `sign()` / `unsign()` too
 
 The APP_KEY is validated at construction: absent throws `E_MISSING_APP_KEY`,
 shorter than 16 characters throws `E_INSECURE_APP_KEY`.
+
+Any JSON value can be sealed, not only a string:
+
+```ts
+const signed = encryption.sign({ id: 1, roles: ['admin'] })
+encryption.unsign<{ id: number; roles: string[] }>(signed)
+```
+
+A signed `0`, `false`, `""` or `null` is a real value and comes back as one; a
+signed JSON document that is not one of ours is still refused, so widening the
+payload did not widen what counts as a valid envelope.
+
+### `verifier`, `child` and `base64`
+
+```ts
+encryption.verifier.sign(payload, expiresIn, purpose)   // sign without encrypting
+encryption.verifier.unsign<T>(value, purpose)
+encryption.algorithm                                    // 'aes-256-gcm'
+encryption.base64.encode(value)                         // url-safe, unpadded
+encryption.base64.decode(value)                         // null when it does not round-trip
+
+const previous = encryption.child(OLD_APP_KEY)          // key rotation
+previous.unsign(cookieStillInTheWild)
+```
+
+`child()` is what key rotation is built on: keep the old secret's signer to read
+what is already in users' browsers while the new one writes.
 
 > **Named deviation.** Ream encrypts with **aes-256-gcm**, where authentication
 > is part of the cipher. AdonisJS uses `aes-256-cbc` plus a hand-assembled HMAC —

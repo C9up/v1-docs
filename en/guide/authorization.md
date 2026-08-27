@@ -144,6 +144,28 @@ through ownership; `bob` can `publish` via his direct grant; `carol` can
 `archive` an acme post but not a globex one. No token needs to carry any of
 these — they all resolve from the rights store.
 
+## Shaping a denial
+
+Every ability and policy may return a bare boolean. `Bouncer.responseBuilder`
+decides what `false` becomes, once, for the whole app:
+
+```ts
+import { AuthorizationResponse, Bouncer } from '@c9up/warden'
+
+Bouncer.responseBuilder = (value) =>
+  value === false
+    ? AuthorizationResponse.deny('Nothing here', 404)
+    : AuthorizationResponse.from(value)
+```
+
+Without it every `return false` is a bare 403 with no message. It reaches
+abilities and policies alike, and an explicit `AuthorizationResponse` still
+passes through untouched.
+
+`authorizer.setEmitter(emitter)` hands an authorizer an event sink after
+construction, which one built directly — a test, a console command — had no way
+to receive.
+
 ## Auditing decisions
 
 Give the Bouncer an emitter and every ability and policy check announces itself

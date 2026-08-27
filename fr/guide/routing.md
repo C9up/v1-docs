@@ -195,6 +195,42 @@ const url = router.urlFor('users.show', { id: '42' })
 
 Les routes de ressource sont nommées automatiquement : `posts.index`, `posts.store`, `posts.show`, `posts.update`, `posts.destroy`.
 
+### Construire une URL morceau par morceau
+
+`urlFor` prend tout d'un coup. Quand les morceaux arrivent séparément — les
+params ici, une query string là, un préfixe venu de la config —
+`router.builder()` est la forme fluide :
+
+```typescript
+router.builder().params({ id: '42' }).qs({ tab: 'posts' }).make('users.show')
+// → /users/42?tab=posts
+
+router.builderForDomain('https://acme.test').params({ id: '42' }).make('users.show')
+// → https://acme.test/users/42
+
+router.builder().prefixUrl('https://acme.test').makeSigned('invite', { expiresIn: '1h' })
+// signée, avec la query string intégrée à la signature
+
+router.builder().disableRouteLookup().make('/un/chemin/litteral')
+```
+
+Il s'appuie sur `urlFor` et `makeSignedUrl` : un param manquant échoue de la
+même façon quelle que soit l'écriture choisie.
+
+### Inspecter la table de routes
+
+```typescript
+router.toJSON()        // { root: [...routes], 'blog.example.com': [...] }
+router.usingDomains    // une route est-elle scopée à un domaine ?
+router.parsePattern('/posts/:id?')   // [{ name: 'id', optional: true }]
+router.commit()        // construire l'index maintenant, pas à la 1re requête
+router.commited        // est-il construit ?
+```
+
+`toJSON()` groupe par domaine servi, avec `root` pour celles qui répondent
+partout — ce que lit une liste de routes, un générateur OpenAPI ou un écran de
+debug.
+
 ### URL côté navigateur
 
 Pour construire les mêmes URL côté client, sérialisez la map des routes nommées avec `router.namedManifest()` (seules les routes **nommées** sont exposées — les autres restent privées au serveur) et passez-la au rendu de page ; le `urlFor` isomorphe d'Aurora résout dessus. Voir [Aurora → constructeur d'URL](../modules/aurora.md#constructeur-durl--urlfor).

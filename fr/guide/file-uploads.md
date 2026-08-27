@@ -153,38 +153,56 @@ const res = await client
 
 `.file(field, Buffer | string, { filename?, contentType? })` attache la partie fichier ; passez un `Buffer` pour les fixtures binaires ou une `string` pour du texte.
 
-## Servir des fichiers, et le plafond de taille
+## Servir des fichiers
 
-`response.download(chemin)` et `response.attachment(chemin, nom)` lisent le
-fichier et l'envoient comme corps. La lecture est asynchrone : le
-téléchargement d'un client ne bloque plus toutes les autres requêtes.
+`response.download(chemin)` et `response.attachment(chemin, nom)` envoient un
+fichier, `response.stream(readable)` envoie tout ce qui se streame.
 
-Un corps de réponse est **gardé entier en mémoire** : il traverse la frontière
-NAPI en une seule sérialisation, et un corps binaire est encodé en base64 au
-passage — il coûte donc environ **2,3× sa taille** en mémoire transitoire : le
-buffer, la chaîne encodée, et le décodage côté Rust.
-
-Un corps au-dessus du plafond lève donc `E_RESPONSE_TOO_LARGE` au lieu de
-grossir jusqu'à ce que le process meure :
+Les morceaux partent sur la socket **à mesure qu'ils sont lus** — rien de plus
+gros qu'un morceau n'est jamais retenu, la taille d'un fichier cesse donc d'être
+le plafond mémoire du process :
 
 ```typescript
-// config : 100 Mo par défaut — la même limite que le Rust applique à un corps
-// entrant, pour que les deux sens s'expliquent pareil.
+router.get('/exports/:id', async ({ response, params }) => {
+  response.header('content-type', 'text/csv')
+  await response.stream(createReadStream(exportPath(params.id)))
+})
+
+router.get('/invoices/:id', ({ response, params }) => {
+  response.attachment(invoicePath(params.id), 'facture.pdf')
+})
+```
+
+Un fichier absent répond toujours **404** : `download()` fait un `stat` avant
+qu'un seul en-tête ne parte, car une fois le flux démarré il n'y a plus de
+statut à changer. Demander un ETag (`download(chemin, true)`) bufferise à la
+place — un hachage exige le fichier entier — donc à éviter sur du volumineux.
+
+Si le client se déconnecte, la lecture de la source s'arrête : on ne pompe pas
+un fichier entier dans une socket que plus personne ne lit.
+
+### Le plafond du corps bufferisé
+
+Certains corps ne sont pas streamés : `response.send(buffer)`, une charge JSON,
+un téléchargement avec ETag, ou un `stream()` sur un hôte sans backend de
+streaming (un test unitaire, un serveur simulé). Ceux-là sont gardés entiers en
+mémoire et encodés en base64 au passage de la frontière NAPI — environ **2,3×
+leur taille** en mémoire transitoire.
+
+Au-delà du plafond ils lèvent `E_RESPONSE_TOO_LARGE` au lieu de grossir jusqu'à
+ce que le process meure :
+
+```typescript
+// 100 Mo par défaut — la même limite que Rust applique à un corps ENTRANT.
 { maxResponseBytes: 100 * 1024 * 1024 }
 ```
 
-Pour tout ce qui est vraiment volumineux, distribue une **URL signée** via
-`@c9up/archive` et laisse le client récupérer le fichier depuis le stockage.
-Les octets ne passent alors jamais par le serveur — c'est plus rapide et borné
-quelle que soit la taille.
+Un corps **streamé** ne s'assemble jamais : le plafond ne le concerne pas.
 
-::: warning Les réponses ne sont pas encore chunkées
-`response.stream()` draine le flux en mémoire avant d'envoyer ; il n'écrit pas
-les morceaux sur la socket à mesure qu'ils arrivent. Le Rust sait streamer —
-c'est ce qui sert le SSE — mais ce chemin prend des morceaux texte et les
-abandonne sous contre-pression : correct pour des événements, faux pour un
-fichier. Y faire passer du binaire demande une API de morceaux en octets et un
-mode de contre-pression qui attend au lieu de jeter.
+::: tip Ou court-circuiter le serveur
+Pour des fichiers qu'une app ne fait que stocker puis resservir, une **URL
+signée** via `@c9up/archive` vaut mieux que les deux : le client va les chercher
+directement dans le stockage, et les octets ne passent jamais par le serveur.
 :::
 
 ## Étapes suivantes

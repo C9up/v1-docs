@@ -202,6 +202,21 @@ repo.query().forUpdate().noWait().all()      // erreur au lieu d'attendre
 avertissement). Les verrous sont silencieusement ignorés sur SQLite. Utiliser les
 verrous de ligne uniquement dans une transaction.
 
+### Un constructeur de requête est une promesse entière
+
+`await query` l'exécute, et les deux autres moitiés du protocole de promesse
+aussi :
+
+```ts
+const rows = await User.query().where('active', true)
+
+await User.query().where('active', true).finally(() => span.end())
+const safe = await User.query().whereRaw(untrusted).catch(() => [])
+```
+
+`catch` et `finally` levaient « not a function » — un objet qui répond à `then`
+et à rien d'autre piège quiconque le traite comme la promesse dont il a l'air.
+
 ## Lectures en objets bruts avec `pojo()`
 
 Court-circuite entièrement l'hydratation des modèles — aucune instance
@@ -423,6 +438,27 @@ Chaque valeur `on*` est paramétrée : `onIn` / `onNotIn` (liste `IN` bindée),
 `onNull` / `onNotNull`, `onBetween` / `onNotBetween` (inclusif), et `onExists` /
 `onNotExists` (un builder ou un callback). Les identifiants sont quotés selon le
 dialecte ; l'opérateur est allowlisté.
+
+## Le constructeur est une promesse entière
+
+Attendre un constructeur l'exécute — et les deux autres moitiés du protocole de
+promesse aussi :
+
+```ts
+const users = await User.query().where('active', true)
+
+await User.query().where('active', true).finally(() => span.end())
+
+const rows = await User.query().whereRaw(suspect).catch(() => [])
+```
+
+`await query` marchait pendant que `query.catch(fn)` et `query.finally(fn)`
+levaient « not a function ». Un objet qui répond à `then` et à rien d'autre
+piège quiconque le traite comme la promesse dont il a l'air, et le constructeur
+de Lucid porte bien les trois.
+
+`exec()` mémoïse : attendre deux fois le même constructeur partage un seul
+aller-retour. `clone()` en donne un neuf.
 
 ## Helpers de parité Lucid
 

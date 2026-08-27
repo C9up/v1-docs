@@ -804,6 +804,30 @@ What makes this safe, and why each part matters:
 needs a shared store implementing `RememberMeTokenDriver` (`create` / `find` /
 `update` / `delete` / `deleteAllForUser`).
 
+### Knowing HOW the user got here
+
+```ts
+guard.viaRemember           // revived from the cookie, not from a password
+guard.attemptedViaRemember  // a token was tried, whether or not it worked
+guard.isLoggedOut           // logout() ran on this guard
+guard.sessionKeyName        // 'auth_user_id'
+guard.rememberMeKeyName     // 'remember_web'
+```
+
+`viaRemember` is the one that matters. A session restored from a cookie used to
+look exactly like one where the user had just typed their password, so an app
+could not demand it again before something sensitive:
+
+```ts
+if (guard.viaRemember) {
+  return response.redirect().toRoute('auth.confirm_password')
+}
+await deleteAccount(user)
+```
+
+A real login clears the flag, so the prompt stops firing once the password has
+actually been given.
+
 #### The `RememberMeToken` class
 
 For code that handles tokens directly — a custom driver, a migration, an admin
@@ -1273,6 +1297,26 @@ interface JwtStrategyConfig {
 ```
 
 ---
+
+### Checking without throwing
+
+`authenticate()` throws; `check()` answers. The same pair exists for a list of
+guards:
+
+```ts
+await auth.authenticate()              // throws E_UNAUTHORIZED_ACCESS
+await auth.check()                     // true | false
+
+await auth.authenticateUsing(['web', 'api'])
+await auth.checkUsing(['web', 'api'])  // the non-throwing sibling
+```
+
+A handler branching on "is anyone signed in through either of these" had to
+write the try/catch itself. A credential rejection is an answer; a **crashed**
+strategy still propagates rather than being reported as "not signed in".
+
+`auth.createAuthenticator(ctx)` builds what the HTTP middleware builds per
+request, for a console command or a job that has no request around it.
 
 ## Auth events
 

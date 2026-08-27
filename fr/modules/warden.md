@@ -827,6 +827,30 @@ mono-process ; un cluster a besoin d'un stockage partagé implémentant
 `RememberMeTokenDriver` (`create` / `find` / `update` / `delete` /
 `deleteAllForUser`).
 
+### Savoir COMMENT l'utilisateur est arrivé là
+
+```ts
+guard.viaRemember           // ressuscité depuis le cookie, pas depuis un mot de passe
+guard.attemptedViaRemember  // un jeton a été tenté, qu'il ait marché ou non
+guard.isLoggedOut           // logout() a tourné sur ce garde
+guard.sessionKeyName        // 'auth_user_id'
+guard.rememberMeKeyName     // 'remember_web'
+```
+
+`viaRemember` est celui qui compte. Une session restaurée depuis un cookie
+ressemblait exactement à une où l'utilisateur venait de taper son mot de passe :
+impossible pour une app de le redemander avant une action sensible.
+
+```ts
+if (guard.viaRemember) {
+  return response.redirect().toRoute('auth.confirm_password')
+}
+await deleteAccount(user)
+```
+
+Une vraie connexion remet le drapeau à zéro : la demande cesse dès que le mot de
+passe a réellement été fourni.
+
 #### La classe `RememberMeToken`
 
 Pour du code qui manipule les jetons directement — un driver maison, une
@@ -1300,6 +1324,27 @@ interface JwtStrategyConfig {
 ```
 
 ---
+
+### Vérifier sans lever
+
+`authenticate()` lève ; `check()` répond. La même paire existe pour une liste de
+gardes :
+
+```ts
+await auth.authenticate()              // lève E_UNAUTHORIZED_ACCESS
+await auth.check()                     // true | false
+
+await auth.authenticateUsing(['web', 'api'])
+await auth.checkUsing(['web', 'api'])  // le pendant qui ne lève pas
+```
+
+Un handler qui se demande « quelqu'un est-il connecté via l'un des deux » devait
+écrire le try/catch lui-même. Un refus d'identifiants est une réponse ; une
+stratégie **plantée** se propage toujours, plutôt que d'être rapportée comme
+« pas connecté ».
+
+`auth.createAuthenticator(ctx)` construit ce que le middleware HTTP construit
+par requête, pour une commande console ou un job sans requête autour.
 
 ## Événements d'authentification
 

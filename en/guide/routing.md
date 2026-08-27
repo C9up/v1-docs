@@ -195,6 +195,42 @@ const url = router.urlFor('users.show', { id: '42' })
 
 Resource routes are named automatically: `posts.index`, `posts.store`, `posts.show`, `posts.update`, `posts.destroy`.
 
+### Building a URL piece by piece
+
+`urlFor` takes everything at once. When the pieces arrive separately — params
+here, a query string there, a prefix from config — `router.builder()` is the
+fluent form:
+
+```typescript
+router.builder().params({ id: '42' }).qs({ tab: 'posts' }).make('users.show')
+// → /users/42?tab=posts
+
+router.builderForDomain('https://acme.test').params({ id: '42' }).make('users.show')
+// → https://acme.test/users/42
+
+router.builder().prefixUrl('https://acme.test').makeSigned('invite', { expiresIn: '1h' })
+// signed, with the query string folded into the signature
+
+router.builder().disableRouteLookup().make('/a/literal/path')
+```
+
+It defers to `urlFor` and `makeSignedUrl`, so a missing param fails the same way
+whichever spelling you used.
+
+### Inspecting the route table
+
+```typescript
+router.toJSON()        // { root: [...routes], 'blog.example.com': [...] }
+router.usingDomains    // is any route domain-scoped?
+router.parsePattern('/posts/:id?')   // [{ name: 'id', optional: true }]
+router.commit()        // build the lookup index now, not on the first request
+router.commited        // has it been built?
+```
+
+`toJSON()` groups by the domain a route answers on, with `root` for the ones
+that answer everywhere — what a route list, an OpenAPI generator or a debug
+screen reads.
+
 ### URLs in the browser
 
 To build the same URLs client-side, serialize the named-route map with `router.namedManifest()` (only **named** routes are exposed — unnamed routes stay private to the server) and hand it to your page renderer; Aurora's isomorphic `urlFor` resolves against it. See [Aurora → URL builder](../modules/aurora.md#url-builder--urlfor).

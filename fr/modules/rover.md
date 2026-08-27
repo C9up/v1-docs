@@ -314,6 +314,45 @@ Un message ressuscité depuis une charge utile de file rapporte un sac `views`
 vide plutôt qu'une supposition — les corps rendus ont été sérialisés, pas les
 templates qui les ont produits.
 
+## Le corps Apple Watch et les en-têtes préparés
+
+```ts
+message.watch('<p>au poignet</p>')              // corps Apple Watch
+message.watchView('emails/poignet', { user })   // …depuis un template
+message.assertWatchIncludes(/poignet/i)
+
+message.preparedHeader('X-Signature', 'a=b; c=d')
+```
+
+::: warning Écart nommé — et un bug amont
+`watch()` écrit le `watchHtml` de nodemailer. AdonisJS écrit un champ `watch`
+nu, que le compositeur de nodemailer ne lit jamais
+(`lib/mail-composer/index.js` ne regarde que `watchHtml`) : **le corps Apple
+Watch d'AdonisJS ne part donc jamais**. `watchHtml()` est la même méthode sous
+le nom du champ.
+:::
+
+`preparedHeader` marque une valeur que nodemailer doit laisser intacte. Les
+en-têtes normaux sont repliés et encodés en MIME ; une valeur qui est déjà
+exactement ce qui doit passer sur le fil — une signature, un identifiant
+pré-encodé — s'en trouve corrompue. Le drapeau ne veut dire quelque chose que là
+où il y a encodage MIME : le transport SES émet un tel en-tête tel quel, et les
+transports REST, qui n'encodent rien, l'aplatissent en chaîne.
+
+## Donner une file au mailer plus tard
+
+```ts
+mail.setMessenger(queue)      // chaînable, rend le mailer
+
+await mail.sendCompiled(messageConstruit)        // déjà composé
+await mail.sendLaterCompiled(messageConstruit)   // …et mis en file
+```
+
+Le constructeur prend aussi une file, mais une file est souvent résolue plus
+tard que le mailer — un provider qui démarre après celui-ci, un test qui
+l'échange. La paire `*Compiled` envoie un message déjà construit, ce que tient
+un worker de file : composé et sérialisé ailleurs, plus rien à rendre.
+
 ## Corps texte et enveloppe
 
 ```ts

@@ -145,6 +145,29 @@ l'ownership ; `bob` peut `publish` via son grant direct ; `carol` peut `archive`
 un post acme mais pas un post globex. Aucun token n'a besoin de porter quoi que
 ce soit — tout se résout depuis le rights store.
 
+## Donner sa forme à un refus
+
+Chaque aptitude ou politique peut rendre un simple booléen.
+`Bouncer.responseBuilder` décide, une fois pour toute l'app, ce que devient un
+`false` :
+
+```ts
+import { AuthorizationResponse, Bouncer } from '@c9up/warden'
+
+Bouncer.responseBuilder = (value) =>
+  value === false
+    ? AuthorizationResponse.deny('Rien ici', 404)
+    : AuthorizationResponse.from(value)
+```
+
+Sans lui, chaque `return false` est un 403 nu, sans message. Il s'applique aux
+aptitudes comme aux politiques, et une `AuthorizationResponse` explicite passe
+toujours intacte.
+
+`authorizer.setEmitter(emitter)` donne un collecteur d'événements à un
+autorisateur après construction — ce qu'un autorisateur construit directement
+(un test, une commande console) ne pouvait pas recevoir.
+
 ## Auditer les décisions
 
 Donne un emitter au Bouncer et chaque contrôle d'aptitude ou de politique
