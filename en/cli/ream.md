@@ -112,10 +112,83 @@ ream configure @c9up/some-pkg --transports=smtp  # forward flags to configure()
 ## Migrations
 
 ```bash
-ream migrate                # Run all pending migrations
-ream migrate:rollback       # Rollback the last batch of migrations
-ream migrate:status         # Show the status of all migrations (applied / pending)
+ream migrate                # Run pending migrations, for every registered store
+ream migrate:rollback       # Rollback the last batch
+ream migrate:status         # Show what has run and what has not
+ream migrate --only eon     # Just one store
 ```
+
+### Every store, not just the relational one
+
+Output is prefixed by the store it came from:
+
+```
+  [atlas] ✓ 001_create_users (batch 1)
+  [eon]   ○ 001_create_meters
+```
+
+**This is one of the places Ream deliberately does better than AdonisJS.**
+Upstream has no equivalent, and does not need one: Lucid is its only migration
+source, so `node ace migration:run` can name it. Ream expects several stores in
+one app — a relational one, a time-series one, whatever comes next — so the CLI
+names none of them.
+
+A data package registers its runner from its provider, under the app's
+`migrations` binding. Two consequences worth knowing:
+
+- **Shipping a new store never requires a new CLI.** The `ream` binary is
+  published apart from the packages; anything it knew about a package name
+  would be a version coupling.
+- **An app with only a time-series store can migrate.** The command used to
+  refuse to start without a `database/migrations/` directory, which is atlas's
+  convention. Each runner now knows its own directory.
+
+Sources run **sequentially**, not in parallel: two stores sharing a database
+server would contend on locks, and interleaved output makes a failure
+impossible to attribute.
+
+### Writing a runner for your own store
+
+Three methods are required — the three the commands call:
+
+```ts
+interface MigrationRunnerContract {
+  migrate(): Promise<string[]>              // names applied, in order
+  rollback(): Promise<string[]>             // names rolled back
+  status(): Promise<MigrationStatusNode[]>  // { name, status, batch? }
+
+  reset?(): Promise<string[]>               // the rest are optional
+  refresh?(): Promise<unknown>
+  fresh?(): Promise<unknown>
+  dryRun?(): Promise<unknown>
+  forceUnlock?(): Promise<boolean>
+}
+```
+
+The rest are optional on purpose: a store must be able to register a runner
+that only knows how to go forward, rather than stub methods it cannot honour.
+
+Register it from your provider, resolving the binding structurally so your
+package does not depend on `@c9up/ream`:
+
+```ts
+const registry = await container.resolve('migrations')
+registry.register({
+  name: 'mystore',
+  directory: 'database/mystore-migrations',
+  runner: myRunner,
+})
+```
+
+Registering a name twice is refused rather than silently replaced — one of the
+two providers would migrate nothing while the run still reported success.
+
+::: warning Upgrading from an older ream
+`ream migrate` needs the `migrations` binding, which `@c9up/ream` provides from
+0.2.0 on. Against an older app the command says so and exits 1, rather than
+failing on a token you have never heard of. An app with the binding but no data
+package is a different case — it reports that nothing registered, and exits 0.
+:::
 
 ## Creating a Project
 

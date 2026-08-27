@@ -113,10 +113,85 @@ ream configure @c9up/some-pkg --transports=smtp  # transmettre des drapeaux à c
 ## Migrations
 
 ```bash
-ream migrate                # Executer toutes les migrations en attente
-ream migrate:rollback       # Annuler le dernier batch de migrations
-ream migrate:status         # Afficher le statut de toutes les migrations (appliquees / en attente)
+ream migrate                # Exécute les migrations en attente, pour chaque store enregistré
+ream migrate:rollback       # Annule le dernier batch
+ream migrate:status         # Montre ce qui a tourné et ce qui reste
+ream migrate --only eon     # Un seul store
 ```
+
+### Tous les stores, pas seulement le relationnel
+
+La sortie est préfixée par le store d'où elle vient :
+
+```
+  [atlas] ✓ 001_create_users (batch 1)
+  [eon]   ○ 001_create_meters
+```
+
+**C'est l'un des endroits où Ream fait délibérément mieux qu'AdonisJS.** L'amont
+n'a pas d'équivalent, et n'en a pas besoin : Lucid est sa seule source de
+migrations, donc `node ace migration:run` peut la nommer. Ream s'attend à
+plusieurs stores dans une même app — un relationnel, un temporel, ce qui viendra
+ensuite — donc le CLI n'en nomme aucun.
+
+Un paquet de données enregistre son runner depuis son provider, sous la liaison
+`migrations` de l'app. Deux conséquences à connaître :
+
+- **Livrer un nouveau store ne demande jamais un nouveau CLI.** Le binaire
+  `ream` est publié à part des paquets ; tout nom de paquet qu'il connaîtrait
+  serait un couplage de version.
+- **Une app qui n'a qu'un store temporel peut migrer.** La commande refusait de
+  démarrer sans répertoire `database/migrations/`, qui est la convention
+  d'atlas. Chaque runner connaît désormais le sien.
+
+Les sources tournent **séquentiellement**, pas en parallèle : deux stores
+partageant un serveur se disputeraient les verrous, et une sortie entrelacée
+rend un échec impossible à attribuer.
+
+### Écrire un runner pour son propre store
+
+Trois méthodes sont requises — les trois qu'appellent les commandes :
+
+```ts
+interface MigrationRunnerContract {
+  migrate(): Promise<string[]>              // noms appliqués, dans l'ordre
+  rollback(): Promise<string[]>             // noms annulés
+  status(): Promise<MigrationStatusNode[]>  // { name, status, batch? }
+
+  reset?(): Promise<string[]>               // le reste est optionnel
+  refresh?(): Promise<unknown>
+  fresh?(): Promise<unknown>
+  dryRun?(): Promise<unknown>
+  forceUnlock?(): Promise<boolean>
+}
+```
+
+Le reste est optionnel à dessein : un store doit pouvoir s'enregistrer avec un
+runner qui sait seulement avancer, plutôt que de simuler des méthodes qu'il ne
+peut pas honorer.
+
+On l'enregistre depuis son provider, en résolvant la liaison structurellement
+pour que le paquet ne dépende pas de `@c9up/ream` :
+
+```ts
+const registry = await container.resolve('migrations')
+registry.register({
+  name: 'mystore',
+  directory: 'database/mystore-migrations',
+  runner: myRunner,
+})
+```
+
+Enregistrer deux fois le même nom est refusé, pas remplacé en silence : l'un des
+deux providers ne migrerait rien pendant que la commande annoncerait un succès.
+
+::: warning Montée depuis un ream plus ancien
+`ream migrate` a besoin de la liaison `migrations`, que `@c9up/ream` fournit à
+partir de 0.2.0. Contre une app plus ancienne, la commande le dit et sort en 1,
+au lieu d'échouer sur un token dont l'utilisateur n'a jamais entendu parler. Une
+app qui a la liaison mais aucun paquet de données est un autre cas : elle
+signale que rien ne s'est enregistré, et sort en 0.
+:::
 
 ## Créer un projet
 
