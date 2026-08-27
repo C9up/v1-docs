@@ -86,8 +86,9 @@ Chaque fichier envoyé est un `MultipartFile` doté des propriétés suivantes :
 | `content` | Le contenu du fichier sous forme de `Buffer`. |
 | `extname` | L'extension DÉTECTÉE à partir des magic bytes du fichier lorsque c'est possible, sinon dérivée de `clientName`. |
 | `detectedType` | Un type MIME fiable déduit des magic bytes, ou `undefined` pour les formats texte qui n'ont pas de signature magique. |
-| `type` | Le type mime PRIMAIRE — `image` pour `image/png`. **Contrôlé par l'attaquant, ne pas s'y fier.** |
-| `subtype` | Le sous-type mime — `png` pour `image/png`. Tout aussi non fiable. |
+| `mime` | Le mime complet à valider — `image/png`. Lu dans les octets magiques. |
+| `type` | Le type mime PRIMAIRE — `image` pour `image/png`. Même source fiable. |
+| `subtype` | Le sous-type mime — `png` pour `image/png`. |
 | `headers` | Les en-têtes de la partie. Rust ne transmet aujourd'hui que `content-type`. |
 | `hasErrors` | L'inverse de `isValid`. |
 | `isMultipartFile` | Toujours `true` — distingue un fichier d'un champ ordinaire. |
@@ -225,8 +226,22 @@ Il portait `image/png` en entier ; il porte désormais `image`, comme chez
 AdonisJS, avec `subtype` à côté. TypeScript ne peut rien y faire : une
 comparaison telle que `file.type === 'image/png'` ne casse pas à la
 compilation, elle cesse simplement de correspondre. Cherche-la dans ton code.
-L'en-tête complet reste sur `file.headers['content-type']`, et `detectedType`
-demeure ce sur quoi il faut réellement brancher.
+Cherche-la dans ton code, et utilise **`file.mime`** pour une liste blanche.
+
+Une app a vécu exactement ça : `if (!ALLOWED_MIME.has(file.type)) reject()`
+compilait, ne correspondait plus, et tous les téléversements d'avatar sont morts
+en silence parce qu'aucun test ne couvrait le cas qui doit PASSER. Une porte de
+validation sans test du cas passant est une porte qui peut se fermer toute
+seule.
+:::
+
+::: tip Ces champs lisent les octets, pas l'en-tête
+`mime`, `type` et `subtype` sont dérivés des octets magiques du fichier, avec
+repli sur l'en-tête `Content-Type` seulement pour un contenu sans signature (les
+formats texte). C'est la précédence d'amont, et c'est celle qui compte :
+l'en-tête est écrit par le client, donc un `.exe` annoncé `image/png` passerait
+sinon une liste blanche de mimes. Un fichier renommé rapporte ce qu'il est
+vraiment. L'en-tête tel qu'envoyé reste sur `file.headers['content-type']`.
 :::
 
 ::: tip Pas de fichier temporaire

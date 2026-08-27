@@ -83,8 +83,9 @@ Every uploaded file is a `MultipartFile` with the following properties:
 | `content` | The file contents as a `Buffer`. |
 | `extname` | The extension DETECTED from the file's magic bytes when detectable, otherwise derived from `clientName`. |
 | `detectedType` | A trustworthy MIME type inferred from the magic bytes, or `undefined` for text formats that have no magic signature. |
-| `type` | The PRIMARY mime type — `image` for `image/png`. **Attacker-controlled, do not trust.** |
-| `subtype` | The mime subtype — `png` for `image/png`. Equally untrusted. |
+| `mime` | The full mime to validate against — `image/png`. Read from the magic bytes. |
+| `type` | The PRIMARY mime type — `image` for `image/png`. Same trustworthy source. |
+| `subtype` | The mime subtype — `png` for `image/png`. |
 | `headers` | The part's headers. Rust forwards only `content-type` today. |
 | `fieldName` | The form field the file was sent under. |
 | `errors` | Validation errors collected for this file. |
@@ -95,13 +96,25 @@ Every uploaded file is a `MultipartFile` with the following properties:
 | `filePath` / `fileName` | Where the file went, once it has been moved. |
 | `sizeLimit` / `allowedExtensions` | Rules a bare `validate()` will apply. |
 
-::: danger `type` changed meaning
+::: danger `type` changed meaning in 0.2.0
 It used to hold the whole `image/png`; it now holds `image`, matching AdonisJS,
 with `subtype` alongside. TypeScript cannot catch this — a comparison like
 `file.type === 'image/png'` does not fail to compile, it simply never matches
-again. Search your code for it. The full header is still on
-`file.headers['content-type']`, and `detectedType` remains the one you should
-actually be branching on.
+again. Search your code for it, and use **`file.mime`** for an allowlist.
+
+An app hit exactly this: `if (!ALLOWED_MIME.has(file.type)) reject()` compiled,
+stopped matching, and every avatar upload died in silence because no test
+covered the case that must PASS. A validation gate with no passing-case test is
+a gate that can close on its own.
+:::
+
+::: tip These read the bytes, not the header
+`mime`, `type` and `subtype` are derived from the file's magic bytes, falling
+back to the `Content-Type` header only for content that has no signature (text
+formats). That is upstream's precedence and the one that matters: the header is
+written by the client, so a `.exe` announced as `image/png` would otherwise walk
+through a mime allowlist. A renamed file reports what it actually is. The
+header as sent is still on `file.headers['content-type']`.
 :::
 
 And the following methods:
