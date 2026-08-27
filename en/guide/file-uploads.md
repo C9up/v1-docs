@@ -150,6 +150,39 @@ const res = await client
 
 `.file(field, Buffer | string, { filename?, contentType? })` attaches the file part; pass a `Buffer` for binary fixtures or a `string` for text.
 
+## Sending files, and the size ceiling
+
+`response.download(path)` and `response.attachment(path, name)` read the file
+and send it as the body. The read is asynchronous, so one client's download
+does not stall every other request.
+
+A response body is **held whole in memory**: it crosses the NAPI boundary in a
+single serialisation, and a binary one is base64-encoded on the way, so it
+costs roughly **2.3x its size** in transient memory — the buffer, the encoded
+string, and the Rust-side decode.
+
+A body over the ceiling therefore throws `E_RESPONSE_TOO_LARGE` rather than
+growing until the process dies:
+
+```typescript
+// config: the ceiling is 100MB by default — the same the Rust layer caps an
+// incoming body at, so both directions are explained the same way.
+{ maxResponseBytes: 100 * 1024 * 1024 }
+```
+
+For anything genuinely large, hand out a **signed URL** from `@c9up/archive`
+and let the client fetch it from storage. The bytes then never pass through the
+server at all, which is faster and bounded whatever the file's size.
+
+::: warning Responses are not chunked yet
+`response.stream()` drains the readable into memory before sending; it does not
+write chunks to the socket as they arrive. The Rust layer can stream — it is
+what serves SSE — but that path takes text chunks and drops them under
+back-pressure, which is right for events and wrong for a file. Carrying binary
+bodies there needs a bytes-taking chunk API and a back-pressure mode that waits
+instead of dropping.
+:::
+
 ## Next steps
 
 - [Configuration](/en/guide/configuration) — register middleware and wire paths

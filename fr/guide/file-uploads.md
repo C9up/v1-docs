@@ -153,6 +153,40 @@ const res = await client
 
 `.file(field, Buffer | string, { filename?, contentType? })` attache la partie fichier ; passez un `Buffer` pour les fixtures binaires ou une `string` pour du texte.
 
+## Servir des fichiers, et le plafond de taille
+
+`response.download(chemin)` et `response.attachment(chemin, nom)` lisent le
+fichier et l'envoient comme corps. La lecture est asynchrone : le
+téléchargement d'un client ne bloque plus toutes les autres requêtes.
+
+Un corps de réponse est **gardé entier en mémoire** : il traverse la frontière
+NAPI en une seule sérialisation, et un corps binaire est encodé en base64 au
+passage — il coûte donc environ **2,3× sa taille** en mémoire transitoire : le
+buffer, la chaîne encodée, et le décodage côté Rust.
+
+Un corps au-dessus du plafond lève donc `E_RESPONSE_TOO_LARGE` au lieu de
+grossir jusqu'à ce que le process meure :
+
+```typescript
+// config : 100 Mo par défaut — la même limite que le Rust applique à un corps
+// entrant, pour que les deux sens s'expliquent pareil.
+{ maxResponseBytes: 100 * 1024 * 1024 }
+```
+
+Pour tout ce qui est vraiment volumineux, distribue une **URL signée** via
+`@c9up/archive` et laisse le client récupérer le fichier depuis le stockage.
+Les octets ne passent alors jamais par le serveur — c'est plus rapide et borné
+quelle que soit la taille.
+
+::: warning Les réponses ne sont pas encore chunkées
+`response.stream()` draine le flux en mémoire avant d'envoyer ; il n'écrit pas
+les morceaux sur la socket à mesure qu'ils arrivent. Le Rust sait streamer —
+c'est ce qui sert le SSE — mais ce chemin prend des morceaux texte et les
+abandonne sous contre-pression : correct pour des événements, faux pour un
+fichier. Y faire passer du binaire demande une API de morceaux en octets et un
+mode de contre-pression qui attend au lieu de jeter.
+:::
+
 ## Étapes suivantes
 
 - [Configuration](/fr/guide/configuration) — enregistrer les middlewares et configurer les chemins
