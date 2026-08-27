@@ -86,7 +86,14 @@ Chaque fichier envoyé est un `MultipartFile` doté des propriétés suivantes :
 | `content` | Le contenu du fichier sous forme de `Buffer`. |
 | `extname` | L'extension DÉTECTÉE à partir des magic bytes du fichier lorsque c'est possible, sinon dérivée de `clientName`. |
 | `detectedType` | Un type MIME fiable déduit des magic bytes, ou `undefined` pour les formats texte qui n'ont pas de signature magique. |
-| `type` | L'en-tête `Content-Type` brut — **contrôlé par l'attaquant, ne pas s'y fier**. |
+| `type` | Le type mime PRIMAIRE — `image` pour `image/png`. **Contrôlé par l'attaquant, ne pas s'y fier.** |
+| `subtype` | Le sous-type mime — `png` pour `image/png`. Tout aussi non fiable. |
+| `headers` | Les en-têtes de la partie. Rust ne transmet aujourd'hui que `content-type`. |
+| `hasErrors` | L'inverse de `isValid`. |
+| `isMultipartFile` | Toujours `true` — distingue un fichier d'un champ ordinaire. |
+| `state` | `idle`, `streaming`, `consumed` ou `moved`. |
+| `filePath` / `fileName` | Où le fichier a atterri, une fois déplacé. |
+| `sizeLimit` / `allowedExtensions` | Règles qu'un `validate()` sans argument appliquera. |
 | `fieldName` | Le champ de formulaire sous lequel le fichier a été envoyé. |
 | `errors` | Les erreurs de validation collectées pour ce fichier. |
 | `isValid` | `true` lorsqu'aucune erreur de validation n'est présente. |
@@ -96,7 +103,9 @@ Et des méthodes suivantes :
 | Méthode | Description |
 |---------|-------------|
 | `validate({ size?, extnames? })` | Relance la validation contre les contraintes données. |
-| `moveToDisk(directory, name?)` | Enregistre le fichier dans `directory`, éventuellement sous un nouveau nom. |
+| `move(location, { name?, overwrite? })` | Écrit le fichier dans `location`. Crée le répertoire, écrase par défaut. |
+| `moveToDisk(directory, name?)` | La même chose, en renvoyant le chemin écrit. |
+| `markAsMoved(fileName, filePath)` | Enregistrer un déplacement fait soi-même. |
 | `stream()` | Obtient un flux lisible du contenu du fichier. |
 
 ## Validation
@@ -209,3 +218,25 @@ directement dans le stockage, et les octets ne passent jamais par le serveur.
 
 - [Configuration](/fr/guide/configuration) — enregistrer les middlewares et configurer les chemins
 - [Atlas (ORM)](/fr/modules/atlas) — persister les métadonnées de fichier aux côtés de vos entités
+
+
+::: danger `type` a changé de sens
+Il portait `image/png` en entier ; il porte désormais `image`, comme chez
+AdonisJS, avec `subtype` à côté. TypeScript ne peut rien y faire : une
+comparaison telle que `file.type === 'image/png'` ne casse pas à la
+compilation, elle cesse simplement de correspondre. Cherche-la dans ton code.
+L'en-tête complet reste sur `file.headers['content-type']`, et `detectedType`
+demeure ce sur quoi il faut réellement brancher.
+:::
+
+::: tip Pas de fichier temporaire
+AdonisJS écrit l'envoi dans un fichier temporaire et `move()` le renomme. Ream
+garde les octets en mémoire — `multipart.tmpDir` est refusé à la construction —
+donc `move()` écrit le tampon. Il n'y a pas de `E_MISSING_FILE_TMP_PATH` ici :
+il n'y a aucun fichier temporaire qui pourrait manquer.
+:::
+
+`move()` refuse tout `name` qui n'est pas un nom de fichier simple — pas de
+séparateur, pas de `.` ni `..`. Le piège qu'il couvre est
+`await file.move(dir, { name: file.clientName })`, où un nom client
+`../../etc/passwd` sortirait du répertoire.

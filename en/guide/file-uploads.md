@@ -83,18 +83,48 @@ Every uploaded file is a `MultipartFile` with the following properties:
 | `content` | The file contents as a `Buffer`. |
 | `extname` | The extension DETECTED from the file's magic bytes when detectable, otherwise derived from `clientName`. |
 | `detectedType` | A trustworthy MIME type inferred from the magic bytes, or `undefined` for text formats that have no magic signature. |
-| `type` | The raw `Content-Type` header — **attacker-controlled, do not trust**. |
+| `type` | The PRIMARY mime type — `image` for `image/png`. **Attacker-controlled, do not trust.** |
+| `subtype` | The mime subtype — `png` for `image/png`. Equally untrusted. |
+| `headers` | The part's headers. Rust forwards only `content-type` today. |
 | `fieldName` | The form field the file was sent under. |
 | `errors` | Validation errors collected for this file. |
 | `isValid` | `true` when no validation errors are present. |
+| `hasErrors` | The inverse of `isValid`. |
+| `isMultipartFile` | Always `true` — tells a file apart from a plain field. |
+| `state` | `idle`, `streaming`, `consumed` or `moved`. |
+| `filePath` / `fileName` | Where the file went, once it has been moved. |
+| `sizeLimit` / `allowedExtensions` | Rules a bare `validate()` will apply. |
+
+::: danger `type` changed meaning
+It used to hold the whole `image/png`; it now holds `image`, matching AdonisJS,
+with `subtype` alongside. TypeScript cannot catch this — a comparison like
+`file.type === 'image/png'` does not fail to compile, it simply never matches
+again. Search your code for it. The full header is still on
+`file.headers['content-type']`, and `detectedType` remains the one you should
+actually be branching on.
+:::
 
 And the following methods:
 
 | Method | Description |
 |--------|-------------|
-| `validate({ size?, extnames? })` | Re-run validation against the given constraints. |
-| `moveToDisk(directory, name?)` | Persist the file to `directory`, optionally under a new name. |
+| `validate({ size?, extnames? })` | Re-run validation. Called bare, it uses `sizeLimit` / `allowedExtensions`. |
+| `move(location, { name?, overwrite? })` | Persist the file to `location`. Creates the directory, overwrites by default. |
+| `moveToDisk(directory, name?)` | The same thing, returning the path it wrote. |
+| `markAsMoved(fileName, filePath)` | Record a move you performed yourself. |
 | `stream()` | Get a readable stream of the file contents. |
+
+`move()` refuses any `name` that is not a plain filename — no separators, no
+`.` or `..`. The footgun it exists for is `await file.move(dir, { name:
+file.clientName })`, where a client name of `../../etc/passwd` would otherwise
+walk out of the directory.
+
+::: tip No temporary file
+AdonisJS streams an upload to a temporary path and `move()` renames it. Ream
+holds the bytes in memory — `multipart.tmpDir` is refused at construction — so
+`move()` writes the buffer. There is no `E_MISSING_FILE_TMP_PATH` here: there
+is no temporary file to be missing.
+:::
 
 ## Validation
 
