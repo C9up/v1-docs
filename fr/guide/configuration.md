@@ -37,6 +37,51 @@ export default {
 }
 ```
 
+Il y a une aide par répertoire conventionnel, la disposition d'AdonisJS
+répertoire pour répertoire :
+
+```typescript
+app.httpControllersPath()   // app/controllers      app.modelsPath()        // app/models
+app.servicesPath()          // app/services         app.middlewarePath()    // app/middleware
+app.policiesPath()          // app/policies         app.validatorsPath()    // app/validators
+app.exceptionsPath()        // app/exceptions       app.eventsPath()        // app/events
+app.listenersPath()         // app/listeners        app.transformersPath()  // app/transformers
+app.mailersPath()           // app/mailers          app.mailsPath()         // app/mails
+app.startPath()             // start                app.commandsPath()      // commands
+app.providersPath()         // providers            app.contractsPath()     // contracts
+app.viewsPath()             // resources/views      app.languageFilesPath() // resources/lang
+app.seedersPath()           // database/seeders     app.factoriesPath()     // database/factories
+app.generatedClientPath()   // .ream/client         app.generatedServerPath() // .ream/server
+```
+
+S'y ajoutent `app.makeURL(...)`, qui renvoie une URL là où `makePath` renvoie un
+chemin — ce que veut un importeur — et `app.relativePath(absolu)`, son inverse.
+
+### Déplacer un répertoire
+
+La disposition n'est pas figée. On nomme dans `reamrc.ts` les répertoires qui
+bougent, et toutes les aides suivent :
+
+```typescript
+export default defineConfig({
+  directories: {
+    httpControllers: 'app/http/controllers',
+    models: 'src/entities',
+  },
+})
+```
+
+Seul ce qui est nommé change ; le reste garde ses valeurs par défaut. Les
+surcharges atteignent l'application dès le chargement du fichier rc, de sorte
+qu'un provider appelant une aide depuis `register()` les voit déjà.
+
+::: tip `.ream/`, pas `.adonisjs/`
+`generatedClientPath()` et `generatedServerPath()` écrivent sous `.ream/`. Un
+répertoire caché dans le projet de l'utilisateur relève de l'identité produit :
+c'est l'un des rares endroits où Ream ne reprend délibérément pas le nom
+d'amont.
+:::
+
 ### config/auth.ts
 
 ```typescript

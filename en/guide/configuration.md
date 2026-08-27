@@ -109,6 +109,50 @@ app.tmpPath('uploads')           // <root>/tmp/uploads
 app.publicPath('style.css')      // <root>/public/style.css
 ```
 
+There is one helper per conventional directory, the AdonisJS layout directory
+for directory:
+
+```typescript
+app.httpControllersPath()   // app/controllers      app.modelsPath()        // app/models
+app.servicesPath()          // app/services         app.middlewarePath()    // app/middleware
+app.policiesPath()          // app/policies         app.validatorsPath()    // app/validators
+app.exceptionsPath()        // app/exceptions       app.eventsPath()        // app/events
+app.listenersPath()         // app/listeners        app.transformersPath()  // app/transformers
+app.mailersPath()           // app/mailers          app.mailsPath()         // app/mails
+app.startPath()             // start                app.commandsPath()      // commands
+app.providersPath()         // providers            app.contractsPath()     // contracts
+app.viewsPath()             // resources/views      app.languageFilesPath() // resources/lang
+app.seedersPath()           // database/seeders     app.factoriesPath()     // database/factories
+app.generatedClientPath()   // .ream/client         app.generatedServerPath() // .ream/server
+```
+
+Plus `app.makeURL(...)`, which gives a URL where `makePath` gives a path — what
+an importer wants — and `app.relativePath(absolute)`, its inverse.
+
+### Moving a directory
+
+The layout is not hardcoded. Name the directories that moved in `reamrc.ts` and
+every helper follows:
+
+```typescript
+export default defineConfig({
+  directories: {
+    httpControllers: 'app/http/controllers',
+    models: 'src/entities',
+  },
+})
+```
+
+Only what you name changes; the rest keep their defaults. The overrides reach
+the application as soon as the rc file loads, so a provider calling a path
+helper from `register()` already sees them.
+
+::: tip `.ream/`, not `.adonisjs/`
+`generatedClientPath()` and `generatedServerPath()` write under `.ream/`. A
+dot-directory in your project is product identity, so this is one of the few
+places Ream deliberately does not copy the upstream name.
+:::
+
 ## Accessing config
 
 Anywhere you have access to the application instance, call `app.config.get<T>()` with the config key and an optional generic type argument for type safety.
