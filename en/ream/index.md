@@ -349,16 +349,27 @@ ctx.response.hasContent     // a body has been set
 ctx.response.hasStream      // the body is a stream still draining
 ctx.response.hasLazyBody    // either of the two
 ctx.response.setRequestId() // echo the caller's x-request-id back
+await ctx.response.finish()  // the terminal step — seal the response
 ```
 
 `headersSent` equals `finished` here rather than tracking a separate flag:
 headers and body cross the NAPI boundary together in one step, so they leave
 together.
 
-`setRequestId()` echoes the `x-request-id` the caller sent. **The kernel already
-calls it on every response**, error responses included — as AdonisJS does from
-`response.finish()` — so the echo is a property of the framework rather than
-something each handler remembers. Ream already *read* that header into `ctx.id`,
+`finish()` is the terminal step, the same role it has in AdonisJS: it is
+idempotent, it stamps the request id, and after it nothing more goes into the
+response. **The kernel calls it on every response**, error responses included,
+so a handler almost never needs to. One named deviation: it returns a promise
+where upstream returns void, and it writes nothing. Ream never owns the socket
+— the whole response crosses the NAPI boundary and Rust writes it — so *finish*
+here means sealed and ready to hand over rather than flushed. The await is for
+a body still being produced by `download()` or a buffered `stream()`; a
+streamed body is deliberately not awaited, since it feeds the socket after the
+response has been handed over.
+
+`setRequestId()` echoes the `x-request-id` the caller sent. It is what `finish()`
+calls, so the echo is a property of the framework rather than something each
+handler remembers. Ream already *read* that header into `ctx.id`,
 validating its shape and generating one when missing, but never sent it back.
 Nothing is echoed when the client sent none: handing back a generated id would
 name one the caller never used.

@@ -364,16 +364,28 @@ ctx.response.hasContent     // un corps a été posé
 ctx.response.hasStream      // le corps est un flux encore en cours
 ctx.response.hasLazyBody    // l'un ou l'autre
 ctx.response.setRequestId() // renvoie le x-request-id de l'appelant
+await ctx.response.finish()  // l'étape terminale — scelle la réponse
 ```
 
 `headersSent` vaut ici la même chose que `finished` plutôt que de suivre un
 drapeau séparé : en-têtes et corps traversent la frontière NAPI ensemble, en une
 étape, donc ils partent ensemble.
 
-`setRequestId()` renvoie le `x-request-id` envoyé par l'appelant. **Le noyau
-l'appelle déjà sur chaque réponse**, y compris les réponses d'erreur — comme
-AdonisJS depuis `response.finish()` — l'écho est donc une propriété du framework
-et non quelque chose que chaque handler doit penser à faire. Ream *lisait* déjà
+`finish()` est l'étape terminale, avec le même rôle que chez AdonisJS :
+idempotente, elle pose l'identifiant de requête, et après elle plus rien n'entre
+dans la réponse. **Le noyau l'appelle sur chaque réponse**, y compris les
+réponses d'erreur, donc un handler n'a presque jamais à le faire. Une déviation,
+nommée : elle renvoie une promesse là où l'amont renvoie void, et elle n'écrit
+rien. Ream ne possède jamais la socket — la réponse entière traverse la
+frontière NAPI et c'est Rust qui l'écrit — donc *finish* signifie ici scellée et
+prête à être transmise, pas vidée sur le fil. L'attente concerne un corps encore
+en cours de production par `download()` ou un `stream()` bufferisé ; un corps
+streamé n'est délibérément pas attendu, puisqu'il alimente la socket après que
+la réponse a été transmise.
+
+`setRequestId()` renvoie le `x-request-id` envoyé par l'appelant. C'est ce que
+`finish()` appelle, l'écho est donc une propriété du framework et non quelque
+chose que chaque handler doit penser à faire. Ream *lisait* déjà
 cet en-tête dans `ctx.id`, en validant sa forme et en en générant un s'il
 manque, mais ne le renvoyait jamais. Rien n'est renvoyé si le client n'en a pas
 envoyé : rendre un identifiant généré nommerait un id que l'appelant n'a jamais
