@@ -370,11 +370,14 @@ ctx.response.setRequestId() // renvoie le x-request-id de l'appelant
 drapeau séparé : en-têtes et corps traversent la frontière NAPI ensemble, en une
 étape, donc ils partent ensemble.
 
-`setRequestId()` renvoie le `x-request-id` envoyé par l'appelant. Ream *lit*
-déjà cet en-tête dans `ctx.id` — en validant sa forme et en en générant un s'il
-manque — mais ne le renvoyait jamais : l'appelant ne pouvait pas relier une
-réponse à l'identifiant qu'il avait émis. Rien n'est renvoyé si le client n'en a
-pas envoyé.
+`setRequestId()` renvoie le `x-request-id` envoyé par l'appelant. **Le noyau
+l'appelle déjà sur chaque réponse**, y compris les réponses d'erreur — comme
+AdonisJS depuis `response.finish()` — l'écho est donc une propriété du framework
+et non quelque chose que chaque handler doit penser à faire. Ream *lisait* déjà
+cet en-tête dans `ctx.id`, en validant sa forme et en en générant un s'il
+manque, mais ne le renvoyait jamais. Rien n'est renvoyé si le client n'en a pas
+envoyé : rendre un identifiant généré nommerait un id que l'appelant n'a jamais
+utilisé.
 
 ## Chiffrement
 

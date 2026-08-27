@@ -355,10 +355,13 @@ ctx.response.setRequestId() // echo the caller's x-request-id back
 headers and body cross the NAPI boundary together in one step, so they leave
 together.
 
-`setRequestId()` echoes the `x-request-id` the caller sent. Ream already *reads*
-that header into `ctx.id` — validating its shape and generating one when it is
-missing — but never sent it back, so a caller could not tie a response to the id
-it issued. Nothing is echoed when the client sent none.
+`setRequestId()` echoes the `x-request-id` the caller sent. **The kernel already
+calls it on every response**, error responses included — as AdonisJS does from
+`response.finish()` — so the echo is a property of the framework rather than
+something each handler remembers. Ream already *read* that header into `ctx.id`,
+validating its shape and generating one when missing, but never sent it back.
+Nothing is echoed when the client sent none: handing back a generated id would
+name one the caller never used.
 
 ## Encryption
 
