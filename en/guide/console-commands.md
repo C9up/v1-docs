@@ -824,6 +824,11 @@ The façade is also in the container (`await container.resolve('console')`), and
 
 ## Commands shipped by a package
 
+**This is the only way a package adds a command.** A package never touches the
+`ream` binary: the CLI dispatches any name it does not own to the application's
+console kernel, so a command registered here is reachable as `ream <name>`
+with no release of anything but the package.
+
 Discovery only sees the application's `commands/` directory. A command
 distributed inside a package is declared in `reamrc.ts`:
 
@@ -832,6 +837,30 @@ export default defineConfig({
   commands: [() => import('@c9up/my-package/commands/my-command.js')],
 })
 ```
+
+A package with SEVERAL commands ships one loader instead, and stays one line
+in the rc file. `getMetaData()` answers with the list, `getCommand()` imports a
+class only when it is about to run — so `ream list` costs no imports:
+
+```ts
+// @c9up/my-package/commands
+export async function getMetaData() {
+  return [{ commandName: 'my:build', description: 'Build the thing' }]
+}
+
+export async function getCommand(metadata) {
+  if (metadata.commandName === 'my:build') return (await import('./build.js')).default
+  return null
+}
+```
+
+```ts
+commands: [() => import('@c9up/my-package/commands')],
+```
+
+The package's `configure()` should add that line itself, with
+`codemods.registerCommand('@c9up/my-package/commands')`, so installing the
+package is all a user does.
 
 Do not declare a command that already lives in `commands/`: it would be
 registered twice, and the kernel raises `E_CONSOLE_DUPLICATE_COMMAND`.

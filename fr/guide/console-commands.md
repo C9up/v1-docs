@@ -842,6 +842,11 @@ La façade est aussi dans le conteneur (`await container.resolve('console')`), e
 
 ## Commandes livrées par un paquet
 
+**C'est le seul moyen pour un paquet d'ajouter une commande.** Un paquet ne
+touche jamais au binaire `ream` : la CLI transmet au noyau console de
+l'application tout nom qu'elle ne possède pas, donc une commande enregistrée
+ici s'appelle `ream <nom>` sans publier autre chose que le paquet.
+
 La découverte ne voit que le dossier `commands/` de l'application. Une commande
 distribuée dans un paquet se déclare dans `reamrc.ts` :
 
@@ -850,6 +855,31 @@ export default defineConfig({
   commands: [() => import('@c9up/mon-paquet/commands/ma-commande.js')],
 })
 ```
+
+Un paquet qui en livre PLUSIEURS fournit un chargeur, et reste une seule ligne
+dans le fichier rc. `getMetaData()` répond la liste, `getCommand()` n'importe
+une classe qu'au moment de l'exécuter — `ream list` ne coûte donc aucun
+import :
+
+```ts
+// @c9up/mon-paquet/commands
+export async function getMetaData() {
+  return [{ commandName: 'mon:build', description: 'Construire la chose' }]
+}
+
+export async function getCommand(metadata) {
+  if (metadata.commandName === 'mon:build') return (await import('./build.js')).default
+  return null
+}
+```
+
+```ts
+commands: [() => import('@c9up/mon-paquet/commands')],
+```
+
+Le `configure()` du paquet doit ajouter cette ligne lui-même, avec
+`codemods.registerCommand('@c9up/mon-paquet/commands')`, pour que l'utilisateur
+n'ait qu'à installer le paquet.
 
 Ne déclarez pas ici une commande déjà présente dans `commands/` : elle serait
 enregistrée deux fois, et le noyau lève `E_CONSOLE_DUPLICATE_COMMAND`.
