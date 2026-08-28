@@ -65,8 +65,8 @@ sqlite insert → JWT sign chains have headroom.
 ## Ream apps: the `@c9up/helix-plugin-ream` bridge
 
 helix knows nothing about Ream, and Ream knows nothing about helix. The plugin
-that joins them is published separately — the same split as
-`@japa/plugin-adonisjs`:
+that joins them is published separately — the same split AdonisJS uses to
+join its own runner to the framework:
 
 ```sh
 pnpm add -D @c9up/helix-plugin-ream
