@@ -9,6 +9,7 @@ Relay is Ream's realtime module (`@c9up/relay`): server-sent events for broadcas
 - channel subscriptions
 - channel authorization
 - Event relay
+- multi-instance broadcast over a Redis bus
 
 ## Main API
 
@@ -25,12 +26,49 @@ rt.relay('task.*')
 Define your Relay settings in `config/relay.ts` with the `defineConfig` helper:
 
 ```ts
-import { defineConfig } from '@c9up/relay'
+import { defineConfig, transports } from '@c9up/relay'
 
 export default defineConfig({
-  // Relay options
+  // Let a client subscribe to a channel no authorizer covers. Default false.
+  allowUnauthorizedChannels: false,
+  // Concurrent SSE clients this instance accepts. Past it, connects are 503'd.
+  maxClients: 10_000,
+  // Channels one client may hold. Client-supplied names are indexed, so an
+  // unbounded cap lets a single socket pin memory.
+  maxChannelsPerClient: 100,
+  // The bus that carries a broadcast between instances. See below.
+  transport: transports.redis({ connection: 'main' }),
 })
 ```
+
+### Running more than one instance
+
+A broadcast reaches the SSE clients attached to the instance that made it.
+Behind a load balancer with two replicas, that is about half of your users —
+each one is connected to whichever instance the balancer picked.
+
+`transport` is the bus that closes the gap: every broadcast is mirrored onto
+it, and each instance re-delivers what arrives to its own clients. The
+re-delivery is local only, so a message never bounces back onto the bus.
+
+```ts
+import { defineConfig, transports } from '@c9up/relay'
+
+export default defineConfig({
+  transport: transports.redis({ connection: 'main' }),
+})
+```
+
+`connection` takes the name of a [`@c9up/quasar`](/en/modules/quasar)
+connection — resolved when the first broadcast goes out, not while the config
+file is read — or a client of your own answering `publish`, `subscribe` and
+`unsubscribe`.
+
+`transportChannel` renames the channel the bus publishes on (default
+`relay::broadcast`); every instance has to agree on it. `relay.shutdown()`
+unsubscribes and closes the connection.
+
+Leave `transport` out and relay is single-instance.
 
 ## Typical endpoints
 

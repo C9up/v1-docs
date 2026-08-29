@@ -9,6 +9,7 @@ Relay est le module de transport realtime client de Ream (`@c9up/relay`) avec SS
 - canaux subscribables
 - autorisation de canaux
 - relai d'événements
+- diffusion multi-instances via un bus Redis
 
 ## API principale
 
@@ -25,12 +26,50 @@ rt.relay('task.*')
 Définissez vos réglages Relay dans `config/relay.ts` avec le helper `defineConfig` :
 
 ```ts
-import { defineConfig } from '@c9up/relay'
+import { defineConfig, transports } from '@c9up/relay'
 
 export default defineConfig({
-  // Options Relay
+  // Autoriser l'abonnement à un canal qu'aucun autorisateur ne couvre.
+  // Par défaut false.
+  allowUnauthorizedChannels: false,
+  // Clients SSE simultanés acceptés par cette instance. Au-delà, 503.
+  maxClients: 10_000,
+  // Canaux qu'un client peut détenir. Les noms viennent du client et sont
+  // indexés : sans borne, une seule socket peut immobiliser la mémoire.
+  maxChannelsPerClient: 100,
+  // Le bus qui transporte un broadcast d'une instance à l'autre. Voir plus bas.
+  transport: transports.redis({ connection: 'main' }),
 })
 ```
+
+### Plusieurs instances
+
+Un broadcast atteint les clients SSE rattachés à l'instance qui l'a émis.
+Derrière un répartiteur de charge avec deux répliques, cela représente environ
+la moitié de vos utilisateurs : chacun est connecté à l'instance que le
+répartiteur a choisie pour lui.
+
+`transport` comble ce trou : chaque broadcast est recopié sur le bus, et chaque
+instance redistribue ce qui arrive à ses propres clients. La redistribution est
+purement locale, donc un message ne repart jamais sur le bus.
+
+```ts
+import { defineConfig, transports } from '@c9up/relay'
+
+export default defineConfig({
+  transport: transports.redis({ connection: 'main' }),
+})
+```
+
+`connection` accepte le nom d'une connexion [`@c9up/quasar`](/fr/modules/quasar)
+— résolue au premier broadcast, pas à la lecture du fichier de config — ou
+votre propre client répondant à `publish`, `subscribe` et `unsubscribe`.
+
+`transportChannel` renomme le canal sur lequel le bus publie (par défaut
+`relay::broadcast`) ; toutes les instances doivent s'accorder dessus.
+`relay.shutdown()` se désabonne et ferme la connexion.
+
+Sans `transport`, relay reste mono-instance.
 
 ## Endpoints typiques
 
