@@ -41,8 +41,12 @@ ream make:service order Payment
 ream make:entity order OrderItem
 ream make:validator order CreateOrder
 ream make:provider Stripe
-ream make:migration create_orders_table
 ```
+
+`make:migration`, `make:seeder` et `make:factory` ne sont pas ici : elles
+appartiennent au paquet de données, qui sait où vivent les migrations et ce
+qu'une migration importe. Atlas les livre — voir
+[ses commandes console](/fr/atlas/migrations#commandes-console).
 
 ### Personnaliser ce qui est généré
 
@@ -185,12 +189,13 @@ registry.register({
 Enregistrer deux fois le même nom est refusé, pas remplacé en silence : l'un des
 deux providers ne migrerait rien pendant que la commande annoncerait un succès.
 
-::: warning Montée depuis un ream plus ancien
-`ream migrate` a besoin de la liaison `migrations`, que `@c9up/ream` fournit à
-partir de 0.2.0. Contre une app plus ancienne, la commande le dit et sort en 1,
-au lieu d'échouer sur un token dont l'utilisateur n'a jamais entendu parler. Une
-app qui a la liaison mais aucun paquet de données est un autre cas : elle
-signale que rien ne s'est enregistré, et sort en 0.
+::: tip Où vivent ces commandes
+`migrate`, `migrate:rollback`, `migrate:status`, `schedule:list` et
+`schedule:run` sont des classes de commande de `@c9up/ream`, enregistrées par
+le framework lui-même — pas des sous-commandes du binaire. Le binaire transmet
+au noyau console de l'application tout nom qu'il ne connaît pas, et c'est aussi
+comme ça que les commandes d'un paquet tournent sans une ligne de Rust. Une app
+sans paquet de données signale que rien ne s'est enregistré, et sort en 0.
 :::
 
 ## Créer un projet

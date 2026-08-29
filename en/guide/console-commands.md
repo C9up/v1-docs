@@ -864,3 +864,17 @@ package is all a user does.
 
 Do not declare a command that already lives in `commands/`: it would be
 registered twice, and the kernel raises `E_CONSOLE_DUPLICATE_COMMAND`.
+
+### The framework's own commands
+
+Ream ships some too — `migrate`, `migrate:rollback`, `migrate:status`,
+`schedule:list`, `schedule:run` — through the same loader shape, at
+`@c9up/ream/commands`. The difference is that nobody registers them: the
+Ignitor loads that loader first, before discovery and before `reamrc.commands`.
+
+That is a deviation from AdonisJS, where the starter kit lists
+`@adonisjs/core/commands` in the rc file. These were subcommands of the `ream`
+binary before they were classes, and an application that upgrades must not
+silently lose them. Loading them first also means an application that defines a
+command of the same name in `commands/` wins — the later registration replaces
+the framework's.

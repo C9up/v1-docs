@@ -115,10 +115,14 @@ await runSeederDirectory('database/seeders', db, {
 
 ## Console commands
 
-The commands are Ream-idiomatic classes — the same
-shape as the migration commands — registered under `reamrc.commands`. Each
-factory takes the `seedersDir` (and, for `db:seed`, optional `naturalSort` /
-`environment` defaults).
+`make:seeder` and `db:seed` ship with the package — registering
+`@c9up/atlas/commands` in `reamrc.commands` is all an application does, and the
+directory comes from `seeders.paths` in `config/database.ts`. See
+[Console commands](/en/atlas/migrations#console-commands).
+
+The factories below are for the cases the config cannot express — a second
+seeder directory, a different environment default. Each takes the `seedersDir`
+(and, for `db:seed`, optional `naturalSort` / `environment` defaults).
 
 ```ts
 export interface SeederCommandOptions {

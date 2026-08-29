@@ -8,10 +8,18 @@ like AdonisJS Lucid).
 
 ## Console commands
 
-Atlas commands are classes carrying their name, description and inputs as
-statics. Default-export one from a file in `commands/` — the console kernel
-discovers that directory automatically — and run it with `ream <command>`
-(Atlas has no global entity registry — you list your models, as in Lucid).
+All three ship with the package. Register the loader once and they are
+available — `configure()` writes the line:
+
+```ts
+// reamrc.ts
+commands: [() => import('@c9up/atlas/commands')]
+```
+
+They read what they need from `config/database.ts`: `schemaGeneration.outputPath`
+for the generated file, `migrations.paths` for the dump's `--prune`, and
+`verifySchema.entities` for the models `atlas:check` reconciles (Atlas has no
+global entity registry — you list your models, as in Lucid).
 
 | Command | What it does |
 | --- | --- |
@@ -19,24 +27,19 @@ discovers that directory automatically — and run it with `ream <command>`
 | `schema:generate` | Introspect the database and (re)write `BaseModel` schema classes. Flags: `--connection`, `--compact-output`. |
 | `atlas:check` | Reconcile models against the live schema; report drift. Flag: `--warn`. |
 
+For a set the config cannot express — a dump of a second migration source, a
+check over models that are not the boot-time ones — the factories are exported
+too:
+
 ```ts
-// commands/schema-dump.ts
-import { schemaDumpCommand } from '@c9up/atlas'
-export default schemaDumpCommand({ migrationsDir: 'database/migrations' })
-
-// commands/schema-generate.ts
-import { schemaGenerateCommand } from '@c9up/atlas'
-export default schemaGenerateCommand({ outputPath: 'database/schema.ts' })
-
-// commands/atlas-check.ts
+// commands/atlas-check-legacy.ts
 import { schemaCheckCommand } from '@c9up/atlas'
-import { User } from '#models/user'
-export default schemaCheckCommand([User])
+import { LegacyUser } from '#models/legacy_user'
+export default schemaCheckCommand([LegacyUser])
 
 // reamrc.ts → commands: [
-//   () => import('./commands/schema-dump.js'),
-//   () => import('./commands/schema-generate.js'),
-//   () => import('./commands/atlas-check.js'),
+//   () => import('@c9up/atlas/commands'),
+//   () => import('./commands/atlas-check-legacy.js'),
 // ]
 ```
 

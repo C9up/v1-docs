@@ -883,3 +883,17 @@ n'ait qu'à installer le paquet.
 
 Ne déclarez pas ici une commande déjà présente dans `commands/` : elle serait
 enregistrée deux fois, et le noyau lève `E_CONSOLE_DUPLICATE_COMMAND`.
+
+### Les commandes du framework lui-même
+
+Ream en livre aussi — `migrate`, `migrate:rollback`, `migrate:status`,
+`schedule:list`, `schedule:run` — via la même forme de chargeur, sur
+`@c9up/ream/commands`. La différence : personne ne les enregistre. L'Ignitor
+charge ce chargeur en premier, avant la découverte et avant `reamrc.commands`.
+
+C'est un écart avec AdonisJS, où le starter kit liste `@adonisjs/core/commands`
+dans le fichier rc. Ces commandes étaient des sous-commandes du binaire `ream`
+avant d'être des classes, et une application qui monte de version ne doit pas
+les perdre en silence. Les charger en premier signifie aussi qu'une application
+qui définit le même nom dans `commands/` l'emporte — l'enregistrement suivant
+remplace celui du framework.

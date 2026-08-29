@@ -41,8 +41,11 @@ ream make:service order Payment      # app/modules/order/services/PaymentService
 ream make:entity order OrderItem     # app/modules/order/entities/OrderItem.ts
 ream make:validator order CreateOrder
 ream make:provider Stripe
-ream make:migration create_orders_table
 ```
+
+`make:migration`, `make:seeder` and `make:factory` are not here: they belong to
+the data package, which knows where migrations live and what a migration
+imports. Atlas ships them — see [its console commands](/en/atlas/migrations#console-commands).
 
 ### Customising what gets generated
 
@@ -183,11 +186,13 @@ registry.register({
 Registering a name twice is refused rather than silently replaced — one of the
 two providers would migrate nothing while the run still reported success.
 
-::: warning Upgrading from an older ream
-`ream migrate` needs the `migrations` binding, which `@c9up/ream` provides from
-0.2.0 on. Against an older app the command says so and exits 1, rather than
-failing on a token you have never heard of. An app with the binding but no data
-package is a different case — it reports that nothing registered, and exits 0.
+::: tip Where these commands live
+`migrate`, `migrate:rollback`, `migrate:status`, `schedule:list` and
+`schedule:run` are command classes in `@c9up/ream`, registered by the framework
+itself — not subcommands of the binary. The binary dispatches any name it does
+not own to the application's console kernel, which is also how a package's own
+commands run without a line of Rust. An application with no data package
+reports that nothing registered, and exits 0.
 :::
 
 ## Creating a Project

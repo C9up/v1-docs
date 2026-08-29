@@ -8,11 +8,19 @@ l'introspection du catalogue — Atlas ne délègue jamais à `pg_dump`/`mysqldu
 
 ## Commandes console
 
-Les commandes Atlas sont des classes portant leur nom, leur description et
-leurs entrées en statiques. Exportez-en une par défaut depuis un fichier de
-`commands/` — le noyau console découvre ce dossier automatiquement — puis
-lancez-la avec `ream <commande>` (Atlas n'a pas de registre global d'entités —
-vous listez vos modèles, comme dans Lucid).
+Les trois sont livrées par le paquet. Le chargeur s'enregistre une fois et
+elles sont disponibles — `configure()` écrit la ligne :
+
+```ts
+// reamrc.ts
+commands: [() => import('@c9up/atlas/commands')]
+```
+
+Elles lisent ce dont elles ont besoin dans `config/database.ts` :
+`schemaGeneration.outputPath` pour le fichier généré, `migrations.paths` pour le
+`--prune` du dump, et `verifySchema.entities` pour les modèles qu'`atlas:check`
+réconcilie (Atlas n'a pas de registre global d'entités — vous listez vos
+modèles, comme dans Lucid).
 
 | Commande | Rôle |
 | --- | --- |
@@ -20,24 +28,19 @@ vous listez vos modèles, comme dans Lucid).
 | `schema:generate` | Introspecte la base et (ré)écrit des classes de schéma `BaseModel`. Flags : `--connection`, `--compact-output`. |
 | `atlas:check` | Réconcilie les modèles avec le schéma vivant ; rapporte le drift. Flag : `--warn`. |
 
+Pour un jeu que la config ne sait pas exprimer — le dump d'une seconde source
+de migrations, un contrôle sur d'autres modèles que ceux du démarrage — les
+fabriques restent exportées :
+
 ```ts
-// commands/schema-dump.ts
-import { schemaDumpCommand } from '@c9up/atlas'
-export default schemaDumpCommand({ migrationsDir: 'database/migrations' })
-
-// commands/schema-generate.ts
-import { schemaGenerateCommand } from '@c9up/atlas'
-export default schemaGenerateCommand({ outputPath: 'database/schema.ts' })
-
-// commands/atlas-check.ts
+// commands/atlas-check-legacy.ts
 import { schemaCheckCommand } from '@c9up/atlas'
-import { User } from '#models/user'
-export default schemaCheckCommand([User])
+import { LegacyUser } from '#models/legacy_user'
+export default schemaCheckCommand([LegacyUser])
 
 // reamrc.ts → commands: [
-//   () => import('./commands/schema-dump.js'),
-//   () => import('./commands/schema-generate.js'),
-//   () => import('./commands/atlas-check.js'),
+//   () => import('@c9up/atlas/commands'),
+//   () => import('./commands/atlas-check-legacy.js'),
 // ]
 ```
 

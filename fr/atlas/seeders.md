@@ -120,9 +120,13 @@ await runSeederDirectory('database/seeders', db, {
 
 ## Commandes console
 
-Les commandes sont des classes idiomatiques à Ream — la même forme que les
-commandes de migration — exportées par défaut depuis un fichier de `commands/`,
-que le noyau console découvre automatiquement. Chaque factory prend le
+`make:seeder` et `db:seed` sont livrées par le paquet — enregistrer
+`@c9up/atlas/commands` dans `reamrc.commands` suffit, et le dossier vient de
+`seeders.paths` dans `config/database.ts`. Voir
+[Commandes console](/fr/atlas/migrations#commandes-console).
+
+Les fabriques ci-dessous servent à ce que la config ne sait pas exprimer — un
+second dossier de seeders, un autre environnement par défaut. Chacune prend le
 `seedersDir` (et, pour `db:seed`, des valeurs par défaut optionnelles
 `naturalSort` / `environment`).
 
