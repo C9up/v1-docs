@@ -52,6 +52,38 @@ users.updateById(created.id, { status: 'disabled' })
 users.delete(created)
 ```
 
+## JSON columns
+
+Declare the type and the value round-trips as a value, both ways:
+
+```ts
+@Entity('instruments')
+class Instrument extends BaseEntity {
+  @PrimaryKey() declare id: string
+  @Column({ type: 'jsonb' }) declare metadata: Record<string, unknown> | null
+  @Column({ type: 'json' }) declare tags: string[] | null
+}
+
+instrument.tags = ['XSWX', 'XVTX']   // stored as JSON, read back as an array
+```
+
+No `prepare` / `consume` pair to write. The declared type is what adds the
+Postgres `::jsonb` cast, and it is now also what serialises the value on the way
+down and parses it on the way back — so SQLite and MySQL, where the column is
+TEXT, agree with the native Postgres pool, which decodes JSON on its own.
+
+::: warning A list bound to an undeclared column is refused
+Atlas refuses a top-level array as a single bind: the far more common cause is
+a mis-built `IN` list, and on Postgres those bytes are read as a binary array
+header — a nonsensical dimension count instead of a type error. Declaring the
+column is the fix for a JSON value; `whereIn(column, values)` is the fix for a
+list. On a raw query with no entity behind it, pass `JSON.stringify(value)`.
+
+Knex is looser here only for objects: node-postgres serialises a plain object
+by itself, but turns an ARRAY into a Postgres array literal — which is why
+Lucid applications write `prepare: JSON.stringify` for a list.
+:::
+
 ## Notes
 
 - Validate business inputs before `save`.

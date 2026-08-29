@@ -52,6 +52,41 @@ users.updateById(created.id, { status: 'disabled' })
 users.delete(created)
 ```
 
+## Colonnes JSON
+
+Déclarez le type et la valeur fait l'aller-retour en tant que valeur, dans les
+deux sens :
+
+```ts
+@Entity('instruments')
+class Instrument extends BaseEntity {
+  @PrimaryKey() declare id: string
+  @Column({ type: 'jsonb' }) declare metadata: Record<string, unknown> | null
+  @Column({ type: 'json' }) declare tags: string[] | null
+}
+
+instrument.tags = ['XSWX', 'XVTX']   // stocké en JSON, relu en tableau
+```
+
+Aucune paire `prepare` / `consume` à écrire. Le type déclaré est ce qui ajoute
+le cast Postgres `::jsonb` ; c'est désormais aussi ce qui sérialise la valeur à
+l'aller et la parse au retour — donc SQLite et MySQL, où la colonne est du
+TEXT, s'accordent avec le pool Postgres natif, qui décode le JSON tout seul.
+
+::: warning Une liste liée à une colonne non déclarée est refusée
+Atlas refuse un tableau de premier niveau comme valeur unique : la cause de loin
+la plus fréquente est une liste `IN` mal construite, et sur Postgres ces octets
+sont lus comme un en-tête de tableau binaire — un nombre de dimensions absurde
+au lieu d'une erreur de type. Déclarer la colonne est le correctif pour une
+valeur JSON ; `whereIn(colonne, valeurs)` est le correctif pour une liste. Sur
+une requête brute sans entité derrière, passez `JSON.stringify(valeur)`.
+
+Knex n'est plus permissif que pour les objets : node-postgres sérialise un objet
+simple tout seul, mais transforme un TABLEAU en littéral de tableau Postgres —
+d'où le `prepare: JSON.stringify` qu'écrivent les applications Lucid pour une
+liste.
+:::
+
 ## Points de vigilance
 
 - Toujours valider les données métier avant `save`.
