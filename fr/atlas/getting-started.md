@@ -54,37 +54,64 @@ users.delete(created)
 
 ## Colonnes JSON
 
-Déclarez le type et la valeur fait l'aller-retour en tant que valeur, dans les
-deux sens :
+Une colonne qui contient un document JSON garde sa forme JavaScript des deux
+côtés :
 
 ```ts
 @Entity('instruments')
 class Instrument extends BaseEntity {
   @PrimaryKey() declare id: string
-  @Column({ type: 'jsonb' }) declare metadata: Record<string, unknown> | null
-  @Column({ type: 'json' }) declare tags: string[] | null
+  @Column.json() declare metadata: Record<string, unknown> | null
+  @Column.json({ type: 'json' }) declare tags: string[] | null
 }
 
-instrument.tags = ['XSWX', 'XVTX']   // stocké en JSON, relu en tableau
+instrument.metadata = { isin: 'CH0012032048' }
+instrument.tags = ['XSWX', 'XVTX']
+await repo.save(instrument)
+
+const found = await repo.find(instrument.id)
+found.tags        // ['XSWX', 'XVTX'] — un tableau, pas une chaîne
 ```
 
-Aucune paire `prepare` / `consume` à écrire. Le type déclaré est ce qui ajoute
-le cast Postgres `::jsonb` ; c'est désormais aussi ce qui sérialise la valeur à
-l'aller et la parse au retour — donc SQLite et MySQL, où la colonne est du
-TEXT, s'accordent avec le pool Postgres natif, qui décode le JSON tout seul.
+Atlas sérialise la valeur à l'écriture de la ligne et la parse à la lecture.
+Rien à convertir à la main dans l'application, et les trois dialectes se
+comportent pareil : Postgres décode le JSON lui-même, SQLite et MySQL stockent
+du texte.
 
-::: warning Une liste liée à une colonne non déclarée est refusée
-Atlas refuse un tableau de premier niveau comme valeur unique : la cause de loin
-la plus fréquente est une liste `IN` mal construite, et sur Postgres ces octets
-sont lus comme un en-tête de tableau binaire — un nombre de dimensions absurde
-au lieu d'une erreur de type. Déclarer la colonne est le correctif pour une
-valeur JSON ; `whereIn(colonne, valeurs)` est le correctif pour une liste. Sur
-une requête brute sans entité derrière, passez `JSON.stringify(valeur)`.
+`@Column.json()` déclare du `jsonb` ; passez `{ type: 'json' }` pour la forme
+textuelle. Le type est aussi ce qui ajoute le cast Postgres `::jsonb`, donc
+`@Column({ type: 'jsonb' })` fait la même chose — le décorateur le dit à un seul
+endroit et ne peut pas être mal orthographié.
 
-Knex n'est plus permissif que pour les objets : node-postgres sérialise un objet
-simple tout seul, mais transforme un TABLEAU en littéral de tableau Postgres —
-d'où le `prepare: JSON.stringify` qu'écrivent les applications Lucid pour une
-liste.
+Donnez à la colonne ses propres `prepare` / `consume` quand le document demande
+un autre encodage ; les vôtres l'emportent sur l'automatique :
+
+```ts
+@Column.json({
+  prepare: (value) => encrypt(JSON.stringify(value)),
+  consume: (value) => JSON.parse(decrypt(value as string)),
+})
+declare secrets: Record<string, string>
+```
+
+Un `null` reste `null` — il n'est jamais stocké comme la chaîne `"null"`. Sur
+SQLite, où la colonne est du TEXT et où rien n'impose la forme, un texte qui ne
+se parse pas revient en chaîne brute plutôt que de faire échouer toute la ligne:
+les autres colonnes restent lisibles, et rien n'est réécrit.
+
+::: warning Une liste liée à une colonne non déclarée JSON est refusée
+Atlas refuse un tableau de premier niveau comme valeur unique :
+
+```
+[E_ARRAY_PARAM] Parameter $1 is an array, which cannot be bound as a single value.
+```
+
+La cause habituelle est une liste destinée à un `IN` — et sur Postgres ces
+octets sont lus comme un en-tête de tableau binaire, qui rapporte un nombre de
+dimensions absurde au lieu d'une erreur de type. Utilisez
+`whereIn(colonne, valeurs)` pour une liste, et déclarez la colonne pour une
+valeur JSON. Sur une requête brute sans entité derrière, passez
+`JSON.stringify(valeur)`.
 :::
 
 ## Points de vigilance

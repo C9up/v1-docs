@@ -54,34 +54,61 @@ users.delete(created)
 
 ## JSON columns
 
-Declare the type and the value round-trips as a value, both ways:
+A column holding a JSON document keeps its JavaScript shape on both sides:
 
 ```ts
 @Entity('instruments')
 class Instrument extends BaseEntity {
   @PrimaryKey() declare id: string
-  @Column({ type: 'jsonb' }) declare metadata: Record<string, unknown> | null
-  @Column({ type: 'json' }) declare tags: string[] | null
+  @Column.json() declare metadata: Record<string, unknown> | null
+  @Column.json({ type: 'json' }) declare tags: string[] | null
 }
 
-instrument.tags = ['XSWX', 'XVTX']   // stored as JSON, read back as an array
+instrument.metadata = { isin: 'CH0012032048' }
+instrument.tags = ['XSWX', 'XVTX']
+await repo.save(instrument)
+
+const found = await repo.find(instrument.id)
+found.tags        // ['XSWX', 'XVTX'] — an array, not a string
 ```
 
-No `prepare` / `consume` pair to write. The declared type is what adds the
-Postgres `::jsonb` cast, and it is now also what serialises the value on the way
-down and parses it on the way back — so SQLite and MySQL, where the column is
-TEXT, agree with the native Postgres pool, which decodes JSON on its own.
+Atlas serialises the value when it writes the row and parses it when it reads
+one. Nothing in the application converts by hand, and the three dialects behave
+identically: Postgres decodes JSON itself, while SQLite and MySQL hold text.
 
-::: warning A list bound to an undeclared column is refused
-Atlas refuses a top-level array as a single bind: the far more common cause is
-a mis-built `IN` list, and on Postgres those bytes are read as a binary array
-header — a nonsensical dimension count instead of a type error. Declaring the
-column is the fix for a JSON value; `whereIn(column, values)` is the fix for a
-list. On a raw query with no entity behind it, pass `JSON.stringify(value)`.
+`@Column.json()` declares `jsonb`; pass `{ type: 'json' }` for the textual form.
+The type is also what adds the Postgres `::jsonb` cast, so
+`@Column({ type: 'jsonb' })` does the same thing — the decorator says it in one
+place and cannot be mistyped.
 
-Knex is looser here only for objects: node-postgres serialises a plain object
-by itself, but turns an ARRAY into a Postgres array literal — which is why
-Lucid applications write `prepare: JSON.stringify` for a list.
+Give the column its own `prepare` / `consume` when the document needs a
+different encoding; yours wins over the automatic one:
+
+```ts
+@Column.json({
+  prepare: (value) => encrypt(JSON.stringify(value)),
+  consume: (value) => JSON.parse(decrypt(value as string)),
+})
+declare secrets: Record<string, string>
+```
+
+`null` stays `null` — it is never stored as the string `"null"`. On SQLite,
+where the column is TEXT and nothing enforces the shape, text that will not
+parse comes back as the raw string rather than failing the whole row: the other
+columns stay readable, and nothing is rewritten.
+
+::: warning A list bound to a column that is not declared JSON is refused
+Atlas refuses a top-level array as a single bind:
+
+```
+[E_ARRAY_PARAM] Parameter $1 is an array, which cannot be bound as a single value.
+```
+
+The usual cause is a list meant for an `IN` — and on Postgres those bytes are
+read as a binary array header, which reports a nonsensical dimension count
+instead of a type error. Use `whereIn(column, values)` for a list, and declare
+the column for a JSON value. On a raw query with no entity behind it, pass
+`JSON.stringify(value)`.
 :::
 
 ## Notes
