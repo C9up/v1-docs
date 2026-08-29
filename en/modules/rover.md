@@ -24,7 +24,7 @@ import { defineConfig } from '@c9up/rover'
 export default defineConfig({
   default: 'smtp',
   from: 'noreply@example.com',
-  transports: {
+  mailers: {
     smtp: {
       transport: 'smtp',
       host: 'smtp.example.com',
@@ -39,6 +39,9 @@ export default defineConfig({
   },
 })
 ```
+
+`default` has to name one of the `mailers`; anything else is refused when the
+application boots, rather than on the first email it tries to send.
 
 In development, set `default: 'log'` to print emails to the console without sending them.
 
@@ -190,7 +193,7 @@ class ResendTransport implements MailTransport {
 registerTransport('resend', (config) => new ResendTransport(config))
 
 // Now you can reference `transport: 'resend'` in your mail config:
-// transports: { resend: { transport: 'resend', apiKey: process.env.RESEND_KEY } }
+// mailers: { resend: { transport: 'resend', apiKey: process.env.RESEND_KEY } }
 ```
 
 ## Standalone Usage
@@ -203,7 +206,7 @@ import { Mail } from '@c9up/rover'
 const mail = new Mail({
   default: 'smtp',
   from: 'noreply@example.com',
-  transports: {
+  mailers: {
     smtp: { transport: 'smtp', host: 'localhost', port: 1025 },
   },
 })
@@ -226,7 +229,7 @@ import { defineConfig, transports } from '@c9up/rover'
 export default defineConfig({
   default: 'smtp',
   from: 'noreply@acme.com',
-  mailers: {                                    // `transports` also works
+  mailers: {
     smtp: transports.smtp({ host: env.get('SMTP_HOST') }),
     ses: transports.ses({ region: 'eu-west-1', accessKeyId, secretAccessKey }),
   },
@@ -237,6 +240,9 @@ Every bundled transport registers itself when the package entry loads —
 `smtp`, `log`, `ses`, `mailgun`, `sparkpost`, `resend`, `brevo`, `sendgrid`.
 There is no `postmark` helper: rover has no such transport, so a config naming
 it fails to **compile** rather than at boot.
+
+`transports` is rover's older name for the same map. It still works — a config
+written against it needs no change — but new configs declare `mailers`.
 
 ## Dispatchable mails
 

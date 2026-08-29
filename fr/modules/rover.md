@@ -24,7 +24,7 @@ import { defineConfig } from '@c9up/rover'
 export default defineConfig({
   default: 'smtp',
   from: 'noreply@example.com',
-  transports: {
+  mailers: {
     smtp: {
       transport: 'smtp',
       host: 'smtp.example.com',
@@ -39,6 +39,9 @@ export default defineConfig({
   },
 })
 ```
+
+`default` doit nommer l'un des `mailers` ; toute autre valeur est refusée au
+démarrage de l'application, et non au premier email qu'elle tente d'envoyer.
 
 En developpement, utilisez `default: 'log'` pour afficher les emails dans la console sans les envoyer.
 
@@ -194,7 +197,7 @@ import { Mail } from '@c9up/rover'
 const mail = new Mail({
   default: 'smtp',
   from: 'noreply@example.com',
-  transports: {
+  mailers: {
     smtp: { transport: 'smtp', host: 'localhost', port: 1025 },
   },
 })
@@ -217,7 +220,7 @@ import { defineConfig, transports } from '@c9up/rover'
 export default defineConfig({
   default: 'smtp',
   from: 'noreply@acme.com',
-  mailers: {                                    // `transports` marche aussi
+  mailers: {
     smtp: transports.smtp({ host: env.get('SMTP_HOST') }),
     ses: transports.ses({ region: 'eu-west-1', accessKeyId, secretAccessKey }),
   },
@@ -228,6 +231,10 @@ Chaque transport livré s'enregistre au chargement de l'entrée du paquet —
 `smtp`, `log`, `ses`, `mailgun`, `sparkpost`, `resend`, `brevo`, `sendgrid`.
 Il n'y a pas de helper `postmark` : rover n'a pas ce transport, donc une config
 qui le nomme échoue à la **compilation** plutôt qu'au démarrage.
+
+`transports` est l'ancien nom rover de la même table. Il fonctionne toujours —
+une config écrite ainsi n'a rien à changer — mais les nouvelles déclarent
+`mailers`.
 
 ## Mails dépêchables
 
