@@ -263,3 +263,24 @@ AtlasProvider.shutdown()   ← ordre inversé
 - [Cycle de vie](/fr/guide/lifecycle) — Séquence de démarrage complète de l'Ignitor et hooks de l'application
 - [Conteneur IoC](/fr/guide/container) — Enregistrement et résolution des dépendances
 - [Configuration](/fr/guide/configuration) — Config typée avec `defineModuleConfig`
+
+### `@c9up/transit/provider`
+
+Lit `config/transit.ts` et enregistre les fournisseurs de connexion qui y sont
+déclarés.
+
+```typescript
+// config/transit.ts
+import { defineConfig, socials } from '@c9up/transit'
+
+export default defineConfig({
+  google: socials.google({
+    clientId: process.env.GOOGLE_CLIENT_ID!,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    callbackUrl: 'https://acme.test/auth/google/callback',
+  }),
+})
+```
+
+Résolvez le manager sous `TransitManager`, ou via
+`@c9up/transit/services/main`. Voir [Transit](/fr/modules/transit).

@@ -66,6 +66,9 @@ pnpm add @c9up/rune
 # Authentification
 pnpm add @c9up/warden
 
+# Connexion sociale (Google, GitHub, ...)
+pnpm add @c9up/transit
+
 # Logging
 pnpm add @c9up/spectrum
 ```

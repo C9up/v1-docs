@@ -1,6 +1,6 @@
 # Warden — Authentication
 
-Warden manages authentication strategies and role-based access control (RBAC). The core is the `AuthManager` class, which delegates authentication and token verification to registered strategies. The built-in `JwtStrategy` covers the common JWT use case. You can register additional strategies (session, API key, OAuth) at any time.
+Warden manages authentication strategies and role-based access control (RBAC). The core is the `AuthManager` class, which delegates authentication and token verification to registered strategies. The built-in `JwtStrategy` covers the common JWT use case. You can register additional strategies (session, API key, HTTP Basic) at any time. Signing someone in through an outside provider is [Transit](/en/modules/transit).
 
 ## Installation
 

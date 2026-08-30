@@ -1,6 +1,6 @@
 # Warden — Authentification
 
-Warden gère les stratégies d'authentification et le contrôle d'accès basé sur les rôles (RBAC). Le coeur est la classe `AuthManager`, qui délègue l'authentification et la vérification des tokens aux stratégies enregistrées. La `JwtStrategy` intégrée couvre le cas d'usage JWT courant. Vous pouvez enregistrer des stratégies supplémentaires (session, clé API, OAuth) à tout moment.
+Warden gère les stratégies d'authentification et le contrôle d'accès basé sur les rôles (RBAC). Le coeur est la classe `AuthManager`, qui délègue l'authentification et la vérification des tokens aux stratégies enregistrées. La `JwtStrategy` intégrée couvre le cas d'usage JWT courant. Vous pouvez enregistrer des stratégies supplémentaires (session, clé API, HTTP Basic) à tout moment. Connecter quelqu'un via un fournisseur extérieur, c'est [Transit](/fr/modules/transit).
 
 ## Installation
 

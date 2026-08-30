@@ -263,3 +263,23 @@ AtlasProvider.shutdown()   ← reversed
 - [Lifecycle](/en/guide/lifecycle) — Full Ignitor boot sequence and application hooks
 - [IoC Container](/en/guide/container) — Registering and resolving dependencies
 - [Configuration](/en/guide/configuration) — Typed config with `defineModuleConfig`
+
+### `@c9up/transit/provider`
+
+Reads `config/transit.ts` and registers the sign-in providers declared there.
+
+```typescript
+// config/transit.ts
+import { defineConfig, socials } from '@c9up/transit'
+
+export default defineConfig({
+  google: socials.google({
+    clientId: process.env.GOOGLE_CLIENT_ID!,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    callbackUrl: 'https://acme.test/auth/google/callback',
+  }),
+})
+```
+
+Resolve the manager as `TransitManager`, or through
+`@c9up/transit/services/main`. See [Transit](/en/modules/transit).

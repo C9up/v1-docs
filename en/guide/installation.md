@@ -33,6 +33,9 @@ pnpm add -D @types/better-sqlite3
 # Authentication (JWT, guards)
 pnpm add @c9up/warden
 
+# Social sign-in (Google, GitHub, ...)
+pnpm add @c9up/transit
+
 # Validation
 pnpm add @c9up/rune
 
