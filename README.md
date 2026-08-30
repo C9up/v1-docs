@@ -39,7 +39,7 @@ pnpm dev
 | Package | What it is | Repository |
 |---|---|---|
 | `@c9up/warden` | Auth — JWT / session / API-key strategies, permissions, MFA | [C9up/warden](https://github.com/C9up/warden) |
-| `@c9up/transit` | Federated sign-in — OpenID Connect, OAuth1 / OAuth2 providers | [C9up/transit](https://github.com/C9up/transit) |
+| `@c9up/transit` | Federated sign-in — SAML 2.0, OpenID Connect, OAuth1 / OAuth2 | [C9up/transit](https://github.com/C9up/transit) |
 | `@c9up/sigil` | Password hashing — argon2 / bcrypt / scrypt (Rust) | [C9up/sigil](https://github.com/C9up/sigil) |
 | `@c9up/blackhole` | Security filter — XSS / CSRF / rate-limit (Rust, ammonia-based) | [C9up/blackhole](https://github.com/C9up/blackhole) |
 

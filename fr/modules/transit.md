@@ -292,6 +292,99 @@ Aucun code à échanger — pour un jeton rafraîchi, ou obtenu par un client mo
 lui-même. Un fournisseur OAuth1 réclame aussi le secret :
 `userFromToken('twitter', accessToken, tokenSecret)`.
 
+## SAML 2.0
+
+Les annuaires d'entreprise — Okta, Entra ID, ADFS, OneLogin, Shibboleth.
+
+```ts
+import { defineConfig, saml, replayStores } from '@c9up/transit'
+
+export default defineConfig({
+  corp: saml({
+    entityId: 'https://acme.test/saml',            // qui est cette application
+    callbackUrl: 'https://acme.test/saml/acs',     // où la réponse atterrit
+    issuer: 'https://idp.acme.test/metadata',      // qui est le fournisseur
+    signOnUrl: 'https://idp.acme.test/sso',
+    certificates: [env.get('IDP_CERTIFICATE')],
+    replayStore: replayStores.redis({ connection: 'main' }),
+  }),
+})
+```
+
+`certificates` vient des métadonnées du fournisseur et de nulle part ailleurs.
+Plusieurs sont acceptés, pour préparer une rotation de clé **avant** qu'elle
+arrive plutôt que pendant la panne. Un driver sans aucun refuse d'exister, au
+démarrage et non à la première connexion.
+
+**Le callback est un POST**, comme celui d'Apple : le fournisseur poste un
+formulaire portant `SAMLResponse` et `RelayState`. Ce sont le `code` et le
+`state`, et l'identifiant de requête rendu par `begin()` est le `secret` — le
+même contrôleur que partout ailleurs.
+
+```ts
+const { url, state, secret } = await transit.begin('corp')
+ctx.session.put('transit_state', state)
+ctx.session.put('transit_secret', secret)
+return ctx.response.redirect(url)
+
+// ... et sur la route ACS, en POST
+const { user } = await transit.callback(
+  'corp',
+  ctx.request.input('SAMLResponse'),
+  ctx.request.input('RelayState'),
+  ctx.session.pull('transit_state'),
+  ctx.session.pull('transit_secret'),
+)
+```
+
+### Ce qui est vérifié
+
+Une signature valide dit que le fournisseur a écrit ceci. Elle ne dit rien sur
+le fait que la déclaration soit destinée à **cette** application, à **ce**
+moment, en réponse à **cette** requête — et une réponse authentique mais aucune
+de ces trois choses, c'est exactement à quoi ressemble un rejeu ou une connexion
+détournée.
+
+| | |
+| --- | --- |
+| Signature | Contre le certificat des métadonnées, sur l'assertion, avant toute autre lecture. |
+| Wrapping | L'élément que la signature couvre est celui qui est lu. Rien n'est recherché dans le document après coup. |
+| Issuer | Le fournisseur nommé par la config. |
+| Audience | L'entity id de cette application. |
+| Recipient | L'URL à laquelle cette application répond. |
+| `InResponseTo` | La requête que cette connexion a émise. |
+| Fenêtres | Celle de l'assertion et celle de la confirmation bearer, à une minute de dérive près. |
+| Rejeu | L'identifiant d'assertion, mémorisé jusqu'à son expiration. |
+
+Les absences sont refusées aussi fermement que les écarts : une assertion qui
+ne restreint aucune audience ne dit pas à qui elle s'adresse, une sans expiration
+ne cesse jamais d'être utilisable, et une qui répond à une requête que cette
+application n'a jamais émise a été obtenue ailleurs.
+
+SHA-1 est refusé, pour les signatures comme pour les empreintes. Les
+transformations XPath et XSLT sont refusées — l'une peut déplacer ce que
+l'empreinte couvre, l'autre est exécutable.
+
+### Le rejeu, et une deuxième réplique
+
+Une assertion est un jeton porteur : capturée une fois et repostée, elle est
+valide les deux fois, et aucune condition ne l'en empêche. Le store par défaut
+mémorise dans la mémoire du processus, ce qui accepte la même assertion **une
+fois par réplique**. Passez `replayStores.redis({ connection })` dès qu'il y en
+a deux.
+
+### Les attributs
+
+`user.raw.attributes` porte tous les attributs, valeurs conservées en liste :
+les attributs SAML sont multivalués et les aplatir perd les appartenances de
+groupe. L'email, le nom et le pseudo sont lus depuis les noms que les
+fournisseurs emploient d'habitude ; `claims` les nomme quand un fournisseur
+invente les siens :
+
+```ts
+saml({ ...config, claims: { email: 'urn:acme:mail' } })
+```
+
 ## Tester une connexion
 
 Une connexion ne peut pas être exercée contre un vrai fournisseur dans un test,

@@ -288,6 +288,96 @@ No code to exchange — for a refreshed token, or one a mobile client obtained
 itself. An OAuth1 provider needs the token secret too:
 `userFromToken('twitter', accessToken, tokenSecret)`.
 
+## SAML 2.0
+
+The enterprise directories — Okta, Entra ID, ADFS, OneLogin, Shibboleth.
+
+```ts
+import { defineConfig, saml, replayStores } from '@c9up/transit'
+
+export default defineConfig({
+  corp: saml({
+    entityId: 'https://acme.test/saml',            // who this application is
+    callbackUrl: 'https://acme.test/saml/acs',     // where the response lands
+    issuer: 'https://idp.acme.test/metadata',      // who the provider is
+    signOnUrl: 'https://idp.acme.test/sso',
+    certificates: [env.get('IDP_CERTIFICATE')],
+    replayStore: replayStores.redis({ connection: 'main' }),
+  }),
+})
+```
+
+`certificates` comes from the provider's metadata and nowhere else. Several are
+accepted, so a key rotation is prepared before it happens rather than during an
+outage. A driver with none refuses to exist, at boot rather than at the first
+sign-in.
+
+**The callback is a POST**, like Apple's: the provider posts a form carrying
+`SAMLResponse` and `RelayState`. Those are the `code` and the `state`, and the
+request id from `begin()` is the `secret` — the same controller as everywhere
+else.
+
+```ts
+const { url, state, secret } = await transit.begin('corp')
+ctx.session.put('transit_state', state)
+ctx.session.put('transit_secret', secret)
+return ctx.response.redirect(url)
+
+// ... and at the ACS route, on a POST
+const { user } = await transit.callback(
+  'corp',
+  ctx.request.input('SAMLResponse'),
+  ctx.request.input('RelayState'),
+  ctx.session.pull('transit_state'),
+  ctx.session.pull('transit_secret'),
+)
+```
+
+### What is verified
+
+A valid signature says the provider wrote this. It says nothing about whether
+the statement was meant for **this** application, at **this** moment, in answer
+to **this** request — and a response that is genuine but none of those is what
+a replay or a misdirected sign-in looks like.
+
+| | |
+| --- | --- |
+| Signature | Against the metadata's certificate, over the assertion, before anything else is read. |
+| Wrapping | The element the signature covers is the element that is read. Nothing is looked up in the document afterwards. |
+| Issuer | The provider the config names. |
+| Audience | This application's entity id. |
+| Recipient | The URL this application answers at. |
+| `InResponseTo` | The request this sign-in made. |
+| Windows | The assertion's and the bearer confirmation's, with a minute of drift. |
+| Replay | The assertion id, remembered until it expires. |
+
+Absences are refused as firmly as mismatches: an assertion that restricts no
+audience does not say who it is for, one with no expiry never stops being
+usable, and one answering a request this application never made was obtained
+somewhere else.
+
+SHA-1 is refused, for signatures and for digests. XPath and XSLT transforms are
+refused — one can make the digest cover something other than the element, and
+the other is executable.
+
+### Replay, and a second replica
+
+An assertion is a bearer token: captured once and posted twice it is valid both
+times, and no condition on it changes that. The default store remembers in this
+process's memory, which accepts the same assertion **once per replica**. Pass
+`replayStores.redis({ connection })` as soon as there are two.
+
+### Attributes
+
+`user.raw.attributes` carries every attribute, values kept as a list because
+SAML attributes are multi-valued and collapsing them loses group memberships.
+The email, name and nickname are read from the names providers usually use;
+`claims` names them when a provider invents its own:
+
+```ts
+saml({ ...config, claims: { email: 'urn:acme:mail' } })
+```
+
 ## Testing a sign-in
 
 A sign-in cannot be exercised against a real provider in a test, so Transit
