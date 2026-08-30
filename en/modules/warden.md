@@ -1071,6 +1071,86 @@ await webauthn.finishRegistration(reg.state, user.id, browserResponse)
 
 ---
 
+## Social sign-in
+
+Declare the providers in `config/auth.ts` and Warden builds the manager,
+registers each driver, and binds it in the container:
+
+```typescript
+import { defineConfig, socials } from '@c9up/warden/config'
+
+export default defineConfig({
+  // ... guards
+  socials: {
+    google: socials.google({
+      clientId: env.get('GOOGLE_CLIENT_ID'),
+      clientSecret: env.get('GOOGLE_CLIENT_SECRET'),
+      callbackUrl: 'https://acme.test/auth/google/callback',
+    }),
+    github: socials.github({
+      clientId: env.get('GITHUB_CLIENT_ID'),
+      clientSecret: env.get('GITHUB_CLIENT_SECRET'),
+      callbackUrl: 'https://acme.test/auth/github/callback',
+      scopes: ['user', 'user:email'],
+    }),
+  },
+})
+```
+
+The key is yours. Two entries may use the same driver with different
+credentials — a `staff` sign-in and a `customers` one, both on Google — and
+`use(name)` asks for the key, not for the driver.
+
+Resolve the manager as `FirstContactManager`, or by the `"socials"` alias from
+code that cannot import Warden.
+
+### The round trip
+
+```typescript
+import { FirstContactManager } from '@c9up/warden'
+
+const socials = await app.container.resolve(FirstContactManager)
+
+// Send the user off
+const state = crypto.randomUUID()
+ctx.session.put('oauth_state', state)
+return ctx.response.redirect(socials.redirect('google', state))
+
+// ... and receive them back
+const { user, token } = await socials.callback(
+  'google',
+  ctx.request.input('code'),
+  ctx.request.input('state'),
+  ctx.session.pull('oauth_state'),
+)
+```
+
+`state` is not optional in practice. The callback **refuses** to run without
+an expected value to compare against: an OAuth callback that trusts whatever
+code arrives lets an attacker link their own provider account to a signed-in
+victim's session. Store the value you sent, hand it back here, and the check
+fails closed if the two disagree.
+
+`user` carries `id`, `email`, `name`, an optional `avatarUrl` and the
+provider's raw payload; `token` carries `accessToken` and, when the provider
+issues one, `refreshToken`.
+
+### Another provider
+
+Anything answering `redirectUrl(state)` and `callback(code, state, expected)`
+can be declared directly:
+
+```typescript
+socials: {
+  gitlab: new GitLabDriver({ clientId, clientSecret, callbackUrl }),
+}
+```
+
+Validate the state round trip with `assertOAuthState(state, expected)` — it is
+exported for exactly that, and it fails closed on a missing expected value.
+
+---
+
 ## Auth Middleware
 
 Create an `AuthMiddleware` class that calls `auth.verify()` and populates `ctx.auth`. The container resolves `AuthManager` via constructor injection.
