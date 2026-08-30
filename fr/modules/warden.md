@@ -1139,8 +1139,8 @@ depuis du code qui ne peut pas importer Warden.
 | `socials.facebook` | `email` |
 | `socials.github` | `read:user`, `user:email` |
 | `socials.google` | `openid`, `email`, `profile` |
-| `socials.linkedin` | `openid`, `profile`, `email` |
-| `socials.linkedinMember` | `r_liteprofile`, `r_emailaddress` |
+| `socials.linkedin` | `r_liteprofile`, `r_emailaddress` |
+| `socials.linkedinOpenidConnect` | `openid`, `profile`, `email` |
 | `socials.spotify` | `user-read-email` |
 | `socials.twitter` | `tweet.read`, `users.read`, `users.email` |
 
@@ -1152,10 +1152,10 @@ le fournisseur accepte d'autre sur son URL d'autorisation — `prompt`,
 socials.discord({ ...identifiants, authorizeParams: { prompt: 'none' } })
 ```
 
-Deux entrées LinkedIn parce que LinkedIn a deux flux : une application récente
-reçoit OpenID Connect (`linkedin`), tandis qu'une plus ancienne peut encore
-détenir `r_liteprofile` / `r_emailaddress` (`linkedinMember`, qui lit l'adresse
-sur un second endpoint).
+Deux entrées LinkedIn parce que LinkedIn a deux flux. **Une application récente
+veut `linkedinOpenidConnect`** — LinkedIn n'accorde plus `r_liteprofile` aux
+nouvelles applications. `linkedin` est l'API membre, pour une application qui
+détient déjà ces scopes ; elle lit l'adresse sur un second endpoint.
 
 ### L'aller-retour
 
@@ -1184,9 +1184,40 @@ qui arrive laisse un attaquant rattacher son propre compte fournisseur à la
 session d'une victime connectée. Stockez la valeur envoyée, rendez-la ici, et
 la vérification échoue fermée si les deux divergent.
 
-`user` porte `id`, `email`, `name`, un `avatarUrl` optionnel et la charge brute
-du fournisseur ; `token` porte `accessToken` et, quand le fournisseur les émet,
-`refreshToken` et `expiresIn`.
+`user` porte `id`, `email`, `name`, le `nickName` du fournisseur (un login, un
+pseudo, un nom affiché), un `avatarUrl` optionnel, un `emailVerificationState`
+et la charge brute. `token` porte `accessToken` et, quand le fournisseur les
+émet, `refreshToken` et `expiresIn`.
+
+### Avant de rattacher un compte par email
+
+`emailVerificationState` vaut `verified`, `unverified` ou `unsupported`, et
+décide si l'adresse peut servir à retrouver un compte existant :
+
+```typescript
+if (user.emailVerificationState !== 'verified') {
+  // Faire confirmer l'adresse plutôt que de rattacher dessus.
+}
+```
+
+`unverified` signifie que quiconque a pu saisir cette adresse chez le
+fournisseur la détient désormais — rattacher sur cette base lui remet le
+compte. `unsupported` signifie que le fournisseur ne dit rien, ce qui n'est pas
+un oui ; Spotify, X et l'API membre LinkedIn sont dans ce cas.
+
+GitHub mérite une note : la plupart des comptes gardent leur adresse privée, le
+profil n'en renvoie donc aucune. Le driver lit alors `/user/emails`, préfère
+l'adresse principale vérifiée, et rapporte ce que GitHub en dit. Un compte
+ayant refusé `user:email` se connecte quand même — sans adresse.
+
+### Un token déjà en main
+
+```typescript
+const user = await socials.userFromToken('google', accessToken)
+```
+
+Aucun code à échanger — pour un token rafraîchi, ou obtenu par un client mobile
+lui-même.
 
 ### Les fournisseurs qui exigent PKCE
 
@@ -1259,6 +1290,11 @@ Tout ce qui répond à `redirectUrl(state, codeVerifier?)` et
 base. Validez l'aller-retour du state avec `assertOAuthState(state, expected)`
 — il est exporté exactement pour ça, et il échoue fermé sur une valeur attendue
 absente.
+
+Il n'existe aucun moyen de désactiver cette vérification. Un callback qui
+accepte n'importe quel code entrant est précisément ce qui permet à un attaquant
+de rattacher son propre compte fournisseur à la session d'une victime
+connectée : le contrôle n'est pas optionnel.
 
 ---
 

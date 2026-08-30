@@ -1112,8 +1112,8 @@ code that cannot import Warden.
 | `socials.facebook` | `email` |
 | `socials.github` | `read:user`, `user:email` |
 | `socials.google` | `openid`, `email`, `profile` |
-| `socials.linkedin` | `openid`, `profile`, `email` |
-| `socials.linkedinMember` | `r_liteprofile`, `r_emailaddress` |
+| `socials.linkedin` | `r_liteprofile`, `r_emailaddress` |
+| `socials.linkedinOpenidConnect` | `openid`, `profile`, `email` |
 | `socials.spotify` | `user-read-email` |
 | `socials.twitter` | `tweet.read`, `users.read`, `users.email` |
 
@@ -1125,10 +1125,10 @@ without a config type per provider:
 socials.discord({ ...credentials, authorizeParams: { prompt: 'none' } })
 ```
 
-Two LinkedIn entries because LinkedIn has two flows: a new application is
-issued OpenID Connect (`linkedin`), while an older one may still hold
-`r_liteprofile` / `r_emailaddress` (`linkedinMember`, which reads the address
-from a second endpoint).
+Two LinkedIn entries because LinkedIn has two flows. **A new application wants
+`linkedinOpenidConnect`** — LinkedIn no longer grants `r_liteprofile` to new
+apps. `linkedin` is the member API, for an application that already holds those
+scopes; it reads the address from a second endpoint.
 
 ### The round trip
 
@@ -1157,9 +1157,40 @@ code arrives lets an attacker link their own provider account to a signed-in
 victim's session. Store the value you sent, hand it back here, and the check
 fails closed if the two disagree.
 
-`user` carries `id`, `email`, `name`, an optional `avatarUrl` and the
-provider's raw payload; `token` carries `accessToken` and, when the provider
-issues one, `refreshToken` and `expiresIn`.
+`user` carries `id`, `email`, `name`, the provider's `nickName` (a login, a
+username, a display name), an optional `avatarUrl`, an
+`emailVerificationState` and the raw payload. `token` carries `accessToken`
+and, when the provider issues one, `refreshToken` and `expiresIn`.
+
+### Before you link an account by email
+
+`emailVerificationState` is `verified`, `unverified` or `unsupported`, and it
+decides whether the address may be trusted to match an existing account:
+
+```typescript
+if (user.emailVerificationState !== 'verified') {
+  // Ask the user to confirm the address instead of linking on it.
+}
+```
+
+`unverified` means anyone able to type that address at the provider now holds
+it — linking on that basis hands them the account. `unsupported` means the
+provider says nothing either way, which is not the same as saying yes; Spotify,
+X and the LinkedIn member API all report it.
+
+GitHub is a special case worth knowing: most accounts keep the address private,
+so the profile returns none. The driver then reads `/user/emails`, prefers the
+verified primary, and reports what GitHub says about it. An account that
+declined `user:email` still signs in — with no address.
+
+### A token you already hold
+
+```typescript
+const user = await socials.userFromToken('google', accessToken)
+```
+
+No code to exchange — for a refreshed token, or one a mobile client obtained
+itself.
 
 ### Providers that require PKCE
 
@@ -1229,6 +1260,10 @@ Anything answering `redirectUrl(state, codeVerifier?)` and
 `callback(code, state, expected, codeVerifier?)` works too, without the base.
 Validate the state round trip with `assertOAuthState(state, expected)` — it is
 exported for exactly that, and it fails closed on a missing expected value.
+
+There is no way to turn the state check off. A callback that accepts whatever
+code arrives is how an attacker links their own provider account to a signed-in
+victim's session, so the check is not optional.
 
 ---
 
