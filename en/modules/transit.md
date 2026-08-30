@@ -1,8 +1,11 @@
 # Transit — Federated sign-in
 
 Transit is where a person proves who they are through an authority your
-application does not own. Today that means OAuth1, OAuth2, and the providers
-that speak them.
+application does not own: SAML 2.0, OpenID Connect, Sign in with Apple, OAuth1
+and OAuth2, and the directories that answer over LDAP.
+
+All of it is written here, with no dependency at any layer — down to the XML
+reader a signature is canonicalized over, and the BER a directory is asked in.
 
 It is a package of its own rather than a corner of [Warden](/en/modules/warden)
 because the two answer different questions. Warden owns the people you already
@@ -22,11 +25,19 @@ providers: [
 ]
 ```
 
+| Entry point | |
+| --- | --- |
+| `@c9up/transit` | the whole API |
+| `@c9up/transit/config` | `defineConfig`, `socials`, `oidc`, `saml`, `ldap` |
+| `@c9up/transit/provider` | the Ream provider |
+| `@c9up/transit/services/main` | the manager, from anywhere |
+| `@c9up/transit/testing` | `FakeTransit` |
+
 ## Configuration
 
 ```ts
 // config/transit.ts
-import { defineConfig, socials } from '@c9up/transit'
+import { defineConfig, ldap, oidc, saml, socials } from '@c9up/transit'
 
 export default defineConfig({
   google: socials.google({
@@ -34,14 +45,13 @@ export default defineConfig({
     clientSecret: env.get('GOOGLE_CLIENT_SECRET'),
     callbackUrl: 'https://acme.test/auth/google/callback',
   }),
-  github: socials.github({
-    clientId: env.get('GITHUB_CLIENT_ID'),
-    clientSecret: env.get('GITHUB_CLIENT_SECRET'),
-    callbackUrl: 'https://acme.test/auth/github/callback',
-    scopes: ['user', 'user:email'],
-  }),
+  work: oidc({ issuer: 'https://id.acme.com', /* ... */ }),
+  corp: saml({ issuer: 'https://idp.acme.test/metadata', /* ... */ }),
+  staff: ldap({ url: 'ldaps://directory.acme.test', /* ... */ }),
 })
 ```
+
+Every protocol lives in the same map, and each has its own section below.
 
 The keys are yours. Two entries may reach the same provider with different
 credentials — a `staff` sign-in and a `customers` one, both on Google — and
@@ -49,6 +59,91 @@ credentials — a `staff` sign-in and a `customers` one, both on Google — and
 
 The manager is registered as `TransitManager` and under the `"transit"` alias,
 and reachable from anywhere through the service accessor.
+
+## The round trip
+
+```ts
+import transit from '@c9up/transit/services/main'
+
+// Send the user off
+const { url, state, secret } = await transit.begin('google')
+ctx.session.put('transit_state', state)
+ctx.session.put('transit_secret', secret)
+return ctx.response.redirect(url)
+
+// ... and receive them back
+const { user, token } = await transit.callback(
+  'google',
+  ctx.request.input('code'),
+  ctx.request.input('state'),
+  ctx.session.pull('transit_state'),
+  ctx.session.pull('transit_secret'),
+)
+```
+
+`begin()` is the path for every provider a browser is sent to — OAuth2, OAuth1,
+OpenID Connect, Apple, SAML. It mints the state, performs whatever round trip
+the protocol needs first, and hands back what must survive until the user
+returns.
+
+`secret` is what differs, and the caller never has to know which:
+
+| | |
+| --- | --- |
+| Plain OAuth2 | `undefined` |
+| OAuth2 with PKCE | the code verifier |
+| OpenID Connect | the code verifier and the nonce |
+| OAuth1 | the request-token secret |
+| SAML | the request id the response must answer |
+
+Storing and returning it unconditionally is what lets one controller serve all
+of them. A directory is the exception, because nothing is redirected — see
+[LDAP](#ldap-and-active-directory).
+
+`transit.redirect(name, state)` still exists for a plain OAuth2 provider whose
+URL can be built offline. An OAuth1 provider throws there and says to use
+`begin()`.
+
+The `state` is not optional. The callback **refuses** to run without an
+expected value to compare against: an OAuth callback that trusts whatever code
+arrives lets an attacker link their own provider account to a signed-in
+victim's session. There is no way to turn that check off.
+
+## What you get back
+
+`user` carries `id`, `email`, `name`, the provider's `nickName` (a login, a
+username, a display name), an optional `avatarUrl`, an
+`emailVerificationState` and the raw payload. `token` carries `accessToken`
+and, when the provider issues them, `refreshToken` and `expiresIn` — plus
+`tokenSecret` for OAuth1, whose access token signs nothing on its own.
+
+### Before you link an account by email
+
+```ts
+if (user.emailVerificationState !== 'verified') {
+  // Ask the user to confirm the address instead of linking on it.
+}
+```
+
+`unverified` means anyone able to type that address at the provider now holds
+it — linking on that basis hands them the account. `unsupported` means the
+provider says nothing either way, which is not the same as saying yes; Spotify,
+X and the LinkedIn member API all report it.
+
+GitHub is worth knowing about: most accounts keep the address private, so the
+profile returns none. The driver then reads `/user/emails`, prefers the
+verified primary, and reports what GitHub says about it. An account that
+declined `user:email` still signs in — with no address.
+
+## A token you already hold
+
+```ts
+const user = await transit.userFromToken('google', accessToken)
+```
+
+No code to exchange — for a refreshed token, or one a mobile client obtained
+itself. An OAuth1 provider needs the token secret too:
+`userFromToken('twitter', accessToken, tokenSecret)`.
 
 ## The providers
 
@@ -81,6 +176,25 @@ scopes; it reads the address from a second endpoint.
 Two X entries for the same reason: two protocols. A new application wants
 `twitterX`; `twitter` is the only one whose profile call returns the address.
 
+## PKCE, and OAuth1
+
+The controller above already handles both. What differs is only what `secret`
+holds.
+
+**X on OAuth2** (`twitterX`) mandates PKCE. `begin()` mints the verifier;
+`redirect()` would refuse to build a URL without one rather than sending the
+user somewhere X rejects. Only the hash of the verifier travels in the URL —
+the verifier itself is sent once, on the token exchange, which is what makes an
+intercepted authorization code useless to whoever intercepted it. Mint one
+yourself with `createCodeVerifier()` if you are not using `begin()`.
+
+**X on OAuth1** (`twitter`) is a different protocol, not a variation. Its
+redirect cannot be built offline at all: the URL carries a request token only X
+can issue, which is why `begin()` performs a round trip there. Its callback
+carries an `oauth_token` and an `oauth_verifier` rather than a code, and they
+land in the same arguments — the verifier is the code, the returned token is
+the state, and matching it against the one you issued **is** the CSRF check.
+
 ## OpenID Connect
 
 One driver for every provider that conforms — Keycloak, Auth0, Okta, Entra ID,
@@ -101,8 +215,7 @@ export default defineConfig({
 
 The endpoints, the signing keys and the algorithms come from the provider's own
 `/.well-known/openid-configuration`, so there is nothing else to configure and
-nothing to change when it rotates a key. The controller is the one below,
-unchanged.
+nothing to change when it rotates a key. The controller is the one above, unchanged.
 
 `scopes` defaults to `openid profile email`, and `openid` is added back if a
 config drops it — without it the provider runs a plain OAuth2 flow and returns
@@ -147,6 +260,25 @@ a token names one that is not held, which is how a rotation is picked up. That
 refetch is rate-limited to once every five minutes, so a stream of tokens naming
 invented keys cannot turn your application into a load generator against the
 provider. Both are tunable through `cache`.
+
+### Providers that need no driver
+
+Anything that speaks OpenID Connect needs no driver of its own — give `oidc()`
+the issuer:
+
+| Provider | Issuer |
+| --- | --- |
+| Keycloak | `https://<host>/realms/<realm>` |
+| Auth0 | `https://<tenant>.auth0.com` |
+| Okta | `https://<tenant>.okta.com` |
+| Microsoft Entra ID | `https://login.microsoftonline.com/<tenant>/v2.0` |
+| Authentik | `https://<host>/application/o/<slug>` |
+| Zitadel | `https://<instance>` |
+| GitLab | `https://gitlab.com` |
+
+Each publishes `/.well-known/openid-configuration`, which is all the driver
+needs. A named helper exists only where a provider deviates from the standard
+enough to need one.
 
 ## Sign in with Apple
 
@@ -194,99 +326,6 @@ The address may be a private relay (`is_private_email` in `user.raw`), which
 forwards and can be turned off by the person at any time. Apple sends its
 booleans as the strings `"true"` / `"false"`; the driver reads them, so
 `emailVerificationState` is `verified` where Apple says so.
-
-## The round trip
-
-```ts
-import transit from '@c9up/transit/services/main'
-
-// Send the user off
-const { url, state, secret } = await transit.begin('google')
-ctx.session.put('transit_state', state)
-ctx.session.put('transit_secret', secret)
-return ctx.response.redirect(url)
-
-// ... and receive them back
-const { user, token } = await transit.callback(
-  'google',
-  ctx.request.input('code'),
-  ctx.request.input('state'),
-  ctx.session.pull('transit_state'),
-  ctx.session.pull('transit_secret'),
-)
-```
-
-`begin()` is the path that works for every provider: it mints the state, asks
-the provider for a request token where the protocol needs one, and hands back
-whatever must survive until the user returns.
-
-`secret` is `undefined` for a plain OAuth2 provider, the PKCE verifier for one
-that mandates it, and the request-token secret for OAuth1. Storing and
-returning it unconditionally is what lets one controller serve all three.
-
-`transit.redirect(name, state)` still exists for a plain OAuth2 provider whose
-URL can be built offline. An OAuth1 provider throws there and says to use
-`begin()`.
-
-The `state` is not optional. The callback **refuses** to run without an
-expected value to compare against: an OAuth callback that trusts whatever code
-arrives lets an attacker link their own provider account to a signed-in
-victim's session. There is no way to turn that check off.
-
-## What you get back
-
-`user` carries `id`, `email`, `name`, the provider's `nickName` (a login, a
-username, a display name), an optional `avatarUrl`, an
-`emailVerificationState` and the raw payload. `token` carries `accessToken`
-and, when the provider issues them, `refreshToken` and `expiresIn` — plus
-`tokenSecret` for OAuth1, whose access token signs nothing on its own.
-
-### Before you link an account by email
-
-```ts
-if (user.emailVerificationState !== 'verified') {
-  // Ask the user to confirm the address instead of linking on it.
-}
-```
-
-`unverified` means anyone able to type that address at the provider now holds
-it — linking on that basis hands them the account. `unsupported` means the
-provider says nothing either way, which is not the same as saying yes; Spotify,
-X and the LinkedIn member API all report it.
-
-GitHub is worth knowing about: most accounts keep the address private, so the
-profile returns none. The driver then reads `/user/emails`, prefers the
-verified primary, and reports what GitHub says about it. An account that
-declined `user:email` still signs in — with no address.
-
-## PKCE, and OAuth1
-
-The controller above already handles both. What differs is only what `secret`
-holds.
-
-**X on OAuth2** (`twitterX`) mandates PKCE. `begin()` mints the verifier;
-`redirect()` would refuse to build a URL without one rather than sending the
-user somewhere X rejects. Only the hash of the verifier travels in the URL —
-the verifier itself is sent once, on the token exchange, which is what makes an
-intercepted authorization code useless to whoever intercepted it. Mint one
-yourself with `createCodeVerifier()` if you are not using `begin()`.
-
-**X on OAuth1** (`twitter`) is a different protocol, not a variation. Its
-redirect cannot be built offline at all: the URL carries a request token only X
-can issue, which is why `begin()` performs a round trip there. Its callback
-carries an `oauth_token` and an `oauth_verifier` rather than a code, and they
-land in the same arguments — the verifier is the code, the returned token is
-the state, and matching it against the one you issued **is** the CSRF check.
-
-## A token you already hold
-
-```ts
-const user = await transit.userFromToken('google', accessToken)
-```
-
-No code to exchange — for a refreshed token, or one a mobile client obtained
-itself. An OAuth1 provider needs the token secret too:
-`userFromToken('twitter', accessToken, tokenSecret)`.
 
 ## SAML 2.0
 
@@ -439,7 +478,7 @@ whatever may search, and one to bind **as** that person — which is what
 verifies the password. The second is closed immediately, because a connection
 carries the identity of whatever last bound on it.
 
-### What comes back
+### What a directory returns
 
 `user.id` is the DN, the only value a directory guarantees to be unique and
 stable. The address, name and nickname are read from the attributes directories
@@ -472,6 +511,17 @@ not have to invent an avatar. `assertBegan`, `assertSignedIn` and
 `assertNobodySignedIn` cover what happened; `reset()` clears the recording and
 keeps what was declared.
 
+A directory is doubled the same way, and `willAccept` declares the credentials
+it takes:
+
+```ts
+const transit = new FakeTransit()
+  .willReturn('staff', { email: 'ada@acme.test' })
+  .willAccept('staff', 'ada', 'correct horse')
+
+await transit.authenticate('staff', 'ada', 'correct horse')
+```
+
 It is deliberately **not** lenient. The state round trip and the value
 `begin()` asked you to keep are enforced exactly as the real drivers enforce
 them:
@@ -484,30 +534,13 @@ await transit.callback('google', code, state, undefined, secret)
 // → requires expectedState for CSRF protection
 ```
 
-A fake that let that pass would teach applications to ship a controller that
-never checks the state — which in production is a session fixation, and in a
-test is a red line.
+The same goes for an empty password against a directory, which the real one
+refuses because a bind without one is an anonymous bind the directory accepts.
 
-## Providers you already have
+A fake that let either pass would teach applications to ship exactly the
+controller that has the bug.
 
-Anything that speaks OpenID Connect needs no driver of its own — give `oidc()`
-the issuer:
-
-| Provider | Issuer |
-| --- | --- |
-| Keycloak | `https://<host>/realms/<realm>` |
-| Auth0 | `https://<tenant>.auth0.com` |
-| Okta | `https://<tenant>.okta.com` |
-| Microsoft Entra ID | `https://login.microsoftonline.com/<tenant>/v2.0` |
-| Authentik | `https://<host>/application/o/<slug>` |
-| Zitadel | `https://<instance>` |
-| GitLab | `https://gitlab.com` |
-
-Each publishes `/.well-known/openid-configuration`, which is all the driver
-needs. A named helper exists only where a provider deviates from the standard
-enough to need one.
-
-## Another provider
+## Writing a driver of your own
 
 Extend `Oauth2Driver` and you write only what makes the provider itself: the
 three URLs, its default scopes, and how to read its payload.
@@ -555,3 +588,4 @@ exported for exactly that, and it fails closed on a missing expected value.
 ## Next steps
 
 - [Warden (Auth)](/en/modules/warden) — turn the returned user into a session
+- [Quasar (Redis)](/en/modules/quasar) — the connection a replay store names
