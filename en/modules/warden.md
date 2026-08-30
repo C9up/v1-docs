@@ -1115,6 +1115,7 @@ code that cannot import Warden.
 | `socials.linkedin` | `r_liteprofile`, `r_emailaddress` |
 | `socials.linkedinOpenidConnect` | `openid`, `profile`, `email` |
 | `socials.spotify` | `user-read-email` |
+| `socials.twitter` | *(OAuth1 — X has no scopes)* |
 | `socials.twitterX` | `tweet.read`, `users.read`, `users.email` |
 
 `scopes` replaces the defaults. `authorizeParams` adds whatever else a provider
@@ -1138,9 +1139,10 @@ import { FirstContactManager } from '@c9up/warden'
 const socials = await app.container.resolve(FirstContactManager)
 
 // Send the user off
-const state = crypto.randomUUID()
+const { url, state, secret } = await socials.begin('google')
 ctx.session.put('oauth_state', state)
-return ctx.response.redirect(socials.redirect('google', state))
+ctx.session.put('oauth_secret', secret)
+return ctx.response.redirect(url)
 
 // ... and receive them back
 const { user, token } = await socials.callback(
@@ -1148,8 +1150,20 @@ const { user, token } = await socials.callback(
   ctx.request.input('code'),
   ctx.request.input('state'),
   ctx.session.pull('oauth_state'),
+  ctx.session.pull('oauth_secret'),
 )
 ```
+
+`begin()` is the path that works for every provider: it mints the state, asks
+the provider for a request token where the protocol needs one, and hands back
+whatever must survive until the user returns. `secret` is `undefined` for a
+plain OAuth2 provider, the PKCE verifier for one that mandates it, and the
+request-token secret for OAuth1 — storing and returning it unconditionally is
+what lets one controller serve all three.
+
+`socials.redirect(name, state)` still exists for a plain OAuth2 provider whose
+redirect can be built offline. An OAuth1 provider throws there and says to use
+`begin()`.
 
 `state` is not optional in practice. The callback **refuses** to run without
 an expected value to compare against: an OAuth callback that trusts whatever
@@ -1190,40 +1204,34 @@ const user = await socials.userFromToken('google', accessToken)
 ```
 
 No code to exchange — for a refreshed token, or one a mobile client obtained
-itself.
+itself. An OAuth1 provider needs the token secret too:
+`userFromToken('twitter', accessToken, tokenSecret)`.
 
-### Providers that require PKCE
+### PKCE, and OAuth1
 
-X does. Mint a verifier, store it beside the state, and hand both back:
+The controller above already handles both. What differs is only what `secret`
+holds.
 
-```typescript
-import { createCodeVerifier } from '@c9up/warden'
+**X on OAuth2** (`twitterX`) mandates PKCE. `begin()` mints the verifier;
+`redirect()` would refuse to build a URL without one rather than sending the
+user somewhere X rejects. Only the hash of the verifier travels in the URL —
+the verifier itself is sent once, on the token exchange, which is what makes an
+intercepted authorization code useless to whoever intercepted it. Mint one
+yourself with `createCodeVerifier()` if you are not using `begin()`.
 
-const state = crypto.randomUUID()
-const verifier = createCodeVerifier()
-ctx.session.put('oauth_state', state)
-ctx.session.put('oauth_verifier', verifier)
-return ctx.response.redirect(socials.redirect('twitterX', state, verifier))
+**X on OAuth1** (`twitter`) is a different protocol, not a variation. Its
+redirect cannot be built offline at all: the URL carries a request token only X
+can issue, which is why `begin()` performs a round trip there. Its callback
+carries an `oauth_token` and an `oauth_verifier` rather than a code, and they
+land in the same arguments — the verifier is the code, the returned token is
+the state, and matching it against the one you issued **is** the CSRF check.
 
-// ... on the way back
-const { user } = await socials.callback(
-  'twitterX',
-  ctx.request.input('code'),
-  ctx.request.input('state'),
-  ctx.session.pull('oauth_state'),
-  ctx.session.pull('oauth_verifier'),
-)
-```
+Its `token` carries a `tokenSecret` alongside the `accessToken`: an OAuth1
+token signs nothing on its own, so keep both if you intend to call X later.
 
-There is no `twitter` helper. That name belongs to X's OAuth1 flow, which is a
-different protocol — its callback carries a token and a verifier rather than a
-code — and is not implemented here. A config naming it fails to **compile**,
-rather than quietly signing users in through another flow.
+Two helpers for one provider because X runs two flows. A new application wants
+`twitterX`; `twitter` is the only one whose profile call returns the address.
 
-The redirect **refuses to build** without a verifier rather than sending the
-user to a URL X will reject. Only the hash of the verifier travels in the URL; the
-verifier itself is sent once, on the token exchange, which is what makes an
-intercepted authorization code useless to whoever intercepted it.
 
 ### Another provider
 
@@ -1260,6 +1268,10 @@ Override `tokenAuth = 'basic'` when the provider takes its credentials as HTTP
 Basic, `requiresPkce = true` when it mandates PKCE, `authorizeParams()` and
 `userInfoParams()` for its own query parameters, and `fetchUser()` when the
 address needs a second call.
+
+For an OAuth1 provider, extend `Oauth1Driver` instead: four URLs — request
+token, authorize, access token, profile — and the same `mapUser`. The signing
+is handled.
 
 Anything answering `redirectUrl(state, codeVerifier?)` and
 `callback(code, state, expected, codeVerifier?)` works too, without the base.

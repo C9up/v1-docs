@@ -1142,6 +1142,7 @@ depuis du code qui ne peut pas importer Warden.
 | `socials.linkedin` | `r_liteprofile`, `r_emailaddress` |
 | `socials.linkedinOpenidConnect` | `openid`, `profile`, `email` |
 | `socials.spotify` | `user-read-email` |
+| `socials.twitter` | *(OAuth1 — X n'a pas de scopes)* |
 | `socials.twitterX` | `tweet.read`, `users.read`, `users.email` |
 
 `scopes` remplace les valeurs par défaut. `authorizeParams` ajoute tout ce que
@@ -1165,9 +1166,10 @@ import { FirstContactManager } from '@c9up/warden'
 const socials = await app.container.resolve(FirstContactManager)
 
 // Envoyer l'utilisateur
-const state = crypto.randomUUID()
+const { url, state, secret } = await socials.begin('google')
 ctx.session.put('oauth_state', state)
-return ctx.response.redirect(socials.redirect('google', state))
+ctx.session.put('oauth_secret', secret)
+return ctx.response.redirect(url)
 
 // ... et le recevoir au retour
 const { user, token } = await socials.callback(
@@ -1175,8 +1177,20 @@ const { user, token } = await socials.callback(
   ctx.request.input('code'),
   ctx.request.input('state'),
   ctx.session.pull('oauth_state'),
+  ctx.session.pull('oauth_secret'),
 )
 ```
+
+`begin()` est le chemin qui fonctionne pour tous les fournisseurs : il génère le
+state, demande un jeton de requête au fournisseur quand le protocole l'exige, et
+rend tout ce qui doit survivre jusqu'au retour de l'utilisateur. `secret` vaut
+`undefined` pour un OAuth2 simple, le vérificateur PKCE pour un fournisseur qui
+l'impose, et le secret du jeton de requête pour OAuth1 — le stocker et le rendre
+sans condition permet à un seul contrôleur de servir les trois.
+
+`socials.redirect(name, state)` reste disponible pour un OAuth2 simple dont
+l'URL se construit hors ligne. Un fournisseur OAuth1 y lève une erreur et
+renvoie vers `begin()`.
 
 `state` n'est pas optionnel en pratique. Le callback **refuse** de s'exécuter
 sans valeur attendue à comparer : un callback OAuth qui fait confiance au code
@@ -1217,42 +1231,36 @@ const user = await socials.userFromToken('google', accessToken)
 ```
 
 Aucun code à échanger — pour un token rafraîchi, ou obtenu par un client mobile
-lui-même.
+lui-même. Un fournisseur OAuth1 réclame aussi le secret :
+`userFromToken('twitter', accessToken, tokenSecret)`.
 
-### Les fournisseurs qui exigent PKCE
+### PKCE, et OAuth1
 
-X en fait partie. Générez un vérificateur, stockez-le à côté du state, et
-rendez les deux :
+Le contrôleur ci-dessus gère déjà les deux. Seul le contenu de `secret` change.
 
-```typescript
-import { createCodeVerifier } from '@c9up/warden'
+**X en OAuth2** (`twitterX`) impose PKCE. `begin()` génère le vérificateur ;
+`redirect()` refuserait de construire une URL sans lui, plutôt que d'envoyer
+l'utilisateur là où X le rejettera. Seule l'empreinte du vérificateur circule
+dans l'URL — le vérificateur lui-même n'est envoyé qu'une fois, à l'échange du
+code, ce qui rend un code d'autorisation intercepté inutilisable pour celui qui
+l'a intercepté. Générez-en un avec `createCodeVerifier()` si vous n'utilisez pas
+`begin()`.
 
-const state = crypto.randomUUID()
-const verifier = createCodeVerifier()
-ctx.session.put('oauth_state', state)
-ctx.session.put('oauth_verifier', verifier)
-return ctx.response.redirect(socials.redirect('twitterX', state, verifier))
+**X en OAuth1** (`twitter`) est un autre protocole, pas une variante. Sa
+redirection ne peut pas être construite hors ligne : l'URL porte un jeton de
+requête que seul X peut émettre, d'où l'aller-retour que `begin()` effectue.
+Son callback porte un `oauth_token` et un `oauth_verifier` plutôt qu'un code, et
+ils arrivent dans les mêmes arguments — le vérificateur est le code, le jeton
+rendu est le state, et le comparer à celui qu'on a émis **est** le contrôle
+CSRF.
 
-// ... au retour
-const { user } = await socials.callback(
-  'twitterX',
-  ctx.request.input('code'),
-  ctx.request.input('state'),
-  ctx.session.pull('oauth_state'),
-  ctx.session.pull('oauth_verifier'),
-)
-```
+Son `token` porte un `tokenSecret` en plus de l'`accessToken` : un jeton OAuth1
+ne signe rien tout seul, gardez donc les deux si vous comptez rappeler X.
 
-Il n'y a pas de helper `twitter`. Ce nom appartient au flux OAuth1 de X, qui
-est un autre protocole — son callback porte un token et un vérificateur, pas un
-code — et qui n'est pas implémenté ici. Une config qui le nomme échoue à la
-**compilation**, plutôt que de connecter les utilisateurs par un autre flux.
+Deux helpers pour un fournisseur parce que X fait tourner deux flux. Une
+application récente veut `twitterX` ; `twitter` est le seul dont l'appel profil
+renvoie l'adresse.
 
-La redirection **refuse de se construire** sans vérificateur, plutôt que
-d'envoyer l'utilisateur vers une URL que X rejettera. Seule l'empreinte du
-vérificateur circule dans l'URL ; le vérificateur lui-même n'est envoyé qu'une
-fois, à l'échange du code — c'est ce qui rend un code d'autorisation intercepté
-inutilisable pour celui qui l'a intercepté.
 
 ### Un autre fournisseur
 
@@ -1289,6 +1297,10 @@ Redéfinissez `tokenAuth = 'basic'` quand le fournisseur veut ses identifiants
 en HTTP Basic, `requiresPkce = true` quand il impose PKCE, `authorizeParams()`
 et `userInfoParams()` pour ses propres paramètres, et `fetchUser()` quand
 l'adresse demande un second appel.
+
+Pour un fournisseur OAuth1, étendez plutôt `Oauth1Driver` : quatre URLs — jeton
+de requête, autorisation, jeton d'accès, profil — et le même `mapUser`. La
+signature est prise en charge.
 
 Tout ce qui répond à `redirectUrl(state, codeVerifier?)` et
 `callback(code, state, expected, codeVerifier?)` fonctionne aussi, sans la
