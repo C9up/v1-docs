@@ -80,6 +80,73 @@ scopes; it reads the address from a second endpoint.
 Two X entries for the same reason: two protocols. A new application wants
 `twitterX`; `twitter` is the only one whose profile call returns the address.
 
+## OpenID Connect
+
+One driver for every provider that conforms — Keycloak, Auth0, Okta, Entra ID,
+Authentik, Zitadel, Ping, Google. Give it an issuer; it reads the rest.
+
+```ts
+import { defineConfig, oidc } from '@c9up/transit'
+
+export default defineConfig({
+  work: oidc({
+    issuer: 'https://id.acme.com',
+    clientId: env.get('OIDC_CLIENT_ID'),
+    clientSecret: env.get('OIDC_CLIENT_SECRET'),
+    callbackUrl: 'https://acme.test/auth/work/callback',
+  }),
+})
+```
+
+The endpoints, the signing keys and the algorithms come from the provider's own
+`/.well-known/openid-configuration`, so there is nothing else to configure and
+nothing to change when it rotates a key. The controller is the one below,
+unchanged.
+
+`scopes` defaults to `openid profile email`, and `openid` is added back if a
+config drops it — without it the provider runs a plain OAuth2 flow and returns
+no `id_token`. `authorizeParams` carries `prompt`, `login_hint`, `acr_values`.
+`userinfo: false` stops the extra profile call when the token's claims are
+enough. `leewaySeconds` (default 60) is the clock drift tolerated against the
+provider.
+
+### What is verified
+
+An OpenID Connect provider does not just hand back a token to go asking with —
+it hands back a **signed statement about who the user is**. That statement is
+worth nothing until it has been checked, so every one of these is enforced
+before a user is returned:
+
+| | |
+| --- | --- |
+| Signature | Against the provider's published key, fetched from its JWKS. |
+| Algorithm | Chosen from what the provider **declared it signs with** — never read from the token. |
+| Key | Must be the kind the algorithm is defined over, and on the right curve. |
+| `iss` | The issuer that was configured, matched against the discovery document. |
+| `aud` | Must name this client. With several audiences, `azp` must name it too. |
+| `exp` / `iat` | Not expired, not issued in the future. |
+| `nonce` | The one this sign-in sent. |
+| `sub` | The userinfo response must describe the same person as the token. |
+
+Two of those deserve a sentence. Taking the algorithm from the token's own
+header is what makes `alg: none` work, and what lets an RS256 public key be
+replayed as an HS256 shared secret — so the header may only *select* from a set
+computed beforehand, never introduce one. And the `nonce` is what stops a token
+captured from an earlier sign-in of the same user being replayed into a fresh
+session; it travels in `secret`, which is why `begin()` asks you to keep it.
+
+Only asymmetric signatures are accepted. The `HS*` family signs with the client
+secret, so every copy of the config — and every log line that ever leaked it —
+could mint a token for any user.
+
+### Keys, and when they are fetched
+
+The discovery document is cached for an hour; the signing keys are cached until
+a token names one that is not held, which is how a rotation is picked up. That
+refetch is rate-limited to once every five minutes, so a stream of tokens naming
+invented keys cannot turn your application into a load generator against the
+provider. Both are tunable through `cache`.
+
 ## The round trip
 
 ```ts

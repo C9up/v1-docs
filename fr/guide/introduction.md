@@ -19,7 +19,7 @@ Ream est un framework serveur TypeScript pour Node.js avec un coeur HTTP propuls
 | `@c9up/ream` | Coeur — Container, Router, HttpKernel, Ignitor, providers, exceptions |
 | `@c9up/atlas` | ORM — `@Entity()`, `QueryBuilder`, `BaseRepository` |
 | `@c9up/warden` | Auth — `AuthManager`, `JwtStrategy`, décorateurs RBAC |
-| `@c9up/transit` | Connexion fédérée — fournisseurs sociaux OAuth1 / OAuth2 |
+| `@c9up/transit` | Connexion fédérée — OpenID Connect, fournisseurs OAuth1 / OAuth2 |
 | `@c9up/rune` | Validation — constructeur de schéma fluide, validateurs personnalisés |
 | `@c9up/spectrum` | Logging — logger structuré avec niveaux et support de canaux |
 

@@ -31,6 +31,6 @@ Cette page liste l'etat des modules de l'ecosysteme.
 | Quasar | `@c9up/quasar` | Présent | Connexions Redis — connexions nommées, pub/sub sur son propre socket, health checks |
 | Helix plugin | `@c9up/helix-plugin-ream` | Présent | Le pont ream↔helix — plugin `apiClient()` + runner de `ream test` |
 | Rover | `@c9up/rover` | Présent | Transport mail — SMTP + log + transports pluggables (rename de Spark) |
-| Transit | `@c9up/transit` | Présent | Connexion fédérée — OAuth1 + OAuth2 et les neuf fournisseurs qui les parlent |
+| Transit | `@c9up/transit` | Présent | Connexion fédérée — OpenID Connect générique, plus OAuth1/OAuth2 et les neuf fournisseurs qui les parlent |
 
 Chaque ligne du tableau ci-dessus a une page dédiée — choisis-la dans la sidebar **Modules**.
