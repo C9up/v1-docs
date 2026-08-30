@@ -288,6 +288,66 @@ No code to exchange — for a refreshed token, or one a mobile client obtained
 itself. An OAuth1 provider needs the token secret too:
 `userFromToken('twitter', accessToken, tokenSecret)`.
 
+## Testing a sign-in
+
+A sign-in cannot be exercised against a real provider in a test, so Transit
+ships a double for the manager.
+
+```ts
+import { TransitManager } from '@c9up/transit'
+import { FakeTransit } from '@c9up/transit/testing'
+
+const transit = new FakeTransit().willReturn('google', {
+  email: 'ada@acme.test',
+})
+container.singleton(TransitManager, () => transit)
+
+// ... the code under test runs its sign-in
+
+transit.assertSignedIn('google')
+expect(transit.lastUser()?.email).toBe('ada@acme.test')
+```
+
+`willReturn` fills in whatever a test does not say, so a test about roles does
+not have to invent an avatar. `assertBegan`, `assertSignedIn` and
+`assertNobodySignedIn` cover what happened; `reset()` clears the recording and
+keeps what was declared.
+
+It is deliberately **not** lenient. The state round trip and the value
+`begin()` asked you to keep are enforced exactly as the real drivers enforce
+them:
+
+```ts
+const { state, secret } = await transit.begin('google')
+
+// A controller that forgot to store the state fails here.
+await transit.callback('google', code, state, undefined, secret)
+// → requires expectedState for CSRF protection
+```
+
+A fake that let that pass would teach applications to ship a controller that
+never checks the state — which in production is a session fixation, and in a
+test is a red line.
+
+## Providers you already have
+
+Anything that speaks OpenID Connect needs no driver of its own — give `oidc()`
+the issuer:
+
+| Provider | Issuer |
+| --- | --- |
+| Keycloak | `https://<host>/realms/<realm>` |
+| Auth0 | `https://<tenant>.auth0.com` |
+| Okta | `https://<tenant>.okta.com` |
+| Microsoft Entra ID | `https://login.microsoftonline.com/<tenant>/v2.0` |
+| Authentik | `https://<host>/application/o/<slug>` |
+| Zitadel | `https://<instance>` |
+| GitLab | `https://gitlab.com` |
+
+Each publishes `/.well-known/openid-configuration`, which is all the driver
+needs. A named helper exists only where a provider deviates from the standard
+enough to need one.
+
 ## Another provider
 
 Extend `Oauth2Driver` and you write only what makes the provider itself: the

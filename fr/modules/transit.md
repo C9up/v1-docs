@@ -292,6 +292,66 @@ Aucun code à échanger — pour un jeton rafraîchi, ou obtenu par un client mo
 lui-même. Un fournisseur OAuth1 réclame aussi le secret :
 `userFromToken('twitter', accessToken, tokenSecret)`.
 
+## Tester une connexion
+
+Une connexion ne peut pas être exercée contre un vrai fournisseur dans un test,
+donc Transit livre une doublure du manager.
+
+```ts
+import { TransitManager } from '@c9up/transit'
+import { FakeTransit } from '@c9up/transit/testing'
+
+const transit = new FakeTransit().willReturn('google', {
+  email: 'ada@acme.test',
+})
+container.singleton(TransitManager, () => transit)
+
+// ... le code testé exécute sa connexion
+
+transit.assertSignedIn('google')
+expect(transit.lastUser()?.email).toBe('ada@acme.test')
+```
+
+`willReturn` complète ce que le test ne dit pas : un test sur les rôles n'a pas
+à inventer un avatar. `assertBegan`, `assertSignedIn` et `assertNobodySignedIn`
+couvrent ce qui s'est passé ; `reset()` efface l'enregistrement et conserve ce
+qui a été déclaré.
+
+Elle n'est délibérément **pas** permissive. L'aller-retour du state et la valeur
+que `begin()` demande de conserver sont exigés exactement comme les vrais
+drivers les exigent :
+
+```ts
+const { state, secret } = await transit.begin('google')
+
+// Un contrôleur qui a oublié de stocker le state échoue ici.
+await transit.callback('google', code, state, undefined, secret)
+// → requires expectedState for CSRF protection
+```
+
+Une doublure qui laisserait passer ça apprendrait aux applications à livrer un
+contrôleur qui ne vérifie jamais le state — en production c'est une fixation de
+session, dans un test c'est une ligne rouge.
+
+## Les fournisseurs que vous avez déjà
+
+Tout ce qui parle OpenID Connect n'a besoin d'aucun driver dédié — donnez
+l'issuer à `oidc()` :
+
+| Fournisseur | Issuer |
+| --- | --- |
+| Keycloak | `https://<hôte>/realms/<realm>` |
+| Auth0 | `https://<tenant>.auth0.com` |
+| Okta | `https://<tenant>.okta.com` |
+| Microsoft Entra ID | `https://login.microsoftonline.com/<tenant>/v2.0` |
+| Authentik | `https://<hôte>/application/o/<slug>` |
+| Zitadel | `https://<instance>` |
+| GitLab | `https://gitlab.com` |
+
+Chacun publie son `/.well-known/openid-configuration`, ce dont le driver a
+besoin et rien de plus. Un helper nommé n'existe que là où un fournisseur
+s'écarte assez du standard pour en réclamer un.
+
 ## Un autre fournisseur
 
 Étendez `Oauth2Driver` et vous n'écrivez que ce qui fait le fournisseur : les
