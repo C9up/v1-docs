@@ -54,6 +54,7 @@ and reachable from anywhere through the service accessor.
 
 | Helper | Default scopes |
 | --- | --- |
+| `socials.apple` | `name`, `email` *(see below — no client secret)* |
 | `socials.discord` | `identify`, `email` |
 | `socials.facebook` | `email` |
 | `socials.github` | `read:user`, `user:email` |
@@ -146,6 +147,53 @@ a token names one that is not held, which is how a rotation is picked up. That
 refetch is rate-limited to once every five minutes, so a stream of tokens naming
 invented keys cannot turn your application into a load generator against the
 provider. Both are tunable through `cache`.
+
+## Sign in with Apple
+
+Required on iOS as soon as an application offers another social sign-in. It
+speaks OpenID Connect, so the flow is the one above — but it differs in three
+places, and each is where an implementation gets caught.
+
+```ts
+import { defineConfig, socials } from '@c9up/transit'
+
+export default defineConfig({
+  apple: socials.apple({
+    clientId: 'com.acme.web',          // the Services ID
+    teamId: env.get('APPLE_TEAM_ID'),
+    keyId: env.get('APPLE_KEY_ID'),
+    privateKey: env.get('APPLE_PRIVATE_KEY'),   // the contents of the .p8
+    callbackUrl: 'https://acme.test/auth/apple/callback',
+  }),
+})
+```
+
+**There is no client secret.** Apple takes a short-lived JWT signed with the
+`.p8`, minted per request. Nothing to store, nothing to rotate — and nothing to
+get wrong, since a DER-encoded signature is what usually turns into an
+unhelpful `invalid_client`.
+
+**The callback is a POST.** Asking for a name or an address forces
+`response_mode=form_post`, so the callback route has to accept `POST` and read
+`code` and `state` from the body rather than the query string.
+
+**The name is sent once**, in that first consent POST, in a `user` field.
+Never in a token, never on a later sign-in:
+
+```ts
+import { parseAppleUser } from '@c9up/transit'
+
+const identity = parseAppleUser(ctx.request.input('user'))
+// { name: 'Ada Lovelace', email: 'ada@privaterelay.appleid.com' } — or undefined
+```
+
+Store it when it is there. `undefined` is the normal case for a returning user,
+not an error.
+
+The address may be a private relay (`is_private_email` in `user.raw`), which
+forwards and can be turned off by the person at any time. Apple sends its
+booleans as the strings `"true"` / `"false"`; the driver reads them, so
+`emailVerificationState` is `verified` where Apple says so.
 
 ## The round trip
 
