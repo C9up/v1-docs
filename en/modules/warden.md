@@ -1104,6 +1104,32 @@ credentials — a `staff` sign-in and a `customers` one, both on Google — and
 Resolve the manager as `FirstContactManager`, or by the `"socials"` alias from
 code that cannot import Warden.
 
+### The providers
+
+| Helper | Default scopes |
+| --- | --- |
+| `socials.discord` | `identify`, `email` |
+| `socials.facebook` | `email` |
+| `socials.github` | `read:user`, `user:email` |
+| `socials.google` | `openid`, `email`, `profile` |
+| `socials.linkedin` | `openid`, `profile`, `email` |
+| `socials.linkedinMember` | `r_liteprofile`, `r_emailaddress` |
+| `socials.spotify` | `user-read-email` |
+| `socials.twitter` | `tweet.read`, `users.read`, `users.email` |
+
+`scopes` replaces the defaults. `authorizeParams` adds whatever else a provider
+takes on its authorize URL — `prompt`, `display`, `show_dialog`, `guild_id` —
+without a config type per provider:
+
+```typescript
+socials.discord({ ...credentials, authorizeParams: { prompt: 'none' } })
+```
+
+Two LinkedIn entries because LinkedIn has two flows: a new application is
+issued OpenID Connect (`linkedin`), while an older one may still hold
+`r_liteprofile` / `r_emailaddress` (`linkedinMember`, which reads the address
+from a second endpoint).
+
 ### The round trip
 
 ```typescript
@@ -1133,19 +1159,74 @@ fails closed if the two disagree.
 
 `user` carries `id`, `email`, `name`, an optional `avatarUrl` and the
 provider's raw payload; `token` carries `accessToken` and, when the provider
-issues one, `refreshToken`.
+issues one, `refreshToken` and `expiresIn`.
+
+### Providers that require PKCE
+
+X does. Mint a verifier, store it beside the state, and hand both back:
+
+```typescript
+import { createCodeVerifier } from '@c9up/warden'
+
+const state = crypto.randomUUID()
+const verifier = createCodeVerifier()
+ctx.session.put('oauth_state', state)
+ctx.session.put('oauth_verifier', verifier)
+return ctx.response.redirect(socials.redirect('twitter', state, verifier))
+
+// ... on the way back
+const { user } = await socials.callback(
+  'twitter',
+  ctx.request.input('code'),
+  ctx.request.input('state'),
+  ctx.session.pull('oauth_state'),
+  ctx.session.pull('oauth_verifier'),
+)
+```
+
+The redirect **refuses to build** without one rather than sending the user to
+a URL X will reject. Only the hash of the verifier travels in the URL; the
+verifier itself is sent once, on the token exchange, which is what makes an
+intercepted authorization code useless to whoever intercepted it.
 
 ### Another provider
 
-Anything answering `redirectUrl(state)` and `callback(code, state, expected)`
-can be declared directly:
+Extend `Oauth2Driver` and you write only what makes the provider itself: the
+three URLs, its default scopes, and how to read its payload.
 
 ```typescript
+import { Oauth2Driver, type OAuthUser } from '@c9up/warden'
+
+class GitLabDriver extends Oauth2Driver {
+  protected readonly provider = 'GitLab'
+  protected readonly authorizeUrl = 'https://gitlab.com/oauth/authorize'
+  protected readonly accessTokenUrl = 'https://gitlab.com/oauth/token'
+  protected readonly userInfoUrl = 'https://gitlab.com/api/v4/user'
+  protected readonly defaultScopes = ['read_user'] as const
+
+  protected mapUser(raw: Record<string, unknown>): OAuthUser {
+    return {
+      id: String(raw.id ?? ''),
+      email: String(raw.email ?? ''),
+      name: String(raw.name ?? ''),
+      avatarUrl: raw.avatar_url as string | undefined,
+      raw,
+    }
+  }
+}
+
 socials: {
   gitlab: new GitLabDriver({ clientId, clientSecret, callbackUrl }),
 }
 ```
 
+Override `tokenAuth = 'basic'` when the provider takes its credentials as HTTP
+Basic, `requiresPkce = true` when it mandates PKCE, `authorizeParams()` and
+`userInfoParams()` for its own query parameters, and `fetchUser()` when the
+address needs a second call.
+
+Anything answering `redirectUrl(state, codeVerifier?)` and
+`callback(code, state, expected, codeVerifier?)` works too, without the base.
 Validate the state round trip with `assertOAuthState(state, expected)` — it is
 exported for exactly that, and it fails closed on a missing expected value.
 

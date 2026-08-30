@@ -1131,6 +1131,32 @@ sur Google — et `use(name)` demande la clé, pas le driver.
 Résolvez le manager sous `FirstContactManager`, ou via l'alias `"socials"`
 depuis du code qui ne peut pas importer Warden.
 
+### Les fournisseurs
+
+| Helper | Scopes par défaut |
+| --- | --- |
+| `socials.discord` | `identify`, `email` |
+| `socials.facebook` | `email` |
+| `socials.github` | `read:user`, `user:email` |
+| `socials.google` | `openid`, `email`, `profile` |
+| `socials.linkedin` | `openid`, `profile`, `email` |
+| `socials.linkedinMember` | `r_liteprofile`, `r_emailaddress` |
+| `socials.spotify` | `user-read-email` |
+| `socials.twitter` | `tweet.read`, `users.read`, `users.email` |
+
+`scopes` remplace les valeurs par défaut. `authorizeParams` ajoute tout ce que
+le fournisseur accepte d'autre sur son URL d'autorisation — `prompt`,
+`display`, `show_dialog`, `guild_id` — sans un type de config par fournisseur :
+
+```typescript
+socials.discord({ ...identifiants, authorizeParams: { prompt: 'none' } })
+```
+
+Deux entrées LinkedIn parce que LinkedIn a deux flux : une application récente
+reçoit OpenID Connect (`linkedin`), tandis qu'une plus ancienne peut encore
+détenir `r_liteprofile` / `r_emailaddress` (`linkedinMember`, qui lit l'adresse
+sur un second endpoint).
+
 ### L'aller-retour
 
 ```typescript
@@ -1159,22 +1185,79 @@ session d'une victime connectée. Stockez la valeur envoyée, rendez-la ici, et
 la vérification échoue fermée si les deux divergent.
 
 `user` porte `id`, `email`, `name`, un `avatarUrl` optionnel et la charge brute
-du fournisseur ; `token` porte `accessToken` et, quand le fournisseur en émet
-un, `refreshToken`.
+du fournisseur ; `token` porte `accessToken` et, quand le fournisseur les émet,
+`refreshToken` et `expiresIn`.
+
+### Les fournisseurs qui exigent PKCE
+
+X en fait partie. Générez un vérificateur, stockez-le à côté du state, et
+rendez les deux :
+
+```typescript
+import { createCodeVerifier } from '@c9up/warden'
+
+const state = crypto.randomUUID()
+const verifier = createCodeVerifier()
+ctx.session.put('oauth_state', state)
+ctx.session.put('oauth_verifier', verifier)
+return ctx.response.redirect(socials.redirect('twitter', state, verifier))
+
+// ... au retour
+const { user } = await socials.callback(
+  'twitter',
+  ctx.request.input('code'),
+  ctx.request.input('state'),
+  ctx.session.pull('oauth_state'),
+  ctx.session.pull('oauth_verifier'),
+)
+```
+
+La redirection **refuse de se construire** sans vérificateur, plutôt que
+d'envoyer l'utilisateur vers une URL que X rejettera. Seule l'empreinte du
+vérificateur circule dans l'URL ; le vérificateur lui-même n'est envoyé qu'une
+fois, à l'échange du code — c'est ce qui rend un code d'autorisation intercepté
+inutilisable pour celui qui l'a intercepté.
 
 ### Un autre fournisseur
 
-Tout ce qui répond à `redirectUrl(state)` et `callback(code, state, expected)`
-peut être déclaré directement :
+Étendez `Oauth2Driver` et vous n'écrivez que ce qui fait le fournisseur : les
+trois URLs, ses scopes par défaut, et la lecture de sa charge utile.
 
 ```typescript
+import { Oauth2Driver, type OAuthUser } from '@c9up/warden'
+
+class GitLabDriver extends Oauth2Driver {
+  protected readonly provider = 'GitLab'
+  protected readonly authorizeUrl = 'https://gitlab.com/oauth/authorize'
+  protected readonly accessTokenUrl = 'https://gitlab.com/oauth/token'
+  protected readonly userInfoUrl = 'https://gitlab.com/api/v4/user'
+  protected readonly defaultScopes = ['read_user'] as const
+
+  protected mapUser(raw: Record<string, unknown>): OAuthUser {
+    return {
+      id: String(raw.id ?? ''),
+      email: String(raw.email ?? ''),
+      name: String(raw.name ?? ''),
+      avatarUrl: raw.avatar_url as string | undefined,
+      raw,
+    }
+  }
+}
+
 socials: {
   gitlab: new GitLabDriver({ clientId, clientSecret, callbackUrl }),
 }
 ```
 
-Validez l'aller-retour du state avec `assertOAuthState(state, expected)` — il
-est exporté exactement pour ça, et il échoue fermé sur une valeur attendue
+Redéfinissez `tokenAuth = 'basic'` quand le fournisseur veut ses identifiants
+en HTTP Basic, `requiresPkce = true` quand il impose PKCE, `authorizeParams()`
+et `userInfoParams()` pour ses propres paramètres, et `fetchUser()` quand
+l'adresse demande un second appel.
+
+Tout ce qui répond à `redirectUrl(state, codeVerifier?)` et
+`callback(code, state, expected, codeVerifier?)` fonctionne aussi, sans la
+base. Validez l'aller-retour du state avec `assertOAuthState(state, expected)`
+— il est exporté exactement pour ça, et il échoue fermé sur une valeur attendue
 absente.
 
 ---
