@@ -48,8 +48,15 @@ rules.string()
   .min(3)         // Longueur minimale
   .max(100)       // Longueur maximale
   .email()        // Doit être un email valide
+  .uuid()         // N'importe quelle version — .uuid({ version: 4 }) en fixe une
+  .url()          // Doit être une URL
+  .regex(/…/)     // Doit correspondre au motif
+  .in(['a'])      // Doit faire partie de ces valeurs
   .trim()         // Supprimer les espaces (transformation)
 ```
+
+`uuid()` accepte une version, ou une liste : `uuid({ version: [4, 7] })`. Sans
+précision, toutes les versions passent.
 
 ### Règles number
 
@@ -288,6 +295,39 @@ const data = await ProfileSchema.validateOrThrowAsync({ handle: 'alice' })
 `useAsync()` lève une erreur à la construction si on lui passe autre chose qu'une
 règle asynchrone compilée (appelez d'abord la factory : `useAsync(rule())`, et
 non `useAsync(rule)`).
+
+## Les clés que la forme ne déclare pas
+
+Une clé non déclarée est **retirée**, et la charge est valide :
+
+```ts
+schema({ user: rules.object({ email: rules.string().email() }) })
+  .validateResult({ user: { email: 'a@b.co', extra: 1 } })
+// valide, data.user === { email: 'a@b.co' }
+```
+
+C'est ce qui rend une charge validée sûre à passer directement à une
+affectation en masse, et c'est ce que fait l'écosystème dont rune reprend la
+forme.
+
+Deux options explicites changent ça :
+
+| | |
+| --- | --- |
+| `.allowUnknownProperties()` | garder la clé dans la sortie |
+| `.denyUnknownProperties()` | faire échouer la charge, en nommant la clé |
+
+`denyUnknownProperties()` est pour une API dont le contrat est de refuser ce
+qu'elle ne comprend pas. Un client qui envoie `emial` se le voit dire, au lieu
+d'être ignoré en silence et de se demander pourquoi l'adresse n'a jamais
+changé :
+
+```
+unknown field `emial`, expected one of email, password
+```
+
+Toutes les clés non déclarées sont rapportées, pas seulement la première, et
+les clés déclarées sont validées par ailleurs.
 
 ## Étapes suivantes
 

@@ -50,9 +50,16 @@ rules.string()
   .min(3)       // Minimum length (inclusive)
   .max(100)     // Maximum length (inclusive)
   .email()      // Must match email pattern (no whitespace, @ required)
+  .uuid()       // Any UUID version — .uuid({ version: 4 }) pins one
+  .url()        // Must parse as a URL
+  .regex(/…/)   // Must match the pattern
+  .in(['a'])    // Must be one of these
   .trim()       // Trim whitespace before validation (transform)
   .optional()   // Accept undefined or null
 ```
+
+`uuid()` takes a version, or a list of them: `uuid({ version: [4, 7] })`.
+Without one, any version passes.
 
 ### Number Rules
 
@@ -315,6 +322,37 @@ const data = await ProfileSchema.validateOrThrowAsync({ handle: 'alice' })
 
 `useAsync()` throws at build time if handed anything but a compiled async rule
 (call the factory first: `useAsync(rule())`, not `useAsync(rule)`).
+
+## Keys the shape does not declare
+
+An undeclared key is **dropped**, and the payload is valid:
+
+```ts
+schema({ user: rules.object({ email: rules.string().email() }) })
+  .validateResult({ user: { email: 'a@b.co', extra: 1 } })
+// valid, data.user === { email: 'a@b.co' }
+```
+
+That is what makes a validated payload safe to hand straight to a mass
+assignment, and it is what the ecosystem this follows does.
+
+Two opt-ins change it:
+
+| | |
+| --- | --- |
+| `.allowUnknownProperties()` | keep the key in the output |
+| `.denyUnknownProperties()` | fail the payload, naming the key |
+
+`denyUnknownProperties()` is for an API whose contract is that it refuses what
+it does not understand. A client sending `emial` is told so, instead of being
+silently ignored and left wondering why the address never changed:
+
+```
+unknown field `emial`, expected one of email, password
+```
+
+Every undeclared key is reported, not just the first, and the declared keys are
+still validated alongside.
 
 ## Next Steps
 
