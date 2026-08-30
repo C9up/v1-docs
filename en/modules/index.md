@@ -31,6 +31,6 @@ This page lists the current status of ecosystem modules.
 | Quasar | `@c9up/quasar` | Present | Redis connections — named connections, pub/sub on its own socket, health checks |
 | Helix plugin | `@c9up/helix-plugin-ream` | Present | The ream↔helix bridge — `apiClient()` plugin + `ream test` runner |
 | Rover | `@c9up/rover` | Present | Mail transport — SMTP + log + pluggable transports (Spark rename) |
-| Transit | `@c9up/transit` | Present | Federated sign-in — SAML 2.0, generic OpenID Connect, Sign in with Apple, OAuth1/OAuth2 and the providers that speak them |
+| Transit | `@c9up/transit` | Present | Federated sign-in — SAML 2.0, LDAP, generic OpenID Connect, Sign in with Apple, OAuth1/OAuth2 and the providers that speak them |
 
 Each row in the table above has a dedicated page — pick it from the **Modules** sidebar.
