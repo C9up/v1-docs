@@ -25,10 +25,13 @@ export class Invoices {
 Les expressions sont évaluées en **UTC**. Une tâche qui doit se déclencher à
 une heure locale doit être traduite avant d'atteindre le décorateur.
 
-`ScheduleProvider` découvre les méthodes décorées au boot en parcourant le
-registre de services de l'IoC. Le service est résolu **au moment de
-l'invocation**, pas à l'enregistrement : chaque exécution reçoit donc des
-dépendances fraîchement injectées.
+`ScheduleProvider` découvre les méthodes décorées en parcourant le registre de
+services de l'IoC — deux fois : au boot des providers, puis au start, une fois
+`app/modules/**` chargé. Une tâche déclarée dans un module est trouvée par la
+seconde passe, et une tâche trouvée par la première n'est pas réenregistrée.
+
+Le service est résolu **au moment de l'invocation**, pas à l'enregistrement :
+chaque exécution reçoit donc des dépendances fraîchement injectées.
 
 Les méthodes statiques, les getters et les setters sont refusés à l'exécution
 du décorateur, pas au premier déclenchement.

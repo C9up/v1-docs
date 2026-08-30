@@ -24,9 +24,13 @@ export class Invoices {
 Expressions are evaluated in **UTC**. A task that has to fire at a local hour
 must have that translated before it reaches the decorator.
 
-`ScheduleProvider` discovers the decorated methods at boot by walking the IoC
-service registry. The service is resolved **at invocation time**, not at
-registration time, so every run receives freshly injected dependencies.
+`ScheduleProvider` discovers the decorated methods by walking the IoC service
+registry — twice: once when providers boot, and once at start, after
+`app/modules/**` has been auto-loaded. A task declared in a module is found by
+the second pass, and a task found by the first is not registered again.
+
+The service is resolved **at invocation time**, not at registration time, so
+every run receives freshly injected dependencies.
 
 Static methods, getters and setters are rejected when the decorator runs, not
 at first fire.
