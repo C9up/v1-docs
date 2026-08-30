@@ -1142,7 +1142,7 @@ depuis du code qui ne peut pas importer Warden.
 | `socials.linkedin` | `r_liteprofile`, `r_emailaddress` |
 | `socials.linkedinOpenidConnect` | `openid`, `profile`, `email` |
 | `socials.spotify` | `user-read-email` |
-| `socials.twitter` | `tweet.read`, `users.read`, `users.email` |
+| `socials.twitterX` | `tweet.read`, `users.read`, `users.email` |
 
 `scopes` remplace les valeurs par défaut. `authorizeParams` ajoute tout ce que
 le fournisseur accepte d'autre sur son URL d'autorisation — `prompt`,
@@ -1231,17 +1231,22 @@ const state = crypto.randomUUID()
 const verifier = createCodeVerifier()
 ctx.session.put('oauth_state', state)
 ctx.session.put('oauth_verifier', verifier)
-return ctx.response.redirect(socials.redirect('twitter', state, verifier))
+return ctx.response.redirect(socials.redirect('twitterX', state, verifier))
 
 // ... au retour
 const { user } = await socials.callback(
-  'twitter',
+  'twitterX',
   ctx.request.input('code'),
   ctx.request.input('state'),
   ctx.session.pull('oauth_state'),
   ctx.session.pull('oauth_verifier'),
 )
 ```
+
+Il n'y a pas de helper `twitter`. Ce nom appartient au flux OAuth1 de X, qui
+est un autre protocole — son callback porte un token et un vérificateur, pas un
+code — et qui n'est pas implémenté ici. Une config qui le nomme échoue à la
+**compilation**, plutôt que de connecter les utilisateurs par un autre flux.
 
 La redirection **refuse de se construire** sans vérificateur, plutôt que
 d'envoyer l'utilisateur vers une URL que X rejettera. Seule l'empreinte du

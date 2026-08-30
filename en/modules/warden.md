@@ -1115,7 +1115,7 @@ code that cannot import Warden.
 | `socials.linkedin` | `r_liteprofile`, `r_emailaddress` |
 | `socials.linkedinOpenidConnect` | `openid`, `profile`, `email` |
 | `socials.spotify` | `user-read-email` |
-| `socials.twitter` | `tweet.read`, `users.read`, `users.email` |
+| `socials.twitterX` | `tweet.read`, `users.read`, `users.email` |
 
 `scopes` replaces the defaults. `authorizeParams` adds whatever else a provider
 takes on its authorize URL — `prompt`, `display`, `show_dialog`, `guild_id` —
@@ -1203,11 +1203,11 @@ const state = crypto.randomUUID()
 const verifier = createCodeVerifier()
 ctx.session.put('oauth_state', state)
 ctx.session.put('oauth_verifier', verifier)
-return ctx.response.redirect(socials.redirect('twitter', state, verifier))
+return ctx.response.redirect(socials.redirect('twitterX', state, verifier))
 
 // ... on the way back
 const { user } = await socials.callback(
-  'twitter',
+  'twitterX',
   ctx.request.input('code'),
   ctx.request.input('state'),
   ctx.session.pull('oauth_state'),
@@ -1215,8 +1215,13 @@ const { user } = await socials.callback(
 )
 ```
 
-The redirect **refuses to build** without one rather than sending the user to
-a URL X will reject. Only the hash of the verifier travels in the URL; the
+There is no `twitter` helper. That name belongs to X's OAuth1 flow, which is a
+different protocol — its callback carries a token and a verifier rather than a
+code — and is not implemented here. A config naming it fails to **compile**,
+rather than quietly signing users in through another flow.
+
+The redirect **refuses to build** without a verifier rather than sending the
+user to a URL X will reject. Only the hash of the verifier travels in the URL; the
 verifier itself is sent once, on the token exchange, which is what makes an
 intercepted authorization code useless to whoever intercepted it.
 
