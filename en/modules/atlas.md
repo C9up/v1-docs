@@ -811,7 +811,7 @@ export default {
 
 The MCP bridge (`ream-mcp migration.*` tools) reads the same key. You can also override at runtime via the `REAM_MIGRATIONS_TABLE` environment variable.
 
-`table` must match `/^[A-Za-z_][A-Za-z0-9_]*$/` — letters, digits, and underscores only, and must not start with a digit. Invalid names throw `AtlasError("MIGRATION_INVALID_TABLE_NAME")` synchronously from the `MigrationRunner` constructor; the Rust query compiler enforces the same shape as a second defense layer.
+`table` must match `/^[A-Za-z_][A-Za-z0-9_]*$/` — letters, digits, and underscores only, and must not start with a digit. Invalid names throw `AtlasError("E_MIGRATION_INVALID_TABLE_NAME")` synchronously from the `MigrationRunner` constructor; the Rust query compiler enforces the same shape as a second defense layer.
 
 **Cleanup-helper coupling.** `DatabaseCleanup.truncateAll` skips tables whose name starts with `_`. The default `_migrations` is therefore protected from `truncateAll` out of the box. A custom name like `schema_versions` does NOT start with `_`, so `truncateAll` will wipe it — that is by design (opt-out of auto-exclusion). Pick an `_`-prefixed custom name (e.g. `_my_migrations`) if you want to keep the exclusion.
 

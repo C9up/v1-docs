@@ -164,7 +164,7 @@ rateLimit: { max: 100, windowSeconds: 60 } // 100 requêtes / 60s
 Quand la limite est dépassée, la requête est rejetée avec :
 
 ```json
-{ "error": { "code": "RATE_LIMITED", "message": "Too many requests" } }
+{ "error": { "code": "E_BLACKHOLE_RATE_LIMITED", "message": "Too many requests" } }
 ```
 
 Statut HTTP : `429 Too Many Requests`

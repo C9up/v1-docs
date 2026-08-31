@@ -346,11 +346,11 @@ The `hydrate()` entrypoint throws `PhotonClientError` (re-exported from `@c9up/p
 
 | Code | When |
 |---|---|
-| `PHOTON_HYDRATION_NO_DATA` | The `<script id="photon-data">` block is missing — the page wasn't rendered through `PhotonRenderer`. |
-| `PHOTON_HYDRATION_BAD_DATA` | The page-data JSON is malformed or has the wrong shape (missing `framework`, empty `component`, etc.). |
-| `PHOTON_HYDRATION_NO_TARGET` | The mount selector (`#app` by default) didn't match any DOM node. |
-| `PHOTON_HYDRATION_UNSUPPORTED_FRAMEWORK` | `framework` is set to a value other than `react` / `vue` / `svelte`. |
-| `PHOTON_HYDRATION_ADAPTER_LOAD_FAILED` | The framework runtime (`react-dom/client`, `vue`, `svelte`) couldn't be imported — usually a missing `pnpm add` step. |
+| `E_PHOTON_HYDRATION_NO_DATA` | The `<script id="photon-data">` block is missing — the page wasn't rendered through `PhotonRenderer`. |
+| `E_PHOTON_HYDRATION_BAD_DATA` | The page-data JSON is malformed or has the wrong shape (missing `framework`, empty `component`, etc.). |
+| `E_PHOTON_HYDRATION_NO_TARGET` | The mount selector (`#app` by default) didn't match any DOM node. |
+| `E_PHOTON_HYDRATION_UNSUPPORTED_FRAMEWORK` | `framework` is set to a value other than `react` / `vue` / `svelte`. |
+| `E_PHOTON_HYDRATION_ADAPTER_LOAD_FAILED` | The framework runtime (`react-dom/client`, `vue`, `svelte`) couldn't be imported — usually a missing `pnpm add` step. |
 
 ### Sub-path apps & custom mount targets
 
@@ -363,7 +363,7 @@ hydrate({
 })
 ```
 
-The SSR side currently always emits `<div id="app">`; if you pass a custom `target`, override the SSR template to match (e.g. `#admin-app`). When the renderer can't find your target at hydrate time it throws `PHOTON_HYDRATION_NO_TARGET` — see the [error catalog](../errors/#photon-hydration-no-target).
+The SSR side currently always emits `<div id="app">`; if you pass a custom `target`, override the SSR template to match (e.g. `#admin-app`). When the renderer can't find your target at hydrate time it throws `E_PHOTON_HYDRATION_NO_TARGET` — see the [error catalog](../errors/#photon-hydration-no-target).
 
 ### What ships per story
 

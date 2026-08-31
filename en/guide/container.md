@@ -166,7 +166,7 @@ export class OrderService {
 
 ## `@Lazy()` — breaking circular dependencies
 
-When two services depend on each other, the container throws a `CIRCULAR_DEPENDENCY` error. Use `@Lazy()` on one constructor parameter to defer resolution until first use.
+When two services depend on each other, the container throws a `E_CIRCULAR_DEPENDENCY` error. Use `@Lazy()` on one constructor parameter to defer resolution until first use.
 
 ```typescript
 import { Service, Lazy } from '@c9up/ream'

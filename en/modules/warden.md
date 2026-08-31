@@ -736,7 +736,7 @@ const hash = new Hash({
 // Login flow — the caller verifies the password, Warden mints the session
 const user = await db.users.findByEmail(email)
 const ok = user ? await hash.verify(password, user.passwordHash) : false
-if (!ok) throw new E_UNAUTHORIZED('Invalid credentials')
+if (!ok) throw new E_WARDEN_UNAUTHORIZED('Invalid credentials')
 
 await strategy.login({ id: user.id, roles: user.roles }, ctx.session)
 
@@ -1028,7 +1028,7 @@ Status helpers: `isEnabled(userId)`, `listFactors(userId)` (never leaks secret m
 
 ### @RequireMfa — gating routes
 
-A route decorated with `@RequireMfa()` is reachable only when the authenticated user's payload carries a truthy `mfa` claim (set by your step-up flow once `MfaManager.verify()` succeeds). Otherwise the auth middleware returns **403 `MFA_REQUIRED`**.
+A route decorated with `@RequireMfa()` is reachable only when the authenticated user's payload carries a truthy `mfa` claim (set by your step-up flow once `MfaManager.verify()` succeeds). Otherwise the auth middleware returns **403 `E_WARDEN_MFA_REQUIRED`**.
 
 ```typescript
 import { Guard, RequireMfa } from '@c9up/warden'
@@ -1078,7 +1078,7 @@ Create an `AuthMiddleware` class that calls `auth.verify()` and populates `ctx.a
 ```typescript
 // app/middleware/auth_middleware.ts
 import type { HttpContext } from '@c9up/ream'
-import { E_UNAUTHORIZED } from '@c9up/ream'
+import { E_WARDEN_UNAUTHORIZED } from '@c9up/ream'
 import { AuthManager } from '@c9up/warden'
 
 export default class AuthMiddleware {
@@ -1089,12 +1089,12 @@ export default class AuthMiddleware {
     const token = bearer?.startsWith('Bearer ') ? bearer.slice(7) : undefined
 
     if (!token) {
-      throw new E_UNAUTHORIZED('Bearer token required')
+      throw new E_WARDEN_UNAUTHORIZED('Bearer token required')
     }
 
     const result = await this.auth.verify(token)
     if (!result.authenticated || !result.user) {
-      throw new E_UNAUTHORIZED('Invalid or expired token')
+      throw new E_WARDEN_UNAUTHORIZED('Invalid or expired token')
     }
 
     ctx.auth = {
@@ -1154,28 +1154,28 @@ router.group(() => {
 
 ### Guard Enforcement Behaviour
 
-1. If the route has any guard, role, or permission and `ctx.auth.authenticated` is `false` — sends `401 { error: { code: 'UNAUTHORIZED', message: ... } }` and returns.
-2. If the route requires roles and `ctx.auth.roles` does not contain any of them — sends `403 { error: { code: 'FORBIDDEN', message: 'Missing roles: ...' } }` and returns.
-3. If the route requires permissions and `ctx.auth.permissions` does not contain all of them — sends `403 { error: { code: 'FORBIDDEN', message: 'Missing permissions: ...' } }` and returns.
+1. If the route has any guard, role, or permission and `ctx.auth.authenticated` is `false` — sends `401 { error: { code: 'E_WARDEN_UNAUTHORIZED', message: ... } }` and returns.
+2. If the route requires roles and `ctx.auth.roles` does not contain any of them — sends `403 { error: { code: 'E_WARDEN_FORBIDDEN', message: 'Missing roles: ...' } }` and returns.
+3. If the route requires permissions and `ctx.auth.permissions` does not contain all of them — sends `403 { error: { code: 'E_WARDEN_FORBIDDEN', message: 'Missing permissions: ...' } }` and returns.
 
 Guards are enforced by the middleware pipeline, not by Warden directly. `ctx.auth` must be populated before the guard check runs — that is the auth middleware's job.
 
 ---
 
-## E_UNAUTHORIZED and E_FORBIDDEN
+## E_WARDEN_UNAUTHORIZED and E_WARDEN_FORBIDDEN
 
 Both exceptions are defined in `@c9up/ream` and self-handle their HTTP responses:
 
 ```typescript
-import { E_UNAUTHORIZED, E_FORBIDDEN } from '@c9up/ream'
+import { E_WARDEN_UNAUTHORIZED, E_WARDEN_FORBIDDEN } from '@c9up/ream'
 
 // 401 — thrown when ctx.auth.authenticated is false
-throw new E_UNAUTHORIZED('Bearer token required')
-// Response: { "error": { "code": "E_UNAUTHORIZED", "message": "Bearer token required" } }
+throw new E_WARDEN_UNAUTHORIZED('Bearer token required')
+// Response: { "error": { "code": "E_WARDEN_UNAUTHORIZED", "message": "Bearer token required" } }
 
 // 403 — thrown when roles or permissions are insufficient
-throw new E_FORBIDDEN('Insufficient permissions', ['posts.create'])
-// Response: { "error": { "code": "E_FORBIDDEN", "message": "Insufficient permissions", "required": ["posts.create"] } }
+throw new E_WARDEN_FORBIDDEN('Insufficient permissions', ['posts.create'])
+// Response: { "error": { "code": "E_WARDEN_FORBIDDEN", "message": "Insufficient permissions", "required": ["posts.create"] } }
 ```
 
 You can throw these manually in your own middleware or controllers — the global exception handler will handle them.

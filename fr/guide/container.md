@@ -166,7 +166,7 @@ export class OrderService {
 
 ## `@Lazy()` — résoudre les dépendances circulaires
 
-Lorsque deux services dépendent l'un de l'autre, le conteneur lève une erreur `CIRCULAR_DEPENDENCY`. Utilisez `@Lazy()` sur l'un des paramètres du constructeur pour différer la résolution jusqu'au premier accès.
+Lorsque deux services dépendent l'un de l'autre, le conteneur lève une erreur `E_CIRCULAR_DEPENDENCY`. Utilisez `@Lazy()` sur l'un des paramètres du constructeur pour différer la résolution jusqu'au premier accès.
 
 ```typescript
 import { Service, Lazy } from '@c9up/ream'

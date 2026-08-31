@@ -346,11 +346,11 @@ Le point d'entrée `hydrate()` lance `PhotonClientError` (re-exporté depuis `@c
 
 | Code | Quand |
 |---|---|
-| `PHOTON_HYDRATION_NO_DATA` | Le bloc `<script id="photon-data">` est absent — la page n'a pas été rendue via `PhotonRenderer`. |
-| `PHOTON_HYDRATION_BAD_DATA` | Le JSON page-data est malformé ou de mauvaise forme (manque `framework`, `component` vide, etc.). |
-| `PHOTON_HYDRATION_NO_TARGET` | Le sélecteur de mount (`#app` par défaut) n'a matché aucun nœud DOM. |
-| `PHOTON_HYDRATION_UNSUPPORTED_FRAMEWORK` | `framework` vaut autre chose que `react` / `vue` / `svelte`. |
-| `PHOTON_HYDRATION_ADAPTER_LOAD_FAILED` | Le runtime du framework (`react-dom/client`, `vue`, `svelte`) n'a pas pu être importé — généralement une étape `pnpm add` manquante. |
+| `E_PHOTON_HYDRATION_NO_DATA` | Le bloc `<script id="photon-data">` est absent — la page n'a pas été rendue via `PhotonRenderer`. |
+| `E_PHOTON_HYDRATION_BAD_DATA` | Le JSON page-data est malformé ou de mauvaise forme (manque `framework`, `component` vide, etc.). |
+| `E_PHOTON_HYDRATION_NO_TARGET` | Le sélecteur de mount (`#app` par défaut) n'a matché aucun nœud DOM. |
+| `E_PHOTON_HYDRATION_UNSUPPORTED_FRAMEWORK` | `framework` vaut autre chose que `react` / `vue` / `svelte`. |
+| `E_PHOTON_HYDRATION_ADAPTER_LOAD_FAILED` | Le runtime du framework (`react-dom/client`, `vue`, `svelte`) n'a pas pu être importé — généralement une étape `pnpm add` manquante. |
 
 ### Apps en sous-chemin et cible de mount personnalisée
 
@@ -363,7 +363,7 @@ hydrate({
 })
 ```
 
-Le côté SSR émet actuellement toujours `<div id="app">` ; si tu passes un `target` custom, override le template SSR pour matcher (par ex. `#admin-app`). Quand le renderer ne trouve pas la cible au moment de l'hydratation, il lève `PHOTON_HYDRATION_NO_TARGET` — voir le [catalogue d'erreurs](../errors/#photon-hydration-no-target).
+Le côté SSR émet actuellement toujours `<div id="app">` ; si tu passes un `target` custom, override le template SSR pour matcher (par ex. `#admin-app`). Quand le renderer ne trouve pas la cible au moment de l'hydratation, il lève `E_PHOTON_HYDRATION_NO_TARGET` — voir le [catalogue d'erreurs](../errors/#photon-hydration-no-target).
 
 ### Ce qui livre par story
 

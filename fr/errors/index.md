@@ -26,7 +26,7 @@ En mode production, seuls le code et le message sont affichés.
 
 | Code | Description |
 |------|-------------|
-| `CONTAINER_NOT_FOUND` | Aucun binding trouvé pour le token demandé. Enregistrez-le avec `container.singleton()` ou `@Service()`. |
+| `E_CONTAINER_NOT_FOUND` | Aucun binding trouvé pour le token demandé. Enregistrez-le avec `container.singleton()` ou `@Service()`. |
 | `CONTAINER_CIRCULAR_DEPENDENCY` | Dépendance circulaire détectée. Utilisez `@Lazy()`, des factories explicites, ou découpler via les events. |
 | `CONTAINER_OVERRIDE_UNKNOWN` | Tentative de remplacer un token qui n'a pas de binding enregistré. |
 
@@ -42,14 +42,14 @@ En mode production, seuls le code et le message sont affichés.
 | Code | Description |
 |------|-------------|
 | `PIPELINE_STAGE_FAILED` | Une erreur s'est produite à une étape spécifique du pipeline. Vérifiez la position dans le contexte. |
-| `PIPELINE_UNKNOWN_MIDDLEWARE` | Une route référence un middleware nommé non enregistré. Enregistrez-le avec `middleware.register()`. |
+| `E_PIPELINE_UNKNOWN_MIDDLEWARE` | Une route référence un middleware nommé non enregistré. Enregistrez-le avec `middleware.register()`. |
 | `PIPELINE_ERROR` | Erreur générique de pipeline. Vérifiez l'erreur originale pour les détails. |
 
 ## Erreurs Photon
 
 Les erreurs côté serveur sont levées par `@c9up/photon` (SSR / renderer) ; les erreurs côté navigateur par `@c9up/photon/client` (hydratation / SPA-nav). Chaque code expose un `docsUrl` qui pointe vers son ancre ci-dessous — l'opérateur saute directement du terminal aux instructions de récupération.
 
-### PHOTON_INVALID_CONFIG
+### E_PHOTON_INVALID_CONFIG
 
 **Cause.** Un champ de `config/photon.ts` (ou la `PhotonConfig` passée à `PhotonRenderer`) échoue la validation : `buildDir` se résout en dehors de la racine du projet, ou `entryServer` / `entryClient` contient des segments de path-traversal ou des caractères hors de `[\w./\-@#]`.
 
@@ -60,7 +60,7 @@ Les erreurs côté serveur sont levées par `@c9up/photon` (SSR / renderer) ; le
 
 **Lieu du throw :** `packages/photon/src/PhotonRenderer.ts`.
 
-### PHOTON_MANIFEST_MISSING
+### E_PHOTON_MANIFEST_MISSING
 
 **Cause.** Le manifest Vite à `${buildDir}/manifest.json` est absent au moment où `PhotonRenderer.boot()` tourne en mode production. Le manifest est un artefact de build — son absence signifie presque toujours que le build n'a jamais été lancé pour ce déploiement, ou que la sortie du build n'a pas été embarquée.
 
@@ -73,9 +73,9 @@ L'erreur levée porte `context: { manifestPath, buildDir }` pour le diagnostic, 
 
 **Lieu du throw :** `packages/photon/src/PhotonRenderer.ts`.
 
-### PHOTON_SSR_LOAD_FAILED
+### E_PHOTON_SSR_LOAD_FAILED
 
-**Cause.** Le manifest Vite est présent, mais le module SSR échoue au chargement : sortie de build manquante pour `entryServer`, erreur de syntaxe dans le fichier SSR bundlé, ou peer dependency manquante au runtime. À distinguer de `PHOTON_MANIFEST_MISSING` — ce dernier code est levé quand le manifest est absent ; celui-ci quand le manifest est là mais que `import()` du SSR rejette.
+**Cause.** Le manifest Vite est présent, mais le module SSR échoue au chargement : sortie de build manquante pour `entryServer`, erreur de syntaxe dans le fichier SSR bundlé, ou peer dependency manquante au runtime. À distinguer de `E_PHOTON_MANIFEST_MISSING` — ce dernier code est levé quand le manifest est absent ; celui-ci quand le manifest est là mais que `import()` du SSR rejette.
 
 **Fix.**
 1. Relance `ream build` (ou ton script de build) et lis attentivement les warnings.
@@ -84,7 +84,7 @@ L'erreur levée porte `context: { manifestPath, buildDir }` pour le diagnostic, 
 
 **Lieu du throw :** `packages/photon/src/PhotonRenderer.ts`.
 
-### PHOTON_SSR_RENDER_FAILED
+### E_PHOTON_SSR_RENDER_FAILED
 
 **Cause.** Le module SSR s'est bien chargé, mais son appel `render(pageData)` a levé ou retourné une valeur non-string. Causes courantes : un composant lève pendant le render, un équivalent `useEffect` tourne côté serveur et accède à `window`, ou le SSR retourne `undefined`.
 
@@ -95,7 +95,7 @@ L'erreur levée porte `context: { manifestPath, buildDir }` pour le diagnostic, 
 
 **Lieu du throw :** `packages/photon/src/PhotonRenderer.ts`.
 
-### PHOTON_HYDRATION_NO_DATA
+### E_PHOTON_HYDRATION_NO_DATA
 
 **Cause.** L'appel `hydrate()` côté navigateur a tourné mais aucun bloc `<script id="photon-data" type="application/json">` n'a été trouvé dans le document. Signifie presque toujours que la page n'a PAS été rendue via `PhotonRenderer.render()` (réponse HTML écrite à la main, fichier statique, ou page 404).
 
@@ -105,7 +105,7 @@ L'erreur levée porte `context: { manifestPath, buildDir }` pour le diagnostic, 
 
 **Lieu du throw :** `packages/photon/src/client/hydrate.ts`.
 
-### PHOTON_HYDRATION_BAD_DATA
+### E_PHOTON_HYDRATION_BAD_DATA
 
 **Cause.** Le bloc `<script id="photon-data">` a été trouvé, mais son contenu n'est pas un objet JSON avec la forme attendue `{ component, props, url, framework }`. Causes : mangling HTML par un CDN / proxy qui réencode les blocs script, double-escaping par un middleware qui ne sait pas que le bloc est censé rester du JSON brut, ou édition manuelle du template SSR.
 
@@ -116,7 +116,7 @@ L'erreur levée porte `context: { manifestPath, buildDir }` pour le diagnostic, 
 
 **Lieu du throw :** `packages/photon/src/client/hydrate.ts`.
 
-### PHOTON_HYDRATION_NO_TARGET
+### E_PHOTON_HYDRATION_NO_TARGET
 
 **Cause.** Le sélecteur de cible d'hydratation (par défaut `#app`) n'a matché aucun nœud DOM. Habituellement une option `target` custom qui n'existe pas dans le HTML SSR, ou un `id="app"` retiré d'un template custom.
 
@@ -126,7 +126,7 @@ L'erreur levée porte `context: { manifestPath, buildDir }` pour le diagnostic, 
 
 **Lieu du throw :** `packages/photon/src/client/hydrate.ts`.
 
-### PHOTON_HYDRATION_UNSUPPORTED_FRAMEWORK
+### E_PHOTON_HYDRATION_UNSUPPORTED_FRAMEWORK
 
 **Cause.** Le champ `framework` du bloc page-data n'est pas l'une des valeurs `react`, `vue` ou `svelte`. Soit le côté SSR a écrit une valeur inattendue, soit page-data a été fabriqué à la main avec une typo.
 
@@ -136,7 +136,7 @@ L'erreur levée porte `context: { manifestPath, buildDir }` pour le diagnostic, 
 
 **Lieu du throw :** `packages/photon/src/client/hydrate.ts`.
 
-### PHOTON_HYDRATION_ADAPTER_LOAD_FAILED
+### E_PHOTON_HYDRATION_ADAPTER_LOAD_FAILED
 
 **Cause.** Photon a bien lu page-data et dispatché vers le bon adapter, mais l'`import()` dynamique du runtime du framework a rejeté. Presque toujours une peer dependency manquante : `react` + `react-dom` pour React, `vue` pour Vue, `svelte` pour Svelte.
 
@@ -198,5 +198,5 @@ Si tu en vois un, la cause est presque toujours un **render non déterministe** 
 
 | Code | Description |
 |------|-------------|
-| `RATE_LIMITED` | Trop de requêtes depuis cette IP. Attendez et réessayez. |
+| `E_BLACKHOLE_RATE_LIMITED` | Trop de requêtes depuis cette IP. Attendez et réessayez. |
 | `CSRF_FAILED` | Token CSRF invalide ou manquant. Renvoyez le cookie `XSRF-TOKEN` dans le header `X-XSRF-TOKEN` (ou le champ de formulaire `_csrf`). |

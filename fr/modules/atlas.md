@@ -817,7 +817,7 @@ export default {
 
 Le pont MCP (outils `ream-mcp migration.*`) lit la même clé. Vous pouvez aussi surcharger à l'exécution via la variable d'environnement `REAM_MIGRATIONS_TABLE`.
 
-`table` doit correspondre à `/^[A-Za-z_][A-Za-z0-9_]*$/` — lettres, chiffres et underscores uniquement, sans commencer par un chiffre. Les noms invalides lèvent `AtlasError("MIGRATION_INVALID_TABLE_NAME")` synchrone­ment depuis le constructeur `MigrationRunner` ; le compilateur de requêtes Rust applique la même forme en seconde ligne de défense.
+`table` doit correspondre à `/^[A-Za-z_][A-Za-z0-9_]*$/` — lettres, chiffres et underscores uniquement, sans commencer par un chiffre. Les noms invalides lèvent `AtlasError("E_MIGRATION_INVALID_TABLE_NAME")` synchrone­ment depuis le constructeur `MigrationRunner` ; le compilateur de requêtes Rust applique la même forme en seconde ligne de défense.
 
 **Couplage avec le helper de nettoyage.** `DatabaseCleanup.truncateAll` ignore les tables dont le nom commence par `_`. Le défaut `_migrations` est donc protégé d'office. Un nom personnalisé comme `schema_versions` ne commence PAS par `_` : `truncateAll` le supprimera — c'est voulu (opt-out de l'exclusion automatique). Choisissez un nom personnalisé préfixé par `_` (par exemple `_my_migrations`) si vous souhaitez conserver l'exclusion.
 
