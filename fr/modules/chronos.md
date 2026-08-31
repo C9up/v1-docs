@@ -106,6 +106,65 @@ Chronos.rangeRelation(
 // }
 ```
 
+## Lire une date
+
+Une date de calendrier qui n'existe pas est refusée, plutôt que ramenée à la
+suivante qui existe.
+
+```ts
+DateTime.from('2026-02-30')
+// Invalid date '2026-02-30': February 2026 has 28 days, so there is no day 30.
+```
+
+Seule la date *écrite* est contrôlée, jamais l'instant vers lequel elle se
+résout : un décalage qui déplace légitimement le jour UTC n'est pas concerné.
+
+```ts
+DateTime.from('2026-08-10T23:00:00-05:00').toISO()  // 2026-08-11T04:00:00.000Z
+```
+
+L'arithmétique, elle, continue de se déplacer vers la date existante la plus
+proche — c'est le comportement attendu à cet endroit — et elle s'arrête à la
+fin du mois au lieu de déborder dessus :
+
+```ts
+DateTime.from('2026-01-31').plus(1, 'month').toISO()  // 2026-02-28T00:00:00.000Z
+```
+
+## Mesurer entre deux instants
+
+`a.diff(b, unit)` vaut `a - b` : positif quand `a` est le plus tardif des deux,
+négatif quand il est le plus ancien. Le résultat conserve sa fraction.
+
+```ts
+const d = DateTime.from('2026-06-05T14:30:00Z')
+
+d.diff('2026-01-01T00:00:00Z', 'day')    // 155.60416666666666
+d.diff('2026-01-01T00:00:00Z', 'hour')   // 3734.5
+d.diff('2026-08-01T00:00:00Z', 'day')    // -56.395833333333336
+```
+
+Les mois et les années se comptent sur le calendrier, pas sur une longueur
+moyenne : le reste est mesuré contre le mois où il tombe réellement, donc 15
+jours dans février valent 15/28 de mois et non 15/30.
+
+```ts
+DateTime.from('2026-03-15T10:00:00Z').diff('2026-02-28T00:00:00Z', 'month')
+// 0.5505952380952381
+```
+
+## Unités d'Interval
+
+`Interval` accepte une unité écrite dans les deux formes — `'day'` comme
+`DateTime` l'écrit, `'days'` comme les durées l'écrivent — et refuse celle
+qu'il ne reconnaît pas au lieu de retomber sur les millisecondes.
+
+```ts
+june.length('days')   // 30
+june.length('day')    // 30
+june.length('week')   // 4.285714285714286
+```
+
 ## Reference
 
 `Chronos`:

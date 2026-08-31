@@ -106,6 +106,65 @@ Chronos.rangeRelation(
 // }
 ```
 
+## Reading a date
+
+A calendar date that does not exist is refused, rather than resolved to the
+next one that does.
+
+```ts
+DateTime.from('2026-02-30')
+// Invalid date '2026-02-30': February 2026 has 28 days, so there is no day 30.
+```
+
+Only the *written* date is checked, never the instant it resolves to, so an
+offset that legitimately moves the UTC day is untouched:
+
+```ts
+DateTime.from('2026-08-10T23:00:00-05:00').toISO()  // 2026-08-11T04:00:00.000Z
+```
+
+Arithmetic still moves to the nearest date that exists, because there that is
+the intended behaviour — and it clamps to the end of the month rather than
+spilling past it:
+
+```ts
+DateTime.from('2026-01-31').plus(1, 'month').toISO()  // 2026-02-28T00:00:00.000Z
+```
+
+## Measuring between two instants
+
+`a.diff(b, unit)` is `a - b`: positive when `a` is the later of the two,
+negative when it is the earlier one. The result keeps its fraction.
+
+```ts
+const d = DateTime.from('2026-06-05T14:30:00Z')
+
+d.diff('2026-01-01T00:00:00Z', 'day')    // 155.60416666666666
+d.diff('2026-01-01T00:00:00Z', 'hour')   // 3734.5
+d.diff('2026-08-01T00:00:00Z', 'day')    // -56.395833333333336
+```
+
+Months and years are counted on the calendar, not on an average length: the
+remainder is measured against the month it actually falls in, so 15 days into
+February is 15/28 of a month, not 15/30.
+
+```ts
+DateTime.from('2026-03-15T10:00:00Z').diff('2026-02-28T00:00:00Z', 'month')
+// 0.5505952380952381
+```
+
+## Interval units
+
+`Interval` accepts a unit spelled either way — `'day'` as `DateTime` spells it,
+`'days'` as durations do — and refuses one it does not recognise instead of
+falling back to milliseconds.
+
+```ts
+june.length('days')   // 30
+june.length('day')    // 30
+june.length('week')   // 4.285714285714286
+```
+
 ## Reference
 
 `Chronos`:
