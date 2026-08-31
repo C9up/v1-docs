@@ -238,6 +238,37 @@ await repo.ingestSchemaless(points, { protocol: 'influxdb', precision: 'millisec
 await repo.ingestSql(points)   // → { rowsAffected }
 ```
 
+## Reading values back
+
+### Null cells
+
+A SQL `NULL` comes back as `null` for every column type that cannot hold the
+four characters `NULL` as a value — numbers, timestamps, booleans, decimals.
+
+```ts
+const [row] = await conn.query('SELECT ts, amount FROM prices WHERE ts = ?', [t])
+row.amount   // null, not "NULL"
+```
+
+**Text and binary columns are the exception.** For `VARCHAR`, `NCHAR`, `JSON`,
+`VARBINARY`, `BLOB` and `GEOMETRY`, an empty cell is indistinguishable from one
+holding the string `"NULL"` by the time the value reaches eon, so those are
+handed back untouched and a null cell reads as `"NULL"`. Treat a nullable text
+column accordingly, or keep the column non-null and use a sentinel you choose.
+
+### Ingesting a decimal
+
+`ingestMany()` refuses a super-table with a `DECIMAL` column:
+
+```
+[E_EON_DECIMAL_STMT] super-table 'prices' has DECIMAL column(s) amount, which
+the columnar STMT path cannot bind […] Use ingestSql() for this super-table.
+```
+
+The columnar path stores an unrelated number for a decimal instead of the value
+given, and a different one on each run. `ingestSql()` writes the same points
+correctly and is the path to use for those super-tables.
+
 ## Time-series queries
 
 `SuperTableRepository.query()` returns a fluent `TimeSeriesQuery` — a Lucid-shaped builder for windowed reads, mirroring the Atlas `ModelQuery` subset. It compiles through the same Rust `eon-query` core and runs over the injected connection.

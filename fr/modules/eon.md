@@ -239,6 +239,39 @@ await repo.ingestSchemaless(points, { protocol: 'influxdb', precision: 'millisec
 await repo.ingestSql(points)   // → { rowsAffected }
 ```
 
+## Relire les valeurs
+
+### Cellules nulles
+
+Un `NULL` SQL revient en `null` pour tout type de colonne qui ne peut pas
+contenir les quatre caractères `NULL` comme valeur — nombres, horodatages,
+booléens, décimaux.
+
+```ts
+const [row] = await conn.query('SELECT ts, amount FROM prices WHERE ts = ?', [t])
+row.amount   // null, et non "NULL"
+```
+
+**Les colonnes texte et binaires font exception.** Pour `VARCHAR`, `NCHAR`,
+`JSON`, `VARBINARY`, `BLOB` et `GEOMETRY`, une cellule vide est indiscernable
+d'une cellule contenant la chaîne `"NULL"` au moment où la valeur parvient à
+eon : elles sont donc rendues telles quelles, et une cellule nulle se lit
+`"NULL"`. Traite une colonne texte nullable en conséquence, ou garde-la non
+nulle avec une valeur sentinelle que tu choisis.
+
+### Insérer un décimal
+
+`ingestMany()` refuse une super-table portant une colonne `DECIMAL` :
+
+```
+[E_EON_DECIMAL_STMT] super-table 'prices' has DECIMAL column(s) amount, which
+the columnar STMT path cannot bind […] Use ingestSql() for this super-table.
+```
+
+Le chemin colonnaire enregistre un nombre sans rapport avec la valeur donnée,
+et un nombre différent à chaque exécution. `ingestSql()` écrit les mêmes points
+correctement : c'est le chemin à utiliser pour ces super-tables.
+
 ## Requêtes séries temporelles
 
 `repo.query()` renvoie un `TimeSeriesQuery` — un builder fluide calqué sur le **sous-ensemble** pertinent de `ModelQuery` d'Atlas (lui-même une parité de Lucid/AdonisJS). Les noms de filtrage/tri/pagination (`where` / `orderBy` / `limit` / `offset` / `first` / le thenable `then`) sont ceux de Lucid ; les méthodes de fenêtre (`interval` / `sliding` / `fill` / `partitionBy`) n'ont pas d'analogue Lucid et portent le nom des clauses SQL TDengine.
