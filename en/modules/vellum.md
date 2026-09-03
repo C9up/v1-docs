@@ -188,6 +188,46 @@ Every input is treated as hostile, because these documents come from uploads:
 - Text written onto a page is escaped, so a document title cannot inject content
   stream operators.
 
+## Interactive forms
+
+`formFields` lists a document's AcroForm fields in declaration order; `name` is
+the fully qualified name — every ancestor's partial name joined with dots —
+which is the name a field is filled in by.
+
+```ts
+const fields = await vellum.formFields(mandate)
+
+const filled = await vellum.fillForm(mandate, {
+  'insured.name': 'Amélie Durand',
+  accepted: 'Yes',
+  country: 'CH',
+})
+```
+
+Three details of PDF 32000-1 §12.7.3 this resolves for the caller:
+
+- A field's type, flags and value are **inherited** down `/Parent`, so a field
+  commonly declares none of them itself.
+- A checkbox or radio's "on" state is chosen by the **document** (`/Yes`,
+  `/On`, `/1`, …), not fixed by the spec. Those accepted states are reported in
+  `options`; writing anything else leaves the control untouched.
+- For a choice field, `options` reports the **exported** values rather than the
+  labels, since the export value is what gets written back.
+
+`fillForm` regenerates each filled field's **appearance stream**. That half is
+the one that matters: most readers paint a field from its appearance, not from
+its value, so a document filled without it opens looking empty while holding
+every answer.
+
+Refusals are loud rather than silent, because a filled document quietly missing
+an answer is worse than a failure. An unknown field name (the error lists the
+names that do exist), a read-only field, a value over the declared maximum
+length, a choice the form does not offer and a checkbox state the document does
+not accept are all errors.
+
 ## Not yet
 
-Filling interactive forms (AcroForm) and embedding custom fonts.
+Flattening a filled form, and embedding custom fonts. Two current limits of
+form filling, both from having no glyph metrics: text is left-aligned whatever
+the field's `/Q` says, and a multiline field honours the line breaks you write
+but does not wrap.

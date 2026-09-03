@@ -190,7 +190,49 @@ d'envois utilisateurs :
 - Le texte écrit sur une page est échappé, pour qu'un titre de document ne puisse
   pas injecter d'opérateurs de flux de contenu.
 
+## Formulaires interactifs
+
+`formFields` liste les champs AcroForm d'un document dans l'ordre où le
+formulaire les déclare ; `name` est le nom qualifié — les noms partiels de tous
+les ancêtres joints par des points — et c'est ce nom qui sert à remplir le
+champ.
+
+```ts
+const champs = await vellum.formFields(mandat)
+
+const rempli = await vellum.fillForm(mandat, {
+  'assure.nom': 'Amélie Durand',
+  accepted: 'Yes',
+  country: 'CH',
+})
+```
+
+Trois subtilités de §12.7.3 que la lecture résout pour l'appelant :
+
+- Le type, les drapeaux et la valeur d'un champ sont **hérités** via
+  `/Parent` : un champ n'en déclare souvent aucun lui-même.
+- L'état « coché » d'une case ou d'un bouton radio est choisi par le
+  **document** (`/Yes`, `/On`, `/1`…), pas fixé par la spécification. Ces états
+  acceptés sont rapportés dans `options` ; écrire autre chose laisse le contrôle
+  inchangé.
+- Pour une liste, `options` rapporte les valeurs **d'export** et non les
+  libellés, puisque c'est l'export qui est réécrit.
+
+`fillForm` régénère le **flux d'apparence** de chaque champ rempli. C'est cette
+moitié-là qui compte : la plupart des visionneuses peignent un champ d'après son
+apparence et non d'après sa valeur, si bien qu'un document rempli sans elle
+s'ouvre en paraissant vide tout en contenant toutes les réponses.
+
+Les refus sont bruyants plutôt que silencieux, parce qu'un document rempli à qui
+il manque discrètement une réponse est pire qu'un échec. Un nom de champ inconnu
+(le message liste les noms existants), un champ en lecture seule, une valeur
+au-delà de la longueur maximale déclarée, un choix que le formulaire n'offre pas
+et un état de case que le document n'accepte pas sont autant d'erreurs.
+
 ## Pas encore
 
-Le remplissage de formulaires interactifs (AcroForm) et l'embarquement de
-polices personnalisées.
+L'aplatissement d'un formulaire rempli et l'embarquement de polices
+personnalisées. Deux limites actuelles du remplissage, dues à l'absence de
+métriques de glyphes : le texte est aligné à gauche quel que soit le `/Q` du
+champ, et un champ multiligne respecte les sauts de ligne écrits mais ne fait
+pas de retour automatique.
