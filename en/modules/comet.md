@@ -66,6 +66,11 @@ if (a.ok) console.log(a.value);
 if (!b.ok) console.error(b.error.message);
 ```
 
+Each entry settles on its own. A JSON-RPC error, a missing or duplicated
+response, **and a `parse` that rejects the result** all come back as
+`{ ok: false, error }` for that call only — the others in the round trip are
+unaffected. When a `parse` threw, what it threw is on `error.data`.
+
 ### In the browser — use aurora
 
 In a Ream page, prefer aurora's `createRpcClient`: it wires aurora's `HttpClient`
@@ -90,6 +95,40 @@ The `@c9up/comet/protocol` surface is what a **server binding** consumes:
 | `buildRequest / buildSuccess / buildError` | Envelope builders |
 | `RpcError`, `toRpcError`, `isRpcShapedError`, `isRpcError` | Error type + mappers/guards |
 | `RpcErrorCode` | The reserved `-327xx`/`-326xx` codes |
+
+### What the parser refuses
+
+`parseRequest` answers `InvalidRequest` — echoing the id when the envelope
+carried a usable one — for anything the spec writes as a MUST:
+
+- `jsonrpc` that is not `"2.0"`, or a missing/non-string `method`;
+- an `id` that is present but is not a String, Number or Null (§4) — a boolean
+  or an object is refused, never coerced to null;
+- `params` that is present and is not a Structured value (§4.2): by-position
+  through an Array, or by-name through an Object. A string, a number or a
+  `null` is none of those.
+
+`buildRequest` leaves `params` out when there is none, so a transport that does
+not pass through `JSON.stringify` — a worker, an in-process bus — carries no
+member holding `undefined`.
+
+### Domain errors
+
+A handler tells the binding "answer the caller with this" by throwing an
+`RpcError`, whatever code it carries:
+
+```ts
+throw new RpcError(-32004, "Task not found", { id });
+```
+
+`isRpcShapedError` also recognises a plain object carrying a **negative integer**
+`code`, so code that does not import comet can still raise a domain error.
+Negative because that is the space the spec gives errors (§5.1 reserves
+-32768..-32000) — and because the numbers other things carry are not codes: a
+`DOMException` from an aborted or timed-out `fetch` has `code: 20` / `code: 23`,
+a gRPC status is 0..16. Read as domain errors, those answered the caller with
+their own message, past the production guard that keeps internal failures off
+the wire.
 
 Ream's `RpcRouter` is exactly this: it keeps its own routing DSL
 (`method`/`group`/`namespace`/`guard`/`validate`) and pipeline (DI, middleware,
