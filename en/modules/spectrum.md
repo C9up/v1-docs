@@ -168,18 +168,35 @@ export default {
 
 ```typescript
 // config/logger.ts
-import { ConsoleChannel } from '@c9up/spectrum'
+import { defineConfig, logLevel, targets } from '@c9up/spectrum'
 
-export default {
-  level: process.env.LOG_LEVEL ?? 'info',
-  channels: [
-    new ConsoleChannel(process.env.NODE_ENV === 'production' ? 'json' : 'pretty'),
-  ],
-  modules: {
-    db: 'debug',
+const inProduction = process.env.NODE_ENV === 'production'
+
+export default defineConfig({
+  default: 'app',
+  loggers: {
+    app: {
+      enabled: true,
+      name: 'app',
+      // LOG_LEVEL comes from outside the program, so it is checked rather than
+      // asserted: anything that is not a level reads as 'info'.
+      level: logLevel(process.env.LOG_LEVEL),
+      modules: {
+        db: 'debug',
+      },
+      transport: {
+        targets: targets()
+          .pushIf(!inProduction, targets.pretty())
+          .pushIf(inProduction, targets.file({ destination: 1 }))
+          .toArray(),
+      },
+    },
   },
-}
+})
 ```
+
+`defineConfig` also accepts a single flat logger (`{ level, channels, modules }`),
+which it wraps under the name `app`.
 
 Once registered, resolve the logger from the container:
 
@@ -193,17 +210,27 @@ logger.info('App booted')
 The Rust log bridge forwards structured log records emitted by Ream's native crates into the Spectrum pipeline. This means Rust-side events (query compilation, bus operations, security filters) appear in the same log stream as your application code.
 
 ```typescript
-import { createRustLogBridge, parseRustLog } from '@c9up/spectrum'
+import { ConsoleChannel, createRustLogBridge, Logger, parseRustLog } from '@c9up/spectrum'
 
-// Create a bridge that feeds Rust log lines into your logger
-const bridge = createRustLogBridge(logger)
+// The bridge writes to CHANNELS, not to a Logger — pass it the same array the
+// logger was built with, since a Logger's config is private.
+const channels = [new ConsoleChannel('pretty')]
+const logger = new Logger({ level: 'info', channels })
+
+const bridge = createRustLogBridge(channels)
+bridge.start()
+// ... the native crates emit to stderr
+bridge.stop()
 
 // Parse a raw Rust log line into a LogEntry
-const entry = parseRustLog('INFO ream_query: compiled query in 0.3ms')
-// { level: 'info', module: 'ream_query', message: 'compiled query in 0.3ms' }
+const entry = parseRustLog('[INFO ream_query] compiled query in 0.3ms')
+// { level: 'info', module: 'ream-query', message: 'compiled query in 0.3ms' }
 ```
 
-When `SpectrumProvider` is active, the bridge is attached automatically. You only need to call `createRustLogBridge` manually if you are configuring the logger outside the provider lifecycle.
+The line has to be in the `[LEVEL module] message` shape; anything else is
+passed through to stderr untouched. The bridge replaces `process.stderr.write`
+for the whole process and only one can be active at a time, so it is started
+explicitly — `SpectrumProvider` does not attach it.
 
 ## Types Reference
 
@@ -225,16 +252,47 @@ interface LogChannel {
 }
 
 interface LogConfig {
-  level: LogLevel
-  channels: LogChannel[]
-  modules?: Record<string, LogLevel>
+  enabled?: boolean          // default true
+  name?: string              // emitted on every entry
+  level?: LogLevel | 'silent'
+  channels?: LogChannel[]
+  transport?: { targets?: TransportTargetOptions[] }
+  modules?: Record<string, LogLevel | 'silent'>
+  redact?: string[] | { paths: string[]; censor?: string }
+  serializers?: Record<string, (value: unknown) => unknown>
+}
+
+interface LoggerManagerConfig {
+  default: string
+  loggers: Record<string, LogConfig>
 }
 ```
 
-## Next Steps
+## Redaction
 
-- [Blackhole (Security)](/en/modules/blackhole) — Rust-side request filtering
-- [Event Bus](/en/ream/events) — Event-driven architecture
+`redact` censors fields on their way out, in the paths syntax the ecosystem is
+written in:
+
+```typescript
+const logger = new Logger({
+  level: 'info',
+  channels: [new ConsoleChannel('json')],
+  redact: {
+    paths: [
+      'req.headers.authorization',   // a literal path
+      '*.password',                  // wherever it turns up, one level down
+      'users[*].token',              // every element of a list
+      'headers["set-cookie"]',       // a key a dot cannot name
+      'creds.*',                     // every value under a key
+    ],
+    censor: '[Redacted]',
+  },
+})
+```
+
+A path that names nothing leaves the entry exactly as it was, and nothing is
+mutated: the objects along a censored path are copied, the ones the caller
+passed in are not.
 
 ## Transport targets
 
@@ -255,3 +313,8 @@ threads. Spectrum writes through its own `LogChannel`s, so a target is a
 human console, `pino/file` with a path becomes a file, and with a descriptor
 (`destination: 1`) becomes JSON on the process output, which is what a
 containerised app ships to its collector. An explicit `channels` list still wins.
+
+## Next Steps
+
+- [Blackhole (Security)](/en/modules/blackhole) — Rust-side request filtering
+- [Event Bus](/en/ream/events) — Event-driven architecture

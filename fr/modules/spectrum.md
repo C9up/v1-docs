@@ -166,16 +166,108 @@ interface LogChannel {
 }
 
 interface LogConfig {
-  level: LogLevel
-  channels: LogChannel[]
-  modules?: Record<string, LogLevel>  // Overrides par module
+  enabled?: boolean          // true par défaut
+  name?: string              // émis sur chaque entrée
+  level?: LogLevel | 'silent'
+  channels?: LogChannel[]
+  transport?: { targets?: TransportTargetOptions[] }
+  modules?: Record<string, LogLevel | 'silent'>  // Overrides par module
+  redact?: string[] | { paths: string[]; censor?: string }
+  serializers?: Record<string, (value: unknown) => unknown>
+}
+
+interface LoggerManagerConfig {
+  default: string
+  loggers: Record<string, LogConfig>
 }
 ```
 
-## Étapes suivantes
+## Configuration
 
-- [Blackhole (Sécurité)](/fr/modules/blackhole) — Filtrage de sécurité
-- [Event bus](/fr/ream/events) — Architecture event-driven
+```typescript
+// config/logger.ts
+import { defineConfig, logLevel, targets } from '@c9up/spectrum'
+
+const inProduction = process.env.NODE_ENV === 'production'
+
+export default defineConfig({
+  default: 'app',
+  loggers: {
+    app: {
+      enabled: true,
+      name: 'app',
+      // LOG_LEVEL vient de l'extérieur du programme : il est vérifié plutôt
+      // qu'affirmé — tout ce qui n'est pas un niveau se lit 'info'.
+      level: logLevel(process.env.LOG_LEVEL),
+      modules: {
+        db: 'debug',
+      },
+      transport: {
+        targets: targets()
+          .pushIf(!inProduction, targets.pretty())
+          .pushIf(inProduction, targets.file({ destination: 1 }))
+          .toArray(),
+      },
+    },
+  },
+})
+```
+
+`defineConfig` accepte aussi un logger unique à plat (`{ level, channels,
+modules }`), qu'il enveloppe sous le nom `app`.
+
+## Masquage
+
+`redact` censure des champs à la sortie, dans la syntaxe de chemins que
+l'écosystème emploie :
+
+```typescript
+const logger = new Logger({
+  level: 'info',
+  channels: [new ConsoleChannel('json')],
+  redact: {
+    paths: [
+      'req.headers.authorization',   // un chemin littéral
+      '*.password',                  // partout où il apparaît, un niveau plus bas
+      'users[*].token',              // chaque élément d'une liste
+      'headers["set-cookie"]',       // une clé qu'un point ne peut pas nommer
+      'creds.*',                     // chaque valeur sous une clé
+    ],
+    censor: '[Redacted]',
+  },
+})
+```
+
+Un chemin qui ne désigne rien laisse l'entrée telle quelle, et rien n'est muté :
+les objets le long d'un chemin censuré sont copiés, ceux que l'appelant a passés
+ne le sont pas.
+
+## Pont de logs Rust
+
+Le pont réachemine les lignes que les crates natives écrivent sur stderr vers
+les mêmes canaux que le code applicatif.
+
+```typescript
+import { ConsoleChannel, createRustLogBridge, Logger, parseRustLog } from '@c9up/spectrum'
+
+// Le pont écrit vers des CANAUX, pas vers un Logger — passez-lui le tableau
+// avec lequel le logger a été construit, la config d'un Logger étant privée.
+const channels = [new ConsoleChannel('pretty')]
+const logger = new Logger({ level: 'info', channels })
+
+const bridge = createRustLogBridge(channels)
+bridge.start()
+// ... les crates natives émettent sur stderr
+bridge.stop()
+
+const entry = parseRustLog('[INFO ream_query] compiled query in 0.3ms')
+// { level: 'info', module: 'ream-query', message: 'compiled query in 0.3ms' }
+```
+
+La ligne doit avoir la forme `[NIVEAU module] message` ; tout le reste est
+retransmis tel quel sur stderr. Le pont remplace `process.stderr.write` pour tout
+le processus et un seul peut être actif à la fois, donc il se démarre
+explicitement — `SpectrumProvider` ne l'attache pas.
 
 ## Cibles de transport
 
@@ -197,3 +289,8 @@ la console lisible, `pino/file` avec un chemin devient un fichier, et avec un
 descripteur (`destination: 1`) devient du JSON sur la sortie du processus, ce
 qu'une app conteneurisée envoie à son collecteur. Une liste `channels` explicite
 l'emporte toujours.
+
+## Étapes suivantes
+
+- [Blackhole (Sécurité)](/fr/modules/blackhole) — Filtrage de sécurité
+- [Event bus](/fr/ream/events) — Architecture event-driven
