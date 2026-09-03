@@ -1,0 +1,196 @@
+# Vellum — PDF
+
+Statut : **Présent (TS + Rust N-API)**.
+
+- Paquet : `@c9up/vellum`
+- Objectif : convertir les pages d'un PDF en images, lire ce que contient un
+  document et le remanier — fusionner, découper, pivoter, tamponner.
+
+Le travail se fait en Rust derrière N-API, parce que le PDF n'a pas
+d'implémentation JavaScript satisfaisante. C'est une capacité qui manque à la
+plateforme, pas l'optimisation d'une capacité existante.
+
+## Exemples rapides
+
+```ts
+import vellum from '@c9up/vellum/services/main'
+
+// Un aperçu de la première page, large de 1200px
+const apercu = await vellum.render(pdf, { page: 1, width: 1200 })
+
+// Toutes les pages en JPEG
+const pages = await vellum.renderAll(pdf, { format: 'jpeg', quality: 82 })
+
+// Ce que contient le document
+const { pageCount, encrypted } = await vellum.inspect(pdf)
+const { title, author, createdAt } = await vellum.metadata(pdf)
+const texte = await vellum.extractText(pdf, { page: 1 })
+
+// Le remanier
+const dossier = await vellum.merge([contrat, annexe])
+const extrait = await vellum.selectPages(pdf, [1, 3, 4])
+const parts = await vellum.split(pdf)
+const droit = await vellum.rotate(scan, 90, { pages: [1] })
+
+// Le tamponner
+const signe = await vellum.stamp(bonDeTravail, signature, {
+  page: 1, x: 380, y: 690, width: 140,
+})
+const marque = await vellum.stampText(facture, 'PAYÉ', {
+  x: 400, y: 80, size: 24, color: '#c00', opacity: 0.6,
+})
+```
+
+Toutes les méthodes sont asynchrones. Rasteriser une page A4 représente environ
+30 ms de calcul pur : le travail part sur le pool de threads libuv plutôt que de
+bloquer le thread qui sert les requêtes.
+
+**Les pages sont numérotées à partir de 1** — le numéro imprimé sur la page, pas
+un index de tableau.
+
+## Installation
+
+```bash
+ream configure @c9up/vellum
+```
+
+La commande enregistre le provider et écrit `config/vellum.ts` :
+
+```ts
+import { defineConfig } from '@c9up/vellum'
+import env from '#start/env'
+
+export default defineConfig({
+  format: env.get('VELLUM_FORMAT', 'png'),
+  scale: 1,
+  quality: 82,
+  background: '#ffffff',
+})
+```
+
+Chaque option est une valeur par défaut que n'importe quel appel peut remplacer.
+
+Le service est aussi une classe, utilisable sans hôte :
+
+```ts
+import { Vellum } from '@c9up/vellum'
+
+const vellum = new Vellum({ format: 'jpeg', quality: 82 })
+```
+
+## Rendu
+
+| Option | Signification |
+| --- | --- |
+| `page` | La page à rendre, à partir de 1. `render` seulement. |
+| `scale` | Multiplicateur de la taille naturelle ; 1 vaut 72 DPI. |
+| `width` | Largeur cible en pixels. Prime sur `scale`. |
+| `format` | `"png"` (défaut) ou `"jpeg"`. |
+| `quality` | Qualité JPEG 1-100. Refusée sans `format: 'jpeg'`. |
+| `background` | `#rgb`, `#rrggbb`, `#rrggbbaa` ou `"transparent"`. Blanc opaque par défaut. |
+
+Un PDF ne peint pas son propre fond : le défaut est donc le blanc opaque, sinon
+un texte noir devient invisible dans une visionneuse sombre.
+
+`quality` sans `format: 'jpeg'` est refusée plutôt qu'ignorée — qui passe une
+qualité veut une image compressée, et lui rendre un PNG de plusieurs mégaoctets
+est une surprise qu'on ne découvre que quand les aperçus rament.
+
+```ts
+const tailles = await vellum.dimensions(pdf) // taille naturelle, en points
+```
+
+## Lecture
+
+`inspect` donne le nombre de pages, la version du format et si le document est
+chiffré. `metadata` lit le dictionnaire `/Info` — titre, auteur, sujet,
+mots-clés, applications impliquées et dates. Tous les champs sont facultatifs :
+un PDF reste valide sans aucun `/Info`.
+
+Les dates reviennent en ISO 8601 quand le producteur en a écrit une conforme, et
+telles quelles sinon — ne rien renvoyer perdrait de l'information.
+
+`extractText` rend le texte d'une page, `extractTextAll` une entrée par page. Les
+glyphes reviennent dans l'ordre où la page les dessine, avec un saut de ligne au
+changement de ligne de base. Cet ordre est celui de la lecture en pratique ;
+aucun réordonnancement par coordonnées n'est tenté, parce que bien le faire exige
+une détection de colonnes et que mal le faire dégrade les pages multi-colonnes.
+Aucun espace n'est inventé non plus — un PDF encode les siens.
+
+Un document scanné sans couche de texte rend une chaîne vide plutôt qu'une
+erreur : il n'a pas de texte à donner.
+
+## Remaniement
+
+`merge`, `selectPages`, `split` et `rotate` déplacent tous des pages d'un arbre
+de pages à un autre, et c'est là que le PDF cache un piège : `Resources`,
+`MediaBox`, `CropBox` et `Rotate` peuvent vivre sur un nœud parent et être
+*hérités* par la page. Re-parenter naïvement une telle page lui fait perdre sa
+taille — les visionneuses retombent alors sur le format Letter, redimensionnant
+en silence un document A4. Chaque opération matérialise d'abord les attributs
+hérités sur la page.
+
+La rotation s'ajoute à ce que la page porte déjà, parce qu'un scan peut arriver
+déjà tourné. L'angle doit être un multiple de 90.
+
+## Tamponnage
+
+`stamp` dessine une image, `stampText` écrit une ligne de texte.
+
+```ts
+await vellum.stamp(pdf, signature, { page: 1, x: 380, y: 690, width: 140 })
+await vellum.stampText(pdf, 'BROUILLON', { size: 48, opacity: 0.15 })
+```
+
+Les coordonnées partent du coin **haut-gauche**, comme une mise en page à
+l'écran. Pour `stampText`, `y` est la ligne de base du texte. Ne nommer aucune
+page tamponne toutes les pages, ce que veut un filigrane.
+
+Les images sont en PNG ou JPEG, reconnues par leur signature et non par leur nom.
+Ne donner que `width` conserve les proportions.
+
+`stampText` utilise les 14 polices standard — `Helvetica`, `Helvetica-Bold`,
+`Helvetica-Oblique`, `Times-Roman`, `Times-Bold`, `Times-Italic`, `Courier`,
+`Courier-Bold` — qu'un PDF peut référencer sans les embarquer. Rien n'est ajouté
+au fichier et aucune police n'est à fournir. La contrepartie est le jeu de
+caractères WinAnsi : le texte d'Europe occidentale est couvert, accents et
+ponctuation typographique compris, et tout ce qui en sort est **refusé plutôt que
+déformé** — perdre un caractère dans un contrat est pire qu'échouer.
+
+## Erreurs
+
+Les échecs lèvent une `VellumError`, porteuse d'un `code` :
+
+| Code | Levée quand |
+| --- | --- |
+| `E_VELLUM_NAPI_REQUIRED` | Le moteur natif n'est pas chargeable sur cette plateforme |
+| `E_VELLUM_INVALID_PDF` | Les octets ne forment pas un PDF lisible |
+| `E_VELLUM_INVALID_PAGE` | Un numéro de page inférieur à 1 |
+| `E_VELLUM_INVALID_ROTATION` | Un angle qui n'est pas un multiple entier de 90 |
+| `E_VELLUM_RENDER_FAILED` | La rasterisation a échoué |
+| `E_VELLUM_EXTRACT_FAILED` | L'extraction de texte a échoué |
+| `E_VELLUM_MERGE_FAILED` · `E_VELLUM_SELECT_FAILED` · `E_VELLUM_SPLIT_FAILED` · `E_VELLUM_ROTATE_FAILED` | L'opération a échoué |
+| `E_VELLUM_STAMP_FAILED` · `E_VELLUM_STAMP_TEXT_FAILED` | Le tamponnage a échoué |
+
+Le moteur n'est **pas optionnel** : il n'existe aucun repli JavaScript, donc un
+binaire absent est un échec franc avec un message actionnable, plutôt qu'une
+dégradation silencieuse qui ferait diverger deux déploiements du même code.
+
+## Garde-fous
+
+Toute entrée est traitée comme hostile, parce que ces documents viennent
+d'envois utilisateurs :
+
+- Le travail du moteur tourne derrière un filet anti-panique — une panique sur un
+  thread de travail abattrait tout le processus.
+- La taille rendue est bornée ; un `scale` non borné est un vecteur d'épuisement
+  mémoire.
+- Une couleur malformée est refusée plutôt que ramenée au blanc, ce qui donnerait
+  un rendu faux que personne ne signale.
+- Le texte écrit sur une page est échappé, pour qu'un titre de document ne puisse
+  pas injecter d'opérateurs de flux de contenu.
+
+## Pas encore
+
+Le remplissage de formulaires interactifs (AcroForm) et l'embarquement de
+polices personnalisées.

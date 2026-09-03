@@ -32,5 +32,6 @@ This page lists the current status of ecosystem modules.
 | Helix plugin | `@c9up/helix-plugin-ream` | Present | The ream↔helix bridge — `apiClient()` plugin + `ream test` runner |
 | Rover | `@c9up/rover` | Present | Mail transport — SMTP + log + pluggable transports (Spark rename) |
 | Transit | `@c9up/transit` | Present | Federated sign-in — SAML 2.0, LDAP, generic OpenID Connect, Sign in with Apple, OAuth1/OAuth2 and the providers that speak them |
+| Vellum | `@c9up/vellum` | Present | PDF — render to images, read, merge/split/rotate, stamp |
 
 Each row in the table above has a dedicated page — pick it from the **Modules** sidebar.

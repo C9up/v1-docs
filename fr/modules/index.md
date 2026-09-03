@@ -32,5 +32,6 @@ Cette page liste l'etat des modules de l'ecosysteme.
 | Helix plugin | `@c9up/helix-plugin-ream` | Présent | Le pont ream↔helix — plugin `apiClient()` + runner de `ream test` |
 | Rover | `@c9up/rover` | Présent | Transport mail — SMTP + log + transports pluggables (rename de Spark) |
 | Transit | `@c9up/transit` | Présent | Connexion fédérée — SAML 2.0, LDAP, OpenID Connect générique, Sign in with Apple, OAuth1/OAuth2 et les fournisseurs qui les parlent |
+| Vellum | `@c9up/vellum` | Présent | PDF — rendu en images, lecture, fusion/découpe/rotation, tamponnage |
 
 Chaque ligne du tableau ci-dessus a une page dédiée — choisis-la dans la sidebar **Modules**.
