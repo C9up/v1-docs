@@ -228,6 +228,25 @@ names that do exist), a read-only field, a value over the declared maximum
 length, a choice the form does not offer and a checkbox state the document does
 not accept are all errors.
 
+### How the text is laid out
+
+A standard font is referenced without being embedded, so the reader lays the
+text out with the **published widths**. Filling measures with those same
+widths, which is what lets it place text where the reader will:
+
+- The field's `/Q` is honoured — left, centred or right.
+- A **multiline** field wraps at the width of its box, on top of any line
+  breaks you write yourself.
+- A `/DA` asking for size **0** — "whatever fits" — gets a size chosen by
+  stepping down until the answer fits the box. The specification does not
+  define what auto means, so this is a heuristic.
+- A word too long for its line is **broken across lines** rather than left to
+  run past the edge, where the appearance's bounding box would clip it away.
+
+The widths are generated from the URW base-35 metrics and cross-checked against
+published Adobe values in the tests, so a table that had drifted could not
+reach a release.
+
 ## Flattening
 
 A filled form is still a form: anyone who opens it can edit the answers back.
@@ -255,7 +274,4 @@ Three things it deliberately does not do:
 
 ## Not yet
 
-Embedding custom fonts, and PAdES signing. Two current limits of form filling,
-both from having no glyph metrics: text is left-aligned whatever the field's
-`/Q` says, and a multiline field honours the line breaks you write but does not
-wrap.
+Embedding custom fonts, and PAdES signing.

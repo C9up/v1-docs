@@ -232,6 +232,26 @@ il manque discrètement une réponse est pire qu'un échec. Un nom de champ inco
 au-delà de la longueur maximale déclarée, un choix que le formulaire n'offre pas
 et un état de case que le document n'accepte pas sont autant d'erreurs.
 
+### Comment le texte est mis en page
+
+Une police standard est référencée sans être embarquée : c'est donc avec les
+**largeurs publiées** que la visionneuse compose le texte. Le remplissage
+mesure avec ces mêmes largeurs, ce qui lui permet de poser le texte là où la
+visionneuse le posera :
+
+- Le `/Q` du champ est respecté — à gauche, centré ou à droite.
+- Un champ **multiligne** revient à la ligne à la largeur de sa boîte, en plus
+  des sauts de ligne que vous écrivez vous-même.
+- Un `/DA` qui demande la taille **0** — « ce qui rentre » — obtient une taille
+  choisie en descendant jusqu'à ce que la réponse tienne. La spécification ne
+  dit pas ce que « automatique » signifie : c'est donc une heuristique.
+- Un mot trop long pour sa ligne est **coupé sur plusieurs lignes** plutôt que
+  laissé à déborder, là où la boîte englobante de l'apparence l'effacerait.
+
+Les largeurs sont générées depuis les métriques URW base-35 et recoupées avec
+les valeurs Adobe publiées dans les tests : une table qui aurait dérivé
+n'atteindrait pas une version publiée.
+
 ## Aplatissement
 
 Un formulaire rempli reste un formulaire : qui l'ouvre peut revenir sur les
@@ -262,7 +282,4 @@ Trois choses qu'il ne fait délibérément pas :
 
 ## Pas encore
 
-L'embarquement de polices personnalisées et la signature PAdES. Deux limites
-actuelles du remplissage, dues à l'absence de métriques de glyphes : le texte
-est aligné à gauche quel que soit le `/Q` du champ, et un champ multiligne
-respecte les sauts de ligne écrits mais ne fait pas de retour automatique.
+L'embarquement de polices personnalisées et la signature PAdES.
