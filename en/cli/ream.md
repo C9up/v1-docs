@@ -328,7 +328,7 @@ sentence — the manifest is right and the tree is stale, so it says
 
 ## Built with Rust
 
-The `ream` binary is a compiled Rust executable. Code generation, scaffolding, configuration, and diagnostics run in pure Rust with no Node.js overhead. Only `ream dev`, `ream start`, and `ream build` spawn Node.js processes.
+The `ream` binary is a compiled Rust executable. Code generation, scaffolding, configuration, and diagnostics run in pure Rust with no Node.js overhead. Only `ream dev`, `ream start`, `ream build`, `ream test`, `ream repl`, `ream inspect` and the dispatch to the application's own commands spawn a Node.js process.
 
 Binary size: ~700KB.
 

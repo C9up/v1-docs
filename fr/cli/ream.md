@@ -1,6 +1,6 @@
 # ream CLI
 
-Outil en ligne de commande Rust natif pour le framework Ream. Demarrage instantane (<10ms), pas de penalite de boot Node.js.
+Outil en ligne de commande Rust natif pour le framework Ream. Démarrage instantané (<10 ms), pas de pénalité de boot Node.js.
 
 ## Installation
 
@@ -334,7 +334,7 @@ phrase — le manifeste est juste, c'est l'arbre qui est périmé, donc il dit
 
 ## Construit en Rust
 
-Le binaire `ream` est un executable Rust compile. La generation de code, le scaffolding, la configuration et les diagnostics tournent en Rust pur sans surcharge Node.js. Seuls `ream dev`, `ream start` et `ream build` lancent des processus Node.js.
+Le binaire `ream` est un exécutable Rust compilé. La génération de code, la création de projet, la configuration et les diagnostics tournent en Rust pur, sans surcharge Node.js. Seuls `ream dev`, `ream start`, `ream build`, `ream test`, `ream repl`, `ream inspect` et la répartition vers les commandes de l'application lancent un processus Node.js.
 
 Taille du binaire : ~700KB.
 
