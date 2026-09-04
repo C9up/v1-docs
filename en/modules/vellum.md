@@ -148,6 +148,17 @@ page, which is what a watermark wants.
 Images are PNG or JPEG, chosen by file signature rather than by name. Giving
 `width` alone keeps the aspect ratio.
 
+Both write into the document that already exists rather than re-authoring it,
+which is what lets the document survive being stamped on: its **interactive
+form, its annotations and its links are all still there** afterwards. A
+signature is stamped onto exactly the kind of document that has all three.
+
+A JPEG goes in untouched, so a photograph stays the size it arrived at — a
+photo report does not become something nobody can email. A PNG's alpha channel
+becomes a soft mask, which is what makes a signature drawn on a tablet
+transparent everywhere but the stroke. A CMYK JPEG is refused rather than
+silently inverted.
+
 `stampText` uses the 14 standard fonts — `Helvetica`, `Helvetica-Bold`,
 `Helvetica-Oblique`, `Times-Roman`, `Times-Bold`, `Times-Italic`, `Courier`,
 `Courier-Bold` — which a PDF may reference without embedding. Nothing is added to

@@ -149,6 +149,17 @@ page tamponne toutes les pages, ce que veut un filigrane.
 Les images sont en PNG ou JPEG, reconnues par leur signature et non par leur nom.
 Ne donner que `width` conserve les proportions.
 
+Les deux écrivent dans le document existant plutôt que de le réauthorer, et
+c'est ce qui permet au document de survivre au tampon : son **formulaire
+interactif, ses annotations et ses liens sont toujours là** ensuite. Une
+signature s'appose justement sur le genre de document qui a les trois.
+
+Un JPEG entre tel quel : une photographie garde la taille à laquelle elle est
+arrivée — un rapport photo ne devient pas impossible à envoyer par courriel. Le
+canal alpha d'un PNG devient un masque doux, ce qui rend une signature tracée
+sur tablette transparente hors du trait. Un JPEG CMJN est refusé plutôt
+qu'inversé en silence.
+
 `stampText` utilise les 14 polices standard — `Helvetica`, `Helvetica-Bold`,
 `Helvetica-Oblique`, `Times-Roman`, `Times-Bold`, `Times-Italic`, `Courier`,
 `Courier-Bold` — qu'un PDF peut référencer sans les embarquer. Rien n'est ajouté
