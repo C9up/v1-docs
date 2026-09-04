@@ -109,12 +109,18 @@ One entry follows ISO rather than the platform: ISO gives IQD three minor
 units, CLDR gives it none. `format()` passes the scale to `Intl` explicitly, so
 the value keeps the fils ISO says it has.
 
-Use `{ exact: false, mode }` when a multiplication or division must round back
-to the currency scale.
+`times` and `div` round the result back to the currency's scale on their own —
+a multiplied amount of money is still money. They take one option, the rounding
+mode:
 
 ```ts
-money('10.00', 'USD').times('1.075').toString() // "10.75 USD"
+money('10.00', 'USD').times('1.075').toString()                    // "10.75 USD"
+money('10.00', 'USD').times('1.075', { mode: 'half-even' }).toString()
 ```
+
+They used to declare the whole `MoneyOptions` and forward `mode` alone, so
+`{ scale }` and `{ exact }` were accepted and overwritten. Neither is in the
+type any more — `MoneyRoundingOptions` is what these two take.
 
 ## Context Defaults
 

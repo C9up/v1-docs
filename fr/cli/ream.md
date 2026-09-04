@@ -281,7 +281,11 @@ ream inspect        # routes, providers, liaisons du conteneur
 ```
 
 `ream test` lit ses suites dans le fichier rc et les passe au runner : les noms
-de suites et leurs globs vivent donc à un seul endroit, pas dans un script.
+de suites et leurs globs vivent donc à un seul endroit, pas dans un script. Un
+projet `api` ou `web` frais les a déjà : une suite `unit`, une suite
+`functional`, `tests/bootstrap.ts` et un premier test. Seule `functional` démarre
+un serveur — c'est ce que fait son hook de suite, donc un fichier unitaire ne le
+paie pas.
 
 ## Clés et intégrations
 

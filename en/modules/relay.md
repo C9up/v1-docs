@@ -107,6 +107,25 @@ class ChatHub extends Hub {
 relay.hub('/hubs/chat', new ChatHub())
 ```
 
+### Guarding a hub
+
+`useGuards` applies to every invocation on the hub:
+
+```ts
+class AdminHub extends Hub {
+  constructor() {
+    super()
+    this.useGuards({ guards: ['session'], roles: ['admin', 'owner'], permissions: ['chat.moderate'] })
+  }
+}
+```
+
+`roles` is satisfied by **any** of the names, `permissions` by **all** of them.
+The asymmetry is deliberate and is the same split the HTTP pipeline, the RPC
+router and the GraphQL engine use: a role names who someone is — an admin *or*
+an owner may act — while a permission names what an action needs, and it needs
+all of them.
+
 `onConnect` / `onDisconnect` are lifecycle hooks and are not invocable.
 Mounting the same path twice throws rather than replacing the first hub.
 

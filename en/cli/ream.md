@@ -277,7 +277,10 @@ ream inspect        # routes, providers, container bindings
 ```
 
 `ream test` reads its suites from the rc file and hands them to the runner, so
-the suite names and their globs live in one place rather than in a script.
+the suite names and their globs live in one place rather than in a script. A new
+`api` or `web` project already has them: a `unit` suite and a `functional` one,
+`tests/bootstrap.ts`, and a first test. Only `functional` starts a server —
+that is what its suite hook does, so a unit file pays nothing for it.
 
 ## Keys and integrations
 

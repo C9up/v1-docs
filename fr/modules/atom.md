@@ -110,12 +110,17 @@ Une entrée suit ISO plutôt que la plateforme : ISO donne trois décimales à
 l'IQD, CLDR n'en donne aucune. `format()` passe l'échelle à `Intl`
 explicitement, donc la valeur garde les fils qu'ISO lui reconnaît.
 
-Utilise `{ exact: false, mode }` quand une multiplication ou une division doit
-arrondir vers l'échelle de la devise.
+`times` et `div` arrondissent d'eux-mêmes à l'échelle de la devise — un montant
+multiplié reste de l'argent. Ils prennent une seule option, le mode d'arrondi :
 
 ```ts
-money('10.00', 'USD').times('1.075').toString() // "10.75 USD"
+money('10.00', 'USD').times('1.075').toString()                    // "10.75 USD"
+money('10.00', 'USD').times('1.075', { mode: 'half-even' }).toString()
 ```
+
+Ils déclaraient auparavant tout `MoneyOptions` en n'en transmettant que `mode` :
+`{ scale }` et `{ exact }` étaient acceptés puis écrasés. Ni l'un ni l'autre
+n'est plus dans le type — ces deux méthodes prennent `MoneyRoundingOptions`.
 
 ## Valeurs par défaut du contexte
 
