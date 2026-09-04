@@ -421,18 +421,33 @@ const result = await rpc.call<{ valid: boolean }>('task.validate', { id: 7 })
 
 ### CSRF — `X-XSRF-TOKEN` automatique
 
-Quand `/rpc` est authentifié par cookie/session, il est protégé contre le CSRF
-(double-submit signé de blackhole). `createRpcClient()` s'en charge : à chaque
-appel il lit le cookie `XSRF-TOKEN` et le renvoie dans l'en-tête `X-XSRF-TOKEN`
-(convention axios/Angular). C'est un no-op hors navigateur et quand le cookie est
-absent — donc un `/rpc` authentifié par Bearer (immunisé au CSRF) n'est pas affecté.
+Un point d'entrée authentifié par cookie/session est protégé par le double-submit
+signé : le serveur compare le cookie `XSRF-TOKEN` à un en-tête `X-XSRF-TOKEN`. Le
+cookie part tout seul ; l'en-tête est ce qui atteste que la requête vient de ta
+propre page, puisqu'un appelant tiers peut faire partir le cookie mais ne peut
+pas le lire.
+
+**C'est `HttpClient` qui le pose, donc tout ce qui est bâti dessus en hérite** —
+`form()`, `command()`, `createRpcClient()` et les poignées de main du relais. À
+chaque requête vers ta propre origine, il lit le cookie et le renvoie. C'est un
+no-op hors navigateur, quand le cookie est absent (une API authentifiée par
+Bearer est immunisée au CSRF et n'en pose aucun) et — délibérément — quand la
+cible est une autre origine : le jeton authentifie ta session, et un client dont
+le `baseURL` pointe une API tierce le lui livrerait.
 
 ```ts
-createRpcClient()                    // xsrf activé par défaut
-createRpcClient({ xsrf: false })     // désactiver
+new HttpClient()                     // activé par défaut
+new HttpClient({ xsrf: false })      // désactiver pour le client
+http.post('/a', body, { xsrf: false })  // …ou pour une requête
 // renommer (valeurs par défaut affichées) :
-createRpcClient({ xsrfCookieName: 'XSRF-TOKEN', xsrfHeaderName: 'X-XSRF-TOKEN' })
+new HttpClient({ xsrfCookieName: 'XSRF-TOKEN', xsrfHeaderName: 'X-XSRF-TOKEN' })
+createRpcClient({ xsrf: false })     // mêmes interrupteurs, transmis à son client
 ```
+
+Un en-tête que tu poses toi-même l'emporte toujours. La valeur du cookie est
+renvoyée **telle quelle**, jamais décodée : le serveur la lit brute dans l'en-tête
+`Cookie` et compare octet par octet — décoder enverrait un jeton qu'il n'a jamais
+stocké.
 
 Le 3ᵉ argument est un objet d'**options** par appel. Passe `parse` pour valider le
 résultat au runtime au lieu de l'assertion `T` non vérifiée (même principe que le

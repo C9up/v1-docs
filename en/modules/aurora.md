@@ -417,18 +417,32 @@ const result = await rpc.call<{ valid: boolean }>('task.validate', { id: 7 })
 
 ### CSRF — automatic `X-XSRF-TOKEN`
 
-When `/rpc` is cookie/session-authed it's CSRF-protected (blackhole's signed
-double-submit). `createRpcClient()` handles this: on every call it reads the
-`XSRF-TOKEN` cookie and echoes it as the `X-XSRF-TOKEN` header (the axios/Angular
-convention). It's a no-op outside the browser and when the cookie is absent — so
-a Bearer-authed `/rpc` (CSRF-immune) is unaffected.
+A cookie/session-authed endpoint is CSRF-protected by the signed double-submit
+check: the server compares the `XSRF-TOKEN` cookie to an `X-XSRF-TOKEN` header.
+The cookie rides along on its own; the header is what says the request came from
+your own page, since a cross-site caller can cause the cookie to be sent but
+cannot read it.
+
+**`HttpClient` attaches it, so everything built on it does too** — `form()`,
+`command()`, `createRpcClient()`, and the relay handshakes. On every request to
+your own origin it reads the cookie and echoes it. It is a no-op outside the
+browser, when the cookie is absent (a Bearer-authed API is CSRF-immune and seeds
+none), and — deliberately — when the target is a different origin: the token
+authenticates your session, and a client whose `baseURL` is a third-party API
+would otherwise hand it over.
 
 ```ts
-createRpcClient()                    // xsrf on by default
-createRpcClient({ xsrf: false })     // opt out
+new HttpClient()                     // on by default
+new HttpClient({ xsrf: false })      // opt out for the client
+http.post('/a', body, { xsrf: false })  // …or for one request
 // override the names (defaults shown):
-createRpcClient({ xsrfCookieName: 'XSRF-TOKEN', xsrfHeaderName: 'X-XSRF-TOKEN' })
+new HttpClient({ xsrfCookieName: 'XSRF-TOKEN', xsrfHeaderName: 'X-XSRF-TOKEN' })
+createRpcClient({ xsrf: false })     // same switches, forwarded to its client
 ```
+
+A header you set yourself always wins. The cookie value is echoed **verbatim**,
+never URL-decoded: the server reads it out of the `Cookie` header raw and
+compares byte-for-byte, so decoding would send a token it never stored.
 
 The third argument is a per-call **options** object. Pass `parse` to validate the
 result at runtime instead of the unchecked `T` assertion (same pattern as
