@@ -80,6 +80,7 @@ static options: CommandOptions = { startApp: true }
 | `startApp` | Boots the application (providers, container, database) before `run()`. **False by default**: a command that only writes files has no reason to open a connection. Reading `this.app` without asking for it raises an error naming the fix. |
 | `staysAlive` | Keeps the process alive after `run()` (worker, watcher). |
 | `allowUnknownFlags` | Accepts undeclared flags instead of rejecting them. |
+| `drivesMigrations` | This command IS the migration run, so booting must not do it for it. Sets `REAM_SKIP_BOOT_MIGRATE=1` before the application starts, which a data package watches for. Without it, a package that migrates on boot for the convenience of `dev` applies everything a moment before the command runs — leaving `migrate` with nothing to report and `migrate:status`, asked only to look, having changed the schema it reports on. |
 
 ## Dependency injection
 

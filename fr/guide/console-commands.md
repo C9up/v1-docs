@@ -80,6 +80,7 @@ static options: CommandOptions = { startApp: true }
 | `startApp` | Boote l'application (providers, conteneur, base) avant `run()`. **Faux par défaut** : une commande qui n'écrit que des fichiers n'a pas à ouvrir une connexion. Lire `this.app` sans l'avoir demandé lève une erreur qui nomme le correctif. |
 | `staysAlive` | Garde le process en vie après `run()` (worker, watcher). |
 | `allowUnknownFlags` | Accepte les flags non déclarés au lieu de les refuser. |
+| `drivesMigrations` | Cette commande EST le passage des migrations, donc le boot ne doit pas le faire à sa place. Pose `REAM_SKIP_BOOT_MIGRATE=1` avant le démarrage de l'application, ce qu'un paquet de données guette. Sans ça, un paquet qui migre au boot pour la commodité de `dev` applique tout juste avant que la commande ne tourne — `migrate` n'a plus rien à signaler, et `migrate:status`, à qui on demandait seulement de regarder, a modifié le schéma sur lequel il rapporte. |
 
 ## Injection de dépendances
 
