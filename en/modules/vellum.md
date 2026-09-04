@@ -202,6 +202,9 @@ const filled = await vellum.fillForm(mandate, {
   accepted: 'Yes',
   country: 'CH',
 })
+
+// Close it: the answers become ink, the fields go away
+const closed = await vellum.flattenForm(filled)
 ```
 
 Three details of PDF 32000-1 §12.7.3 this resolves for the caller:
@@ -225,9 +228,34 @@ names that do exist), a read-only field, a value over the declared maximum
 length, a choice the form does not offer and a checkbox state the document does
 not accept are all errors.
 
+## Flattening
+
+A filled form is still a form: anyone who opens it can edit the answers back.
+`flattenForm` closes it. Every widget's appearance becomes ordinary page
+content, the widget annotations are removed, and the form itself is dropped.
+What comes back looks the same and is no longer interactive.
+
+Where each appearance lands follows §12.5.5: its `/BBox` is transformed by its
+`/Matrix`, and the box that results is mapped onto the annotation's `/Rect`.
+Painting at the rectangle's corner instead would misplace every appearance
+whose form matrix is not the identity — which is most of the ones a real form
+ships. The page's own content is wrapped in `q`/`Q` first, because a `cm`
+outside any such pair is legal and never restored, and appended content would
+otherwise inherit a transform it never asked for.
+
+Three things it deliberately does not do:
+
+- Annotations that are **not form widgets** — links, notes — are left where
+  they are. Flattening removes the form, not the document's other furniture.
+- A **hidden** widget is dropped without being painted. Making visible what a
+  document hid is not preservation.
+- A field holding a value that ships **no appearance to paint** is an error,
+  not a silent erasure: the answer would vanish from a document that still
+  looks complete.
+
 ## Not yet
 
-Flattening a filled form, and embedding custom fonts. Two current limits of
-form filling, both from having no glyph metrics: text is left-aligned whatever
-the field's `/Q` says, and a multiline field honours the line breaks you write
-but does not wrap.
+Embedding custom fonts, and PAdES signing. Two current limits of form filling,
+both from having no glyph metrics: text is left-aligned whatever the field's
+`/Q` says, and a multiline field honours the line breaks you write but does not
+wrap.

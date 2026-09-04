@@ -205,6 +205,9 @@ const rempli = await vellum.fillForm(mandat, {
   accepted: 'Yes',
   country: 'CH',
 })
+
+// Le fermer : les réponses deviennent de l'encre, les champs disparaissent
+const ferme = await vellum.flattenForm(rempli)
 ```
 
 Trois subtilités de §12.7.3 que la lecture résout pour l'appelant :
@@ -229,10 +232,37 @@ il manque discrètement une réponse est pire qu'un échec. Un nom de champ inco
 au-delà de la longueur maximale déclarée, un choix que le formulaire n'offre pas
 et un état de case que le document n'accepte pas sont autant d'erreurs.
 
+## Aplatissement
+
+Un formulaire rempli reste un formulaire : qui l'ouvre peut revenir sur les
+réponses. `flattenForm` le ferme. L'apparence de chaque widget devient du
+contenu de page ordinaire, les annotations de widget sont retirées et le
+formulaire lui-même disparaît. Ce qui revient a la même allure et n'est plus
+interactif.
+
+L'endroit où atterrit chaque apparence suit le §12.5.5 : sa `/BBox` est
+transformée par sa `/Matrix`, et la boîte qui en résulte est projetée sur le
+`/Rect` de l'annotation. Peindre au coin du rectangle déplacerait toute
+apparence dont la matrice de forme n'est pas l'identité — c'est-à-dire la
+plupart de celles qu'embarque un vrai formulaire. Le contenu propre de la page
+est d'abord encadré par `q`/`Q`, car un `cm` hors de toute paire est légal et
+jamais restauré : sans cela, le contenu ajouté hériterait d'une transformation
+qu'il n'a pas demandée.
+
+Trois choses qu'il ne fait délibérément pas :
+
+- Les annotations qui ne sont **pas des widgets de formulaire** — liens, notes
+  — restent où elles sont. L'aplatissement retire le formulaire, pas le reste
+  du mobilier du document.
+- Un widget **masqué** est retiré sans être peint. Rendre visible ce qu'un
+  document cachait n'est pas de la préservation.
+- Un champ qui porte une valeur mais **aucune apparence à peindre** est une
+  erreur, pas un effacement silencieux : la réponse disparaîtrait d'un document
+  qui aurait toujours l'air complet.
+
 ## Pas encore
 
-L'aplatissement d'un formulaire rempli et l'embarquement de polices
-personnalisées. Deux limites actuelles du remplissage, dues à l'absence de
-métriques de glyphes : le texte est aligné à gauche quel que soit le `/Q` du
-champ, et un champ multiligne respecte les sauts de ligne écrits mais ne fait
-pas de retour automatique.
+L'embarquement de polices personnalisées et la signature PAdES. Deux limites
+actuelles du remplissage, dues à l'absence de métriques de glyphes : le texte
+est aligné à gauche quel que soit le `/Q` du champ, et un champ multiligne
+respecte les sauts de ligne écrits mais ne fait pas de retour automatique.
