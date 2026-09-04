@@ -1,6 +1,6 @@
 # Nova — Notifications Web Push
 
-Statut : **Actif — abonnement, livraison push, template de migration pour stockage durable, scaffold Service Worker et intégration test `helix.nova.fake` tous livrés (Stories 48.1 → 48.5)**
+Statut : **Actif** — endpoint d'abonnement, livraison des pushs, quatre stores d'abonnements, scaffold du Service Worker et l'intégration de test `helix.nova.fake`.
 
 `@c9up/nova` est le package Web Push de Ream. Il prend en charge trois choses :
 
@@ -29,19 +29,44 @@ Frappe une paire P-256 via `crypto.generateKeyPairSync('ec')` de Node (sans dép
 
 Si `NOVA_VAPID_PRIVATE_KEY` est déjà défini, la commande refuse d'écraser. Passe `--force` pour faire tourner la clé.
 
+La clé privée signe chaque push que l'application enverra : qui peut la lire peut envoyer des notifications au nom de l'application, à chacun de ses abonnés. Quand la commande crée `.env`, elle le crée en `0600` — propriétaire seul — au lieu de laisser l'umask le rendre lisible par tout le monde. Quand `.env` existe déjà, ses permissions sont la décision du déploiement : la commande n'y touche pas et le signale si le fichier est lisible au-delà de son propriétaire.
+
 ## Configuration
 
 ```ts
 // config/nova.ts
-import { defineConfig } from '@c9up/nova'
+import { defineConfig, stores } from '@c9up/nova'
+import env from '#start/env'
 
 export default defineConfig({
   routePrefix: '/api/nova', // POST /api/nova/subscribe
   guard: 'jwt',             // n'importe quelle stratégie Warden, ou null pour les tests uniquement
+
+  // Quel store garde les abonnements. Nommé dans l'environnement, pour qu'un
+  // déploiement choisisse son backend sans éditer ce fichier.
+  default: env.get('NOVA_STORE', 'memory'),
+  stores: {
+    memory: stores.memory(),
+    file:   stores.file({ path: 'storage/push_subscriptions.json' }),
+    sql:    stores.sql({ connection: () => app.container.resolve('db') }),
+    redis:  stores.redis({ connection: 'main' }),
+  },
+
+  vapid: {
+    publicKey: env.get('NOVA_VAPID_PUBLIC_KEY'),
+    privateKey: env.get('NOVA_VAPID_PRIVATE_KEY'),
+    subject: env.get('NOVA_VAPID_SUBJECT'),
+  },
 })
 ```
 
-Pour remplacer le store d'abonnement en mémoire par un driver durable, plug-le via `config.nova.store` (voir la section [Promouvoir vers un stockage durable](#promouvoir-vers-un-stockage-durable) plus bas — Nova reste agnostique du backend). Le provider respecte aussi une liaison préexistante dans le container ; à défaut, il revient sur `MemorySubscriptionDriver` (dev/tests).
+Les factories sont paresseuses : seul le store que `default` nomme est construit, donc déclarer un store Redis dans une config qui tourne sur le store fichier ne coûte rien.
+
+Un `default` qui nomme un store absent de `stores` est refusé au boot — et un `default` sans bloc `stores` du tout l'est aussi. Ni l'un ni l'autre ne retombe sur le driver en mémoire : une application qui voulait persister ses abonnements et a obtenu la mémoire en silence ne l'apprend qu'au redémarrage qui les a tous perdus.
+
+Le provider respecte aussi une liaison `'SubscriptionStore'` préexistante dans le container, qui l'emporte sur la config. `store: <instance>` est la forme mono-store, gardée pour les configs écrites avec elle.
+
+Seul `guard` décide si `POST /api/nova/subscribe` est authentifié. L'enlever n'est pas la même chose que ne pas l'écrire : omettre la clé garde le défaut `'jwt'`, `guard: null` retire le contrôle et sert aux tests.
 
 ## Abonnement côté client
 
@@ -64,7 +89,7 @@ Le sous-chemin `@c9up/nova/client` est strictement navigateur — sa source ne c
 Le template livré est byte-for-byte équivalent à la constante `SW_TEMPLATE` inlinée dans `packages/nova/src/configure.ts` :
 
 ```js
-// Service Worker scaffolded by `ream configure @c9up/nova` (story 48.4).
+// Service Worker scaffolded by `ream configure @c9up/nova`.
 //
 // Lifecycle: `skipWaiting` + `clients.claim` so the first push that arrives
 // after subscription is delivered through this SW (not dropped in the
@@ -171,7 +196,7 @@ Le SW lit `event.notification.data.url`. Le champ `url` que tu passes à `nova.p
 
 ### Pourquoi `'Notification'` comme titre par défaut
 
-`userVisibleOnly: true` (posé par le `subscribe()` de 48.1) impose au SW d'appeler `showNotification` à chaque push, sinon le navigateur révoque l'abonnement. Le fallback `title = 'Notification'` dans la déstructuration garantit qu'un payload malformé produit quand même une notification (certains navigateurs rejettent `showNotification(undefined, …)`) ; le `try/catch` autour de `event.data.json()` gère les pushs non-JSON de la même façon.
+`userVisibleOnly: true` (posé par `subscribe()`) impose au SW d'appeler `showNotification` à chaque push, sinon le navigateur révoque l'abonnement. Le fallback `title = 'Notification'` dans la déstructuration garantit qu'un payload malformé produit quand même une notification (certains navigateurs rejettent `showNotification(undefined, …)`) ; le `try/catch` autour de `event.data.json()` gère les pushs non-JSON de la même façon.
 
 ## Liste de durcissement Service Worker
 
@@ -248,25 +273,59 @@ type PushResult =
     }
 ```
 
-`nova.push()` ne lance jamais d'exception sur un échec HTTP par-push — il renvoie `ok: false` pour que les callers traitent chaque abonnement indépendamment. Il LANCE bien `ReamError('NOVA_VAPID_NOT_CONFIGURED', ...)` si la config VAPID est absente au premier appel (validation paresseuse), et re-lance les erreurs réseau non gérées.
+`nova.push()` ne lance jamais d'exception sur un échec HTTP par-push — il renvoie `ok: false` pour que les callers traitent chaque abonnement indépendamment. Il LANCE bien `NovaError('E_NOVA_VAPID_NOT_CONFIGURED', ...)` si la config VAPID est absente ou malformée au premier appel (validation paresseuse), et re-lance tout ce qui sort de la surface du protocole Web Push — une panne réseau, un `ttl` ou un `topic` invalide, un payload qui ne se sérialise pas.
 
 ### Auto-nettoyage sur 404 / 410
 
 La RFC 8030 §7.3 stipule qu'un endpoint qui renvoie 404 ou 410 est mort. Nova le supprime automatiquement du `SubscriptionStore` configuré (via `store.delete(endpoint)`) avant de renvoyer le résultat `gone`. Le flag `cleaned: true` confirme l'exécution. En cas d'échec du nettoyage (ex : base de données momentanément down), `cleaned` passe à `false` et l'erreur est loguée — le prochain push réessaiera.
 
-## Promouvoir vers un stockage durable
+## Les stores
 
-`MemorySubscriptionDriver` (le défaut) convient pour le dev local mais s'évapore au redémarrage et partitionne par nœud. Pour la prod multi-nœud, plug un `SubscriptionStore` durable. **Nova n'embarque aucun couplage avec une base précise** — le package reste agnostique. Ce que livre 48.3 :
+`stores.memory()` oublie tout au redémarrage et partitionne par nœud — c'est celui des tests et du travail local. Les trois autres sont durables et prennent la même interface, donc passer de l'un à l'autre est une variable d'environnement.
 
-1. L'interface `SubscriptionStore` (déjà en 48.1).
-2. Un template de migration `push_subscriptions` (saveur Atlas) copiable — `ream configure @c9up/nova` l'écrit dans tes `database/migrations/`.
-3. Le snippet de driver Atlas ci-dessous — copie-le dans ton app, plug-le via `config.nova.store`.
+Quel que soit celui qui est sélectionné, un abonnement est vérifié contre les mêmes règles à l'aller et au retour : un endpoint `https` sous le plafond de stockage de 768 caractères, un `expirationTime` qui vaut `null` ou un nombre, et des `p256dh` / `auth` en base64url aux longueurs qu'un navigateur produit. Un store n'écrit jamais un enregistrement qu'il refuserait de relire, et n'en remet jamais un à la couche push qui échouerait au chiffrement — là où le message ne nomme ni l'enregistrement ni l'endpoint.
+
+### `stores.file({ path })`
+
+Un fichier JSON, réécrit atomiquement, en `0600`. Il contient les endpoints et le secret `auth` que chaque navigateur a émis, ce qui suffit à envoyer des notifications au nom de l'application à tous les abonnés.
+
+**Un seul processus.** Les écritures sont sérialisées à l'intérieur de l'instance, donc une rafale d'abonnements ne peut pas s'entrelacer — mais rien ne prend un verrou que le système d'exploitation fait respecter, donc deux processus qui écrivent le même fichier s'écrasent. Derrière un cluster, `pm2 -i`, ou plusieurs conteneurs, prends le store SQL ou Redis.
+
+### `stores.sql({ connection, table })`
+
+La table `push_subscriptions` que la migration ci-dessous crée. La connexion est prise structurellement — `execute`, `query`, et le dialecte qu'elle annonce — donc ça marche contre une connexion Atlas sans que Nova dépende d'Atlas.
+
+`connection` prend la connexion elle-même, ou une fonction qui en rend une. La forme fonction est ce dont un fichier de config a besoin : `config/nova.ts` est chargé avant le boot de l'application, donc la connexion n'existe pas encore et ne peut pas y être attendue.
+
+`table` vaut `push_subscriptions` par défaut. Il arrive dans le SQL comme un identifiant, là où un paramètre ne peut pas aller, donc tout ce qui n'est pas un identifiant simple est refusé à la construction.
+
+### `stores.redis({ connection, prefix })`
+
+Une clé par abonnement et un set par utilisateur. `connection` prend un client, une fonction qui en rend un, ou le **nom** d'une connexion `@c9up/quasar` — résolu au runtime, pour que quasar reste un peer optionnel et n'entre jamais dans le graphe de build de Nova. Une connexion à qui manque une des six commandes que le store émet est refusée en la nommant, plutôt que d'échouer au premier abonnement.
+
+`prefix` vaut `nova:push` par défaut ; change-le pour faire tourner deux applications sur une même base Redis.
+
+La durabilité est celle du serveur, pas celle du store : un Redis sans persistance perd tous les abonnements au redémarrage. Les navigateurs se réabonnent à leur prochaine visite, donc le coût est une notification manquée et non un compte cassé — mais si ça compte, prends un Redis persistant ou le store SQL.
+
+### Écrire le tien
+
+`SubscriptionStore`, c'est trois méthodes. Les URL d'endpoint sont globalement uniques par service push, donc `delete(endpoint)` retire l'abonnement quel qu'en soit le propriétaire, et `save()` réattribue un endpoint plutôt que de le laisser attaché à deux comptes — un navigateur réutilisé au fil d'une déconnexion/reconnexion continuerait sinon à livrer les notifications de l'ancien compte au nouvel utilisateur.
+
+```ts
+import type { PushSubscription, SubscriptionStore } from '@c9up/nova'
+
+export class MySubscriptionStore implements SubscriptionStore {
+  async save(userId: string, subscription: PushSubscription): Promise<void> {}
+  async listByUser(userId: string): Promise<PushSubscription[]> { return [] }
+  async delete(endpoint: string): Promise<void> {}
+}
+```
+
+Passe une instance en `store`, ou enveloppe-la dans une factory sous `stores`.
 
 ### Migration
 
 `ream configure @c9up/nova` écrit `database/migrations/0048_create_push_subscriptions.ts` (idempotent — sauté s'il existe déjà). Le template livré est aussi consultable à `node_modules/@c9up/nova/migrations/create_push_subscriptions.ts`. Lance ensuite ton workflow de migration habituel (`ream migrations:run`).
-
-Le schéma :
 
 ```ts
 import { Migration } from '@c9up/atlas'
@@ -274,12 +333,14 @@ import { Migration } from '@c9up/atlas'
 export default class CreatePushSubscriptions extends Migration {
   async up() {
     this.schema.createTable('push_subscriptions', (t) => {
-      t.string('endpoint', 2048).primary()              // RFC 8030 : globalement unique
-      t.string('user_id', 255).notNullable().index()    // shape libre côté app
-      t.string('p256dh', 100).notNullable()             // base64url(P-256 décompressée), 87 chars
-      t.string('auth', 50).notNullable()                // base64url(16 octets), 22 chars
-      t.bigInteger('expiration_time').nullable()        // ms epoch ; null = pas d'expiration (typique)
-      t.timestamps()
+      t.string('endpoint', 768).primary()            // 768 x 4 octets = la limite d'index InnoDB utf8mb4
+      t.string('user_id', 255).notNullable()         // shape libre côté app (UUID / bigint-en-string)
+      t.index('user_id')
+      t.string('p256dh', 100).notNullable()          // base64url(P-256 décompressée), 87 chars
+      t.string('auth', 50).notNullable()             // base64url(16 octets), 22 chars
+      t.bigInteger('expiration_time').nullable()     // ms epoch ; null = pas d'expiration (typique)
+      t.timestamp('created_at').notNullable()        // écrites explicitement à chaque insert
+      t.timestamp('updated_at').notNullable()
     })
   }
 
@@ -289,115 +350,7 @@ export default class CreatePushSubscriptions extends Migration {
 }
 ```
 
-### Driver (à copier dans ton app)
-
-Nova n'embarque PAS ce driver — ça forcerait toute install Nova à peer-dépendre d'Atlas. Copie ces ~30 lignes dans `app/services/AtlasSubscriptionDriver.ts` (ou ailleurs selon ton organisation), et plug-le via `config.nova.store` :
-
-```ts
-// app/services/AtlasSubscriptionDriver.ts
-import type { AsyncDatabaseConnection } from '@c9up/atlas'
-import type { PushSubscription, SubscriptionStore } from '@c9up/nova'
-
-export class AtlasSubscriptionDriver implements SubscriptionStore {
-  // `tableName` est interpolé brut dans les identifiants SQL — passe une
-  // constante (ou une valeur que tu contrôles), JAMAIS d'input utilisateur.
-  constructor(
-    private readonly db: AsyncDatabaseConnection,
-    private readonly tableName = 'push_subscriptions',
-  ) {}
-
-  async save(userId: string, subscription: PushSubscription): Promise<void> {
-    const { endpoint, expirationTime, keys } = subscription
-    const ph = (n: number) => (this.db.dialect === 'postgres' ? `$${n}` : '?')
-    if (this.db.dialect === 'mysql') {
-      await this.db.execute(
-        `INSERT INTO ${this.tableName}
-           (endpoint, user_id, p256dh, auth, expiration_time, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, NOW(), NOW())
-         ON DUPLICATE KEY UPDATE
-           user_id = VALUES(user_id),
-           p256dh = VALUES(p256dh),
-           auth = VALUES(auth),
-           expiration_time = VALUES(expiration_time),
-           updated_at = NOW()`,
-        [endpoint, userId, keys.p256dh, keys.auth, expirationTime],
-      )
-      return
-    }
-    // sqlite + postgres — `ON CONFLICT(endpoint) DO UPDATE`
-    await this.db.execute(
-      `INSERT INTO ${this.tableName}
-         (endpoint, user_id, p256dh, auth, expiration_time, created_at, updated_at)
-       VALUES (${ph(1)}, ${ph(2)}, ${ph(3)}, ${ph(4)}, ${ph(5)}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-       ON CONFLICT(endpoint) DO UPDATE SET
-         user_id = excluded.user_id,
-         p256dh = excluded.p256dh,
-         auth = excluded.auth,
-         expiration_time = excluded.expiration_time,
-         updated_at = CURRENT_TIMESTAMP`,
-      [endpoint, userId, keys.p256dh, keys.auth, expirationTime],
-    )
-  }
-
-  async listByUser(userId: string): Promise<PushSubscription[]> {
-    const ph = this.db.dialect === 'postgres' ? '$1' : '?'
-    const rows = await this.db.query<{
-      endpoint: string
-      expiration_time: number | string | null
-      p256dh: string
-      auth: string
-    }>(
-      `SELECT endpoint, expiration_time, p256dh, auth
-       FROM ${this.tableName}
-       WHERE user_id = ${ph}
-       ORDER BY created_at ASC`,
-      [userId],
-    )
-    return rows.map((row) => ({
-      endpoint: row.endpoint,
-      expirationTime:
-        row.expiration_time === null
-          ? null
-          : Number.isFinite(Number(row.expiration_time))
-            ? Number(row.expiration_time)
-            : null,
-      keys: { p256dh: row.p256dh, auth: row.auth },
-    }))
-  }
-
-  async delete(endpoint: string): Promise<void> {
-    const ph = this.db.dialect === 'postgres' ? '$1' : '?'
-    await this.db.execute(
-      `DELETE FROM ${this.tableName} WHERE endpoint = ${ph}`,
-      [endpoint],
-    )
-  }
-}
-```
-
-Branche-le dans `config/nova.ts` — **garde le `routePrefix` et le `guard`** générés par configure ; cet exemple ajoute juste la clé `store`. Supprimer `guard: 'jwt'` exposerait `POST /api/nova/subscribe` sans authentification.
-
-```ts
-import { defineConfig } from '@c9up/nova'
-import env from '#start/env'
-import database from '#config/database'
-import { AtlasSubscriptionDriver } from '#services/AtlasSubscriptionDriver'
-
-export default defineConfig({
-  routePrefix: '/api/nova',
-  guard: 'jwt',
-  store: new AtlasSubscriptionDriver(database.connection),
-  vapid: {
-    publicKey: env.get('NOVA_VAPID_PUBLIC_KEY'),
-    privateKey: env.get('NOVA_VAPID_PRIVATE_KEY'),
-    subject: env.get('NOVA_VAPID_SUBJECT'),
-  },
-})
-```
-
-### Autres backends (Redis, KV, hébergé)
-
-Le même pattern s'applique à n'importe quel backend. Implémente `save`, `listByUser`, `delete` contre ton store de choix et passe l'instance à `config.nova.store`. Nova ne sort jamais de l'interface ; il ignore quel moteur tourne derrière.
+Le plafond de 768 n'est pas décoratif : c'est exactement le budget d'index de clé primaire MySQL InnoDB en utf8mb4, et l'endpoint d'abonnement refuse un endpoint plus long par un 400 plutôt que de le laisser échouer en erreur de longueur propre au dialecte à l'insert. Les vrais endpoints de FCM, Mozilla autopush et Apple font tous moins de 200 caractères. Les colonnes de timestamp ne portent pas de défaut DDL parce que `DEFAULT (NOW())` n'est pas une fonction SQLite ; les stores écrivent les deux colonnes explicitement.
 
 ## Tests avec `helix.nova.fake`
 
@@ -451,18 +404,6 @@ Le fake est auto-nettoyé à la fin du test via la queue de cleanup per-test de 
 ### Pourquoi `pushToUser` retourne `[]` sous le fake
 
 `FakeNova.pushToUser` ne consulte PAS le `SubscriptionStore` ; il capture l'appel (userId + payload + options) et retourne `[]`. L'assertion porte sur l'**intention** d'appel, pas sur la livraison par device. Si ton test a besoin du fan-out réel par device (plusieurs entrées `PushResult`, cleanup 410 contre un vrai store), construis un vrai `Nova` avec un `MemorySubscriptionDriver` pré-chargé avec des fixtures — ce chemin exécute la vraie logique de livraison.
-
-## Ce qui livre par story
-
-| Capacité | Story | Statut |
-|---|---|---|
-| Génération VAPID + CLI | 48.1 | Actif |
-| Route `POST /api/nova/subscribe` + interface `SubscriptionStore` + `MemorySubscriptionDriver` | 48.1 | Actif |
-| `subscribe()` + `registerServiceWorker()` côté navigateur | 48.1 | Actif |
-| Livraison `nova.push(subscription, payload)` + `nova.pushToUser(userId, payload)` Web Push (AES-128-GCM via `web-push`) | 48.2 | Actif |
-| Template de migration `push_subscriptions` + snippet driver Atlas dans la doc (sans peerDep) | 48.3 | Actif |
-| `helix.nova.fake(FakeNova)` + `nova.assertPushed` / `nova.assertNotPushed` (test integration) | 48.5 | Actif |
-| Scaffold du Service Worker (`public/sw.js`) + handlers push/notificationclick | 48.4 | Actif |
 
 ## Références
 
