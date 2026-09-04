@@ -378,8 +378,34 @@ A provider is a `Signer` and nothing more, so an adapter is a short function
 returning one. None ship here: naming a vendor would tie an agnostic package to
 one, and an HTTP client is not a dependency it should carry.
 
+### Timestamping
+
+`timestamped` wraps any signer, the local one or a provider's:
+
+```ts
+signers: {
+  internal: timestamped(pkcs8Signer({ key, certificate }), {
+    url: 'https://freetsa.org/tsr',
+  }),
+}
+```
+
+A signature proves a document has not changed since a key signed it, not
+*when*. Once the certificate expires a verifier cannot tell a signature made
+while it was valid from one forged afterwards, and stops accepting it. For a
+document kept for years this is what keeps it verifiable.
+
+The token goes on as an **unsigned** attribute, which is what lets it be added
+without disturbing the signature. What comes back is checked rather than
+trusted: the authority's status, that it stamped the signature actually sent,
+and that it answered *this* request rather than replaying an older answer. A
+token that cannot be read is refused.
+
+The signature grows by a few kilobytes, so a document prepared with a tight
+`capacity` may need a larger one.
+
 ## Not yet
 
-**Timestamping** (PAdES B-T), which belongs in a signer as well. It is worth
-having for a document kept for years: without a trusted timestamp, a signature
-cannot be validated once its certificate has expired.
+An adapter for a **certified provider**. It is a short function returning a
+`Signer`, and it belongs to whoever has the account rather than in an agnostic
+package.

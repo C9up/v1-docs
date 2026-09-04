@@ -390,8 +390,36 @@ fonction qui en retourne un. Aucun n'est livré ici — nommer un fournisseur
 lierait un paquet agnostique à celui-là, et un client HTTP n'est pas une
 dépendance qu'il devrait porter.
 
+### Horodatage
+
+`timestamped` enveloppe n'importe quel signataire, le local comme celui d'un
+prestataire :
+
+```ts
+signers: {
+  interne: timestamped(pkcs8Signer({ key, certificate }), {
+    url: 'https://freetsa.org/tsr',
+  }),
+}
+```
+
+Une signature prouve que le document n'a pas changé depuis qu'une clé l'a
+signé, pas **quand**. Une fois le certificat expiré, un vérificateur ne peut
+plus distinguer une signature faite pendant sa validité d'une contrefaçon
+postérieure, et cesse de l'accepter. Pour un document conservé des années,
+c'est ce qui le maintient vérifiable.
+
+Le jeton entre comme attribut **non signé**, ce qui permet de l'ajouter sans
+toucher à la signature. Ce qui revient est contrôlé plutôt que cru : le statut
+de l'autorité, le fait qu'elle a bien horodaté la signature envoyée, et qu'elle
+répond à **cette** demande et ne rejoue pas une réponse ancienne. Un jeton
+illisible est refusé.
+
+La signature grossit de quelques kilo-octets : un document préparé avec une
+`capacity` juste peut en demander une plus grande.
+
 ## Pas encore
 
-**L'horodatage** (PAdES B-T), qui appartient lui aussi à un signataire. Il est
-utile pour un document conservé des années : sans horodatage de confiance, une
-signature devient invérifiable une fois son certificat expiré.
+Un adapter pour un **prestataire certifié**. C'est une courte fonction qui
+retourne un `Signer`, et elle appartient à qui possède le compte plutôt qu'à un
+paquet agnostique.
