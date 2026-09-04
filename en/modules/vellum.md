@@ -307,6 +307,49 @@ Three things it deliberately does not do:
   not a silent erasure: the answer would vanish from a document that still
   looks complete.
 
+## Signing
+
+A PDF signature covers a byte range **of the document it lives in**, which
+rules out the usual order: the value cannot be computed and then assembled,
+because assembling it would change what it covers. The document is written with
+a hole where the value goes, `/ByteRange` records everything but the hole, and
+the value is dropped into the reserved space without moving another byte.
+
+That is also what makes a key you hold and a key held by a certified provider
+the same interface — **a signer never sees the document, only the digest of
+it** — so which one signs is a line of configuration:
+
+```ts
+// config/vellum.ts
+export default defineConfig({
+  signers: {
+    internal: myLocalSigner,
+    qualified: myProviderSigner,
+  },
+})
+
+const signed = await vellum.sign(mandate, {
+  signer: 'qualified',
+  reason: 'Mandat de prévoyance',
+  name: 'Amélie Durand',
+})
+```
+
+A `Signer` is anything with `sign(digest: Buffer): Promise<Buffer>` returning
+the CMS `SignedData`. Signing over the network belongs there rather than in the
+engine, which does no I/O.
+
+The signature is appended as an **incremental revision**: the original bytes
+are preserved exactly. Rewriting the file would invalidate any signature
+already on it and destroy the history a signature exists to establish.
+
+A visible signature — a drawn one, an image — is a separate matter: `stamp` it
+on first, then sign.
+
 ## Not yet
 
-Embedding custom fonts, and PAdES signing.
+**No signer ships with the package.** A local key needs a CMS builder, which is
+a dependency the application chooses; a certified provider generally returns a
+complete CMS and needs none. Timestamping (PAdES B-T) is an HTTP call and
+belongs in a signer too — worth having for a document kept for years, since a
+signature cannot be validated once its certificate has expired without one.

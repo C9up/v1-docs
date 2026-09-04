@@ -315,6 +315,52 @@ Trois choses qu'il ne fait délibérément pas :
   erreur, pas un effacement silencieux : la réponse disparaîtrait d'un document
   qui aurait toujours l'air complet.
 
+## Signature
+
+Une signature PDF couvre une plage d'octets **du document où elle se trouve**,
+ce qui interdit l'ordre habituel : la valeur ne peut pas être calculée puis le
+document assemblé, puisque l'assembler changerait ce qu'elle couvre. Le
+document est écrit avec un trou à l'emplacement de la valeur, le `/ByteRange`
+enregistre tout sauf le trou, et la valeur est déposée dans l'espace réservé
+sans déplacer un seul autre octet.
+
+C'est aussi ce qui rend interchangeables une clé que vous détenez et une clé
+détenue par un prestataire certifié — **un signataire ne voit jamais le
+document, seulement son empreinte**. Lequel signe devient donc une ligne de
+configuration :
+
+```ts
+// config/vellum.ts
+export default defineConfig({
+  signers: {
+    interne:   monSignataireLocal,
+    qualifiee: monSignataireDistant,
+  },
+})
+
+const signe = await vellum.sign(mandat, {
+  signer: 'qualifiee',
+  reason: 'Mandat de prévoyance',
+  name: 'Amélie Durand',
+})
+```
+
+Un `Signer` est n'importe quoi qui expose `sign(digest: Buffer): Promise<Buffer>`
+et rend le CMS `SignedData`. Signer par le réseau appartient à cet endroit-là,
+et non au moteur, qui ne fait aucune entrée-sortie.
+
+La signature est ajoutée en **révision incrémentale** : les octets d'origine
+sont conservés à l'identique. Réécrire le fichier invaliderait toute signature
+déjà présente et détruirait l'historique qu'une signature existe pour établir.
+
+Une signature *visible* — tracée, en image — est une autre affaire : la
+tamponner d'abord avec `stamp`, puis signer.
+
 ## Pas encore
 
-L'embarquement de polices personnalisées et la signature PAdES.
+**Aucun signataire n'est livré avec le paquet.** Une clé locale exige un
+constructeur CMS, dépendance que l'application choisit ; un prestataire
+certifié rend généralement un CMS complet et n'en a pas besoin. L'horodatage
+(PAdES B-T) est un appel HTTP et appartient lui aussi à un signataire — utile
+pour un document conservé des années, puisqu'une signature devient invérifiable
+une fois son certificat expiré.
