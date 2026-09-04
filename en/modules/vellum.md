@@ -452,13 +452,31 @@ Every link is checked: each certificate is signed by the one above it, each
 issuer says it is an authority, and the signing certificate is allowed to sign
 at all.
 
-**Revocation is not checked.** A certificate withdrawn after it was issued
-still looks valid here, because knowing otherwise means asking OCSP or a CRL
-over the network, and the engine does no I/O.
+### Revocation
+
+A certificate can be valid on its face and worthless in fact. Only the issuer
+knows, and only if asked:
+
+```ts
+const signatures = await vellum.verifySignatures(mandate, { checkRevocation: true })
+// signatures[0].revocation → { status: 'good' | 'revoked' | 'unknown', detail? }
+```
+
+A network call per signature, so it is off unless asked for.
+
+The answer has **three** values, not two. `unknown` covers everything else —
+unreachable responder, an answer about a different certificate, an answer
+nobody entitled to give it signed. Collapsing it into either of the others is
+the mistake: as good it waves a withdrawn certificate through, as revoked it
+rejects documents whenever a server is down. **Which to do is your policy**, so
+it is reported rather than decided.
+
+An answer is read only if the issuer, or somebody the issuer authorised, signed
+it. And a certificate withdrawn **after** the document was signed does not
+taint it — that is what a signing time, and better a timestamp, is for.
 
 ## Not yet
 
-Two things this package cannot supply for you. An adapter for a **certified
-provider** — a short function returning a `Signer`, which belongs to whoever
-has the account. And a **revocation check**, which means asking OCSP or a CRL
-over the network.
+An adapter for a **certified provider** — a short function returning a
+`Signer`, which belongs to whoever has the account rather than in an agnostic
+package.

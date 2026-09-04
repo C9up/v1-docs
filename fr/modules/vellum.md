@@ -467,13 +467,31 @@ Chaque maillon est contrôlé : chaque certificat est bien signé par celui du
 dessus, chaque émetteur déclare être une autorité, et le certificat signataire
 a bien le droit de signer.
 
-**La révocation n'est pas contrôlée.** Un certificat retiré après émission
-paraît toujours valable ici, parce que le savoir suppose d'interroger OCSP ou
-une CRL sur le réseau, et le moteur ne fait aucune entrée-sortie.
+### La révocation
+
+Un certificat peut être valable en apparence et sans valeur en fait. Seul
+l'émetteur le sait, et seulement si on le lui demande :
+
+```ts
+const signatures = await vellum.verifySignatures(mandat, { checkRevocation: true })
+// signatures[0].revocation → { status: 'good' | 'revoked' | 'unknown', detail? }
+```
+
+Un appel réseau par signature : c'est donc désactivé sauf demande.
+
+La réponse a **trois** valeurs, pas deux. `unknown` couvre tout le reste —
+répondeur injoignable, réponse portant sur un autre certificat, réponse que
+personne d'habilité n'a signée. La replier sur l'une des deux autres est
+l'erreur à éviter : en « bon », elle laisse passer un certificat retiré ; en
+« révoqué », elle rejette des documents dès qu'un serveur tombe. **C'est votre
+politique**, elle est donc rapportée et non décidée.
+
+Une réponse n'est lue que si l'émetteur, ou quelqu'un qu'il a habilité, l'a
+signée. Et un certificat retiré **après** la signature du document ne l'entache
+pas — c'est à cela que sert un instant de signature, et mieux, un horodatage.
 
 ## Pas encore
 
-Deux choses que ce paquet ne peut pas fournir à votre place. Un adapter pour un
-**prestataire certifié** — une courte fonction qui retourne un `Signer`, et qui
-appartient à qui possède le compte. Et un **contrôle de révocation**, qui
-suppose d'interroger OCSP ou une CRL sur le réseau.
+Un adapter pour un **prestataire certifié** — une courte fonction qui retourne
+un `Signer`, et qui appartient à qui possède le compte plutôt qu'à un paquet
+agnostique.
