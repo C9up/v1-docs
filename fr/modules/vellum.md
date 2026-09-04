@@ -356,11 +356,42 @@ déjà présente et détruirait l'historique qu'une signature existe pour établ
 Une signature *visible* — tracée, en image — est une autre affaire : la
 tamponner d'abord avec `stamp`, puis signer.
 
+### Avec une clé que vous détenez
+
+`pkcs8Signer` est le seul signataire livré, parce que c'est le seul qui n'a
+aucun prestataire derrière lui :
+
+```ts
+signers: {
+  interne: pkcs8Signer({
+    key: readFileSync(app.makePath('storage/signing.key.der')),
+    certificate: readFileSync(app.makePath('storage/signing.crt.der')),
+  }),
+}
+```
+
+Il construit un `SignedData` CAdES dont les attributs signés portent le type de
+contenu, l'empreinte du document, l'instant de signature et — comme PAdES
+l'exige — `signing-certificate-v2`. Ce dernier n'est pas décoratif : sans lui,
+une signature est liée à une clé mais pas à une identité.
+
+Du PKCS#8 et du DER plutôt qu'un `.p12` ;
+`openssl pkcs12 -in bundle.p12 -nodes` vous y amène en une commande.
+
+C'est une signature **avancée** : elle prouve que le document n'a pas changé
+depuis qu'une clé donnée l'a signé. Là où la loi exige une signature
+*qualifiée*, la clé doit vivre chez un prestataire certifié — et c'est un
+adapter, pas ceci.
+
+### Les adapters
+
+Un prestataire est un `Signer`, rien de plus : un adapter est donc une courte
+fonction qui en retourne un. Aucun n'est livré ici — nommer un fournisseur
+lierait un paquet agnostique à celui-là, et un client HTTP n'est pas une
+dépendance qu'il devrait porter.
+
 ## Pas encore
 
-**Aucun signataire n'est livré avec le paquet.** Une clé locale exige un
-constructeur CMS, dépendance que l'application choisit ; un prestataire
-certifié rend généralement un CMS complet et n'en a pas besoin. L'horodatage
-(PAdES B-T) est un appel HTTP et appartient lui aussi à un signataire — utile
-pour un document conservé des années, puisqu'une signature devient invérifiable
-une fois son certificat expiré.
+**L'horodatage** (PAdES B-T), qui appartient lui aussi à un signataire. Il est
+utile pour un document conservé des années : sans horodatage de confiance, une
+signature devient invérifiable une fois son certificat expiré.

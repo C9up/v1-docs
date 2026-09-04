@@ -346,10 +346,40 @@ already on it and destroy the history a signature exists to establish.
 A visible signature — a drawn one, an image — is a separate matter: `stamp` it
 on first, then sign.
 
+### With a key you hold
+
+`pkcs8Signer` is the one signer that ships, because it is the one with no
+vendor behind it:
+
+```ts
+signers: {
+  internal: pkcs8Signer({
+    key: readFileSync(app.makePath('storage/signing.key.der')),
+    certificate: readFileSync(app.makePath('storage/signing.crt.der')),
+  }),
+}
+```
+
+It builds a CAdES `SignedData` whose signed attributes carry the content type,
+the document's digest, the signing time and — as PAdES requires —
+`signing-certificate-v2`. That last is not decoration: without it a signature
+is bound to a key but not to an identity.
+
+PKCS#8 and DER rather than a `.p12` bundle;
+`openssl pkcs12 -in bundle.p12 -nodes` gets you there in one command.
+
+This is an **advanced** signature: it proves the document has not changed since
+a particular key signed it. Where the law requires a *qualified* one, the key
+has to live with a certified provider — and that is an adapter, not this.
+
+### Adapters
+
+A provider is a `Signer` and nothing more, so an adapter is a short function
+returning one. None ship here: naming a vendor would tie an agnostic package to
+one, and an HTTP client is not a dependency it should carry.
+
 ## Not yet
 
-**No signer ships with the package.** A local key needs a CMS builder, which is
-a dependency the application chooses; a certified provider generally returns a
-complete CMS and needs none. Timestamping (PAdES B-T) is an HTTP call and
-belongs in a signer too — worth having for a document kept for years, since a
-signature cannot be validated once its certificate has expired without one.
+**Timestamping** (PAdES B-T), which belongs in a signer as well. It is worth
+having for a document kept for years: without a trusted timestamp, a signature
+cannot be validated once its certificate has expired.
