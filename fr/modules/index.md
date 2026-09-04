@@ -11,27 +11,31 @@ Cette page liste l'etat des modules de l'ecosysteme.
 | Events | `@c9up/ream/events` | Core | Event bus — partie du core ream |
 | Rune | `@c9up/rune` | Présent | Validation |
 | Sigil | `@c9up/sigil` | Présent | Hachage de mots de passe canonique (argon2id, bcrypt, scrypt — TS + Rust N-API) |
-| Warden | `@c9up/warden` | Présent | Auth (délègue le hachage de mots de passe à Sigil — Epic 40) |
+| Warden | `@c9up/warden` | Présent | Authentification — délègue le hachage de mots de passe à Sigil |
 | Spectrum | `@c9up/spectrum` | Présent | Logs |
-| Photon | `@c9up/photon` | Présent | Frontend/SSR + hydratation client + router SPA-nav (44.1) + injection SEO/`<head>` (44.2) |
+| Photon | `@c9up/photon` | Présent | Frontend/SSR — hydratation client, router SPA, injection SEO dans `<head>` |
 | Aurora | `@c9up/aurora` | Présent | Runtime UI réactif — DOM via tagged-templates + signaux + SSR + dist isomorphe (pas de bundler côté app) |
 | Comet | `@c9up/comet` | Présent | Protocole JSON-RPC 2.0 agnostique + client isomorphe à transport injectable (aurora le branche côté navigateur, le `RpcRouter` de ream construit le serveur dessus) |
-| Relay | `@c9up/relay` | Présent | Realtime SSE + WebSocket Hub + SignalR (renomme depuis `@c9up/raytrace` dans l'Epic 45) |
-| Echo | `@c9up/echo` | Présent | Cache (rename de Nebula) |
+| Relay | `@c9up/relay` | Présent | Temps réel — SSE, hub WebSocket, SignalR |
+| Echo | `@c9up/echo` | Présent | Cache — mémoire, fichier, Redis via Quasar |
 | Bay | `@c9up/bay` | Présent | Queue/Jobs — drivers mémoire / Redis + retry + lease |
 | Blackhole | `@c9up/blackhole` | Présent | Middleware d'assainissement XSS du body |
 | Rosetta | `@c9up/rosetta` | Présent | Module i18n dédié avec fallback de locale |
 | Chronos | `@c9up/chronos` | Présent | Date/Time + récurrence RRULE |
 | Atom | `@c9up/atom` | Présent | Arithmétique décimale exacte (TS + Rust N-API) |
-| Station | `@c9up/station` | Manquant | Admin scaffolding |
-| Inker | `@c9up/inker` | Manquant | Templates |
+| Station | `@c9up/station` | Présent | Panneau d'administration — consomme l'univers Ream par le conteneur |
+| Inker | `@c9up/inker` | Présent | Moteur de templates |
 | Archive | `@c9up/archive` | Présent | Stockage de blobs avec drivers S3 + mémoire |
 | Nova | `@c9up/nova` | Présent | Web Push (VAPID + abonnement + livraison `nova.push()` via `web-push` + template de migration pour stockage durable + snippet driver Atlas dans la doc + scaffold Service Worker + intégration test `helix.nova.fake`) |
 | Helix | `@c9up/helix` | Présent | Test runner — `TestClient`, workers parallèles (`--threads`), utilisé par chaque e2e du kitchen-sink |
 | Quasar | `@c9up/quasar` | Présent | Connexions Redis — connexions nommées, pub/sub sur son propre socket, health checks |
 | Helix plugin | `@c9up/helix-plugin-ream` | Présent | Le pont ream↔helix — plugin `apiClient()` + runner de `ream test` |
-| Rover | `@c9up/rover` | Présent | Transport mail — SMTP + log + transports pluggables (rename de Spark) |
+| Rover | `@c9up/rover` | Présent | Transport mail — SMTP, log, transports enfichables |
 | Transit | `@c9up/transit` | Présent | Connexion fédérée — SAML 2.0, LDAP, OpenID Connect générique, Sign in with Apple, OAuth1/OAuth2 et les fournisseurs qui les parlent |
-| Vellum | `@c9up/vellum` | Présent | PDF — rendu en images, lecture, fusion/découpe/rotation, tamponnage |
+| Vellum | `@c9up/vellum` | Présent | PDF — rendu en images, lecture, fusion/découpe/rotation, tamponnage, signature et vérification |
+| Nebula | `@c9up/nebula` | Présent | Jeu de composants — shadcn/ui porté sur Aurora, rangé en design atomique, copie-la-source |
+| Eon | `@c9up/eon` | Présent | Séries temporelles — connexion TDengine, écriture sans schéma, requêtes |
+| Ream MCP | `@c9up/ream-mcp` | Présent | Serveur Model Context Protocol — doc ancrée, introspection, génération pour les agents |
+| Ream CLI | `@c9up/ream-cli` | Présent | Le binaire `ream` — échafaudage, dev, doctor (Rust) |
 
 Chaque ligne du tableau ci-dessus a une page dédiée — choisis-la dans la sidebar **Modules**.
