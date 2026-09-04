@@ -404,8 +404,34 @@ token that cannot be read is refused.
 The signature grows by a few kilobytes, so a document prepared with a tight
 `capacity` may need a larger one.
 
+### Checking one
+
+```ts
+for (const signature of await vellum.verifySignatures(mandate)) {
+  if (!signature.coversWholeDocument) reject('content was added after signing')
+  if (!signature.digestMatches) reject('the document has changed')
+  if (!signature.signatureVerifies) reject('the signature does not match')
+}
+```
+
+`coversWholeDocument` catches the trap everybody meets first: **content
+appended after a signature is not covered by it**, and the arithmetic over the
+covered part still checks out. A reader that verifies only the digest will
+happily call such a document signed.
+
+The report also names the signer, the time they stated, and whether an
+authority has timestamped it. A document with no signatures reports none —
+that is an answer, not a failure.
+
+What this establishes is **integrity and authorship, not trust**. It does not
+ask whether the certificate comes from an authority you accept, nor whether it
+has since been revoked: that needs a trust store and a live revocation check.
+The report says what was checked, and a caller needing more has the certificate
+to check it with.
+
 ## Not yet
 
-An adapter for a **certified provider**. It is a short function returning a
-`Signer`, and it belongs to whoever has the account rather than in an agnostic
-package.
+An adapter for a **certified provider** — a short function returning a
+`Signer`, which belongs to whoever has the account rather than in an agnostic
+package. And **trust evaluation**: a store of accepted authorities, and a
+revocation check.

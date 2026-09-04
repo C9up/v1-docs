@@ -418,8 +418,34 @@ illisible est refusé.
 La signature grossit de quelques kilo-octets : un document préparé avec une
 `capacity` juste peut en demander une plus grande.
 
+### La vérifier
+
+```ts
+for (const signature of await vellum.verifySignatures(mandat)) {
+  if (!signature.coversWholeDocument) refuser('du contenu ajouté après signature')
+  if (!signature.digestMatches) refuser('le document a changé')
+  if (!signature.signatureVerifies) refuser('la signature ne correspond pas')
+}
+```
+
+`coversWholeDocument` attrape le piège que tout le monde rencontre en premier :
+**du contenu ajouté après une signature n'est pas couvert par elle**, et le
+calcul sur la partie couverte reste juste. Une visionneuse qui ne vérifie que
+l'empreinte déclarera ce document signé.
+
+Le rapport nomme aussi le signataire, l'instant qu'il a déclaré, et dit si une
+autorité l'a horodaté. Un document sans signature n'en rapporte aucune — c'est
+une réponse, pas un échec.
+
+Ce qui est établi là, c'est l'**intégrité et la paternité, pas la confiance**.
+Rien ne demande si le certificat vient d'une autorité que vous acceptez, ni
+s'il a été révoqué depuis : cela suppose un magasin de confiance et un contrôle
+de révocation en ligne. Le rapport dit ce qui a été contrôlé, et l'appelant qui
+veut aller plus loin dispose du certificat.
+
 ## Pas encore
 
-Un adapter pour un **prestataire certifié**. C'est une courte fonction qui
-retourne un `Signer`, et elle appartient à qui possède le compte plutôt qu'à un
-paquet agnostique.
+Un adapter pour un **prestataire certifié** — une courte fonction qui retourne
+un `Signer`, et qui appartient à qui possède le compte plutôt qu'à un paquet
+agnostique. Et l'**évaluation de la confiance** : un magasin d'autorités
+acceptées, et un contrôle de révocation.
