@@ -33,14 +33,39 @@ Si plusieurs lockfiles coexistent (par exemple un `package-lock.json` obsolète 
 
 Auteurs : voir [Système de plugins](/fr/guide/plugin-system) pour publier un plugin configurable.
 
-## Generation de code
+## Génération de code
+
+Un générateur de module écrit dans `app/<module>/` ; les autres écrivent dans le
+répertoire propre à leur type.
 
 ```bash
-ream make:controller order Order
-ream make:service order Payment
-ream make:entity order OrderItem
-ream make:validator order CreateOrder
-ream make:provider Stripe
+ream make:controller order Order       # app/order/OrderController.ts
+ream make:service order Payment        # app/order/PaymentService.ts
+ream make:entity order OrderItem       # app/order/OrderItem.ts       (table : order_items)
+ream make:validator order CreateOrder  # app/order/CreateOrderValidator.ts
+ream make:module order Order           # les quatre ci-dessus, sans le service, plus une migration
+
+ream make:provider Stripe              # providers/StripeProvider.ts
+ream make:command app:provision        # commands/app-provision.ts
+ream make:middleware auth              # app/middleware/auth_middleware.ts
+ream make:event orderShipped           # app/events/order_shipped.ts
+ream make:listener sendMail --event orderShipped   # app/listeners/send_mail.ts
+```
+
+Deux drapeaux sont communs à tous : `--dry-run` imprime le plan en JSON sans
+rien écrire, et `--force` écrase un fichier déjà présent. Un lancement qui
+écraserait quelque chose refuse en bloc plutôt que d'écrire à moitié, et un
+échec en cours de route restaure ce qui avait déjà été écrit.
+
+`make:middleware` prend `--stack server|named|router` (par défaut `router`), qui
+choisit la ligne d'enregistrement que le fichier généré suggère :
+
+```ts
+// ream make:middleware auth --stack named
+/**
+ * Register it in `start/kernel.ts`:
+ *   router.named({ auth: () => import('#middleware/auth_middleware.js') })
+ */
 ```
 
 `make:migration`, `make:seeder` et `make:factory` ne sont pas ici : elles
@@ -50,9 +75,8 @@ qu'une migration importe. Atlas les livre — voir
 
 ### Personnaliser ce qui est généré
 
-Chaque template `make:` peut être surchargé par projet, comme AdonisJS permet à
-une application de publier puis d'éditer ses stubs. Publiez-en un, modifiez-le,
-et le générateur utilise votre copie :
+Chaque template `make:` peut être surchargé par projet. Publiez-en un,
+modifiez-le, et le générateur utilise votre copie :
 
 ```bash
 ream stubs:publish --list          # ce qui est publiable, et les variables exposées
@@ -74,13 +98,17 @@ export class {{ className }} {
 }
 ```
 
-Un stub publié est généré À PARTIR du template intégré : il démarre donc comme
-une copie exacte de ce que vous obtenez déjà. Supprimez le fichier pour revenir
-au comportement par défaut.
+Un stub publié EST le template intégré — la même chaîne que le générateur
+substitue, pas une copie — donc en publier un ne change rien tant que vous ne
+l'éditez pas. Supprimez le fichier pour revenir au comportement par défaut.
 
-Un stub peut aussi choisir où il écrit, comme un stub Adonis qui s'ouvre sur
-`{{{ exports({ to: … }) }}}`. Cette ligne est du JavaScript, qu'un binaire Rust
-ne peut pas évaluer : la même déclaration s'écrit donc en front matter :
+`ream stubs:publish --list` nomme les variables que chaque stub substitue, lues
+sur le template lui-même. `{{ className }}` et `{{ name }}` sont partout ;
+`{{ tableName }}` appartient à l'entité, `{{ fileName }}` est le radical
+snake_case sous lequel le fichier est écrit, et `{{ registration }}` la ligne de
+middleware ci-dessus.
+
+Un stub peut aussi choisir où il écrit, déclaré en front matter :
 
 ```
 ---
@@ -92,16 +120,16 @@ export class {{ className }} {
 
 Sans front matter, le chemin par défaut est utilisé. Le chemin déclaré passe par
 la même validation que n'importe quel chemin généré — pas de chemin absolu, pas
-de `..` — ce que `app.httpControllersPath()` impose côté Adonis.
+de `..`.
 
-**Une déviation nommée par rapport à AdonisJS**, parce que ce générateur est un
-binaire Rust et non un process Node : les stubs sont **substitués, pas rendus
-par un moteur de template**. Ceux d'Adonis passent par tempura (`{{#var}}`,
-conditions, partiels) ; ici `{{ name }}` est remplacé, rien de plus. Un marqueur
-inconnu reste visible au lieu d'être silencieusement vidé, et un stub mal formé
-est une erreur plutôt qu'un repli silencieux sur le template intégré.
+Un stub est **substitué, pas rendu par un moteur de template** : `{{ name }}`
+est remplacé, rien de plus, parce que le générateur est un binaire Rust et
+qu'embarquer un moteur JavaScript pour évaluer des conditions et des partiels
+coûterait plus que ça ne rapporte. Un marqueur inconnu reste visible au lieu
+d'être silencieusement vidé, et un stub mal formé est une erreur plutôt qu'un
+repli silencieux sur le template intégré.
 
-## Configuration de packages
+## Configuration de paquets
 
 > Pour installer le paquet en même temps, voir [Ajouter un paquet](#ajouter-un-paquet).
 
@@ -132,11 +160,9 @@ La sortie est préfixée par le store d'où elle vient :
   [eon]   ○ 001_create_meters
 ```
 
-**C'est l'un des endroits où Ream fait délibérément mieux qu'AdonisJS.** L'amont
-n'a pas d'équivalent, et n'en a pas besoin : Lucid est sa seule source de
-migrations, donc `node ace migration:run` peut la nommer. Ream s'attend à
-plusieurs stores dans une même app — un relationnel, un temporel, ce qui viendra
-ensuite — donc le CLI n'en nomme aucun.
+Ream s'attend à plusieurs stores dans une même app — un relationnel, un
+temporel, ce qui viendra ensuite — donc la commande n'en nomme aucun : elle
+pilote ce qui se trouve dans le registre `migrations`.
 
 Un paquet de données enregistre son runner depuis son provider, sous la liaison
 `migrations` de l'app. Deux conséquences à connaître :
@@ -220,6 +246,59 @@ ream new my-app --template slim --yes          # slim + postgres
 
 Une valeur inconnue est rejetée **avant** toute question : une faute de frappe
 se signale comme une erreur de ligne de commande, pas comme un terminal absent.
+
+## Les commandes de l'application
+
+Tout nom que le binaire ne définit pas est transmis au noyau console de
+l'application, drapeaux compris :
+
+```bash
+ream provision --email vous@exemple.com   # lance la commande `provision` de l'app
+ream list                                 # toutes les commandes, celles du binaire et celles de l'app
+ream list make --json                     # un seul espace de noms, en JSON
+```
+
+`ream` sans commande vaut `ream list`. Une commande que l'application déclare
+sous un nom que le binaire porte aussi — `start`, `build`, `test`, `list`, … —
+l'emporte : le listing la marque comme surchargeant la commande intégrée, et la
+répartition transmet l'argv d'origine tel quel. Un alias compte comme une
+déclaration, et une entrée dans `reamrc.commands` aussi.
+
+```bash
+ream make:command app:provision   # commands/app-provision.ts, découverte automatiquement
+```
+
+## Lancer et tester
+
+```bash
+ream dev            # le serveur et ce qui construit les assets, sous un seul Ctrl-C
+ream build          # les assets d'abord, puis TypeScript
+ream start          # node dist/bin/server.js
+ream test           # les suites déclarées dans reamrc.ts
+ream test unit --bail --reporters spec,json --threads 4
+ream repl           # un REPL Node avec l'app démarrée : `app`, `container`, `await resolve(token)`
+ream inspect        # routes, providers, liaisons du conteneur
+```
+
+`ream test` lit ses suites dans le fichier rc et les passe au runner : les noms
+de suites et leurs globs vivent donc à un seul endroit, pas dans un script.
+
+## Clés et intégrations
+
+```bash
+ream generate:key           # une APP_KEY fraîche dans .env
+ream generate:key --show    # l'imprimer plutôt, pour un gestionnaire de secrets
+ream generate:key --force   # remplacer une clé existante (invalide toutes les sessions)
+ream mcp install            # enregistrer le serveur MCP Ream dans .mcp.json
+ream mcp status
+ream template kitchen-sink  # cloner une app de référence et repartir d'un historique vierge
+```
+
+`generate:key` n'imprime jamais la clé qu'elle écrit : stdout finit dans
+l'historique du shell, le scrollback et les logs de CI, donc `.env` est le seul
+puits. Elle refuse sur une machine qui se déclare en production — sous
+`production` comme sous `prod`, parce que le second est ordinaire dans un
+Dockerfile et qu'une lecture stricte lèverait la garde.
 
 ## Diagnostics
 

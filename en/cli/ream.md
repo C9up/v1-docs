@@ -35,12 +35,37 @@ Authors: see [Plugin System](/en/guide/plugin-system) for how to ship a configur
 
 ## Code Generation
 
+A module generator writes into `app/<module>/`; the rest write into the
+directory their kind lives in.
+
 ```bash
-ream make:controller order Order     # app/modules/order/controllers/OrderController.ts
-ream make:service order Payment      # app/modules/order/services/PaymentService.ts
-ream make:entity order OrderItem     # app/modules/order/entities/OrderItem.ts
-ream make:validator order CreateOrder
-ream make:provider Stripe
+ream make:controller order Order       # app/order/OrderController.ts
+ream make:service order Payment        # app/order/PaymentService.ts
+ream make:entity order OrderItem       # app/order/OrderItem.ts       (table: order_items)
+ream make:validator order CreateOrder  # app/order/CreateOrderValidator.ts
+ream make:module order Order           # the four above, minus the service, plus a migration
+
+ream make:provider Stripe              # providers/StripeProvider.ts
+ream make:command app:provision        # commands/app-provision.ts
+ream make:middleware auth              # app/middleware/auth_middleware.ts
+ream make:event orderShipped           # app/events/order_shipped.ts
+ream make:listener sendMail --event orderShipped   # app/listeners/send_mail.ts
+```
+
+Two flags are shared by every one of them: `--dry-run` prints the plan as JSON
+and writes nothing, and `--force` overwrites a file that is already there. A run
+that would clobber something refuses as a whole rather than half-writing, and a
+failure part-way through restores what it had already written.
+
+`make:middleware` takes `--stack server|named|router` (default `router`), which
+picks the registration line the generated file suggests:
+
+```ts
+// ream make:middleware auth --stack named
+/**
+ * Register it in `start/kernel.ts`:
+ *   router.named({ auth: () => import('#middleware/auth_middleware.js') })
+ */
 ```
 
 `make:migration`, `make:seeder` and `make:factory` are not here: they belong to
@@ -49,9 +74,8 @@ imports. Atlas ships them — see [its console commands](/en/atlas/migrations#co
 
 ### Customising what gets generated
 
-Every `make:` template can be overridden per project, the way AdonisJS lets an
-app publish and edit its stubs. Publish one, edit it, and the generator uses
-your copy from then on:
+Every `make:` template can be overridden per project. Publish one, edit it, and
+the generator uses your copy from then on:
 
 ```bash
 ream stubs:publish --list          # what can be published, and the variables each exposes
@@ -73,12 +97,16 @@ export class {{ className }} {
 }
 ```
 
-A published stub is generated FROM the built-in template, so it starts as an
-exact copy of what you already get. Delete the file to go back to the default.
+A published stub IS the built-in template — the same string the generator
+substitutes, not a copy of it — so publishing one changes nothing until you edit
+it. Delete the file to go back to the default.
 
-A stub can also choose where it writes, the way an Adonis stub opens with
-`{{{ exports({ to: … }) }}}`. That line is JavaScript, which a Rust binary
-cannot evaluate, so the same declaration is written as front matter:
+`ream stubs:publish --list` names the variables each stub can substitute, read
+off the template itself. `{{ className }}` and `{{ name }}` are everywhere;
+`{{ tableName }}` is the entity's, `{{ fileName }}` the snake_case stem a file
+is written under, and `{{ registration }}` the middleware line above.
+
+A stub can also choose where it writes, declared as front matter:
 
 ```
 ---
@@ -89,15 +117,14 @@ export class {{ className }} {
 ```
 
 Omit the front matter and the default path is used. The declared path goes
-through the same validation as any generated path — no absolute paths, no `..`
-— which is what `app.httpControllersPath()` enforces on the Adonis side.
+through the same validation as any generated path — no absolute paths, no `..`.
 
-**One named deviation from AdonisJS**, because this generator is a Rust binary
-rather than a Node process: stubs are **substituted, not rendered by a template
-engine**. Adonis runs them through tempura (`{{#var}}`, conditionals, partials);
-here `{{ name }}` is replaced and nothing else. An unknown placeholder is left
-visible rather than silently emptied, and a malformed stub is an error rather
-than a silent fallback to the built-in.
+A stub is **substituted, not rendered by a template engine**: `{{ name }}` is
+replaced and nothing else, because the generator is a Rust binary and shipping a
+JavaScript runtime inside it to evaluate conditionals and partials would cost
+more than it is worth. An unknown placeholder is left visible rather than
+silently emptied, and a malformed stub is an error rather than a silent fallback
+to the built-in.
 
 ## Package Configuration
 
@@ -130,11 +157,9 @@ Output is prefixed by the store it came from:
   [eon]   ○ 001_create_meters
 ```
 
-**This is one of the places Ream deliberately does better than AdonisJS.**
-Upstream has no equivalent, and does not need one: Lucid is its only migration
-source, so `node ace migration:run` can name it. Ream expects several stores in
-one app — a relational one, a time-series one, whatever comes next — so the CLI
-names none of them.
+Ream expects several stores in one app — a relational one, a time-series one,
+whatever comes next — so the command names none of them: it drives whatever is
+in the `migrations` registry.
 
 A data package registers its runner from its provider, under the app's
 `migrations` binding. Two consequences worth knowing:
@@ -217,6 +242,58 @@ ream new my-app --template slim --yes          # slim + postgres
 
 An unknown value is rejected before any prompt runs, so a typo reports itself
 as a command-line error rather than as a missing terminal.
+
+## The application's own commands
+
+Any name the binary does not define is dispatched to the application's console
+kernel, with its flags intact:
+
+```bash
+ream provision --email you@example.com   # runs the app's `provision` command
+ream list                                # every command, the binary's and the app's
+ream list make --json                    # one namespace, as JSON
+```
+
+`ream` with no command is `ream list`. A command the app declares under a name
+the binary also uses — `start`, `build`, `test`, `list`, … — wins: the listing
+marks it as overriding the built-in, and dispatch sends the original argv
+straight through. An alias counts as a declaration, and so does an entry in
+`reamrc.commands`.
+
+```bash
+ream make:command app:provision   # commands/app-provision.ts, discovered automatically
+```
+
+## Running and testing
+
+```bash
+ream dev            # server + whatever builds the assets, under one Ctrl-C
+ream build          # assets first, then TypeScript
+ream start          # node dist/bin/server.js
+ream test           # the suites declared in reamrc.ts
+ream test unit --bail --reporters spec,json --threads 4
+ream repl           # a Node REPL with the app booted: `app`, `container`, `await resolve(token)`
+ream inspect        # routes, providers, container bindings
+```
+
+`ream test` reads its suites from the rc file and hands them to the runner, so
+the suite names and their globs live in one place rather than in a script.
+
+## Keys and integrations
+
+```bash
+ream generate:key           # a fresh APP_KEY into .env
+ream generate:key --show    # print one instead, for a secrets manager
+ream generate:key --force   # replace an existing key (invalidates every session)
+ream mcp install            # register the Ream MCP server in .mcp.json
+ream mcp status
+ream template kitchen-sink  # clone a reference app and start it on a fresh history
+```
+
+`generate:key` never prints the key it writes: stdout ends up in shell history,
+scrollback and CI logs, so `.env` is the only sink. It refuses on a machine that
+says it is production — under `production` or `prod`, because the second is
+ordinary in a Dockerfile and read strictly it would take the guard off.
 
 ## Diagnostics
 
