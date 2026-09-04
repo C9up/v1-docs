@@ -168,6 +168,30 @@ caractères WinAnsi : le texte d'Europe occidentale est couvert, accents et
 ponctuation typographique compris, et tout ce qui en sort est **refusé plutôt que
 déformé** — perdre un caractère dans un contrat est pire qu'échouer.
 
+### Fournir la sienne
+
+Déclarez-la dans `config/vellum.ts` et demandez-la par son nom :
+
+```ts
+export default defineConfig({
+  fonts: { body: app.makePath('resources/fonts/Inter-Regular.ttf') },
+})
+
+await vellum.stampText(pdf, 'Uměl Řehoř', { font: 'body' })
+```
+
+Cela lève la limite WinAnsi, au prix du transport des glyphes. La police est
+**réduite aux caractères réellement écrits** — embarquer une famille entière
+mettrait des mégaoctets dans chaque document tamponné — et une table
+`/ToUnicode` l'accompagne, sans laquelle le texte serait correctement dessiné
+et pourtant impossible à sélectionner, copier ou chercher.
+
+Un nom configuré est cherché **avant** les polices standard : en appeler un
+`Helvetica` masque donc la standard. Un nom non configuré passe outre, ce qui
+permet à `font: 'Times-Roman'` de fonctionner sans aucune configuration. Un
+caractère dont la police fournie n'a pas le glyphe est refusé, nommément.
+
+
 ## Erreurs
 
 Les échecs lèvent une `VellumError`, porteuse d'un `code` :

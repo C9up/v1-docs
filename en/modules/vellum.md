@@ -167,6 +167,30 @@ set: Western European text is covered, accents and typographic punctuation
 included, and anything outside it is **refused rather than mangled** — silently
 dropping a character from a contract is worse than failing.
 
+### Supplying your own
+
+Declare it in `config/vellum.ts` and ask for it by name:
+
+```ts
+export default defineConfig({
+  fonts: { body: app.makePath('resources/fonts/Inter-Regular.ttf') },
+})
+
+await vellum.stampText(pdf, 'Uměl Řehoř', { font: 'body' })
+```
+
+That lifts the WinAnsi limit, at the cost of carrying the glyphs. The font is
+**subsetted to the characters actually written** — embedding a family whole
+would put megabytes into every stamped document — and a `/ToUnicode` table goes
+in with it, without which the text would be drawn correctly and still be
+impossible to select, copy or search.
+
+A configured name is looked up **before** the standard fonts, so calling one
+`Helvetica` shadows the standard one. A name that is not configured falls
+through, which is what keeps `font: 'Times-Roman'` working with no
+configuration at all. A character the supplied font has no glyph for is refused
+by name.
+
 ## Errors
 
 Failures raise `VellumError`, carrying a `code`:
