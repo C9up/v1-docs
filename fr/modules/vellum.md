@@ -437,15 +437,43 @@ Le rapport nomme aussi le signataire, l'instant qu'il a déclaré, et dit si une
 autorité l'a horodaté. Un document sans signature n'en rapporte aucune — c'est
 une réponse, pas un échec.
 
-Ce qui est établi là, c'est l'**intégrité et la paternité, pas la confiance**.
-Rien ne demande si le certificat vient d'une autorité que vous acceptez, ni
-s'il a été révoqué depuis : cela suppose un magasin de confiance et un contrôle
-de révocation en ligne. Le rapport dit ce qui a été contrôlé, et l'appelant qui
-veut aller plus loin dispose du certificat.
+### La confiance
+
+Vérifier qu'une signature correspond au certificat qu'elle porte ne dit rien de
+l'identité de ce certificat : n'importe qui peut en fabriquer un. La confiance
+vient d'un chemin jusqu'à une ancre que vous avez décidé d'accepter.
+
+```ts
+// config/vellum.ts
+export default defineConfig({
+  trustedAnchors: [readFileSync(app.makePath('storage/anchors/autorite.pem'))],
+})
+```
+
+Fournissez les racines que publie votre autorité de contrôle — elles sont
+diffusées sous forme de listes de confiance au format ETSI TS 119 612 — ou
+celles de votre propre autorité, et `trusted` dit si un chemin a été trouvé.
+DER ou PEM. N'en fournir aucune est aussi une position : toute signature
+revient alors non fiable, ce qui est la réponse honnête plutôt que la réponse
+confortable.
+
+Le chemin est jugé **au moment de la signature**, pas maintenant : un
+certificat valable alors et expiré depuis n'a pas rétroactivement dé-signé quoi
+que ce soit. `moment` dit d'où vient cet instant — `"timestamp"` si une
+autorité en répond, `"claimed"` s'il repose sur la parole du signataire. C'est
+la raison concrète pour laquelle l'horodatage vaut son aller-retour.
+
+Chaque maillon est contrôlé : chaque certificat est bien signé par celui du
+dessus, chaque émetteur déclare être une autorité, et le certificat signataire
+a bien le droit de signer.
+
+**La révocation n'est pas contrôlée.** Un certificat retiré après émission
+paraît toujours valable ici, parce que le savoir suppose d'interroger OCSP ou
+une CRL sur le réseau, et le moteur ne fait aucune entrée-sortie.
 
 ## Pas encore
 
-Un adapter pour un **prestataire certifié** — une courte fonction qui retourne
-un `Signer`, et qui appartient à qui possède le compte plutôt qu'à un paquet
-agnostique. Et l'**évaluation de la confiance** : un magasin d'autorités
-acceptées, et un contrôle de révocation.
+Deux choses que ce paquet ne peut pas fournir à votre place. Un adapter pour un
+**prestataire certifié** — une courte fonction qui retourne un `Signer`, et qui
+appartient à qui possède le compte. Et un **contrôle de révocation**, qui
+suppose d'interroger OCSP ou une CRL sur le réseau.

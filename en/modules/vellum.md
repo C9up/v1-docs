@@ -423,15 +423,42 @@ The report also names the signer, the time they stated, and whether an
 authority has timestamped it. A document with no signatures reports none —
 that is an answer, not a failure.
 
-What this establishes is **integrity and authorship, not trust**. It does not
-ask whether the certificate comes from an authority you accept, nor whether it
-has since been revoked: that needs a trust store and a live revocation check.
-The report says what was checked, and a caller needing more has the certificate
-to check it with.
+### Trust
+
+Checking that a signature matches the certificate it carries says nothing about
+who that certificate belongs to: anyone can make one. Trust comes from a path
+to an anchor you have decided to accept.
+
+```ts
+// config/vellum.ts
+export default defineConfig({
+  trustedAnchors: [readFileSync(app.makePath('storage/anchors/authority.pem'))],
+})
+```
+
+Supply the roots your supervisory body publishes — they are distributed as
+trusted lists in the ETSI TS 119 612 format — or your own authority's, and
+`trusted` says whether a path was found. DER or PEM. Supplying none is a
+position too: every signature comes back untrusted, which is the honest answer
+rather than a comfortable one.
+
+The path is judged **at the moment of signing**, not now: a certificate valid
+then and expired since did not retroactively unsign anything. `moment` says
+where that instant came from — `"timestamp"` if an authority vouched for it,
+`"claimed"` if it rests on the signer's own word. That is the concrete reason
+timestamping is worth the round trip.
+
+Every link is checked: each certificate is signed by the one above it, each
+issuer says it is an authority, and the signing certificate is allowed to sign
+at all.
+
+**Revocation is not checked.** A certificate withdrawn after it was issued
+still looks valid here, because knowing otherwise means asking OCSP or a CRL
+over the network, and the engine does no I/O.
 
 ## Not yet
 
-An adapter for a **certified provider** — a short function returning a
-`Signer`, which belongs to whoever has the account rather than in an agnostic
-package. And **trust evaluation**: a store of accepted authorities, and a
-revocation check.
+Two things this package cannot supply for you. An adapter for a **certified
+provider** — a short function returning a `Signer`, which belongs to whoever
+has the account. And a **revocation check**, which means asking OCSP or a CRL
+over the network.
