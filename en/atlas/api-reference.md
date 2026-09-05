@@ -92,8 +92,25 @@ new BaseRepository(EntityClass, db, options?)
 - `withCount(relation, callback?)`
 - `withAggregate(relation, callback)`
 - `count`, `sum`, `avg`, `min`, `max`
-- `countDistinct`, `distinct`, `exists`, `doesntExist`, `pluck`
+- `countDistinct`, `sumDistinct`, `avgDistinct`
+- `distinct`, `exists`, `doesntExist`, `pluck`
 - `as(alias)`
+
+The eight aggregates share one signature. Each takes a column — with an alias
+inline, as a second argument, or as the key of an object — and returns the
+builder. The value comes back as a column of the result row, in `$extras` on the
+model builder:
+
+```ts
+const [row] = await db.from('sales').count('* as total')
+Number(row.total)
+
+const [order] = await Order.query().sum('amount as spent').countDistinct('sku', 'items')
+Number(order.$extras.spent)
+```
+
+None of them runs the query on its own, so `count` and `countDistinct` answer
+the same thing for the same argument.
 
 ### Joins / scope / locking
 

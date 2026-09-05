@@ -554,7 +554,7 @@ ctx.photon.render('Dashboard', {
   `nextPage: null` est ainsi que le client cesse de demander.
 
 Un rappel nu est une prop paresseuse, invoquée à chaque rendu, et une promesse
-est attendue : `{ total: () => Order.count() }` envoie le nombre.
+est attendue : `{ total: () => compterCommandes() }` envoie le nombre.
 
 ## Erreurs de validation
 

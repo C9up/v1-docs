@@ -554,7 +554,7 @@ ctx.photon.render('Dashboard', {
   how the client stops asking.
 
 A bare callback is a lazy prop, invoked on every render, and a promise is
-awaited: `{ total: () => Order.count() }` sends the number.
+awaited: `{ total: () => countOrders() }` sends the number.
 
 ## Validation errors
 
