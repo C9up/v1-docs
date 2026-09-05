@@ -25,9 +25,23 @@ Expressions are evaluated in **UTC**. A task that has to fire at a local hour
 must have that translated before it reaches the decorator.
 
 `ScheduleProvider` discovers the decorated methods by walking the IoC service
-registry — twice: once when providers boot, and once at start, after
-`app/modules/**` has been auto-loaded. A task declared in a module is found by
-the second pass, and a task found by the first is not registered again.
+registry at every phase: boot, start, then ready. The one that matters is the
+last — `app/modules/**` is auto-loaded at the **end** of the start phase, after
+every provider's `start()`, so a task declared in a module does not exist
+before then. The ticker starts at ready for the same reason. A task an earlier
+pass found is not registered again.
+
+To keep the scheduler out of a test suite, scope the provider to the
+environment in `reamrc.ts`:
+
+```ts
+providers: [
+  { file: () => import('@c9up/ream/scheduler/provider'), environment: ['web'] },
+]
+```
+
+The generated test bootstrap boots in `testMode()` — it still serves HTTP, but
+the application declares itself as `test`, which is what this list reads.
 
 The service is resolved **at invocation time**, not at registration time, so
 every run receives freshly injected dependencies.

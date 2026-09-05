@@ -26,9 +26,24 @@ Les expressions sont évaluées en **UTC**. Une tâche qui doit se déclencher �
 une heure locale doit être traduite avant d'atteindre le décorateur.
 
 `ScheduleProvider` découvre les méthodes décorées en parcourant le registre de
-services de l'IoC — deux fois : au boot des providers, puis au start, une fois
-`app/modules/**` chargé. Une tâche déclarée dans un module est trouvée par la
-seconde passe, et une tâche trouvée par la première n'est pas réenregistrée.
+services de l'IoC, à chaque phase : au boot, au start, puis au ready. Celle qui
+compte est la dernière — `app/modules/**` est chargé à la **fin** de la phase
+start, donc après le `start()` de tous les providers, et une tâche déclarée
+dans un module n'existe qu'à partir de là. Le tic démarre au ready, pour la
+même raison. Une tâche trouvée par une passe précédente n'est pas
+réenregistrée.
+
+Pour tenir le planificateur hors d'une suite de tests, on borne le provider à
+l'environnement dans `reamrc.ts` :
+
+```ts
+providers: [
+  { file: () => import('@c9up/ream/scheduler/provider'), environment: ['web'] },
+]
+```
+
+Le bootstrap de test généré démarre en `testMode()` — il sert bien du HTTP,
+mais l'application s'annonce comme `test`, ce que cette liste lit.
 
 Le service est résolu **au moment de l'invocation**, pas à l'enregistrement :
 chaque exécution reçoit donc des dépendances fraîchement injectées.
