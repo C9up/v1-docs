@@ -173,14 +173,17 @@ async show({ aurora }) {
 }
 ```
 
-Register the `auroraContext` middleware globally to attach `ctx.aurora` to every request:
+Register the `auroraContext` middleware globally to attach `ctx.aurora` to every request. That happens in `start/kernel.ts`, where global middleware lives — `reamrc.ts` has no key for it:
 
 ```ts
-// reamrc.ts (or your global middleware list)
+// start/kernel.ts
+import server from '@c9up/ream/services/server'
 import { auroraContext } from '@c9up/aurora/server'
 
-middleware: [auroraContext()]
+server.use([auroraContext])
 ```
+
+`auroraContext` IS the `(ctx, next)` middleware, not a factory: calling it here would run it with no context at all, while the file is being loaded.
 
 The module-level `aurora.render(ctx, name, props)` (the agnostic core) still works exactly as shown above — `ctx.aurora.render(name, props)` is just the ctx-bound shorthand over it.
 
