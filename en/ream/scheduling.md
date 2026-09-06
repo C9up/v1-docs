@@ -25,11 +25,41 @@ Expressions are evaluated in **UTC**. A task that has to fire at a local hour
 must have that translated before it reaches the decorator.
 
 `ScheduleProvider` discovers the decorated methods by walking the IoC service
-registry at every phase: boot, start, then ready. The one that matters is the
-last — `app/modules/**` is auto-loaded at the **end** of the start phase, after
-every provider's `start()`, so a task declared in a module does not exist
-before then. The ticker starts at ready for the same reason. A task an earlier
-pass found is not registered again.
+registry at every phase: boot, start, then ready. The last one is what matters,
+because module auto-loading happens at the **end** of the start phase, after
+every provider's `start()`. The ticker starts at ready for the same reason. A
+task an earlier pass found is not registered again.
+
+### What has to have imported the class
+
+Discovery reads a registry; it does not scan the disk. A class nothing imported
+is not in it, and the symptom is `No scheduled tasks registered` with no
+further explanation.
+
+A task declared in `app/modules/**` therefore depends on two conditions, both
+easy to miss:
+
+1. **`reamrc.modules.path` must be set.** Without that key nothing under
+   `app/modules/` is loaded at all — auto-loading is opt-in, not automatic, and
+   the `reamrc.ts` that `ream new` writes does not declare it.
+2. **`reamrc.modules.autoload` must name the file.** It defaults to
+   `['routes', 'events']`, so `app/modules/billing/scheduler.ts` is never
+   imported.
+
+```ts
+// reamrc.ts — so the module's task is loaded
+modules: { path: './app/modules', autoload: ['routes', 'events', 'scheduler'] },
+```
+
+The other way, explicit and independent of where the file sits, is a preload:
+
+```ts
+preloads: [() => import('#app/modules/billing/scheduler.js')],
+```
+
+Prefer that one when the task has to exist no matter what: the import **is** the
+declaration, not an incidental side effect. `ream schedule:list` names whichever
+of the two conditions is unmet when it finds nothing.
 
 To keep the scheduler out of a test suite, scope the provider to the
 environment in `reamrc.ts`:

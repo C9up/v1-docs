@@ -27,11 +27,42 @@ une heure locale doit être traduite avant d'atteindre le décorateur.
 
 `ScheduleProvider` découvre les méthodes décorées en parcourant le registre de
 services de l'IoC, à chaque phase : au boot, au start, puis au ready. Celle qui
-compte est la dernière — `app/modules/**` est chargé à la **fin** de la phase
-start, donc après le `start()` de tous les providers, et une tâche déclarée
-dans un module n'existe qu'à partir de là. Le tic démarre au ready, pour la
-même raison. Une tâche trouvée par une passe précédente n'est pas
-réenregistrée.
+compte est la dernière, parce que l'auto-chargement des modules a lieu à la
+**fin** de la phase start, après le `start()` de tous les providers. Le tic
+démarre au ready pour la même raison. Une tâche trouvée par une passe
+précédente n'est pas réenregistrée.
+
+### Ce qui doit avoir importé la classe
+
+La découverte lit un registre ; elle ne parcourt pas le disque. Une classe
+qu'aucun code n'a importée n'y est pas, et le symptôme est
+`No scheduled tasks registered` sans autre explication.
+
+Une tâche déclarée dans `app/modules/**` dépend donc de deux conditions, toutes
+deux faciles à manquer :
+
+1. **`reamrc.modules.path` doit être renseigné.** Sans cette clé, rien sous
+   `app/modules/` n'est chargé — l'auto-chargement est optionnel, pas
+   automatique, et le `reamrc.ts` généré par `ream new` ne le déclare pas.
+2. **`reamrc.modules.autoload` doit nommer le fichier.** Par défaut la liste
+   vaut `['routes', 'events']` : un `app/modules/facturation/scheduler.ts`
+   n'est jamais importé.
+
+```ts
+// reamrc.ts — pour que la tâche du module soit chargée
+modules: { path: './app/modules', autoload: ['routes', 'events', 'scheduler'] },
+```
+
+L'autre voie, explicite et indépendante de l'emplacement du fichier, est un
+preload :
+
+```ts
+preloads: [() => import('#app/modules/facturation/scheduler.js')],
+```
+
+C'est celle à préférer quand la tâche doit exister quoi qu'il arrive : l'import
+**est** la déclaration, pas un effet de bord accessoire. `ream schedule:list`
+nomme celle des deux conditions qui manque quand il ne trouve rien.
 
 Pour tenir le planificateur hors d'une suite de tests, on borne le provider à
 l'environnement dans `reamrc.ts` :
