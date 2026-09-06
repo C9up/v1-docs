@@ -76,6 +76,23 @@ Leave `transport` out and relay is single-instance.
 - `POST /__relay/subscribe` channel subscribe
 - `POST /__relay/unsubscribe` channel unsubscribe
 
+None of them exists until the application asks for it — `registerRoutes()`
+builds them, from a preload:
+
+```ts
+// start/services.ts
+import relay from '@c9up/relay/services/main'
+
+relay.registerRoutes()
+// or, to put the endpoints behind auth:
+relay.registerRoutes((route) => route.middleware('auth'))
+```
+
+Mounting where the declaration is written is what keeps the routes ahead of the
+socket. Building them in a later phase left a window, after the server was
+listening, in which a request for a route the application had already asked for
+answered 404.
+
 ### uid hint security
 
 When an authenticated client connects to `/__relay/events?uid=<id>`,
@@ -89,8 +106,9 @@ comes from `ctx.auth`, never from the query string.
 
 A `Hub` is the bidirectional half: the client invokes methods on the server, the
 server pushes to one client, a group, or everyone. Mount it from a preload
-(`start/services.ts`), the same place `registerRoutes()` is called — the
-provider registers the routes in `start()`, after preloads have run:
+(`start/services.ts`), the same place `registerRoutes()` is called — each
+declaration mounts its route **at the moment it is written**, so before the
+server starts listening:
 
 ```ts
 import relay from '@c9up/relay/services/main'

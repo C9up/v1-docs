@@ -77,6 +77,23 @@ Sans `transport`, relay reste mono-instance.
 - `POST /__relay/subscribe` abonnement canal
 - `POST /__relay/unsubscribe` desabonnement
 
+Aucune n'existe tant que l'application ne la demande pas — `registerRoutes()`
+les pose, depuis un preload :
+
+```ts
+// start/services.ts
+import relay from '@c9up/relay/services/main'
+
+relay.registerRoutes()
+// ou, pour mettre les endpoints derrière l'auth :
+relay.registerRoutes((route) => route.middleware('auth'))
+```
+
+Poser la route là où la déclaration est écrite est ce qui la garde en avance sur
+la socket. Les construire dans une phase ultérieure laissait une fenêtre, après
+que le serveur écoutait, où une requête vers une route déjà demandée par
+l'application répondait 404.
+
 ### Sécurité du uid hint
 
 Quand un client authentifié se connecte à `/__relay/events?uid=<id>`,
@@ -91,7 +108,8 @@ le uid canonique vient toujours de `ctx.auth`, jamais du query string.
 Un `Hub` est la moitié bidirectionnelle : le client invoque des méthodes côté
 serveur, le serveur pousse vers un client, un groupe, ou tout le monde. On le
 monte depuis un preload (`start/services.ts`), là même où `registerRoutes()`
-est appelé — le provider pose les routes en `start()`, après les preloads :
+est appelé — chaque déclaration pose sa route **au moment où elle est écrite**,
+donc avant que le serveur écoute :
 
 ```ts
 import relay from '@c9up/relay/services/main'
