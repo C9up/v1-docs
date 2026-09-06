@@ -13,6 +13,25 @@ await runner.status()
 await runner.migrate()
 ```
 
+## When migrations run
+
+Booting an application does not migrate it. `migration:run` does, and nothing
+else — the same rule upstream follows, for two reasons that are not ceremony:
+the boot path also runs under an inspection (`ream inspect`, a route listing, a
+codegen pass), so a read-only command mutated the schema; and every replica of a
+rolling deploy boots at once, so they raced each other over the same database.
+
+A host that genuinely owns its database alone — a single-process dev box, an
+embedded app on a file database — can ask for the old behaviour:
+
+```ts
+// config/database.ts
+migrations: { paths: ['database/migrations'], autoRun: true }
+```
+
+It stays off unless asked for, in every environment. A migration command still
+wins over it, so booting the app for `migration:run` never migrates twice.
+
 ## Console commands
 
 Every migration, seeder and schema command Atlas provides comes from the

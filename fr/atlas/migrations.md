@@ -13,6 +13,29 @@ await runner.status()
 await runner.migrate()
 ```
 
+## Quand les migrations tournent
+
+Démarrer une application ne la migre pas. `migration:run` le fait, et rien
+d'autre — la même règle qu'en amont, pour deux raisons qui ne sont pas de la
+cérémonie : le chemin de démarrage tourne aussi lors d'une inspection
+(`ream inspect`, un listing de routes, une passe de codegen), donc une commande
+en lecture seule mutait le schéma ; et toutes les répliques d'un déploiement
+progressif démarrent en même temps, donc elles se couraient dessus sur la même
+base.
+
+Un hôte qui possède réellement sa base à lui seul — un poste de dev
+mono-processus, une application embarquée sur une base fichier — peut demander
+l'ancien comportement :
+
+```ts
+// config/database.ts
+migrations: { paths: ['database/migrations'], autoRun: true }
+```
+
+C'est désactivé sauf demande explicite, dans tous les environnements. Une
+commande de migration l'emporte quand même, donc démarrer l'application pour
+`migration:run` ne migre jamais deux fois.
+
 ## Commandes console
 
 Toutes les commandes de migration, de seed et de schéma d'Atlas viennent du
