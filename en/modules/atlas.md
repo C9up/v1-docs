@@ -622,12 +622,35 @@ this.schema.createTable('memberships', (table) => {
 })
 ```
 
-Standalone index operations (outside `createTable`):
+Inside an `alterTable`, an index is dropped the way it was created — by
+columns, so a `down()` undoes an `up()` without naming anything:
+
+```typescript
+this.schema.alterTable('orders', (table) => {
+  table.index(['user_id', 'status'])
+})
+
+this.schema.alterTable('orders', (table) => {
+  table.dropIndex(['user_id', 'status'])
+  table.dropIndex('status', 'a_custom_name')   // or by explicit name
+})
+```
+
+An index is not a table constraint, so `dropIndex` is not `dropUnique`: a
+`uniqueIndex()` carries a different default name, and dropping one means passing
+that name.
+
+Standalone index operations, outside any table:
 
 ```typescript
 this.schema.createIndex('orders', ['user_id', 'status'])
 this.schema.dropIndex('idx_orders_status')
+this.schema.dropIndex('idx_orders_status', 'orders')   // MySQL needs the table
 ```
+
+MySQL has no standalone `DROP INDEX` and no `IF EXISTS` on it — an index is
+dropped through its table there. Pass the table name, or use the `alterTable`
+form above, which knows it by construction.
 
 ### Column Modifiers
 

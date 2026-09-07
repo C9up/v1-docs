@@ -67,7 +67,27 @@ votre propre client répondant à `publish`, `subscribe` et `unsubscribe`.
 
 `transportChannel` renomme le canal sur lequel le bus publie (par défaut
 `relay::broadcast`) ; toutes les instances doivent s'accorder dessus.
-`relay.shutdown()` se désabonne et ferme la connexion.
+
+**L'arrêt ne libère que ce que relay possède.** Une connexion quasar nommée
+appartient à l'application — le cache, les sessions et les files la partagent
+peut-être — donc `relay.shutdown()` retire son propre écouteur du canal et
+laisse la connexion ouverte. Seul un client ouvert pour relay et utilisé par
+rien d'autre doit être fermé avec lui :
+
+```ts
+transports.redis({ connection: monPropreClient, owned: true })
+```
+
+Un nom est une consultation dans le gestionnaire de connexions de quelqu'un
+d'autre : il est emprunté par construction, et `owned` ne peut pas le
+contredire.
+
+**Un bus injoignable arrête le démarrage.** Une instance qui n'arrive pas à
+s'abonner continue de servir ses propres clients et rate toutes les diffusions
+publiées ailleurs — un split-brain que l'application déclarerait en bonne santé.
+Le provider attend l'abonnement dans `ready()` : un Redis indisponible au
+démarrage est donc un boot en échec, et non un déploiement à moitié fonctionnel
+en silence.
 
 Sans `transport`, relay reste mono-instance.
 

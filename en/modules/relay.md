@@ -65,8 +65,26 @@ file is read — or a client of your own answering `publish`, `subscribe` and
 `unsubscribe`.
 
 `transportChannel` renames the channel the bus publishes on (default
-`relay::broadcast`); every instance has to agree on it. `relay.shutdown()`
-unsubscribes and closes the connection.
+`relay::broadcast`); every instance has to agree on it.
+
+**Shutdown only releases what relay owns.** A named quasar connection belongs to
+the application — the cache, the sessions and the queues may share it — so
+`relay.shutdown()` removes its own listener from the channel and leaves the
+connection open. Only a client opened for relay and used by nothing else should
+be closed with it:
+
+```ts
+transports.redis({ connection: myOwnClient, owned: true })
+```
+
+A name is a lookup into someone else's connection manager, so it is borrowed by
+construction and `owned` cannot override that.
+
+**A bus that cannot be reached stops the boot.** An instance that fails to
+subscribe keeps serving its own clients and misses every broadcast published
+elsewhere — a split-brain the application would otherwise report as healthy. The
+provider waits for the subscription in `ready()`, so a Redis that is down at
+start-up is a failed boot rather than a silent half-working deployment.
 
 Leave `transport` out and relay is single-instance.
 

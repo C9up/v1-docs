@@ -1094,6 +1094,48 @@ const reg = await webauthn.startRegistration({ id: user.id, name: user.email })
 await webauthn.finishRegistration(reg.state, user.id, browserResponse)
 ```
 
+#### Écrire son propre store de challenges
+
+Les stores par défaut gardent les challenges en mémoire, ce qui convient à un
+processus et pas à plusieurs : un code émis par une instance ne peut pas être
+vérifié par une autre. Un store partagé est une implémentation Redis ou SQL de
+`OtpChallengeStore`.
+
+Il doit une opération que les autres n'impliquent pas :
+
+```typescript
+interface OtpChallengeStore {
+  save(challenge: OtpChallenge): Promise<void>
+  find(id: string): Promise<OtpChallenge | null>
+  delete(id: string): Promise<void>
+  /** Retire le challenge ET le rend, de façon indivisible. */
+  take(id: string): Promise<OtpChallenge | null>
+}
+```
+
+**`take` doit être atomique.** C'est ce qui rend un code à usage unique
+réellement unique : au plus un appelant concurrent peut recevoir un challenge
+donné, tous les autres reçoivent `null`. Le lire puis le supprimer en deux
+opérations, et deux requêtes portant le même bon code sont toutes deux
+acceptées — un code volé reste dépensable tant que son propriétaire ne l'a pas
+dépensé. Le budget d'essais suit le même chemin : des tentatives erronées
+concurrentes lisent toutes le même compteur et écrivent le même incrément, donc
+vingt d'entre elles coûtent un essai.
+
+Utilisez la primitive que votre base offre déjà :
+
+```
+SQL     DELETE FROM otp_challenges WHERE id = $1 RETURNING *
+Redis   GETDEL, ou un script Lua quand la valeur doit être décodée
+autre   un compare-and-set sur une colonne de version
+```
+
+Un store incapable de faire cela atomiquement n'est pas utilisable pour du MFA.
+
+Les stores mémoire balaient aussi les challenges expirés à mesure que de
+nouveaux arrivent, pour qu'une connexion abandonnée — un code demandé et jamais
+soumis — ne s'accumule pas. Un store persistant pose plutôt un TTL sur la ligne.
+
 > **Persistance.** Les stores par défaut sont en mémoire — facteurs et passkeys sont perdus au redémarrage. En production, implémentez `MfaFactorStore` / `WebauthnCredentialStore` au-dessus de votre base de données (Atlas) et les stores de challenge au-dessus d'un cache rapide (KeyDB).
 
 ---

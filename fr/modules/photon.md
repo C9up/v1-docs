@@ -27,6 +27,13 @@ const photon = new PhotonMiddleware({
 router.use([photon.middleware()])
 ```
 
+`buildDir` est résolu depuis la **racine de l'application**, que le provider
+obtient via `app.makePath()` — et non depuis le répertoire où le processus a
+démarré. Une application lancée par systemd, ou depuis la racine d'un monorepo,
+trouve donc son build là où il est réellement. Posez `appRoot` explicitement
+quand un déploiement range le build ailleurs : il prime sur ce que l'hôte
+annonce.
+
 ## Rendu des pages
 
 Dans les handlers de route, utilisez `photon.render()` pour ecrire la reponse directement :

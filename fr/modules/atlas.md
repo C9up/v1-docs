@@ -628,12 +628,35 @@ this.schema.createTable('memberships', (table) => {
 })
 ```
 
-Opérations d'index autonomes (en dehors de `createTable`) :
+Dans un `alterTable`, un index se supprime comme il a été créé — par colonnes,
+pour qu'un `down()` défasse un `up()` sans rien avoir à nommer :
+
+```typescript
+this.schema.alterTable('orders', (table) => {
+  table.index(['user_id', 'status'])
+})
+
+this.schema.alterTable('orders', (table) => {
+  table.dropIndex(['user_id', 'status'])
+  table.dropIndex('status', 'un_nom_explicite')   // ou par nom
+})
+```
+
+Un index n'est pas une contrainte de table, donc `dropIndex` n'est pas
+`dropUnique` : un `uniqueIndex()` porte un nom par défaut différent, et le
+supprimer demande de passer ce nom.
+
+Opérations d'index autonomes, hors de toute table :
 
 ```typescript
 this.schema.createIndex('orders', ['user_id', 'status'])
 this.schema.dropIndex('idx_orders_status')
+this.schema.dropIndex('idx_orders_status', 'orders')   // MySQL exige la table
 ```
+
+MySQL n'a ni `DROP INDEX` autonome ni `IF EXISTS` dessus — un index s'y supprime
+à travers sa table. Passez le nom de la table, ou utilisez la forme `alterTable`
+ci-dessus, qui la connaît par construction.
 
 ### Modificateurs de colonnes
 

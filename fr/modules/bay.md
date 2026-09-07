@@ -112,10 +112,23 @@ export default defineConfig({
 
 `locations` est ce qui permet à un process **worker** de résoudre un
 enregistrement mis en file par un process **HTTP** : chaque module en dessous est
-importé au boot, et un export par défaut qui est une classe de job est
-enregistré sous son propre nom. Sans ça, la liste d'enregistrement est un
-répertoire tenu à jour à la main, et le job que personne n'y a ajouté échoue en
+importé, et un export par défaut qui est une classe de job est enregistré sous
+son propre nom. Sans ça, la liste d'enregistrement est un répertoire tenu à jour
+à la main, et le job que personne n'y a ajouté échoue en
 « no handler registered ».
+
+La découverte tourne dans le `start()` du provider, après les préchargements de
+l'application — importer un job exécute son module, et un job qui va chercher un
+service dans le conteneur a besoin que celui-ci soit assemblé d'abord. Les
+chemins se résolvent depuis la racine de l'application, pas depuis le répertoire
+courant : un worker lancé de n'importe où trouve les mêmes jobs.
+
+**Parcourir des fichiers sans en tirer un seul job est un échec, pas un
+avertissement.** Un fichier qui s'importe correctement mais exporte autre chose
+— un renommage, un `export default` oublié — est signalé par son nom avec ce
+qu'il exportait à la place, et un répertoire qui ne rend rien arrête le
+démarrage. Un worker qui démarre, accepte des enregistrements et n'en traite
+aucun est le mode de panne que rien en aval ne peut détecter.
 
 ## Drivers
 

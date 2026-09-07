@@ -1067,6 +1067,47 @@ const reg = await webauthn.startRegistration({ id: user.id, name: user.email })
 await webauthn.finishRegistration(reg.state, user.id, browserResponse)
 ```
 
+#### Writing your own challenge store
+
+The default stores keep challenges in memory, which is right for one process
+and wrong for several: a code minted by one instance cannot be verified by
+another. A shared store is a Redis or SQL implementation of
+`OtpChallengeStore`.
+
+It owes one operation the others do not imply:
+
+```typescript
+interface OtpChallengeStore {
+  save(challenge: OtpChallenge): Promise<void>
+  find(id: string): Promise<OtpChallenge | null>
+  delete(id: string): Promise<void>
+  /** Remove the challenge AND return it, indivisibly. */
+  take(id: string): Promise<OtpChallenge | null>
+}
+```
+
+**`take` has to be atomic.** It is what makes a one-time code one-time: at most
+one concurrent caller may be handed a given challenge, every other gets `null`.
+Read it and delete it as two operations and two requests carrying the same
+correct code are both accepted — a stolen code stays spendable for as long as
+its owner has not spent it. The attempt budget goes the same way: concurrent
+wrong guesses each read the same count and write the same increment, so twenty
+of them cost one attempt.
+
+Use the primitive your backend already has:
+
+```
+SQL     DELETE FROM otp_challenges WHERE id = $1 RETURNING *
+Redis   GETDEL, or a Lua script when the value needs decoding
+other   a compare-and-set on a version column
+```
+
+A store that cannot do this atomically is not safe to use for MFA.
+
+Memory stores also sweep expired challenges as new ones arrive, so an
+abandoned login — a code requested and never submitted — does not accumulate. A
+persistent store should set a TTL on the row instead.
+
 > **Persistence.** The default stores are in-memory — factors and passkeys are lost on restart. In production, implement `MfaFactorStore` / `WebauthnCredentialStore` over your database (Atlas) and the challenge stores over a fast cache (KeyDB).
 
 ---

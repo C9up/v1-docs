@@ -42,6 +42,59 @@ ream doctor
 - la surface complète et toujours à jour est `ream --help` ; la référence est
   [la page CLI](/fr/cli/ream)
 
+## Remplacement de module à chaud
+
+`ream dev` remplace un module modifié dans le processus vivant au lieu de le
+redémarrer. Éditer un contrôleur ne rejoue plus tout le démarrage — providers,
+connexions, config — pour reprendre une seule fonction, et la page ouverte dans
+le navigateur se recharge d'elle-même.
+
+C'est actif dès que l'application a `hot-hook` installé ; un projet qui ne l'a
+pas garde exactement le comportement précédent, un redémarrage à chaque
+changement :
+
+```bash
+pnpm add -D hot-hook
+```
+
+Puis on déclare ce qui peut être échangé, dans `package.json` :
+
+```json
+{
+  "hotHook": {
+    "boundaries": [
+      "./app/controllers/**/*.ts",
+      "./app/middleware/*.ts"
+    ]
+  }
+}
+```
+
+`ream new` écrit les deux pour vous.
+
+**Les frontières désignent des modules d'entrée, et rien d'autre.** Un module
+n'est échangeable que s'il est atteint par un import *dynamique* — ce qu'est
+une référence de handler de route ou de middleware. Un glob `**` assez large
+pour attraper aussi les composants qu'une entrée importe statiquement rend
+ceux-ci « mal importés », chaque changement retombe en redémarrage complet, et
+cela ressemble exactement à un rechargement à chaud cassé.
+
+Un changement hors des frontières — un fichier de routes, un provider, `.env` —
+redémarre le serveur, et c'est normal : ces fichiers sont lus une fois, pendant
+l'assemblage de l'application.
+
+### Ce que fait le navigateur
+
+Les pages servies en développement portent un petit script qui les recharge
+quand le serveur change dessous : un module échangé sur place, ou un
+redémarrage. Il scrute un jeton plutôt que de tenir une socket, donc un
+redémarrage se détecte au changement du jeton et non à une connexion qu'il
+faudrait rétablir.
+
+Rien n'est injecté hors développement, et le script porte le nonce CSP de la
+requête : une application avec une politique à nonce n'a aucune exception à
+prévoir pour lui.
+
 ## Assets
 
 `ream dev` lance le serveur et ce qui construit vos assets comme un tout, et `ream build` construit les assets avant TypeScript. Déclarez-les dans `reamrc.ts` :

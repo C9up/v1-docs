@@ -110,10 +110,23 @@ export default defineConfig({
 ```
 
 `locations` is what lets a **worker** process resolve a record queued by an
-**HTTP** one: every module under it is imported at boot and a default export
-that is a job class is registered under its own name. Without it the
-registration list is a directory kept in step by hand, and the job nobody added
-to it fails as "no handler registered".
+**HTTP** one: every module under it is imported and a default export that is a
+job class is registered under its own name. Without it the registration list is
+a directory kept in step by hand, and the job nobody added to it fails as "no
+handler registered".
+
+Discovery runs in the provider's `start()`, after the application's preloads —
+importing a job runs its module, and a job that reaches for a container service
+needs the container to be assembled first. Paths resolve against the
+application root, not the working directory, so a worker started from anywhere
+finds the same jobs.
+
+**Scanning files and finding no job is a failure, not a warning.** A file that
+imports cleanly but exports the wrong thing — a rename, a missing
+`export default` — is reported by name along with what it exported instead, and
+a directory that yields nothing stops the boot. A worker that comes up, accepts
+records and processes none is the one failure mode nothing downstream can
+detect.
 
 ## Drivers
 
