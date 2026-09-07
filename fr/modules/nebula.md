@@ -74,6 +74,22 @@ shadcn s'appuie sur Radix, `clsx`, `tailwind-merge`, `class-variance-authority`,
 
 Plusieurs de ces reprises sont **plus étroites** que ce qu'elles remplacent. La liste exacte est plus bas, plutôt qu'un résumé rassurant.
 
+**Les animations font exception, et c'est délibéré.** Les overlays utilisent les
+chaînes de classes de shadcn elles-mêmes — `animate-in`, `fade-out-0`,
+`zoom-in-95`, `slide-in-from-right` — qui viennent de `tw-animate-css` sous
+Tailwind et de `unocss-preset-animations` sous UnoCSS. La feuille générée
+l'importe, et `nebula init` le liste parmi les paquets à installer.
+
+Les réimplémenter a été essayé, et c'est ce qui rendait une feuille manquante
+dangereuse plutôt que simplement dépouillée : des keyframes maison atteintes par
+une valeur d'animation arbitraire (`animate-[nebula-zoom-out_120ms]`) sont
+compilées que les keyframes existent ou non, donc une application qui sautait la
+feuille avait des overlays qui ne finissaient jamais de se fermer — ils
+restaient dans le document, invisibles, à avaler les clics. Un utilitaire
+enregistré dans le thème n'est tout simplement pas émis quand son thème est
+absent : la même erreur produit alors une absence d'animation et une fermeture
+instantanée.
+
 ## Choisir son moteur CSS
 
 nebula ne déclare **aucune dépendance CSS**, pas même en pair. Vous installez le moteur voulu, `config/nebula.ts` le nomme, nebula produit les fichiers et la commande de build correspondants.
