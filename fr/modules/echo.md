@@ -66,8 +66,8 @@ const cache = new CacheManager(driver, {
 
 Un `ttlSeconds` `undefined`, `0` ou négatif signifie « pas d'expiration »
 — `set()` et `setWithTags()` se comportent identiquement. Une valeur
-positive stampe une deadline absolue ; les entrées passées sont
-retournées `null` et purgées par le balayeur du driver.
+positive stampe une deadline absolue ; les entrées passées se relisent
+`undefined` — un miss — et sont purgées par le balayeur du driver.
 
 ## Drivers
 

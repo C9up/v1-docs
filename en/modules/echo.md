@@ -66,8 +66,8 @@ const cache = new CacheManager(driver, {
 
 `ttlSeconds` of `undefined`, `0`, or any negative number means "no expiration"
 — `set()` and `setWithTags()` agree on this. Positive values stamp an
-absolute deadline; entries past it are returned as `null` and swept by
-the driver's background reaper.
+absolute deadline; entries past it read back as `undefined` — a miss — and
+are swept by the driver's background reaper.
 
 ## Drivers
 
