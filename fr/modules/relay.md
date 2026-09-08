@@ -65,6 +65,11 @@ export default defineConfig({
 — résolue au premier broadcast, pas à la lecture du fichier de config — ou
 votre propre client répondant à `publish`, `subscribe` et `unsubscribe`.
 
+Un client partagé empile les écouteurs : `unsubscribe(channel, handler)` doit
+donc honorer le handler qu'on lui passe et ne retirer que celui-là. Retirer
+tous les écouteurs du canal ferait taire ce que l'application écoute par
+ailleurs sur la même connexion.
+
 `transportChannel` renomme le canal sur lequel le bus publie (par défaut
 `relay::broadcast`) ; toutes les instances doivent s'accorder dessus.
 

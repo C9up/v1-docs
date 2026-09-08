@@ -64,6 +64,11 @@ connection — resolved when the first broadcast goes out, not while the config
 file is read — or a client of your own answering `publish`, `subscribe` and
 `unsubscribe`.
 
+A shared client stacks listeners, so `unsubscribe(channel, handler)` has to
+honour the handler it is given and remove only that one. Dropping every
+listener on the channel would silence whatever else the application listens to
+on the same connection.
+
 `transportChannel` renames the channel the bus publishes on (default
 `relay::broadcast`); every instance has to agree on it.
 
