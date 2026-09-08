@@ -1102,11 +1102,25 @@ Redis   GETDEL, or a Lua script when the value needs decoding
 other   a compare-and-set on a version column
 ```
 
-A store that cannot do this atomically is not safe to use for MFA.
+A store that cannot do this atomically is not safe to use for MFA, and one that
+does not implement `take` at all is refused when the provider is constructed
+rather than at the first verification.
 
-Memory stores also sweep expired challenges as new ones arrive, so an
-abandoned login — a code requested and never submitted — does not accumulate. A
-persistent store should set a TTL on the row instead.
+> **Breaking in 0.2.0.** `take` was added to the interface, so a store written
+> against 0.1.x no longer satisfies it. On a `0.x` version the minor is the
+> breaking position and a caret does not cross it, so nothing upgrades into this
+> by accident — but a deliberate upgrade needs the method.
+
+Memory stores sweep expired challenges as new ones arrive, so an abandoned
+login — a code requested and never submitted — does not accumulate. They also
+hold a ceiling (10 000 by default, `new MemoryOtpChallengeStore(max)`): sweeping
+only removes what has EXPIRED, so a flood of still-valid challenges would
+otherwise grow without one.
+
+Full, they **refuse** a new challenge rather than evicting an old one. Making
+room by dropping someone else's pending challenge is how a flood locks a real
+user out; refusing puts the failure on whoever is flooding. Rate-limit the
+endpoint that mints codes, or use a persistent store with a TTL on the row.
 
 > **Persistence.** The default stores are in-memory — factors and passkeys are lost on restart. In production, implement `MfaFactorStore` / `WebauthnCredentialStore` over your database (Atlas) and the challenge stores over a fast cache (KeyDB).
 

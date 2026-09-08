@@ -1130,11 +1130,26 @@ Redis   GETDEL, ou un script Lua quand la valeur doit être décodée
 autre   un compare-and-set sur une colonne de version
 ```
 
-Un store incapable de faire cela atomiquement n'est pas utilisable pour du MFA.
+Un store incapable de faire cela atomiquement n'est pas utilisable pour du MFA,
+et un store qui n'implémente pas `take` du tout est refusé à la construction du
+provider plutôt qu'à la première vérification.
 
-Les stores mémoire balaient aussi les challenges expirés à mesure que de
-nouveaux arrivent, pour qu'une connexion abandonnée — un code demandé et jamais
-soumis — ne s'accumule pas. Un store persistant pose plutôt un TTL sur la ligne.
+> **Cassant en 0.2.0.** `take` a été ajouté à l'interface : un store écrit pour
+> 0.1.x ne la satisfait plus. Sur une version `0.x` le mineur est la position
+> cassante et un caret ne le franchit pas — rien n'y monte par accident — mais
+> une montée volontaire demande la méthode.
+
+Les stores mémoire balaient les challenges expirés à mesure que de nouveaux
+arrivent, pour qu'une connexion abandonnée — un code demandé et jamais soumis —
+ne s'accumule pas. Ils portent aussi un plafond (10 000 par défaut,
+`new MemoryOtpChallengeStore(max)`) : le balayage ne retire que ce qui a
+**expiré**, donc un flot de challenges encore valides grossirait sans limite.
+
+Pleins, ils **refusent** un nouveau challenge plutôt que d'en évincer un ancien.
+Faire de la place en supprimant le challenge en attente de quelqu'un d'autre,
+c'est ainsi qu'un flot verrouille un vrai utilisateur dehors ; refuser fait
+porter l'échec à celui qui inonde. Limitez le débit de l'endpoint qui émet les
+codes, ou utilisez un store persistant avec un TTL sur la ligne.
 
 > **Persistance.** Les stores par défaut sont en mémoire — facteurs et passkeys sont perdus au redémarrage. En production, implémentez `MfaFactorStore` / `WebauthnCredentialStore` au-dessus de votre base de données (Atlas) et les stores de challenge au-dessus d'un cache rapide (KeyDB).
 
