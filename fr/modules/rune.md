@@ -197,6 +197,22 @@ Le même schéma est accessible via le contrat Standard Schema :
 `transform()` acceptent des rappels arbitraires, donc un schéma prétendant
 décrire le résultat serait une supposition déguisée en réponse.
 
+`input()` accepte le `target` de Standard JSON Schema. rune émet du
+**`draft-2020-12`** — c'est ce que vous obtenez en l'omettant — et refuse tout
+autre dialecte plutôt que de rendre une forme que l'appelant lira selon d'autres
+règles :
+
+```ts
+validator['~standard'].jsonSchema.input({ target: 'draft-2020-12' })  // ok
+validator['~standard'].jsonSchema.input({ target: 'openapi-3.0' })    // lève
+// E_RUNE_UNSUPPORTED_JSON_SCHEMA_TARGET
+```
+
+Le refus est délibéré : `openapi-3.0` écrit la nullabilité `nullable: true` et
+non un tableau de `type`, et les tuples passent par `prefixItems`, qui n'existe
+qu'en `draft-2020-12`. Un rendu approximatif silencieux produirait un document
+qui valide autrement que le validateur qu'il prétend décrire.
+
 ### Règles custom
 
 ```typescript
@@ -218,6 +234,34 @@ rules.string()
 ```
 
 La méthode `.message()` remplace le message de la **dernière** règle ajoutée.
+
+#### D'où vient un fournisseur de messages
+
+Un fournisseur fournit les messages de classes entières de règles d'un coup, au
+lieu d'un `.message()` à la fois. rune lit trois portées, de la plus étroite à la
+plus large :
+
+```ts
+import rune, { SimpleMessagesProvider, schema, rules } from '@c9up/rune'
+
+rune.messagesProvider = new SimpleMessagesProvider({ required: '{{ field }} est absent' })
+
+const CreateUser = schema({ name: rules.string() })
+CreateUser.messagesProvider = new SimpleMessagesProvider({
+  required: '{{ field }} est obligatoire',
+})
+
+CreateUser.validateResult({})
+// -> 'name est obligatoire'      (le fournisseur du validateur)
+
+CreateUser.validateResult({}, {
+  messagesProvider: new SimpleMessagesProvider({ required: 'il nous faut un {{ field }}' }),
+})
+// -> 'il nous faut un name'      (le fournisseur de l'appel gagne)
+```
+
+Mettez `validator.messagesProvider = null` pour retomber sur celui du processus.
+Les trois mêmes portées valent pour `errorReporter`.
 
 ## Résultat de validation
 
@@ -393,6 +437,23 @@ Pour des règles asynchrones réutilisables, construisez-en une avec
 `createAsyncRule` (l'équivalent asynchrone de `createRule`) et attachez-la avec
 `.useAsync()`. Le validateur reçoit le `FieldContext` et rapporte les échecs via
 `field.report(message, rule)` :
+
+Un validateur déclaré `async` est détecté tout seul. Quand il n'est **pas**
+déclaré `async` mais renvoie quand même une promesse, dites-le — les deux
+écritures fonctionnent :
+
+```ts
+const unique = createRule(
+  (value, table, field) => db.exists(table, value).then((taken) => {
+    if (taken) field.report('déjà pris', 'unique')
+  }),
+  { async: true },   // `{ isAsync: true }` est la même chose
+)
+```
+
+Sans cela la règle est construite synchrone, et son verdict tomberait après la
+fin de la validation. rune refuse net plutôt que d'annoncer un succès que
+personne n'a attendu : `E_RUNE_ASYNC_RULE_NOT_AWAITED`.
 
 ```ts
 import { createAsyncRule, rules, schema } from '@c9up/rune'
