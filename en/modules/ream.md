@@ -136,6 +136,34 @@ Core exports include:
 - `ReamError` and HTTP exceptions,
 - lifecycle utilities (`HealthCheck`, graceful shutdown, hot reload).
 
+## Validating a request
+
+`request.validateUsing(validator)` runs a validator over the request — body and
+query merged, with `params`, `headers` and `cookies` nested under their own
+keys so a form field can never rename a route parameter.
+
+```typescript
+const data = await request.validateUsing(CreateUser)
+```
+
+It throws `E_VALIDATION_ERROR` on failure; `tryValidateUsing` answers
+`[error, null]` / `[null, data]` instead, for a handler that re-renders the
+form itself.
+
+Two hooks make a validator request-aware without the schema knowing anything
+about it. A package installs them once, at boot:
+
+```typescript
+import { RequestValidator } from '@c9up/ream'
+
+RequestValidator.messagesProvider = (ctx) => ctx.i18n.createMessagesProvider()
+RequestValidator.errorReporter = (ctx) => ctx.myReporter
+```
+
+An option passed at the call site outranks either hook, and nothing else in the
+framework reads them — a validator called directly keeps whatever it was built
+with.
+
 ## Signed URLs
 
 `SignedUrl` (from `@c9up/ream/security`) emits HMAC-SHA256-signed URLs

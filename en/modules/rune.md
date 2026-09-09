@@ -394,49 +394,78 @@ router.post('/orders', async (ctx) => {
 
 ## Internationalization (i18n)
 
-Rune no longer ships an internal i18n engine.
+Rune ships no i18n engine of its own — Rosetta is the i18n module across the
+ecosystem. There are two ways to reach it: one translator for the process, or
+one provider per request.
 
-Use Rosetta as the single i18n module across the ecosystem.
+### A translator for the whole process
 
-### Bridge Rosetta into Rune
+`bindRosetta` installs a translator every validation consults. The key is
+`validation.<rule>`, where `<rule>` is the name the rule **reports** — so a
+rule namespaced by the type that owns it is keyed that way too:
 
 ```typescript
 import { Rosetta } from '@c9up/rosetta'
-import { bindRosetta } from '@c9up/rune'
+import rune, { bindRosetta } from '@c9up/rune'
 
 const i18n = new Rosetta({ defaultLocale: 'fr', fallbackLocale: 'en' })
-  .loadMessages('fr', { 'validation.required': '{field} est requis' })
+i18n.loadMessages('fr', {
+  'validation.required': 'Le champ {field} est obligatoire',
+  'validation.minLength': 'Le champ {field} fait au moins {min} caracteres',
+  'validation.array.minLength': 'Choisissez au moins {min} elements',
+})
 
 bindRosetta(i18n)
+
+const CreateUser = rune.compile(
+  rune.object({
+    name: rune.string().minLength(4),
+    tags: rune.array(rune.string()).minLength(2),
+  }),
+)
+
+await CreateUser.validate({ name: 'ab', tags: ['a'] })
+// 'Le champ name fait au moins 4 caracteres'
+// 'Choisissez au moins 2 elements'
 ```
+
+Placeholders are `{name}`, and every argument the rule carries is available
+next to `{field}` — `{min}`, `{max}`, `{size}`, `{otherField}`.
+
+### A provider per request
+
+A process-wide translator cannot answer two simultaneous requests in two
+languages. Over HTTP, install the hook once and every
+`request.validateUsing(...)` picks up a provider for that request's locale:
 
 ```typescript
-import { Rosetta } from '@c9up/rosetta'
+import { RequestValidator } from '@c9up/ream'
 
-const i18n = new Rosetta({ defaultLocale: 'en', fallbackLocale: 'en' })
-
-i18n.loadMessages('fr', {
-  'validation.required': 'Le champ :field est requis',
-  'validation.min':      'Le champ :field doit avoir au moins :min caractères',
-  'validation.email':    'Le champ :field doit être une adresse email valide',
-})
-
-i18n.loadMessages('es', {
-  'validation.required': 'El campo :field es obligatorio',
-  'validation.min':      'El campo :field debe tener al menos :min caracteres',
-})
+RequestValidator.messagesProvider = (ctx) => ctx.i18n.createMessagesProvider()
 ```
 
-### Translating Messages
+Its keys are `validator.shared.messages.<rule>`, and the human label for a
+field lives under `validator.shared.fields.<field>`:
+
+```typescript
+rosetta.loadMessages('fr', {
+  'validator.shared.messages.minLength':
+    'Le champ {field} fait au moins {min} caracteres',
+  'validator.shared.fields.name': 'nom',
+})
+// -> 'Le champ nom fait au moins 4 caracteres'
+```
+
+A rule with no translation falls back to the default catalogue, rendered — not
+to a raw template.
+
+### Reading a translation directly
 
 ```typescript
 i18n.setLocale('fr')
 
 i18n.t('validation.required', { field: 'nom' })
-// 'Le champ nom est requis'
-
-i18n.t('validation.min', { field: 'mot de passe', min: '8' })
-// 'Le champ mot de passe doit avoir au moins 8 caractères'
+// 'Le champ nom est obligatoire'
 ```
 
 ## Async validation

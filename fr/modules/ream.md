@@ -136,6 +136,35 @@ Le core exporte notamment:
 - `ReamError` et exceptions HTTP,
 - utilitaires lifecycle (`HealthCheck`, graceful shutdown, hot reload).
 
+## Valider une requête
+
+`request.validateUsing(validator)` passe un validateur sur la requête — corps et
+query fusionnés, avec `params`, `headers` et `cookies` imbriqués sous leurs
+propres clés, pour qu'un champ de formulaire ne puisse jamais renommer un
+paramètre de route.
+
+```typescript
+const data = await request.validateUsing(CreateUser)
+```
+
+Il lève `E_VALIDATION_ERROR` en cas d'échec ; `tryValidateUsing` répond plutôt
+`[erreur, null]` / `[null, data]`, pour un handler qui réaffiche lui-même le
+formulaire.
+
+Deux hooks rendent un validateur conscient de la requête sans que le schéma en
+sache quoi que ce soit. Un paquet les installe une fois, au boot :
+
+```typescript
+import { RequestValidator } from '@c9up/ream'
+
+RequestValidator.messagesProvider = (ctx) => ctx.i18n.createMessagesProvider()
+RequestValidator.errorReporter = (ctx) => ctx.myReporter
+```
+
+Une option passée à l'appel l'emporte sur le hook, et rien d'autre dans le
+framework ne les lit : un validateur appelé directement garde ce avec quoi il a
+été construit.
+
 ## URLs signées
 
 `SignedUrl` (depuis `@c9up/ream/security`) émet des URLs signées en
