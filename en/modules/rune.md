@@ -471,6 +471,42 @@ unknown field `emial`, expected one of email, password
 Every undeclared key is reported, not just the first, and the declared keys are
 still validated alongside.
 
+## Testing a custom rule
+
+A rule built with `createRule` is a plain object with a `run(value, field)`, so
+testing one means building the field context it would have received. Getting
+that wrong tests the rule against a shape no real run produces, so the helpers
+build the real thing.
+
+```typescript
+import { createRule } from '@c9up/rune'
+import { runRule, runRuleAsync, fieldContext } from '@c9up/rune/testing'
+
+const isEven = createRule((value, _options, field) => {
+  if (typeof value !== 'number' || value % 2 !== 0) {
+    field.report('Must be even', 'isEven', field)
+  }
+})
+
+const result = runRule(isEven(), 3)
+// { valid: false, errors: [{ field: 'field', rule: 'isEven', … }], value: 3 }
+```
+
+`runRule` returns `{ valid, errors, value }` — `value` carries whatever
+`field.mutate()` left behind. Options shape the context: `path` (which drives
+`name` and `wildCardPath`), `data` and `parent` for a rule that reads its
+siblings, `meta`, `isValid`.
+
+```typescript
+runRule(probe(), 'x', { path: 'tags.0', parent: ['x'] })
+// the rule sees name === 0, wildCardPath === 'tags.*'
+```
+
+`runRule` refuses an async rule rather than reporting a pass it never waited
+for — `runRuleAsync` is the awaiting form, and it takes a sync rule too.
+`fieldContext(value, options)` builds a context on its own, for a shape
+`runRule`'s options cannot express.
+
 ## Next Steps
 
 - [Atlas (ORM)](/en/modules/atlas) — Validate before saving entities

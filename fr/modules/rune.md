@@ -448,6 +448,43 @@ unknown field `emial`, expected one of email, password
 Toutes les clés non déclarées sont rapportées, pas seulement la première, et
 les clés déclarées sont validées par ailleurs.
 
+## Tester une règle personnalisée
+
+Une règle construite avec `createRule` est un objet simple portant un
+`run(value, field)` : la tester revient donc à construire le contexte de champ
+qu'elle aurait reçu. Se tromper là-dessus revient à tester la règle contre une
+forme qu'aucune validation réelle ne produit — les helpers construisent la
+vraie.
+
+```typescript
+import { createRule } from '@c9up/rune'
+import { runRule, runRuleAsync, fieldContext } from '@c9up/rune/testing'
+
+const isEven = createRule((value, _options, field) => {
+  if (typeof value !== 'number' || value % 2 !== 0) {
+    field.report('Must be even', 'isEven', field)
+  }
+})
+
+const result = runRule(isEven(), 3)
+// { valid: false, errors: [{ field: 'field', rule: 'isEven', … }], value: 3 }
+```
+
+`runRule` rend `{ valid, errors, value }` — `value` porte ce que
+`field.mutate()` a laissé. Les options façonnent le contexte : `path` (qui
+détermine `name` et `wildCardPath`), `data` et `parent` pour une règle qui lit
+ses voisines, `meta`, `isValid`.
+
+```typescript
+runRule(probe(), 'x', { path: 'tags.0', parent: ['x'] })
+// la règle voit name === 0, wildCardPath === 'tags.*'
+```
+
+`runRule` refuse une règle asynchrone plutôt que d'annoncer un succès qu'elle
+n'a pas attendu — `runRuleAsync` est la forme qui attend, et elle accepte aussi
+une règle synchrone. `fieldContext(value, options)` construit un contexte seul,
+pour une forme que les options de `runRule` n'expriment pas.
+
 ## Étapes suivantes
 
 - [Atlas (ORM)](/fr/modules/atlas) — Valider avant de sauvegarder les entités
