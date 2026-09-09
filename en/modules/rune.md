@@ -26,7 +26,7 @@ const result = CreateOrderSchema.validateResult({
 ```
 
 > **Which method?** `validateResult()` is synchronous and never throws — the one
-> used above. `validate()` is the VineJS contract: **async**, resolves to the
+> used above. `validate()` is the throwing contract: **async**, resolves to the
 > validated data, and throws `errors.E_VALIDATION_ERROR` (HTTP 422) on failure.
 > `validateResultAsync()` is the async result-based form, and the only one that
 > can run `unique` / `exists` — `validateResult()` throws outright on a schema
@@ -278,6 +278,55 @@ CreateUser.validateResult({}, {
 Set `validator.messagesProvider = null` to fall back to the process-wide one.
 The same three scopes apply to `errorReporter`.
 
+### The default messages, and the key each rule answers to
+
+Every default message lives in one catalogue, keyed by the name the rule
+reports. That name is also the key a provider looks up, so reading the
+catalogue tells you exactly what to write against:
+
+```ts
+import { messages } from '@c9up/rune/defaults'
+
+messages.minLength
+// -> 'The {{ field }} field must have at least {{ min }} characters'
+messages['array.minLength']
+// -> 'The {{ field }} field must have at least {{ min }} items'
+```
+
+A rule shared between types is prefixed by the type that owns it —
+`array.minLength`, `record.maxLength`, `date.after`, `nativeFile.minSize` —
+because a list is measured in items and a string in characters:
+
+```ts
+const Signup = schema({
+  tags: rules.array(rules.string()).minLength(2),
+  password: rules.string(),
+  passwordConfirmation: rules.string().sameAs('password'),
+})
+
+Signup.validateResult({ tags: ['a'], password: 'x', passwordConfirmation: 'x' }).errors[0]
+// { field: 'tags',
+//   rule: 'array.minLength',
+//   message: 'The tags field must have at least 2 items',
+//   meta: { min: 2 } }
+```
+
+`{{ field }}` renders the failing field's LAST path segment, so a nested
+`a.b` reads "The b field ..."; every other token comes from the rule's own
+`meta`. A provider reaches **every** rule — the cross-field ones and any rule
+you wrote yourself included:
+
+```ts
+Signup.messagesProvider = new SimpleMessagesProvider({
+  'array.minLength': 'Pick at least {{ min }} tags',
+  sameAs: '{{ field }} must repeat {{ otherField }}',
+})
+// -> 'Pick at least 2 tags'
+// -> 'passwordConfirmation must repeat password'
+```
+
+An explicit `.message()` still wins over any provider.
+
 ## Transforms
 
 Transforms run before validation rules. They modify the value in place so subsequent rules see the transformed result:
@@ -289,7 +338,8 @@ const s = schema({
 
 s.validateResult({ username: '  Al  ' })
 // Transforms 'Al' (trimmed), then min(3) fails
-// errors: [{ field: 'username', rule: 'min', message: 'Minimum 3' }]
+// errors: [{ field: 'username', rule: 'min',
+//            message: 'The username field must be at least 3', meta: { min: 3 } }]
 ```
 
 Available transforms: `.trim()`

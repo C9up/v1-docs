@@ -219,7 +219,7 @@ Une entrée invalide **échoue en fermeture stricte avant toute écriture en bas
 réponse suit l'idiome de négociation de contenu d'AdonisJS :
 
 - **JSON / XHR** → `422` avec `{ errors: [{ field, rule, message }] }` (la forme
-  AdonisJS/VineJS, identique à celle du handler `E_VALIDATION_ERROR` de ream).
+  AdonisJS, identique à celle du handler `E_VALIDATION_ERROR` de ream).
 - **Navigateur (avec session)** → le pattern PRG : l'entrée soumise et les
   erreurs par champ sont flashées dans `ctx.session`, puis `redirect().back()`
   vers le formulaire, qui relit le flash et re-rend avec les valeurs + erreurs.

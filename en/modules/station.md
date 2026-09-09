@@ -203,7 +203,7 @@ entity mutated, no audit event emitted. The response follows the AdonisJS
 content-negotiation idiom:
 
 - **JSON / XHR** → `422` with `{ errors: [{ field, rule, message }] }` (the
-  AdonisJS/VineJS shape, matching ream's own `E_VALIDATION_ERROR` handler).
+  AdonisJS shape, matching ream's own `E_VALIDATION_ERROR` handler).
 - **Browser (with a session)** → the PRG pattern: the submitted input and
   per-field errors are flashed to `ctx.session`, then `redirect().back()` to the
   form, which re-reads the flash and re-renders with the values + errors. No body

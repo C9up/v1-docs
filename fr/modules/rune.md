@@ -24,7 +24,7 @@ const result = CreateOrderSchema.validateResult({
 ```
 
 > **Quelle méthode ?** `validateResult()` est synchrone et ne lève jamais — c'est
-> celle utilisée ci-dessus. `validate()` est le contrat VineJS : **async**,
+> celle utilisée ci-dessus. `validate()` est le contrat qui lève : **async**,
 > résout les données validées, et lève `errors.E_VALIDATION_ERROR` (HTTP 422) en
 > cas d'échec. `validateResultAsync()` est la forme asynchrone à résultat, la
 > seule capable d'exécuter `unique` / `exists` — `validateResult()` lève
@@ -263,6 +263,56 @@ CreateUser.validateResult({}, {
 Mettez `validator.messagesProvider = null` pour retomber sur celui du processus.
 Les trois mêmes portées valent pour `errorReporter`.
 
+#### Les messages par défaut, et la clé à laquelle chaque règle répond
+
+Chaque message par défaut vit dans un seul catalogue, indexé par le nom que la
+règle rapporte. Ce nom est aussi la clé que consulte un fournisseur : lire le
+catalogue dit donc exactement contre quoi écrire.
+
+```ts
+import { messages } from '@c9up/rune/defaults'
+
+messages.minLength
+// -> 'The {{ field }} field must have at least {{ min }} characters'
+messages['array.minLength']
+// -> 'The {{ field }} field must have at least {{ min }} items'
+```
+
+Une règle partagée entre plusieurs types est préfixée par le type qui la
+possède — `array.minLength`, `record.maxLength`, `date.after`,
+`nativeFile.minSize` — parce qu'une liste se mesure en éléments et une chaîne
+en caractères :
+
+```ts
+const Signup = schema({
+  tags: rules.array(rules.string()).minLength(2),
+  password: rules.string(),
+  passwordConfirmation: rules.string().sameAs('password'),
+})
+
+Signup.validateResult({ tags: ['a'], password: 'x', passwordConfirmation: 'x' }).errors[0]
+// { field: 'tags',
+//   rule: 'array.minLength',
+//   message: 'The tags field must have at least 2 items',
+//   meta: { min: 2 } }
+```
+
+`{{ field }}` rend le DERNIER segment du chemin du champ fautif — un `a.b`
+imbriqué se lit donc « The b field … » ; tous les autres jetons viennent du
+`meta` de la règle. Un fournisseur atteint **toutes** les règles, y compris
+celles qui comparent deux champs et celles que vous avez écrites vous-même :
+
+```ts
+Signup.messagesProvider = new SimpleMessagesProvider({
+  'array.minLength': 'Pick at least {{ min }} tags',
+  sameAs: '{{ field }} must repeat {{ otherField }}',
+})
+// -> 'Pick at least 2 tags'
+// -> 'passwordConfirmation must repeat password'
+```
+
+Un `.message()` explicite l'emporte toujours sur n'importe quel fournisseur.
+
 ## Résultat de validation
 
 ```typescript
@@ -290,7 +340,8 @@ const s = schema({
 
 s.validateResult({ name: '  Al  ' })
 // Trim vers 'Al', puis min(3) échoue
-// errors: [{ field: 'name', rule: 'min', message: 'Minimum 3' }]
+// errors: [{ field: 'name', rule: 'min',
+//            message: 'The name field must be at least 3', meta: { min: 3 } }]
 ```
 
 ## Dans les handlers de route
