@@ -509,6 +509,72 @@ unknown field `emial`, expected one of email, password
 Toutes les clés non déclarées sont rapportées, pas seulement la première, et
 les clés déclarées sont validées par ailleurs.
 
+## Les helpers qu'une règle personnalisée peut réutiliser
+
+`rune.helpers` porte les prédicats qu'utilisent les règles de la chaîne — les
+coercitions booléennes, les vérifications de format, les listes de pays. Une
+règle personnalisée s'en sert plutôt que de réimplémenter une vérification qui
+finirait par diverger de `rules.string().email()`.
+
+```ts
+import rune, { createRule } from '@c9up/rune'
+
+const { isSlug, isVAT, getNestedValue, isDistinct, asDate } = rune.helpers
+
+const handle = createRule((value, _options, field) => {
+  if (typeof value !== 'string' || !isSlug(value)) {
+    field.report('Doit être un slug', 'handle', field)
+  }
+})
+```
+
+Trois d'entre eux méritent une précision :
+
+- **`getNestedValue(key, field)`** lit le **parent** immédiat pour un nom nu, et
+  parcourt toute la charge utile pour un chemin pointé. Une règle qui tourne
+  dans un item de tableau voit donc ses propres frères avec
+  `getNestedValue('price', field)`.
+- **`isDistinct(items)`** compare par **identité** — deux objets structurellement
+  égaux sont deux items différents. Passez un ou plusieurs noms de champs
+  (`isDistinct(rows, 'sku')`) pour comparer là-dessus ; une ligne à laquelle la
+  clé manque ne participe pas, mais une ligne dont la clé vaut `null` participe.
+- **`isPostalCode` / `isPassportNumber` / `isVAT`** répondent `null` quand rune
+  n'a pas de table pour ce pays, au lieu de lever. `null` n'est pas `true` : les
+  règles de la chaîne le traitent comme un refus.
+
+`asDate(value, formats?)` analyse avec le même code que `date()` et renvoie une
+`Date` native, ou `null`.
+
+## Ce qu'acceptent un booléen, un nombre et une case à cocher
+
+Les listes sont courtes et exactes — ni trim, ni normalisation de casse :
+
+```ts
+rules.boolean()   // "true" "on" "1" 1 true  →  true
+                  // "false" "0" 0 false     →  false
+                  // "TRUE", " true ", "off", "yes"  →  refusés
+
+rules.accepted()  // "on" "1" "yes" "true" true 1  →  true
+                  // "YES", "On", "off"            →  refusés
+```
+
+Élargir l'une de ces listes reviendrait à laisser une case de consentement
+accepter en silence une écriture que personne n'a voulu envoyer.
+
+`rules.number()` refuse une chaîne vide ou blanche au lieu de la lire comme
+`0` — un champ texte laissé intact ne doit pas devenir une quantité de zéro.
+Utilisez `.optional()` pour un champ qui peut être omis.
+
+`rules.enum()` accepte une liste, un callback, ou un **enum TypeScript natif** :
+
+```ts
+enum Role { Admin = 'admin', User = 'user' }
+schema({ role: rules.enum(Role) })
+```
+
+Un enum numérique accepte aussi les noms de ses membres, parce que c'est ce que
+le mapping inverse de TypeScript met dans l'objet.
+
 ## Tester une règle personnalisée
 
 Une règle construite avec `createRule` est un objet simple portant un

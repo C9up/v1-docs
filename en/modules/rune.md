@@ -529,6 +529,71 @@ unknown field `emial`, expected one of email, password
 Every undeclared key is reported, not just the first, and the declared keys are
 still validated alongside.
 
+## Helpers a custom rule can reuse
+
+`rune.helpers` carries the predicates the chain rules use — the boolean
+coercions, the format checks, the country lists. A custom rule reaches for
+them instead of reimplementing a check that would then disagree with
+`rules.string().email()`.
+
+```ts
+import rune, { createRule } from '@c9up/rune'
+
+const { isSlug, isVAT, getNestedValue, isDistinct, asDate } = rune.helpers
+
+const handle = createRule((value, _options, field) => {
+  if (typeof value !== 'string' || !isSlug(value)) {
+    field.report('Must be a slug', 'handle', field)
+  }
+})
+```
+
+Three of them behave in a way worth knowing:
+
+- **`getNestedValue(key, field)`** reads the immediate **parent** for a bare
+  name and walks the whole payload for a dotted path. A rule running inside an
+  array item therefore sees its own siblings with `getNestedValue('price', field)`.
+- **`isDistinct(items)`** compares by **identity** — two structurally equal
+  objects are two different items. Pass one or more field names
+  (`isDistinct(rows, 'sku')`) to compare on those instead; a row that lacks the
+  key sits the comparison out, but a row whose key is `null` takes part.
+- **`isPostalCode` / `isPassportNumber` / `isVAT`** answer `null` when rune has
+  no table for that country, rather than throwing. `null` is not `true`: the
+  chain rules treat it as a refusal.
+
+`asDate(value, formats?)` parses with the same code `date()` uses and returns a
+native `Date`, or `null`.
+
+## What a boolean, a number and a checkbox accept
+
+The lists are short and exact — no trimming, no case folding:
+
+```ts
+rules.boolean()   // "true" "on" "1" 1 true  →  true
+                  // "false" "0" 0 false     →  false
+                  // "TRUE", " true ", "off", "yes"  →  refused
+
+rules.accepted()  // "on" "1" "yes" "true" true 1  →  true
+                  // "YES", "On", "off"            →  refused
+```
+
+Widening any of these would mean a consent checkbox quietly accepting a
+spelling nobody meant to send.
+
+`rules.number()` refuses an empty or blank string rather than reading it as
+`0` — an untouched text input must not become a quantity of zero. Use
+`.optional()` for a field that may be left out.
+
+`rules.enum()` takes a list, a callback, or a **native TypeScript enum**:
+
+```ts
+enum Role { Admin = 'admin', User = 'user' }
+schema({ role: rules.enum(Role) })
+```
+
+A numeric enum also accepts its member names, because that is what
+TypeScript's reverse mapping puts in the object.
+
 ## Testing a custom rule
 
 A rule built with `createRule` is a plain object with a `run(value, field)`, so
