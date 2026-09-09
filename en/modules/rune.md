@@ -92,6 +92,123 @@ s.validateResult({ name: 'Alice' })
 // valid: true — nickname is absent but optional
 ```
 
+## Formats tied to a country or a locale
+
+Four rules validate a value against a per-country or per-locale table: postal
+codes (71 countries), mobile numbering plans (169 locales), passport numbers
+(61 countries) and VAT numbers (69 countries).
+
+```typescript
+schema({
+  zip:      rules.string().postalCode({ countryCode: 'CH' }),
+  phone:    rules.string().mobile({ locale: ['fr-CH', 'de-CH'] }),
+  passport: rules.string().passport({ countryCode: ['CH', 'FR'] }),
+  vat:      rules.string().vat({ countryCode: 'CH' }),
+})
+```
+
+Each option also accepts a callback receiving the field, so a list that depends
+on the request — the countries this tenant trades with — is computed per
+validation instead of frozen at import.
+
+**A country or locale rune has no table for is a thrown error, not a pass.** A
+value that reports "valid" because nothing checked it is the failure this
+package exists to prevent, so the rule refuses to be built at all:
+
+```typescript
+rules.string().postalCode({ countryCode: 'ZZ' })
+// RuneError: postalCode(): no pattern for country 'ZZ'.
+```
+
+`mobile()` with no `locale` accepts a number matching **any** known plan, or a
+well-formed E.164 number for a country no plan covers. `mobile({ strictMode:
+true })` additionally demands the leading `+` and country prefix.
+
+`vat()` checks the FORMAT of every country in the table, and additionally runs
+the check digits for the countries that define short, well-defined ones —
+Belgium, Germany, the Netherlands, Italy, Portugal, Luxembourg, Switzerland and
+Australia. A well-shaped but impossible number is refused.
+
+## Normalising a value
+
+Two transforms rewrite a value to the form its recipient actually uses, so two
+spellings of the same address compare equal.
+
+### `normalizeEmail()`
+
+Provider rules are **on by default** — normalising is what you asked for, and an
+option is how you turn one off.
+
+```typescript
+rules.string().email().normalizeEmail()
+// 'A.D.A+news@GMail.com'  ->  'ada@gmail.com'
+// 'A.B@googlemail.com'    ->  'ab@gmail.com'
+// 'Ada-Lovelace-news@yahoo.com' -> 'ada-lovelace@yahoo.com'
+
+rules.string().email().normalizeEmail({ gmail_remove_dots: false })
+// 'a.d.a+news@gmail.com'  ->  'a.d.a@gmail.com'
+```
+
+Gmail, Outlook.com, Yahoo, Yandex and iCloud each have their own rules —
+`all_lowercase`, `gmail_lowercase`, `gmail_remove_dots`,
+`gmail_remove_subaddress`, `gmail_convert_googlemaildotcom`,
+`outlookdotcom_lowercase`, `outlookdotcom_remove_subaddress`, `yahoo_lowercase`,
+`yahoo_remove_subaddress`, `yandex_lowercase`, `yandex_convert_yandexru`,
+`icloud_lowercase`, `icloud_remove_subaddress`. A doubled dot is kept: Gmail
+treats `a..b` as a different mailbox.
+
+### `normalizeUrl()`
+
+Defaults strip `www.`, drop `utm_*` parameters, sort the query, collapse
+repeated slashes and remove the trailing slash.
+
+```typescript
+rules.string().url().normalizeUrl()
+// 'www.acme.test/?utm_source=x&b=2&a=1'  ->  'http://acme.test/?a=1&b=2'
+
+rules.string().url().normalizeUrl({ stripWWW: false, sortQueryParameters: false })
+```
+
+`defaultProtocol`, `normalizeProtocol`, `forceHttp`, `forceHttps`,
+`stripAuthentication`, `stripHash`, `stripTextFragment`, `stripWWW`,
+`stripProtocol`, `removeQueryParameters`, `keepQueryParameters`,
+`removeTrailingSlash`, `removeSingleSlash`, `removeDirectoryIndex`,
+`removeExplicitPort`, `sortQueryParameters`, `removePath`, `transformPath`,
+`emptyQueryValue` and `customProtocols` are all accepted. A URL that cannot be
+parsed is handed back untouched, so `url()` reports it instead of the transform
+throwing.
+
+## JSON Schema
+
+A compiled validator describes the shape it accepts:
+
+```typescript
+const users = create({
+  name: rules.string().minLength(2),
+  tags: rules.array(rules.string()).notEmpty(),
+})
+
+users.toJSONSchema()
+// {
+//   type: 'object',
+//   properties: {
+//     name: { type: 'string', minLength: 2 },
+//     tags: { type: 'array', minItems: 1, items: { type: 'string' } },
+//   },
+//   required: ['name', 'tags'],
+//   additionalProperties: false,
+// }
+```
+
+`additionalProperties: false` is not decoration: the validator drops undeclared
+keys unless the shape calls `allowUnknownProperties()`, and the schema has to
+say so or a form generated from it would offer fields that get discarded.
+
+The same schema is reachable through the Standard Schema contract as
+`validator['~standard'].jsonSchema.input()`. **`output()` refuses**: `parse()`
+and `transform()` take arbitrary callbacks, so a schema claiming to describe the
+result would be a guess dressed as an answer.
+
 ## Custom Rules
 
 Add a named predicate to the chain with `.custom()`:

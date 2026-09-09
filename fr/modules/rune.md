@@ -78,6 +78,125 @@ const s = schema({
 s.validateResult({ name: 'Alice' })  // valid — nickname est optionnel
 ```
 
+## Formats liés à un pays ou à une locale
+
+Quatre règles valident une valeur contre une table par pays ou par locale :
+codes postaux (71 pays), plans de numérotation mobile (169 locales), numéros de
+passeport (61 pays) et numéros de TVA (69 pays).
+
+```typescript
+schema({
+  zip:      rules.string().postalCode({ countryCode: 'CH' }),
+  phone:    rules.string().mobile({ locale: ['fr-CH', 'de-CH'] }),
+  passport: rules.string().passport({ countryCode: ['CH', 'FR'] }),
+  vat:      rules.string().vat({ countryCode: 'CH' }),
+})
+```
+
+Chaque option accepte aussi un rappel recevant le champ : une liste qui dépend
+de la requête — les pays avec lesquels ce locataire commerce — se calcule à
+chaque validation plutôt que d'être figée à l'import.
+
+**Un pays ou une locale sans table lève une erreur, il ne passe pas.** Une
+valeur qui se déclare « valide » parce que rien ne l'a vérifiée est exactement
+la défaillance que ce paquet existe pour empêcher : la règle refuse d'être
+construite.
+
+```typescript
+rules.string().postalCode({ countryCode: 'ZZ' })
+// RuneError: postalCode(): no pattern for country 'ZZ'.
+```
+
+`mobile()` sans `locale` accepte un numéro correspondant à **n'importe quel**
+plan connu, ou un numéro E.164 bien formé pour un pays qu'aucun plan ne couvre.
+`mobile({ strictMode: true })` exige en plus le `+` et l'indicatif.
+
+`vat()` vérifie le FORMAT pour tous les pays de la table, et vérifie en plus la
+clé de contrôle pour les pays qui en définissent une courte et bien établie —
+Belgique, Allemagne, Pays-Bas, Italie, Portugal, Luxembourg, Suisse et
+Australie. Un numéro bien formé mais impossible est refusé.
+
+## Normaliser une valeur
+
+Deux transformations réécrivent une valeur sous la forme que son destinataire
+utilise vraiment, pour que deux écritures de la même adresse se comparent.
+
+### `normalizeEmail()`
+
+Les règles par fournisseur sont **actives par défaut** — normaliser est ce que
+vous avez demandé, et une option sert à en désactiver une.
+
+```typescript
+rules.string().email().normalizeEmail()
+// 'A.D.A+news@GMail.com'  ->  'ada@gmail.com'
+// 'A.B@googlemail.com'    ->  'ab@gmail.com'
+// 'Ada-Lovelace-news@yahoo.com' -> 'ada-lovelace@yahoo.com'
+
+rules.string().email().normalizeEmail({ gmail_remove_dots: false })
+// 'a.d.a+news@gmail.com'  ->  'a.d.a@gmail.com'
+```
+
+Gmail, Outlook.com, Yahoo, Yandex et iCloud ont chacun leurs règles :
+`all_lowercase`, `gmail_lowercase`, `gmail_remove_dots`,
+`gmail_remove_subaddress`, `gmail_convert_googlemaildotcom`,
+`outlookdotcom_lowercase`, `outlookdotcom_remove_subaddress`, `yahoo_lowercase`,
+`yahoo_remove_subaddress`, `yandex_lowercase`, `yandex_convert_yandexru`,
+`icloud_lowercase`, `icloud_remove_subaddress`. Un point doublé est conservé :
+pour Gmail, `a..b` est une autre boîte.
+
+### `normalizeUrl()`
+
+Par défaut : `www.` retiré, paramètres `utm_*` supprimés, requête triée, slashes
+répétés fusionnés et slash final retiré.
+
+```typescript
+rules.string().url().normalizeUrl()
+// 'www.acme.test/?utm_source=x&b=2&a=1'  ->  'http://acme.test/?a=1&b=2'
+
+rules.string().url().normalizeUrl({ stripWWW: false, sortQueryParameters: false })
+```
+
+`defaultProtocol`, `normalizeProtocol`, `forceHttp`, `forceHttps`,
+`stripAuthentication`, `stripHash`, `stripTextFragment`, `stripWWW`,
+`stripProtocol`, `removeQueryParameters`, `keepQueryParameters`,
+`removeTrailingSlash`, `removeSingleSlash`, `removeDirectoryIndex`,
+`removeExplicitPort`, `sortQueryParameters`, `removePath`, `transformPath`,
+`emptyQueryValue` et `customProtocols` sont tous acceptés. Une URL non
+analysable est rendue telle quelle, pour que `url()` la signale plutôt que la
+transformation ne lève.
+
+## JSON Schema
+
+Un validateur compilé décrit la forme qu'il accepte :
+
+```typescript
+const users = create({
+  name: rules.string().minLength(2),
+  tags: rules.array(rules.string()).notEmpty(),
+})
+
+users.toJSONSchema()
+// {
+//   type: 'object',
+//   properties: {
+//     name: { type: 'string', minLength: 2 },
+//     tags: { type: 'array', minItems: 1, items: { type: 'string' } },
+//   },
+//   required: ['name', 'tags'],
+//   additionalProperties: false,
+// }
+```
+
+`additionalProperties: false` n'est pas décoratif : le validateur jette les clés
+non déclarées sauf si la forme appelle `allowUnknownProperties()`, et le schéma
+doit le dire — sinon un formulaire généré à partir de lui proposerait des champs
+qui seront écartés.
+
+Le même schéma est accessible via le contrat Standard Schema :
+`validator['~standard'].jsonSchema.input()`. **`output()` refuse** : `parse()` et
+`transform()` acceptent des rappels arbitraires, donc un schéma prétendant
+décrire le résultat serait une supposition déguisée en réponse.
+
 ### Règles custom
 
 ```typescript
