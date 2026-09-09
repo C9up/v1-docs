@@ -263,6 +263,22 @@ Quand `viteDevUrl` est defini (developpement), Photon :
 - Injecte le client HMR Vite dans les reponses SSR
 - Retombe sur le manifest de production hors developpement
 
+### Rendu serveur en développement
+
+Le développement rend aussi côté serveur. La production charge le bundle SSR
+produit par un build ; il n'y en a pas en dev, donc Photon compile
+`entryServer` via Vite à chaque rendu — une modification d'un composant de page
+apparaît sans redémarrer le processus.
+
+Vite est un **peer optionnel** : installez-le pour en bénéficier, et sans lui le
+dev retombe sur la coque client seule. Photon ne démarre le compilateur que si
+`entryServer` existe réellement, donc un projet qui rend uniquement côté client
+ne paie rien pour cela.
+
+```bash
+npm install -D vite
+```
+
 ## Hydratation client
 
 Photon livre un point d'entrée navigateur en un seul appel qui reprend le DOM rendu côté serveur et démarre un router SPA-nav minimal. Importe-le une fois depuis ton entrée client, Photon possède le reste :

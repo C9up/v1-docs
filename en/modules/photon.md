@@ -262,6 +262,22 @@ When `viteDevUrl` is set (development), Photon:
 - Injects the Vite HMR client into SSR responses
 - Falls back to the production manifest when not in dev
 
+### Server rendering in development
+
+Development server-renders too. Production loads the SSR bundle a build
+produced; there is none in dev, so Photon compiles `entryServer` through Vite
+on every render — an edit to a page component shows without restarting the
+process.
+
+Vite is an **optional peer**: install it to get this, and without it dev falls
+back to the client-only shell. Photon starts the compiler only when
+`entryServer` actually exists, so a project that renders purely on the client
+pays nothing for it.
+
+```bash
+npm install -D vite
+```
+
 ## Client Hydration
 
 Photon ships a one-call browser entrypoint that takes over the SSR-rendered DOM and boots a basic SPA-nav router. Import it once from your client entry, and Photon owns the rest:
