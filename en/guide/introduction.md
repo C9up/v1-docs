@@ -6,7 +6,21 @@ Ream is a TypeScript server framework for Node.js with a Rust-powered HTTP core.
 
 **TypeScript-first.** Decorators, typed HTTP context, typed config, typed errors. Everything flows through well-defined types rather than loosely typed dictionaries.
 
-**AdonisJS-compatible DX.** If you know AdonisJS v6, the patterns transfer directly: `@inject()`, controller tuples, `container.make()`, providers with a `register/boot/start/ready/shutdown` lifecycle, `reamrc.ts` for project configuration.
+**AdonisJS-compatible DX.** If you know AdonisJS, the patterns transfer directly: `@inject()`, controller tuples, `container.make()`, providers with a `register/boot/start/ready/shutdown` lifecycle, `reamrc.ts` for project configuration.
+
+::: tip What "compatible" is measured against
+The target is **AdonisJS v7**. Where a module tracks a library rather than the
+framework, it names that library's own version — sigil follows
+`@adonisjs/hash` v9, for instance, which is a package release, not a framework
+one.
+
+Ream is not a drop-in replacement, and does not try to be. It follows the v7
+SDK except where a NAPI boundary forbids it, or where a different answer is a
+better one — encryption defaults to AES-256-GCM, Inker hides the dangerous
+template globals, Relay refuses by default. Every one of those is written down
+where it applies, and each is a deliberate choice rather than an omission. A
+migration is a port, not a lift-and-shift.
+:::
 
 **Rust HTTP core.** The HTTP server, event bus, and security primitives run in Rust through NAPI bindings, not in the Node.js event loop. Lower latency, smaller memory footprint, native Argon2id and HMAC-SHA256 without pulling in pure-JS cryptography packages.
 

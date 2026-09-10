@@ -15,7 +15,7 @@ export default class AppProvider extends Provider {
 }
 ```
 
-La resolution est asynchrone : `container.make()` et `container.resolve()` retournent une `Promise<T>` et doivent etre await (parite AdonisJS v6). Preferer le generique `make<T>()` plutot qu'un cast `as` :
+La resolution est asynchrone : `container.make()` et `container.resolve()` retournent une `Promise<T>` et doivent etre await (parite AdonisJS). Preferer le generique `make<T>()` plutot qu'un cast `as` :
 
 ```ts
 const cache = await this.app.container.make<CacheManager>('cache')

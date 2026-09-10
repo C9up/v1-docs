@@ -15,7 +15,7 @@ export default class AppProvider extends Provider {
 }
 ```
 
-Resolving is asynchronous: `container.make()` and `container.resolve()` return a `Promise<T>` and must be awaited (AdonisJS v6 parity). Prefer the `make<T>()` generic over an `as` cast:
+Resolving is asynchronous: `container.make()` and `container.resolve()` return a `Promise<T>` and must be awaited (AdonisJS parity). Prefer the `make<T>()` generic over an `as` cast:
 
 ```ts
 const cache = await this.app.container.make<CacheManager>('cache')

@@ -6,7 +6,21 @@ Ream est un framework serveur TypeScript pour Node.js avec un coeur HTTP propuls
 
 **TypeScript en priorité.** Décorateurs, contexte HTTP typé, configuration typée, erreurs typées. Tout transite par des types bien définis plutôt que par des dictionnaires peu typés.
 
-**DX compatible AdonisJS.** Si vous connaissez AdonisJS v6, les patterns se transposent directement : `@inject()`, tuples de contrôleurs, `container.make()`, providers avec un cycle de vie `register/boot/start/ready/shutdown`, `reamrc.ts` pour la configuration du projet.
+**DX compatible AdonisJS.** Si vous connaissez AdonisJS, les patterns se transposent directement : `@inject()`, tuples de contrôleurs, `container.make()`, providers avec un cycle de vie `register/boot/start/ready/shutdown`, `reamrc.ts` pour la configuration du projet.
+
+::: tip Ce que « compatible » prend pour référence
+La cible est **AdonisJS v7**. Quand un module suit une bibliothèque plutôt que
+le framework, il nomme la version de cette bibliothèque : sigil suit
+`@adonisjs/hash` v9, par exemple, qui est une version de paquet et non de
+framework.
+
+Ream n'est pas un remplacement direct et ne cherche pas à l'être. Il suit le SDK
+v7 sauf là où une frontière NAPI l'interdit, ou là où une autre réponse est
+meilleure — le chiffrement passe par AES-256-GCM, Inker masque les globales de
+template dangereuses, Relay refuse par défaut. Chacune de ces décisions est
+écrite là où elle s'applique, et relève d'un choix délibéré, pas d'un oubli.
+Une migration est un portage, pas un simple déplacement.
+:::
 
 **Coeur HTTP en Rust.** Le serveur HTTP, le bus d'événements et les primitives de sécurité s'exécutent en Rust via des bindings NAPI, et non dans la boucle d'événements Node.js. Latence réduite, empreinte mémoire plus faible, Argon2id et HMAC-SHA256 natifs sans avoir à embarquer des packages de cryptographie en pur JavaScript.
 
