@@ -4,23 +4,39 @@ Archive is the file-storage module of the Ream ecosystem (`@c9up/archive`), mode
 
 ## Configuration
 
-Author your disks with `defineConfig` in `config/drive.ts`:
+Author your disks with `defineConfig` in `config/archive.ts` — this is what
+`node ace configure @c9up/archive` writes:
 
 ```ts
-// config/drive.ts
-import { defineConfig } from '@c9up/archive'
+// config/archive.ts
+import { defineConfig, services } from '@c9up/archive'
+import env from '#start/env'
 
 export default defineConfig({
-  default: 'local',
-  disks: {
-    local: { driver: 'local', root: './storage' },
+  // The disk `drive.use()` picks when called with no argument.
+  default: env.get('DRIVE_DISK', 'fs'),
+
+  services: {
+    fs: services.fs({
+      location: 'storage/uploads',
+      // Required before `getSignedUrl` will answer on the local disk.
+      signingSecret: env.get('APP_KEY'),
+    }),
+    s3: services.s3({ bucket: env.get('S3_BUCKET'), region: env.get('S3_REGION') }),
   },
 })
 ```
 
-> **Deliberate deviation from AdonisJS Drive.** Archive ships a single-disk
-> surface and uses the driver key `local` (AdonisJS uses `fs`). This is leaner on
-> purpose — multi-disk fan-out is a future concern.
+Disks are named and independent: `drive.use()` reaches the default one,
+`drive.use('s3')` a named one, and neither sees the other's files.
+
+```ts
+await drive.use().put('a.txt', bytes)         // default disk
+await drive.use('s3').put('a.txt', bytes)     // a different disk entirely
+```
+
+Three drivers ship: `services.fs`, `services.s3` and `services.gcs`, which are
+the shape AdonisJS Drive uses.
 
 ## Main API
 
