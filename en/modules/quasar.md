@@ -86,7 +86,7 @@ await quasar.unsubscribe('orders', handler)   // others keep receiving
 await quasar.unsubscribe('orders')            // drops all, leaves the channel
 ```
 
-`subscribe` / `psubscribe` accept Adonis' `{ onSubscription, onError }`. **Named deviation:** ours also rejects on failure, so `await quasar.subscribe(...)` surfaces the error even when no `onError` was passed — Adonis reports it only through that callback, so an app that never opts in can end up silently unsubscribed. `onError` still fires, so Adonis code keeps working unchanged.
+`subscribe` / `psubscribe` accept Adonis' `{ onSubscription, onError }`, and behave as Adonis does: a failure is reported, never thrown. What a failed subscription actually does is described under [Events](#events) below.
 
 ## Health
 

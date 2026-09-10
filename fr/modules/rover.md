@@ -143,8 +143,18 @@ await mail.send((message) => {
 > l'invitation part comme partie `text/calendar`, ce qui est de toute façon la
 > façon dont les clients mail la lisent.
 >
-> Déviation nommée : en amont, un callback de construction `ical-generator` est
-> aussi accepté. rover ne porte pas cette dépendance et prend le texte ICS.
+> `icalEvent()` accepte soit le texte ICS, soit un callback de construction,
+> comme en amont :
+>
+> ```ts
+> mail.icalEvent((calendar) => {
+>   calendar.createEvent({ start, end, summary: 'Revue de sprint' })
+> }, { method: 'REQUEST' })
+> ```
+>
+> Le callback s'exécute au moment du `build()`, contre un vrai calendrier
+> `ical-generator`. Ce paquet est un **peer optionnel** : installez-le seulement
+> si vous construisez vos invitations ainsi — passer le texte ICS n'exige rien.
 
 ## Transports disponibles
 

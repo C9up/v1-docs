@@ -32,7 +32,7 @@ export default {
   defaultStrategy: 'jwt',
   jwt: {
     secret: process.env.JWT_SECRET!, // minimum 32 caractères
-    expiresInSeconds: 3600,          // 1 heure
+    expiresIn: '1h',                 // ou 3600
   },
 }
 ```
@@ -58,12 +58,12 @@ export default class AppProvider extends Provider {
     this.app.container.singleton(AuthManager, () => {
       const config = this.app.config.get<{
         defaultStrategy: string
-        jwt: { secret: string; expiresInSeconds: number }
+        jwt: { secret: string; expiresIn: number | string }
       }>('auth')!
 
       const jwt = new JwtStrategy({
         secret: config.jwt.secret,
-        expiresInSeconds: config.jwt.expiresInSeconds,
+        expiresIn: config.jwt.expiresIn,
         verifyCredentials: async (email, password) => {
           // Recherche de l'utilisateur et vérification du mot de passe
           const user = await UserService.findByEmail(email)
@@ -649,8 +649,8 @@ const jwt = new JwtStrategy({
   // Obligatoire : minimum 32 caractères, lève une erreur à la construction si plus court
   secret: process.env.JWT_SECRET!,
 
-  // Optionnel : durée de vie du token en secondes (par défaut : 3600)
-  expiresInSeconds: 7200,
+  // Optionnel : secondes ou chaîne de durée (par défaut : 3600)
+  expiresIn: '2h',
 
   // Appelé par authenticate() — vérifie email/mot de passe, retourne UserPayload ou null
   verifyCredentials: async (email, password) => {
@@ -883,12 +883,16 @@ JSON.stringify(decoded)      // {"secret":"[redacted]", ...}
 decoded.secret.release()     // la vraie valeur, délibérément
 ```
 
-::: tip Deux écarts nommés
-`expiresIn` est en **secondes**, comme partout ailleurs dans ce module —
-AdonisJS y accepte aussi une chaîne de durée, et ne prendre que le nombre lève
-toute ambiguïté au point d'appel. Et warden embarque son propre `Secret` plutôt
-que d'importer `@c9up/ream` : il n'a aucune dépendance runtime et expose un point
-d'entrée autonome, un import de pair casserait le mode sans framework.
+`expiresIn` accepte soit des secondes, soit une chaîne de durée — `3600`,
+`'1h'`, `'7 days'` — pour qu'une config reprise d'une app AdonisJS fonctionne
+telle quelle. Un nombre nu vaut toujours des **secondes**, comme partout
+ailleurs dans ce module. Le `expiresInSeconds` livré au départ fonctionne
+encore ; si une config pose les deux, `expiresIn` l'emporte.
+
+::: tip Écart nommé
+warden embarque son propre `Secret` plutôt que d'importer `@c9up/ream` : il n'a
+aucune dépendance runtime et expose un point d'entrée autonome, un import de
+pair casserait le mode sans framework.
 :::
 
 ---
@@ -1374,6 +1378,7 @@ interface AuthConfig {
 
 interface JwtStrategyConfig {
   secret: string
+  expiresIn?: number | string
   expiresInSeconds?: number
   verifyCredentials: (email: string, password: string) => Promise<UserPayload | null>
   findUser: (id: string) => Promise<UserPayload | null>

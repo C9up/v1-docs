@@ -31,7 +31,7 @@ export default {
   defaultStrategy: 'jwt',
   jwt: {
     secret: process.env.JWT_SECRET!, // minimum 32 characters
-    expiresInSeconds: 3600,          // 1 hour
+    expiresIn: '1h',                 // or 3600
   },
 }
 ```
@@ -630,7 +630,7 @@ const jwt = new JwtStrategy({
   secret: process.env.JWT_SECRET!,
 
   // Optional: token lifetime in seconds (default: 3600)
-  expiresInSeconds: 7200,
+  expiresIn: '2h',
 
   // Called by authenticate() — verify email/password, return UserPayload or null
   verifyCredentials: async (email, password) => {
@@ -860,12 +860,16 @@ JSON.stringify(decoded)      // {"secret":"[redacted]", ...}
 decoded.secret.release()     // the real value, deliberately
 ```
 
-::: tip Two named deviations
-`expiresIn` is in **seconds**, as everywhere else in this module — AdonisJS also
-accepts a duration string there, and taking only the number leaves no ambiguity
-at a call site. And warden ships its own `Secret` rather than importing
-`@c9up/ream`: it has no runtime dependencies and a standalone entry point, so a
-peer import would break the framework-free mode.
+`expiresIn` takes either seconds or a duration string — `3600`, `'1h'`,
+`'7 days'` — so a config carried over from an AdonisJS app works as written. A
+bare number is always **seconds**, as everywhere else in this module. The
+seconds-only `expiresInSeconds` warden shipped first still works; when a config
+sets both, `expiresIn` wins.
+
+::: tip Named deviation
+warden ships its own `Secret` rather than importing `@c9up/ream`: it has no
+runtime dependencies and a standalone entry point, so a peer import would break
+the framework-free mode.
 :::
 
 ---
@@ -1345,6 +1349,7 @@ interface AuthConfig {
 
 interface JwtStrategyConfig {
   secret: string
+  expiresIn?: number | string
   expiresInSeconds?: number
   verifyCredentials: (email: string, password: string) => Promise<UserPayload | null>
   findUser: (id: string) => Promise<UserPayload | null>

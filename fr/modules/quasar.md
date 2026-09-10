@@ -86,7 +86,7 @@ await quasar.unsubscribe('orders', handler)   // les autres continuent de recevo
 await quasar.unsubscribe('orders')            // retire tout et quitte le canal
 ```
 
-`subscribe` / `psubscribe` acceptent les `{ onSubscription, onError }` d'Adonis. **Déviation nommée :** chez nous la promesse rejette aussi en cas d'échec, donc `await quasar.subscribe(...)` fait remonter l'erreur même sans `onError` — Adonis ne la signale que par ce callback, si bien qu'une app qui ne l'utilise pas peut se retrouver silencieusement désabonnée. `onError` est toujours appelé, le code Adonis fonctionne donc tel quel.
+`subscribe` / `psubscribe` acceptent les `{ onSubscription, onError }` d'Adonis, et se comportent comme Adonis : un échec est signalé, jamais levé. Ce que fait réellement un abonnement en échec est décrit plus bas, dans [Événements](#événements).
 
 ## Santé
 

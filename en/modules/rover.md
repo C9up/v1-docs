@@ -142,8 +142,18 @@ await mail.send((message) => {
 > forms work everywhere — for those transports the invitation is sent as a
 > `text/calendar` part, which is how mail clients read it anyway.
 >
-> Named deviation: upstream also accepts an `ical-generator` builder callback.
-> rover carries no such dependency and takes the ICS text instead.
+> `icalEvent()` takes either the ICS text or a builder callback, as upstream
+> does:
+>
+> ```ts
+> mail.icalEvent((calendar) => {
+>   calendar.createEvent({ start, end, summary: 'Sprint review' })
+> }, { method: 'REQUEST' })
+> ```
+>
+> The callback runs at `build()` time against a real `ical-generator` calendar.
+> That package is an **optional peer**: install it only if you build invitations
+> this way — passing the ICS text needs nothing.
 
 ## Available Transports
 
