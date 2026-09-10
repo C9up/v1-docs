@@ -44,13 +44,7 @@ utilisez la fonctionnalité : `vite` pour le rendu serveur en développement
 (Photon), `ical-generator` pour `icalEvent(callback)` (Rover). Sans eux, la
 fonctionnalité est éteinte, pas cassée.
 
-## Ça diffère de type, pas de comportement
-
-**`subscribe` / `psubscribe` répondent `Promise<void>`,** là où l'amont déclare
-`void`. Du code écrit à la manière d'amont — sans `await`, réagissant via
-`onSubscription` — se comporte à l'identique. Ce que la promesse ajoute, c'est la
-garantie que l'abonnement est vivant à la ligne suivante, ce dont cet écosystème
-dépend avant de publier.
+## Ça répond autrement sur un point précis
 
 **`request.cookie(name, fallback)` conserve la chaîne vide.** En amont, le repli
 se fait avec `||` : un cookie délibérément écrit `""` se relit comme le

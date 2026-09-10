@@ -44,13 +44,7 @@ feature: `vite` for server rendering in development (Photon), `ical-generator`
 for `icalEvent(callback)` (Rover). Without them, the feature is off rather than
 broken.
 
-## It differs in type, not in behaviour
-
-**`subscribe` / `psubscribe` answer `Promise<void>`,** where upstream declares
-`void`. Code written the upstream way — never awaiting, reacting through
-`onSubscription` — behaves identically. What the promise adds is the guarantee
-that the subscription is live on the next line, which this ecosystem relies on
-before publishing.
+## It answers differently in one small place
 
 **`request.cookie(name, fallback)` keeps an empty string.** Upstream falls back
 with `||`, so a cookie deliberately written as `""` reads back as the default.
