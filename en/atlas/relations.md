@@ -202,17 +202,19 @@ Override the rule for a whole model with `static namingStrategy`:
 ```ts
 class Prefixed extends CamelCaseNamingStrategy {
   override relationForeignKey(_kind, parentClass, parentPk) {
-    return `fk_${camelToSnake(parentClass)}_${parentPk}`
+    // An ATTRIBUTE: `fkUserId`. Atlas turns it into the `fk_user_id` column.
+    const pk = parentPk[0].toUpperCase() + parentPk.slice(1)
+    return `fk${parentClass}${pk}`
   }
 }
 ```
 
-::: warning Named deviation
-`relationForeignKey` returns a **column** name here. Lucid's method of the same
-name returns the model attribute in camelCase and runs it through
-`columnName()`; the one that returns a column upstream is
-`relationPivotForeignKey`. Atlas resolves relations by column throughout, so one
-method answers for both — an override must return a column name.
+::: tip What to return
+`relationForeignKey` returns the model **attribute**, camelCase — `userId`, not
+`user_id` — exactly as upstream's does. Atlas derives the column by running your
+answer through the same strategy's `columnName()`, so a strategy ported from
+upstream keeps working unchanged. Return a column name and it goes through that
+conversion twice.
 :::
 
 ```ts

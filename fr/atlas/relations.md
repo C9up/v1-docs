@@ -203,18 +203,19 @@ Pour changer la règle sur tout un modèle, `static namingStrategy` :
 ```ts
 class Prefixed extends CamelCaseNamingStrategy {
   override relationForeignKey(_kind, parentClass, parentPk) {
-    return `fk_${camelToSnake(parentClass)}_${parentPk}`
+    // Un ATTRIBUT : `fkUserId`. Atlas en tire la colonne `fk_user_id`.
+    const pk = parentPk[0].toUpperCase() + parentPk.slice(1)
+    return `fk${parentClass}${pk}`
   }
 }
 ```
 
-::: warning Écart nommé
-Ici, `relationForeignKey` rend un nom de **colonne**. La méthode du même nom
-chez Lucid rend l'attribut du modèle en camelCase, qu'elle passe ensuite dans
-`columnName()` ; celle qui rend une colonne, en amont, c'est
-`relationPivotForeignKey`. Atlas résout les relations par colonne de bout en
-bout, donc une seule méthode répond pour les deux — une surcharge doit rendre un
-nom de colonne.
+::: tip Ce qu'il faut renvoyer
+`relationForeignKey` rend l'**attribut** du modèle, en camelCase — `userId`, pas
+`user_id` — exactement comme celle d'amont. Atlas en dérive la colonne en
+passant votre réponse dans le `columnName()` de la même stratégie, si bien
+qu'une stratégie reprise d'amont fonctionne telle quelle. Renvoyez un nom de
+colonne et il traverse cette conversion deux fois.
 :::
 
 ```ts

@@ -47,6 +47,7 @@ export default defineConfig({
                 { text: 'Installation', link: '/en/guide/installation' },
                 { text: 'Quick Start', link: '/en/guide/quick-start' },
                 { text: 'Folder Structure', link: '/en/guide/folder-structure' },
+                { text: 'Migrating from AdonisJS', link: '/en/guide/migrating-from-adonisjs' },
               ],
             },
             {
@@ -183,6 +184,7 @@ export default defineConfig({
                 { text: 'Installation', link: '/fr/guide/installation' },
                 { text: 'Démarrage rapide', link: '/fr/guide/quick-start' },
                 { text: 'Structure du projet', link: '/fr/guide/folder-structure' },
+                { text: 'Migrer depuis AdonisJS', link: '/fr/guide/migrating-from-adonisjs' },
               ],
             },
             {
