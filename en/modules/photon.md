@@ -220,6 +220,29 @@ export function render(pageData) {
 }
 ```
 
+### Choosing which pages server-render
+
+`ssr.pages` narrows SSR to a list of components, or to a predicate. The
+predicate receives the HTTP context alongside the component name, so the
+decision can turn on the request:
+
+```ts
+// config/photon.ts
+export default defineConfig({
+  ssr: {
+    pages: (component, ctx) => {
+      // Server-render for crawlers, hydrate on the client for everyone else.
+      const ua = ctx?.request.header('user-agent') ?? ''
+      return /bot|crawler|spider/i.test(ua)
+    },
+  },
+})
+```
+
+The renderer stays a single instance shared across requests — the context is a
+per-call argument and is never stored on it, so two concurrent requests cannot
+see each other's.
+
 ### Build commands
 
 Two Vite builds — the client bundle (with the manifest) and the SSR module:

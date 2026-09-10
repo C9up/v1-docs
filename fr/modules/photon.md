@@ -221,6 +221,29 @@ export function render(pageData) {
 }
 ```
 
+### Choisir quelles pages sont rendues côté serveur
+
+`ssr.pages` restreint le SSR à une liste de composants, ou à un prédicat. Ce
+prédicat reçoit le contexte HTTP en plus du nom du composant, si bien que la
+décision peut dépendre de la requête :
+
+```ts
+// config/photon.ts
+export default defineConfig({
+  ssr: {
+    pages: (component, ctx) => {
+      // Rendu serveur pour les robots, hydratation client pour les autres.
+      const ua = ctx?.request.header('user-agent') ?? ''
+      return /bot|crawler|spider/i.test(ua)
+    },
+  },
+})
+```
+
+Le renderer reste une instance unique partagée entre les requêtes : le contexte
+est un argument par appel, jamais stocké dessus, donc deux requêtes simultanées
+ne peuvent pas voir celui de l'autre.
+
 ### Commandes de build
 
 Deux builds Vite — le bundle client (avec le manifest) et le module SSR :
