@@ -238,16 +238,34 @@ d'encodeur avec perte, donc ce chemin passe par libwebp. `quality: 100`
 sélectionne le sans-perte — la seule valeur qui ne peut pas vouloir dire
 « compresse un peu ».
 
-### Ce qu'il faut pour compiler
+### Ce qu'il faut pour l'installer : rien
 
-**Une chaîne C**, pour libwebp : elle est vendorisée et compilée depuis les
-sources, donc elle ne coûte qu'un compilateur.
+Les binaires publiés embarquent leurs codecs. libwebp est vendorisée, et
+libdav1d — le *décodeur* AVIF, sans lequel un AVIF s'écrirait sans jamais
+pouvoir se relire — est compilée depuis les sources et liée statiquement par le
+workflow de release. `ldd` sur un binaire publié ne liste que libc, libm et
+libgcc, et c'est tout.
 
-**libdav1d**, en bibliothèque système, pour le *décodage* AVIF. La feature
-`avif` en Rust pur n'est qu'un encodeur, et un AVIF qu'on écrit sans jamais
-pouvoir le relire ne sert à rien pour des uploads — donc `avif-native` est
-activée, et elle sonde pkg-config. Une machine qui compile ce paquet a besoin
-de `libdav1d-dev` (Debian), `dav1d` (Homebrew) ou l'équivalent vcpkg.
+### Ce qu'il faut pour le compiler depuis les sources
+
+Seulement si aucun binaire précompilé ne correspond à la plateforme, ou pour
+travailler sur la crate elle-même. libwebp ne coûte toujours qu'un compilateur
+C. libdav1d est celle qui demande quelque chose, et il y a deux façons de la
+lui donner :
+
+- **une libdav1d système** — `libdav1d-dev` sur Debian, `dav1d` sur Homebrew,
+  le paquet vcpkg sur Windows. `dav1d-sys` la trouve via pkg-config. Le binaire
+  produit *dépend* alors de cette bibliothèque à l'exécution, ce qui convient à
+  une compilation locale et explique pourquoi ce n'est pas ainsi qu'on publie.
+- **`SYSTEM_DEPS_DAV1D_BUILD_INTERNAL=auto`**, avec `meson`, `ninja` et (sur
+  x86) `nasm` dans le PATH. `dav1d-sys` clone dav1d et la compile en statique.
+  C'est ce que fait la CI.
+
+Un piège à connaître si une compilation part de travers : `dav1d-sys` lance
+meson par un appel qui vérifie que le processus a pu *démarrer*, pas qu'il a
+réussi. Sans `nasm`, meson échoue, rien n'est signalé, et l'édition de liens
+retombe silencieusement sur ce qu'elle trouve d'autre sur le système. Vérifiez
+que les trois outils répondent avant d'accuser la crate.
 
 ### Le poids du binaire
 
@@ -334,4 +352,4 @@ vignette ne vaut que contre le code qui la produit.
 - appeler `inspect()` avant d'accepter un upload, et rejeter sur ses erreurs
 - ne jamais dériver un nom de fichier stocké de celui du client — le format que
   le moteur rapporte est celui auquel se fier
-- la machine de compilation doit avoir libdav1d, sinon le décodage AVIF est perdu
+- préférer un binaire publié : il embarque dav1d, une compilation locale non
