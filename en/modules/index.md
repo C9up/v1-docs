@@ -13,11 +13,14 @@ This page lists the current status of ecosystem modules.
 | Sigil | `@c9up/sigil` | Present | Canonical password hashing (argon2id, bcrypt, scrypt — TS + Rust N-API) |
 | Warden | `@c9up/warden` | Present | Authentication — delegates password hashing to Sigil |
 | Spectrum | `@c9up/spectrum` | Present | Logging |
+| Parsec | `@c9up/parsec` | Present | Metrics — counters/gauges/histograms, zero-dependency Prometheus exporter, optional OpenTelemetry meter, HTTP middleware |
 | Photon | `@c9up/photon` | Present | Frontend/SSR — client hydration, SPA router, SEO injection into `<head>` |
+| Prism | `@c9up/prism` | Present | Images — resize, convert, crop, composite, watermark; Rust engine with upload guards |
 | Aurora | `@c9up/aurora` | Present | Reactive UI runtime — tagged-template DOM + signals + SSR + isomorphic dist (no app-side bundler) |
 | Comet | `@c9up/comet` | Present | Agnostic JSON-RPC 2.0 protocol + isomorphic, transport-injectable client (aurora binds it browser-side, ream's `RpcRouter` builds the server on it) |
 | Relay | `@c9up/relay` | Present | Realtime — SSE, WebSocket hub, SignalR |
 | Echo | `@c9up/echo` | Present | Cache — memory, file, Redis through Quasar |
+| Eclipse | `@c9up/eclipse` | Present | Distributed locks — owner-checked leases, memory + Redis stores, scheduler adapter |
 | Bay | `@c9up/bay` | Present | Queue/Jobs — memory / Redis drivers + retry + lease |
 | Blackhole | `@c9up/blackhole` | Present | XSS-stripping body middleware |
 | Rosetta | `@c9up/rosetta` | Present | Dedicated i18n module with locale fallback |

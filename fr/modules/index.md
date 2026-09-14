@@ -13,11 +13,14 @@ Cette page liste l'etat des modules de l'ecosysteme.
 | Sigil | `@c9up/sigil` | Présent | Hachage de mots de passe canonique (argon2id, bcrypt, scrypt — TS + Rust N-API) |
 | Warden | `@c9up/warden` | Présent | Authentification — délègue le hachage de mots de passe à Sigil |
 | Spectrum | `@c9up/spectrum` | Présent | Logs |
+| Parsec | `@c9up/parsec` | Présent | Métriques — compteurs/jauges/histogrammes, exporteur Prometheus sans dépendance, meter OpenTelemetry optionnel, middleware HTTP |
 | Photon | `@c9up/photon` | Présent | Frontend/SSR — hydratation client, router SPA, injection SEO dans `<head>` |
+| Prism | `@c9up/prism` | Présent | Images — redimensionner, convertir, recadrer, composer, filigraner ; moteur Rust avec gardes d'upload |
 | Aurora | `@c9up/aurora` | Présent | Runtime UI réactif — DOM via tagged-templates + signaux + SSR + dist isomorphe (pas de bundler côté app) |
 | Comet | `@c9up/comet` | Présent | Protocole JSON-RPC 2.0 agnostique + client isomorphe à transport injectable (aurora le branche côté navigateur, le `RpcRouter` de ream construit le serveur dessus) |
 | Relay | `@c9up/relay` | Présent | Temps réel — SSE, hub WebSocket, SignalR |
 | Echo | `@c9up/echo` | Présent | Cache — mémoire, fichier, Redis via Quasar |
+| Eclipse | `@c9up/eclipse` | Présent | Verrous distribués — baux vérifiés par propriétaire, stores mémoire + Redis, adaptateur scheduler |
 | Bay | `@c9up/bay` | Présent | Queue/Jobs — drivers mémoire / Redis + retry + lease |
 | Blackhole | `@c9up/blackhole` | Présent | Middleware d'assainissement XSS du body |
 | Rosetta | `@c9up/rosetta` | Présent | Module i18n dédié avec fallback de locale |
