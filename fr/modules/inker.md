@@ -218,6 +218,40 @@ const templates = new Templates({
 
 Un helper (ou global) qui retourne une `SafeString` est émis brut — c'est ainsi qu'un helper embarque du markup de confiance (p. ex. un champ caché CSRF, ou un îlot Aurora rendu côté serveur).
 
+## Contribuer depuis un autre paquet
+
+Un paquet qui livre ses propres globals ou tags — le `t()` de rosetta, que
+toute application voit — les pousse par l'export par défaut du paquet :
+
+```ts
+import inker from '@c9up/inker'
+
+inker.use((engine) => {
+  engine.global('money', (cents: number) => `${(cents / 100).toFixed(2)} €`)
+})
+```
+
+Appelez-le quand vous voulez. `use()` ne fait qu'empiler : le moteur exécute
+ses plugins une fois, juste avant le premier rendu, si bien qu'un plugin
+enregistré avant que le moteur ne soit configuré observe quand même le moteur
+tel qu'il finit. C'est pour ça que c'est un import de module et pas un binding
+du conteneur — le binding du moteur n'est résoluble qu'une fois l'application
+démarrée, et un paquet qui veut contribuer tourne généralement plus tôt.
+
+Un provider qui fait ça doit d'abord vérifier le drapeau, pour rester
+installable dans une application sans moteur de template :
+
+```ts
+async boot() {
+  if (this.app.usingInker !== true) return
+  const inker = await import('@c9up/inker')
+  inker.default.use(myPlugin)
+}
+```
+
+`usingInker` est posé par le constructeur d'`InkerProvider`, qui tourne avant
+le boot de n'importe quel provider.
+
 ## Tags personnalisés — `registerTag`
 
 Enregistrez un `@`-tag personnalisé (parité `edge.registerTag` d'AdonisJS/Edge). La définition est un objet — `{ tagName, block, seekable, compile(parser, buffer, token) }` — et elle fait reconnaître par le parser `@<tagName>(jsArg)` dans chaque template :

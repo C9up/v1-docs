@@ -218,6 +218,40 @@ const templates = new Templates({
 
 A helper (or global) that returns a `SafeString` is emitted raw — this is how a helper embeds pre-trusted markup (e.g. a CSRF hidden field, or a server-rendered Aurora island).
 
+## Contributing from another package
+
+A package that ships globals or tags of its own — rosetta's `t()` is the one
+every app sees — pushes them in through the package's default export:
+
+```ts
+import inker from '@c9up/inker'
+
+inker.use((engine) => {
+  engine.global('money', (cents: number) => `${(cents / 100).toFixed(2)} €`)
+})
+```
+
+Call it whenever you like. `use()` only queues: the engine runs its plugins
+once, just before the first render, so a plugin registered before the engine
+was configured still observes the engine as it ends up. That is why this is
+a module import and not a container binding — the engine's binding is only
+resolvable after the application has started, and a package that wants to
+contribute usually runs earlier than that.
+
+A provider doing this should check the flag first, so it stays installable in
+an app with no template engine at all:
+
+```ts
+async boot() {
+  if (this.app.usingInker !== true) return
+  const inker = await import('@c9up/inker')
+  inker.default.use(myPlugin)
+}
+```
+
+`usingInker` is set by `InkerProvider`'s constructor, which runs before any
+provider boots.
+
 ## Custom tags — `registerTag`
 
 Register a custom `@`-tag (AdonisJS/Edge `edge.registerTag` parity). The definition is an object — `{ tagName, block, seekable, compile(parser, buffer, token) }` — and it makes the parser recognise `@<tagName>(jsArg)` in every template:
