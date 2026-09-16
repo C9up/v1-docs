@@ -204,6 +204,14 @@ Because **the same module must load in Node AND in the browser**, without a buil
 
 Pages are dynamic-imported per request, so aurora dev-busts the **page module** by mtime — a direct edit to `resources/pages/Foo.js` shows up on the next request with no restart. But a page's **transitive** imports (the components, layouts and services it pulls from `resources/pages/**` subfolders) resolve to stable URLs that Node's ESM loader caches for the whole process lifetime. Edit one of those and the SSR HTML stays stale (with a hydration warning) until you restart.
 
+The sharpest form of this trap is an export that exists on disk but not in the loaded module. Add a function to `services/portfolio.js`, use it from a page, and the request fails with:
+
+```
+The requested module './services/portfolio.js' does not provide an export named 'amountParts'
+```
+
+The export is right there in the file. The page was re-read; the module it imports was not. If your e2e suite passes on the same code — it starts a fresh process each run — that is the confirmation. Restart, or wire hot-hook below.
+
 This is the same gap AdonisJS closes with [`hot-hook`](https://github.com/Julien-R44/hot-hook) — a Node loader-hook that tracks the ESM graph and invalidates a boundary's **entire subtree** on change. Wire it into your app; aurora itself needs no change (its computed `import()` is already graph-aware compatible, and its dev `?v=` mtime bust coexists with hot-hook's own versioning):
 
 ```bash

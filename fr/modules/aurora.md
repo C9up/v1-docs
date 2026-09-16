@@ -204,6 +204,14 @@ Parce que **le même module doit se charger dans Node ET dans le navigateur**, s
 
 Les pages sont importées dynamiquement à chaque requête, donc aurora bust en dev le **module de page** par mtime — éditer directement `resources/pages/Foo.js` est visible à la requête suivante sans restart. Mais les imports **transitifs** d'une page (les composants, layouts et services qu'elle tire des sous-dossiers de `resources/pages/**`) résolvent vers des URLs stables que le loader ESM de Node garde en cache pour toute la vie du process. Édite l'un d'eux et le HTML SSR reste périmé (avec un warning d'hydratation) jusqu'au redémarrage.
 
+La forme la plus vicieuse de ce piège, c'est un export présent sur le disque mais absent du module chargé. Ajoute une fonction à `services/portfolio.js`, utilise-la depuis une page, et la requête échoue sur :
+
+```
+The requested module './services/portfolio.js' does not provide an export named 'amountParts'
+```
+
+L'export est pourtant bien dans le fichier. La page a été relue ; le module qu'elle importe, non. Si ta suite e2e passe sur le même code — elle démarre un process neuf à chaque exécution — c'est la confirmation. Redémarre, ou câble hot-hook ci-dessous.
+
 C'est le même manque qu'AdonisJS comble avec [`hot-hook`](https://github.com/Julien-R44/hot-hook) — un loader-hook Node qui suit le graphe ESM et invalide **tout le sous-arbre** d'une boundary au changement. Câble-le dans ton app ; aurora n'a besoin d'aucune modif (son `import()` calculé est déjà compatible graph-aware, et son bust `?v=` de dev coexiste avec le versioning propre de hot-hook) :
 
 ```bash
