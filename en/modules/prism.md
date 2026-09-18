@@ -162,6 +162,72 @@ A box filter rather than Lanczos: several times cheaper and visibly softer,
 which is the right trade for a 32px avatar and the wrong one for a 1200px
 hero. `exact: true` ignores the aspect ratio, as `fit: 'fill'` does.
 
+## Serving images to a page
+
+A page that offers a dozen widths of every image needs those widths to exist. The `serve` block mounts one route that produces them on demand:
+
+```ts
+// config/images.ts
+export default defineConfig({
+  quality: 82,
+  serve: {
+    roots: [app.publicPath('photos')],
+    cacheDir: app.tmpPath('images'),
+  },
+})
+```
+
+That is all [Nebula](/en/modules/nebula)'s `Image` needs — its default resolver already points at `/__image`, and the width ladder the two use is the same one.
+
+A request names a source, a width, and optionally a format and a quality:
+
+```
+/__image?src=hero.jpg&w=1280&f=webp&q=82
+```
+
+The answer is resized, re-encoded, tagged with an `ETag` and marked `immutable` for a year. The tag covers the source's size and modification time, so replacing a file on disk invalidates every variant of it without anyone clearing a cache — which matters, because the URL carries no version and nothing else could.
+
+### Nothing is mounted unless you ask
+
+There is no `serve` block by default. A route that reads files off disk and spends CPU on demand is not something a package should add to an application because the package happened to be installed. Declaring one with no `roots` fails the boot rather than starting: it would answer every image with a 404, and that is a mistake better found at startup than in production.
+
+Outside Ream there is no `router` in the container and nothing is mounted either. Wire it yourself:
+
+```ts
+import { registerImageRoute } from '@c9up/prism'
+
+registerImageRoute(router, images, { roots: [publicDir] })
+```
+
+### Every axis is allow-listed
+
+An open transformation endpoint is a cache bomb before it is a feature. Anything a caller can vary is a dimension of a cache nobody bounded — ten thousand requests for ten thousand widths is ten thousand decodes and ten thousand files, from one `curl` loop.
+
+So nothing here is validated for plausibility; each axis is checked against a list:
+
+| Parameter | Bounded by | Default |
+|---|---|---|
+| `src` | resolves inside `roots` | nothing is reachable |
+| `w` | `widths` | the device-width ladder, 15 entries |
+| `f` | `formats` | AVIF, WebP, JPEG, PNG |
+| `q` | `qualities` | the single configured `quality` |
+
+That leaves the number of distinct answers at (files × widths × formats × qualities), which is a number you chose. Anything outside the lists is a 400 and is never decoded — refusing before the work is the whole point. The parameters are read as plain decimal digits, so `0x190` and `4e2` are refused rather than quietly becoming 400.
+
+Height and crop are absent on purpose. They are the two axes that cannot be allow-listed without making the component unusable, and neither is needed: a responsive image crops with `object-fit`, in the browser, for free.
+
+A `src` that reaches outside its root and a `src` that names nothing get the same 404. Telling them apart is how a caller maps the disk.
+
+### What comes back
+
+Never larger than the source. The component offers a 2x variant without knowing how big the original is, and answering that with an enlargement would be worse than answering it with the original — more bytes, no more detail. A 2560px request against an 800px source returns 800px.
+
+Never carrying EXIF. The engine re-encodes from decoded pixels and metadata does not survive that, so GPS coordinates, serial numbers and timestamps do not reach the page. A holiday photo carries the house's coordinates, and a public thumbnail is exactly where that surfaces.
+
+A file the engine cannot re-encode — an SVG, say — is passed through untouched with its own content type. It already passed the root check, and a 415 there would be a broken image for a file that serves perfectly well as it stands.
+
+The same variant asked for several times at once is decoded once. A page with a `<picture>` resolves several of them in the same tick, and without that the first visit decodes each image as many times as it appears.
+
 ## Safety
 
 Every byte reaching this package came from an upload, and the guards run before

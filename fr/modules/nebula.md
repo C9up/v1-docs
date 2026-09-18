@@ -182,6 +182,81 @@ Button({ disabled: true })              // statique
 Button({ disabled: () => !form.valid }) // suivi
 ```
 
+## Images responsives
+
+`Image` écrit les attributs qui rendent une `<img>` rapide, et que personne n'écrit à la main : un `srcset` d'une douzaine de largeurs, un `sizes` qui va avec, `width`/`height` pour que la page ne saute pas, et `loading`/`decoding`.
+
+```ts
+Image({ src: '/photos/hero.jpg', alt: "L'atelier à l'aube", width: 1200, height: 800 })
+```
+
+```html
+<img src="/__image?src=%2Fphotos%2Fhero.jpg&w=1200&f=webp"
+     srcset="/__image?src=…&w=640&f=webp 640w, … /__image?src=…&w=2400&f=webp 2400w"
+     sizes="(min-width: 1200px) 1200px, 100vw"
+     width="1200" height="800" loading="lazy" decoding="async"
+     alt="L'atelier à l'aube" class="h-auto max-w-full">
+```
+
+`alt` est obligatoire dans le type, et ce n'est pas un geste de principe : une `<img>` sans `alt` est annoncée par un lecteur d'écran sous son nom de fichier. Une image décorative passe `alt: ''` — la chaîne vide est le balisage qui dit « ignore-moi », elle doit donc être écrite et non oubliée.
+
+### Dispositions
+
+`layout` est la seule prop à choisir délibérément. Elle décide des largeurs proposées et de ce que `sizes` en dit.
+
+| Disposition | Comportement | Propose |
+|---|---|---|
+| `constrained` *(défaut)* | se réduit pour tenir, jamais au-delà de `width` | 1x, 2x, et toutes les largeurs de l'échelle en dessous |
+| `full-width` | toujours la largeur de son conteneur | toute l'échelle |
+| `fixed` | la taille déclarée, quel que soit l'écran | 1x et 2x |
+| `none` | ni `srcset` ni `sizes` | rien |
+
+L'échelle de largeurs est faite de largeurs d'appareils, pas de nombres ronds — 828 est un iPhone XR, 1668 un iPad. `breakpoints` la remplace, et `LIMITED_RESOLUTIONS` est la même échelle sans les tailles que seul un écran de bureau réclame.
+
+Passe `originalWidth` quand la largeur de la source est connue. Ce n'est qu'un raffinement : l'endpoint refuse d'agrandir quoi que ce soit, donc l'omettre coûte une URL en double servant les mêmes octets, jamais un agrandissement flou.
+
+### Au-dessus de la ligne de flottaison
+
+`priority` pose `loading="eager"`, `decoding="sync"` et `fetchpriority="high"` ensemble. N'en poser qu'un sur les trois est la raison habituelle pour laquelle une image de héros n'est toujours pas la première chose peinte.
+
+```ts
+Image({ src: '/photos/hero.jpg', alt: '…', layout: 'full-width', priority: true })
+```
+
+### Plusieurs formats
+
+`Picture` propose la même image dans plusieurs formats et laisse le navigateur prendre le premier qu'il sait lire. C'est la seule façon sûre de livrer de l'AVIF, encore plus petit que le WebP et toujours pas universel :
+
+```ts
+Picture({ src: '/photos/hero.jpg', alt: '…', width: 1200, height: 800 })
+```
+
+```html
+<picture>
+  <source type="image/avif" srcset="…" sizes="…">
+  <source type="image/webp" srcset="…" sizes="…">
+  <img src="…" width="1200" height="800" loading="lazy" decoding="async" alt="…">
+</picture>
+```
+
+L'ordre de `formats` est tout le contrat — un navigateur prend le premier `type` qu'il gère sans comparer les tailles, donc lister WebP avant AVIF signifie que personne ne reçoit jamais le fichier le plus petit. L'`<img>` en dessous est `Image` elle-même avec toutes les props transmises : une `<source>` ne peut donc pas finir par proposer une échelle différente de l'image qu'elle surmonte. Son format suit l'extension de la source, à défaut le JPEG : un PNG transparent aplati en JPEG arrive avec un fond noir, et précisément sur le chemin emprunté par les navigateurs qu'on vérifie le moins.
+
+### D'où viennent les octets
+
+Aucun des deux composants ne le sait. Ils demandent une URL à un résolveur, et celui par défaut pointe sur `/__image` — l'endpoint que [Prism](/fr/modules/prism) enregistre.
+
+```ts
+import { setImageResolver } from '@c9up/nebula'
+
+setImageResolver((src, { width, format, quality }) =>
+  `https://cdn.example.com/${src}?w=${width}&fm=${format}&q=${quality}`
+)
+```
+
+Installe-le une fois au démarrage, depuis un module que le serveur et le navigateur exécutent tous les deux. Ils doivent être d'accord : un `src` qui diffère entre les deux fait jeter au navigateur l'image que le serveur avait déjà commencé à charger, pour en demander une autre.
+
+On demande à un résolveur une largeur, un format et une qualité, jamais une hauteur ni un recadrage. Ce sont les deux axes qu'un endpoint ne peut pas borner, et aucun n'est nécessaire — `fit` et `position` sont `object-fit` et `object-position`, appliqués en CSS sur l'élément, où un recadrage ne coûte rien.
+
 ## De droite à gauche
 
 Le moteur de placement se reflète tout seul. Les placements s'écrivent physiquement — `"right-start"` pour un sous-menu — parce que c'est ce qui se lit clairement à l'appel, et `resolvePosition` les retourne quand l'ancre calcule `direction: rtl`. `autoPosition` le relit à chaque mise à jour, donc aucun composant ne passe de drapeau et un changement de langue en cours de session déplace les surfaces ouvertes avec lui.

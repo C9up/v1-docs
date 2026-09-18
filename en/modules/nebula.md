@@ -180,6 +180,81 @@ Button({ disabled: true })              // static
 Button({ disabled: () => !form.valid }) // tracked
 ```
 
+## Responsive images
+
+`Image` writes the attributes that make an `<img>` fast, and that nobody writes by hand: a `srcset` of a dozen widths, a `sizes` that matches, `width`/`height` so the page does not jump, and `loading`/`decoding`.
+
+```ts
+Image({ src: '/photos/hero.jpg', alt: 'The workshop at dawn', width: 1200, height: 800 })
+```
+
+```html
+<img src="/__image?src=%2Fphotos%2Fhero.jpg&w=1200&f=webp"
+     srcset="/__image?src=…&w=640&f=webp 640w, … /__image?src=…&w=2400&f=webp 2400w"
+     sizes="(min-width: 1200px) 1200px, 100vw"
+     width="1200" height="800" loading="lazy" decoding="async"
+     alt="The workshop at dawn" class="h-auto max-w-full">
+```
+
+`alt` is required by the type, and that is not a gesture: an `<img>` without one is read out to a screen reader as its file name. A decorative image passes `alt: ''` — the empty string is the markup that says "skip me", so it has to be written rather than forgotten.
+
+### Layouts
+
+`layout` is the one prop worth choosing deliberately. It decides which widths are offered and what `sizes` says about them.
+
+| Layout | Behaviour | Offers |
+|---|---|---|
+| `constrained` *(default)* | scales down to fit, never past `width` | 1x, 2x, and every ladder width below |
+| `full-width` | always the width of its container | the whole ladder |
+| `fixed` | the declared size, whatever the viewport | 1x and 2x |
+| `none` | no `srcset`, no `sizes` | nothing |
+
+The width ladder is device widths, not round numbers — 828 is an iPhone XR, 1668 an iPad. `breakpoints` replaces it, and `LIMITED_RESOLUTIONS` is the same ladder without the sizes only a desktop display asks for.
+
+Pass `originalWidth` when the source's own width is known. It is only a refinement — the endpoint refuses to enlarge anything, so leaving it out costs a duplicate URL serving the same bytes, never a blurry enlargement.
+
+### Above the fold
+
+`priority` sets `loading="eager"`, `decoding="sync"` and `fetchpriority="high"` together. Setting one without the others is the usual reason a hero image is still not the first thing painted.
+
+```ts
+Image({ src: '/photos/hero.jpg', alt: '…', layout: 'full-width', priority: true })
+```
+
+### Several formats
+
+`Picture` offers the same image in more than one format and lets the browser take the first it can read. That is the only safe way to ship AVIF, which is smaller again than WebP and still not universal:
+
+```ts
+Picture({ src: '/photos/hero.jpg', alt: '…', width: 1200, height: 800 })
+```
+
+```html
+<picture>
+  <source type="image/avif" srcset="…" sizes="…">
+  <source type="image/webp" srcset="…" sizes="…">
+  <img src="…" width="1200" height="800" loading="lazy" decoding="async" alt="…">
+</picture>
+```
+
+The order of `formats` is the whole contract — a browser takes the first `type` it supports without comparing sizes, so listing WebP before AVIF means nothing ever receives the smaller file. The `<img>` underneath is `Image` itself with every prop forwarded, so a `<source>` can never end up offering a different ladder than the image beneath it. Its format follows the source's extension, falling back to JPEG: a transparent PNG flattened to JPEG arrives with a black background, on exactly the path taken by the browsers least likely to be checked.
+
+### Where the bytes come from
+
+Neither component knows. They ask a resolver for a URL, and the default one points at `/__image` — the endpoint [Prism](/en/modules/prism) registers.
+
+```ts
+import { setImageResolver } from '@c9up/nebula'
+
+setImageResolver((src, { width, format, quality }) =>
+  `https://cdn.example.com/${src}?w=${width}&fm=${format}&q=${quality}`
+)
+```
+
+Install it once at startup, from a module both the server and the browser run. They have to agree: an `src` that differs between the two makes the browser discard the image the server already started fetching and request another.
+
+A resolver is asked for a width, a format and a quality, and never for a height or a crop. Those are the two axes an endpoint cannot bound, and neither is needed — `fit` and `position` are `object-fit` and `object-position`, applied as CSS on the element, where a crop costs nothing.
+
 ## Right to left
 
 The placement engine mirrors itself. Placements are written physically — `"right-start"` for a submenu — because that is what reads clearly at the call site, and `resolvePosition` flips them when the anchor computes to `direction: rtl`. `autoPosition` reads that off the anchor on every update, so no component passes a flag and a language switcher flipped mid-session moves open surfaces with it.

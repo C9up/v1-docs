@@ -168,6 +168,72 @@ plus doux, ce qui est le bon arbitrage pour un avatar de 32 px et le mauvais
 pour une bannière de 1200. `exact: true` ignore le rapport d'aspect, comme
 `fit: 'fill'`.
 
+## Servir des images à une page
+
+Une page qui propose une douzaine de largeurs par image a besoin que ces largeurs existent. Le bloc `serve` monte une route qui les produit à la demande :
+
+```ts
+// config/images.ts
+export default defineConfig({
+  quality: 82,
+  serve: {
+    roots: [app.publicPath('photos')],
+    cacheDir: app.tmpPath('images'),
+  },
+})
+```
+
+C'est tout ce dont `Image` de [Nebula](/fr/modules/nebula) a besoin — son résolveur par défaut pointe déjà sur `/__image`, et l'échelle de largeurs que les deux utilisent est la même.
+
+Une requête nomme une source, une largeur, et éventuellement un format et une qualité :
+
+```
+/__image?src=hero.jpg&w=1280&f=webp&q=82
+```
+
+La réponse est redimensionnée, réencodée, marquée d'un `ETag` et déclarée `immutable` pour un an. Le tag couvre la taille et la date de modification de la source : remplacer un fichier sur le disque invalide donc toutes ses variantes sans que personne ne vide de cache — ce qui compte, puisque l'URL ne porte aucune version et que rien d'autre ne le ferait.
+
+### Rien n'est monté sans le demander
+
+Il n'y a pas de bloc `serve` par défaut. Une route qui lit des fichiers sur le disque et dépense du CPU à la demande n'est pas quelque chose qu'un paquet doit ajouter à une application sous prétexte qu'il est installé. En déclarer une sans `roots` fait échouer le démarrage au lieu de le laisser passer : elle répondrait 404 à chaque image, et cette erreur se trouve mieux au démarrage qu'en production.
+
+Hors de Ream il n'y a pas de `router` dans le conteneur, et rien n'est monté non plus. Branche-la toi-même :
+
+```ts
+import { registerImageRoute } from '@c9up/prism'
+
+registerImageRoute(router, images, { roots: [publicDir] })
+```
+
+### Chaque axe est sur liste blanche
+
+Un endpoint de transformation ouvert est une bombe à cache avant d'être une fonctionnalité. Tout ce qu'un appelant peut faire varier est une dimension d'un cache que personne n'a bornée — dix mille requêtes pour dix mille largeurs, c'est dix mille décodages et dix mille fichiers, depuis une seule boucle `curl`.
+
+Rien n'est donc validé pour sa vraisemblance ; chaque axe est vérifié contre une liste :
+
+| Paramètre | Borné par | Défaut |
+|---|---|---|
+| `src` | se résout à l'intérieur de `roots` | rien n'est atteignable |
+| `w` | `widths` | l'échelle de largeurs d'appareils, 15 entrées |
+| `f` | `formats` | AVIF, WebP, JPEG, PNG |
+| `q` | `qualities` | l'unique `quality` configurée |
+
+Le nombre de réponses distinctes reste donc à (fichiers × largeurs × formats × qualités), un nombre que tu as choisi. Tout ce qui sort des listes est un 400 et n'est jamais décodé — refuser avant le travail est tout l'intérêt. Les paramètres sont lus comme de simples chiffres décimaux : `0x190` et `4e2` sont refusés au lieu de devenir discrètement 400.
+
+La hauteur et le recadrage sont absents à dessein. Ce sont les deux axes qu'on ne peut pas mettre sur liste blanche sans rendre le composant inutilisable, et aucun n'est nécessaire : une image responsive se recadre avec `object-fit`, dans le navigateur, gratuitement.
+
+Un `src` qui sort de sa racine et un `src` qui ne nomme rien reçoivent le même 404. Les distinguer, c'est la façon dont un appelant cartographie le disque.
+
+### Ce qui revient
+
+Jamais plus grand que la source. Le composant propose une variante 2x sans savoir quelle taille fait l'original, et y répondre par un agrandissement serait pire que d'y répondre par l'original — plus d'octets, pas plus de détail. Une demande de 2560 px sur une source de 800 px renvoie 800 px.
+
+Jamais d'EXIF. Le moteur réencode à partir des pixels décodés et les métadonnées n'y survivent pas : coordonnées GPS, numéros de série et horodatages n'atteignent pas la page. Une photo de vacances porte les coordonnées de la maison, et une miniature publique est exactement l'endroit où ça ressort.
+
+Un fichier que le moteur ne sait pas réencoder — un SVG, par exemple — est transmis tel quel avec son propre type de contenu. Il a déjà passé le contrôle de racine, et un 415 à cet endroit donnerait une image cassée pour un fichier qui se sert très bien en l'état.
+
+La même variante demandée plusieurs fois en même temps n'est décodée qu'une fois. Une page contenant un `<picture>` en résout plusieurs dans le même tick, et sans cela la première visite décode chaque image autant de fois qu'elle apparaît.
+
 ## Sûreté
 
 Chaque octet arrivant ici vient d'un upload, et les gardes s'exécutent avant
