@@ -208,7 +208,7 @@ So nothing here is validated for plausibility; each axis is checked against a li
 | Parameter | Bounded by | Default |
 |---|---|---|
 | `src` | resolves inside `roots` | nothing is reachable |
-| `w` | `widths` | the device-width ladder, 15 entries |
+| `w` | `widths` | the 23 widths Nebula generates from |
 | `f` | `formats` | AVIF, WebP, JPEG, PNG |
 | `q` | `qualities` | the single configured `quality` |
 

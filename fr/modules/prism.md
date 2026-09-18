@@ -214,7 +214,7 @@ Rien n'est donc validé pour sa vraisemblance ; chaque axe est vérifié contre 
 | Paramètre | Borné par | Défaut |
 |---|---|---|
 | `src` | se résout à l'intérieur de `roots` | rien n'est atteignable |
-| `w` | `widths` | l'échelle de largeurs d'appareils, 15 entrées |
+| `w` | `widths` | les 23 largeurs que Nebula génère |
 | `f` | `formats` | AVIF, WebP, JPEG, PNG |
 | `q` | `qualities` | l'unique `quality` configurée |
 

@@ -206,12 +206,16 @@ Image({ src: '/photos/hero.jpg', alt: "L'atelier à l'aube", width: 1200, height
 
 | Disposition | Comportement | Propose |
 |---|---|---|
-| `constrained` *(défaut)* | se réduit pour tenir, jamais au-delà de `width` | 1x, 2x, et toutes les largeurs de l'échelle en dessous |
-| `full-width` | toujours la largeur de son conteneur | toute l'échelle |
+| `constrained` *(défaut)* | se réduit pour tenir, jamais au-delà de `width` | 1x, 2x, et les largeurs d'échelle intermédiaires |
+| `full-width` | toujours la largeur de son conteneur | toute l'échelle d'appareils |
 | `fixed` | la taille déclarée, quel que soit l'écran | 1x et 2x |
 | `none` | ni `srcset` ni `sizes` | rien |
 
-L'échelle de largeurs est faite de largeurs d'appareils, pas de nombres ronds — 828 est un iPhone XR, 1668 un iPad. `breakpoints` la remplace, et `LIMITED_RESOLUTIONS` est la même échelle sans les tailles que seul un écran de bureau réclame.
+Toutes les largeurs proposées sortent d'une liste fixe — une petite échelle pour les éléments qui ne font pas la largeur d'un écran (avatars, icônes, vignettes) et une échelle d'appareils au-dessus. **La largeur déclarée n'est jamais émise telle quelle.** `width: 1200` demandant 1200 et 2400, ce serait deux largeurs qu'aucune liste blanche ne contient — et mettre sur liste blanche ce qu'un auteur tape au clavier n'est pas une liste blanche. On arrondit *vers le haut*, aux barreaux qui les couvrent — 1280 et 2560 — parce qu'arrondir vers le bas est la façon dont un écran dense reçoit moins de pixels qu'il ne peut en afficher.
+
+Cette liste et le `widths` de [Prism](/fr/modules/prism) sont la même liste, et c'est la seule chose qui ne peut pas changer d'un seul côté. Une largeur que l'endpoint ne sert pas est une entrée de `srcset` qui répond 400, et une page qui retombe silencieusement sur son unique `src`.
+
+L'échelle d'appareils est faite de vraies largeurs d'appareils, pas de nombres ronds — 828 est un iPhone XR, 1668 un iPad. C'est sa densité qui rend l'arrondi vers le haut peu coûteux : le barreau au-dessus de 2400 est 2560, six pour cent plus haut. `breakpoints` la remplace, et `LIMITED_RESOLUTIONS` est la même échelle sans les tailles que seul un écran de bureau réclame.
 
 Passe `originalWidth` quand la largeur de la source est connue. Ce n'est qu'un raffinement : l'endpoint refuse d'agrandir quoi que ce soit, donc l'omettre coûte une URL en double servant les mêmes octets, jamais un agrandissement flou.
 

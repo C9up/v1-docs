@@ -204,12 +204,16 @@ Image({ src: '/photos/hero.jpg', alt: 'The workshop at dawn', width: 1200, heigh
 
 | Layout | Behaviour | Offers |
 |---|---|---|
-| `constrained` *(default)* | scales down to fit, never past `width` | 1x, 2x, and every ladder width below |
-| `full-width` | always the width of its container | the whole ladder |
+| `constrained` *(default)* | scales down to fit, never past `width` | 1x, 2x, and every ladder width between |
+| `full-width` | always the width of its container | the whole device ladder |
 | `fixed` | the declared size, whatever the viewport | 1x and 2x |
 | `none` | no `srcset`, no `sizes` | nothing |
 
-The width ladder is device widths, not round numbers — 828 is an iPhone XR, 1668 an iPad. `breakpoints` replaces it, and `LIMITED_RESOLUTIONS` is the same ladder without the sizes only a desktop display asks for.
+Every width offered comes off a fixed list — a small ladder for elements that are not the width of a screen (avatars, icons, thumbnails) and a device ladder above it. **The declared width is never emitted literally.** `width: 1200` asking for 1200 and 2400 would be two widths no allow-list contains, and allow-listing whatever an author happens to type is not an allow-list. It rounds *up* to the rungs that cover them — 1280 and 2560 — because rounding down is how a dense screen is handed fewer pixels than it can show.
+
+That list and [Prism](/en/modules/prism)'s `widths` are the same list, and it is the one thing that cannot be changed on one side alone. A width the endpoint does not serve is a `srcset` entry that 400s, and a page that silently falls back to its single `src`.
+
+The device ladder is real device widths, not round numbers — 828 is an iPhone XR, 1668 an iPad. Density is what makes rounding up cheap: the rung above 2400 is 2560, six percent over. `breakpoints` replaces it, and `LIMITED_RESOLUTIONS` is the same ladder without the sizes only a desktop display asks for.
 
 Pass `originalWidth` when the source's own width is known. It is only a refinement — the endpoint refuses to enlarge anything, so leaving it out costs a duplicate URL serving the same bytes, never a blurry enlargement.
 
