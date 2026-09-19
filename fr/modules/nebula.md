@@ -31,6 +31,30 @@ import { Button } from '#pages/atoms/Button.js'
 
 `ream nebula:add` copie la source du composant dans votre projet et vous la remet. Pas de version, pas de chemin de mise à jour, pas d'emballage contre lequel se battre quand une maquette demande une classe changée.
 
+### La contrepartie : `ream nebula:diff`
+
+La copie va dans un seul sens. Un correctif publié ici n'atteint jamais un projet
+tout seul, et rien ne le signale — ni le lockfile, ni `pnpm update`, ni le
+fichier lui-même.
+
+```bash
+ream nebula:diff        # quelles copies le paquet a modifiées depuis
+```
+
+Il répond avec la *raison* d'une différence. Une copie finit forcément par
+diverger de l'amont — c'est ce que posséder la source veut dire — donc
+« diffère » tout seul signalerait tout l'arbre et ne voudrait rien dire.
+L'empreinte enregistrée au moment de la copie est ce qui sépare une
+modification que vous avez faite d'une que vous n'avez pas vue.
+
+Lancez-le à chaque montée de version du paquet. Un `primitives/presence.ts`
+copié puis oublié sur plusieurs versions, c'est ainsi qu'un overlay garde un
+comportement corrigé en amont : la copie est antérieure au délai borné qui
+démonte une surface dont l'`animationend` n'arrive jamais, et les dialogues
+fermés restent dans le document en fond plein écran invisible. Ce fichier
+appartient à seize composants d'overlay, donc rien dans le symptôme ne le
+désigne.
+
 Le prix de cette promesse : un correctif publié ici n'atteint jamais un projet tout seul, et rien ne le signale — les fichiers sont locaux, aucun lockfile ne les mentionne, `pnpm update` n'y touche pas. C'est ce que `ream nebula:diff` rend visible. Il enregistre l'empreinte de ce qu'il a copié, ce qui lui permet de séparer un changement que vous avez fait d'un que vous n'avez pas vu :
 
 | État | Ce que ça veut dire |

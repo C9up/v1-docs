@@ -31,6 +31,27 @@ import { Button } from '#pages/atoms/Button.js'
 
 `ream nebula:add` copies the component's source into your project and hands it over. No version, no upgrade path, no wrapper to fight when a design needs one class changed.
 
+### The bill for that: `ream nebula:diff`
+
+Copying is one way. A fix released here never reaches a project on its own, and
+nothing says so — not the lockfile, not `pnpm update`, not the file itself.
+
+```bash
+ream nebula:diff        # which copies the package has since changed
+```
+
+It answers with the *reason* a file differs. A copy is expected to diverge from
+upstream eventually — that is what owning the source means — so "differs" alone
+would flag the whole tree and mean nothing. The hash recorded when you copied is
+what separates a change you made from one you have not seen.
+
+Run it when you upgrade the package. A copied `primitives/presence.ts` left
+behind across several releases is how an overlay keeps behaviour that was fixed
+upstream: the copy predates the deadline that removes a surface whose
+`animationend` never arrives, so closed dialogs stay in the document as
+invisible full-screen backdrops. The file is part of sixteen overlay components,
+so nothing about the symptom points at it.
+
 The bill for that premise is that a fix released here never reaches a project on its own, and nothing reports it — the files are local, no lockfile mentions them, `pnpm update` does not touch them. `ream nebula:diff` is where that becomes visible. It records the hash of what it copied, so it can separate a change you made from one you have not seen:
 
 | State | What it means |
