@@ -234,6 +234,42 @@ Now editing a page **or** any component/layout/service it imports hot-reloads th
 
 > **Point `boundaries` at page _entries_ only** — `./resources/pages/*.js` (direct children), **not** `**/*.js`. hot-hook requires every file matching `boundaries` to be dynamically imported; a component that is statically imported but happens to match the glob is flagged "wrongly imported" and forces a full reload. Keep pages as direct children of `resources/pages/` and components in subfolders (`atoms/`, `molecules/`, …) — they become hot-reloadable as downstream deps of a page boundary. Mirrors Adonis's `["./app/controllers/**/*.ts"]` (entrypoints only).
 
+## Knowing when the client has taken over
+
+`hydrate()` announces itself, so nothing has to guess or poll.
+
+```js
+import { whenHydrated, hydrationState, hydrationErrors } from '@c9up/aurora'
+
+document.addEventListener('aurora:hydrate', (e) => e.detail.container)  // per root
+document.addEventListener('aurora:load', () => {})                       // page settled
+
+await whenHydrated()        // resolves at once if it already has
+hydrationState()            // 'pending' | 'hydrating' | 'hydrated'
+hydrationErrors()           // what failed, if anything
+```
+
+`aurora:hydrate` fires on each root as it is adopted and bubbles, the way
+`turbo:frame-load` and `htmx:load` do per fragment. `aurora:load` fires once on
+`document` after the last root settles — a page with several islands announces
+itself when all of them are in, not when the first one is.
+
+Two deliberate differences from the runtimes this is modelled on:
+
+**The event fires even when a root throws**, with the reason in `detail.error`
+and in `hydrationErrors()`. A signal withheld on failure turns a race into a
+silent hang, and whoever is waiting cannot tell the two apart.
+
+**There is a readable state beside the event.** An event alone carries the race
+it exists to remove: attach a listener after it fired and you wait for ever.
+`whenHydrated()` resolves immediately when the work is already done — the same
+arrangement the DOM uses with `document.readyState` beside `DOMContentLoaded`.
+It never rejects; a failed root still settles the page.
+
+A client-side navigation hydrates again, and the state returns to `hydrating`
+before settling once more. Turbo re-fires `turbo:load` on every visit for the
+same reason: being ready once is not being ready.
+
 ## Low-level — direct hydration
 
 If you don't want the `aurora.render()` helper (you're rolling a custom shell), the same primitives are still exposed:

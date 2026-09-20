@@ -234,6 +234,44 @@ Désormais, éditer une page **ou** n'importe quel composant/layout/service qu'e
 
 > **Vise les `boundaries` sur les _entrées_ de page uniquement** — `./resources/pages/*.js` (enfants directs), **pas** `**/*.js`. hot-hook exige que tout fichier matché par `boundaries` soit importé dynamiquement ; un composant importé statiquement mais qui matche la glob est marqué « wrongly imported » et force un restart complet. Garde les pages en enfants directs de `resources/pages/` et les composants dans des sous-dossiers (`atoms/`, `molecules/`, …) — ils deviennent hot-reloadables en tant que dépendances en aval d'une page boundary. Reflète le `["./app/controllers/**/*.ts"]` d'Adonis (entrypoints seulement).
 
+## Savoir quand le client a pris la main
+
+`hydrate()` s'annonce, donc plus rien n'a besoin de deviner ni de sonder.
+
+```js
+import { whenHydrated, hydrationState, hydrationErrors } from '@c9up/aurora'
+
+document.addEventListener('aurora:hydrate', (e) => e.detail.container)  // par racine
+document.addEventListener('aurora:load', () => {})                       // page stabilisée
+
+await whenHydrated()        // résolu immédiatement si c'est déjà fait
+hydrationState()            // 'pending' | 'hydrating' | 'hydrated'
+hydrationErrors()           // ce qui a échoué, le cas échéant
+```
+
+`aurora:hydrate` part sur chaque racine adoptée et remonte, comme
+`turbo:frame-load` et `htmx:load` le font par fragment. `aurora:load` part une
+fois sur `document`, après la dernière racine — une page à plusieurs îlots
+s'annonce quand ils sont tous là, pas au premier.
+
+Deux écarts assumés avec les runtimes dont ceci s'inspire :
+
+**L'événement part même si une racine lève**, avec la raison dans
+`detail.error` et dans `hydrationErrors()`. Un signal retenu en cas d'échec
+transforme une course en blocage silencieux, et celui qui attend ne peut pas
+distinguer les deux.
+
+**Un état lisible accompagne l'événement.** Un événement seul porte la course
+qu'il est censé supprimer : abonnez-vous après son émission et vous attendez
+pour toujours. `whenHydrated()` se résout immédiatement quand le travail est
+déjà fait — exactement ce que fait le DOM avec `document.readyState` à côté de
+`DOMContentLoaded`. Il ne rejette jamais : une racine en échec stabilise quand
+même la page.
+
+Une navigation côté client ré-hydrate, et l'état repasse à `hydrating` avant de
+se stabiliser de nouveau. Turbo réémet `turbo:load` à chaque visite pour la
+même raison : avoir été prêt une fois, ce n'est pas être prêt.
+
 ## Bas niveau — hydration directe
 
 Si tu ne veux pas le helper `aurora.render()` (tu fais ta propre coquille HTML), les primitives sont toujours exposées :
