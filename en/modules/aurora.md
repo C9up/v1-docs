@@ -234,6 +234,30 @@ Now editing a page **or** any component/layout/service it imports hot-reloads th
 
 > **Point `boundaries` at page _entries_ only** — `./resources/pages/*.js` (direct children), **not** `**/*.js`. hot-hook requires every file matching `boundaries` to be dynamically imported; a component that is statically imported but happens to match the glob is flagged "wrongly imported" and forces a full reload. Keep pages as direct children of `resources/pages/` and components in subfolders (`atoms/`, `molecules/`, …) — they become hot-reloadable as downstream deps of a page boundary. Mirrors Adonis's `["./app/controllers/**/*.ts"]` (entrypoints only).
 
+### Serving another package to the browser
+
+`@c9up/comet` and `@c9up/chronos` are served already — aurora's own optional
+peers. Anything else an app imports by bare specifier without a bundler goes in
+one line:
+
+```ts
+// config/aurora.ts
+export default defineConfig({
+  browserPackages: ['@c9up/atom'],
+})
+```
+
+Each resolved package gets `<assetsPrefix>/<name>/dist/*`, a `wasm/*` route when
+it has one, and an importmap entry. A package that is not installed is skipped
+in silence.
+
+The mount is two narrow roots, never the package root: a wasm-backed package
+imports `../wasm/…` — a sibling of its dist — and the bindgen glue then fetches
+the binary beside itself, so the importmap points INTO `dist/` for that relative
+path to land on the sibling route. Serving the package root would answer both
+and also publish `index.*.node`, server-only binaries measured in tens of
+megabytes.
+
 ## Knowing when the client has taken over
 
 `hydrate()` announces itself, so nothing has to guess or poll.

@@ -234,6 +234,30 @@ Désormais, éditer une page **ou** n'importe quel composant/layout/service qu'e
 
 > **Vise les `boundaries` sur les _entrées_ de page uniquement** — `./resources/pages/*.js` (enfants directs), **pas** `**/*.js`. hot-hook exige que tout fichier matché par `boundaries` soit importé dynamiquement ; un composant importé statiquement mais qui matche la glob est marqué « wrongly imported » et force un restart complet. Garde les pages en enfants directs de `resources/pages/` et les composants dans des sous-dossiers (`atoms/`, `molecules/`, …) — ils deviennent hot-reloadables en tant que dépendances en aval d'une page boundary. Reflète le `["./app/controllers/**/*.ts"]` d'Adonis (entrypoints seulement).
 
+### Servir un autre paquet au navigateur
+
+`@c9up/comet` et `@c9up/chronos` le sont déjà — ce sont les peers optionnelles
+d'aurora. Tout autre paquet qu'une application importe par spécificateur nu,
+sans bundler, tient en une ligne :
+
+```ts
+// config/aurora.ts
+export default defineConfig({
+  browserPackages: ['@c9up/atom'],
+})
+```
+
+Chaque paquet résolu obtient `<assetsPrefix>/<nom>/dist/*`, une route `wasm/*`
+s'il en a une, et une entrée d'importmap. Un paquet non installé est ignoré en
+silence.
+
+Le montage se fait sur deux racines étroites, jamais sur la racine du paquet :
+un paquet adossé à du wasm importe `../wasm/…` — un frère de son `dist` — et le
+glue bindgen va ensuite chercher le binaire à côté de lui. L'importmap pointe
+donc **dans** `dist/` pour que ce chemin relatif atterrisse sur la route frère.
+Servir la racine du paquet répondrait aux deux et publierait aussi les
+`index.*.node`, des binaires serveur qui se comptent en dizaines de méga-octets.
+
 ## Savoir quand le client a pris la main
 
 `hydrate()` s'annonce, donc plus rien n'a besoin de deviner ni de sonder.
