@@ -210,13 +210,18 @@ et c'est l'import qui enregistre le code à base de décorateurs :
 
 ```ts
 // reamrc.ts
-modules: { path: 'app/modules', autoload: ['routes', 'events', 'services'] }
+modules: { path: 'app/modules', autoload: ['routes', 'events', 'services/'] }
 ```
 
-Une entrée nomme un **fichier** (`routes` → `routes.ts`) ou un **répertoire**
-(`services` → tous les `.ts`/`.js` sous `services/`, récursivement, en une seule
-passe alphabétique). Les `.d.ts` sont ignorés : ils déclarent des types et
-n'exécutent rien.
+Une entrée nomme un **fichier** (`routes` → `routes.ts`) ou, **avec une barre
+oblique finale**, un **répertoire** (`services/` → tous les `.ts`/`.js` dessous,
+récursivement, en une seule passe alphabétique). Les `.d.ts` sont ignorés : ils
+déclarent des types et n'exécutent rien.
+
+La barre est obligatoire, jamais déduite. Se rabattre sur un répertoire du même
+nom ferait exécuter, à une application dont un module contient `routes/` en
+dossier, tous les fichiers qu'il renferme le jour de sa mise à jour — sans
+qu'elle ait rien demandé.
 
 C'est la forme répertoire qui rend `@Schedule()` et consorts découvrables. Un
 décorateur s'enregistre quand son module est importé, pas avant : une tâche

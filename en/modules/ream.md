@@ -207,13 +207,17 @@ importing is what registers decorator-based code:
 
 ```ts
 // reamrc.ts
-modules: { path: 'app/modules', autoload: ['routes', 'events', 'services'] }
+modules: { path: 'app/modules', autoload: ['routes', 'events', 'services/'] }
 ```
 
-An entry names a **file** (`routes` → `routes.ts`) or a **directory**
-(`services` → every `.ts`/`.js` under `services/`, recursively, in one
-alphabetical pass). `.d.ts` files are skipped: they declare types and execute
-nothing.
+An entry names a **file** (`routes` → `routes.ts`) or, **with a trailing
+slash**, a **directory** (`services/` → every `.ts`/`.js` under it,
+recursively, in one alphabetical pass). `.d.ts` files are skipped: they declare
+types and execute nothing.
+
+The slash is required, not inferred. Falling back to a directory of the same
+name would make an application whose module holds `routes/` as a directory
+execute every file in it the day it upgraded, having asked for nothing.
 
 The directory form is what makes `@Schedule()` and friends discoverable. A
 decorator registers when its module is imported and not before, so a scheduled
