@@ -203,6 +203,33 @@ if (!su.verify(reset, 'pwd-reset')) return /* 403 */
 
 Un token émis pour un purpose ne peut pas être rejoué contre un autre.
 
+### Ce que chaque module charge automatiquement
+
+`modules.autoload` nomme ce qui est importé depuis chaque répertoire de module,
+et c'est l'import qui enregistre le code à base de décorateurs :
+
+```ts
+// reamrc.ts
+modules: { path: 'app/modules', autoload: ['routes', 'events', 'services'] }
+```
+
+Une entrée nomme un **fichier** (`routes` → `routes.ts`) ou un **répertoire**
+(`services` → tous les `.ts`/`.js` sous `services/`, récursivement, en une seule
+passe alphabétique). Les `.d.ts` sont ignorés : ils déclarent des types et
+n'exécutent rien.
+
+C'est la forme répertoire qui rend `@Schedule()` et consorts découvrables. Un
+décorateur s'enregistre quand son module est importé, pas avant : une tâche
+planifiée dans un fichier que personne n'importe n'est jamais trouvée — et
+l'application démarre parfaitement, la tâche simplement absente. Nommer son
+répertoire ici, c'est ce qui l'importe ; un préchargement écrit à la main fait
+le même travail à la main.
+
+Une entrée qui ne correspond à rien dans **aucun** module est signalée au
+démarrage. Un module sans `routes.ts` est normal et reste silencieux ; un nom
+qui n'existe nulle part est une faute de frappe dont le seul autre symptôme est
+une tâche qui ne se déclenche jamais.
+
 ## Fichiers statiques
 
 Enregistre le provider et `public/` est servi — c'est toute l'installation.
