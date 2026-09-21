@@ -287,6 +287,32 @@ projet `api` ou `web` frais les a déjà : une suite `unit`, une suite
 un serveur — c'est ce que fait son hook de suite, donc un fichier unitaire ne le
 paie pas.
 
+### Couverture
+
+```bash
+ream test --coverage
+ream test unit --coverage --coverage-reporters=text-summary,lcov --coverage-dir=coverage
+ream test --coverage --coverage-thresholds='{"lines":80,"functions":75}'
+ream test --coverage --coverage-include='app/**/*.ts' --coverage-exclude='app/**/*.stub.ts'
+```
+
+La couverture appartient au runner ; le CLI ne fait que nommer les drapeaux et
+transmettre les valeurs, comme il transmet `--threads`. V8 enregistre ce que le
+run a exécuté : rien n'a besoin d'être instrumenté au préalable.
+
+Ce qui est mesuré, quand le run ne nomme rien, c'est l'arborescence de
+l'application — `app/`, `start/`, `config/`, `commands/`, `database/`, plus
+`src/` pour un paquet piloté par la même commande. Le défaut du runner est
+`src/` seul, qu'une application n'a pas : tel quel, chaque run imprimerait un
+rapport sur zéro fichier. `--coverage-include` remplace cette liste, il ne s'y
+ajoute pas.
+
+`--coverage-thresholds` prend un objet JSON et fait échouer le run quand une
+métrique passe dessous — le code de sortie est celui du run, la CI n'a donc rien
+à ajouter. Un drapeau `--coverage-*` donné sans `--coverage` est refusé plutôt
+qu'ignoré : il ne collecterait rien, et un run vert avec un rapport vide est le
+mode de panne qui mérite d'être nommé.
+
 ## Clés et intégrations
 
 ```bash

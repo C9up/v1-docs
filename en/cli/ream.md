@@ -282,6 +282,31 @@ the suite names and their globs live in one place rather than in a script. A new
 `tests/bootstrap.ts`, and a first test. Only `functional` starts a server —
 that is what its suite hook does, so a unit file pays nothing for it.
 
+### Coverage
+
+```bash
+ream test --coverage
+ream test unit --coverage --coverage-reporters=text-summary,lcov --coverage-dir=coverage
+ream test --coverage --coverage-thresholds='{"lines":80,"functions":75}'
+ream test --coverage --coverage-include='app/**/*.ts' --coverage-exclude='app/**/*.stub.ts'
+```
+
+Coverage belongs to the runner; the CLI only names the flags and carries the
+values across, the same way it carries `--threads`. V8 records what the run
+executed, so nothing has to be instrumented first.
+
+What is measured, when the run names nothing, is the application layout —
+`app/`, `start/`, `config/`, `commands/`, `database/`, plus `src/` for a package
+driven by the same command. The runner's own default is `src/` alone, which an
+application does not have: left at that, every run would print a report over
+zero files. `--coverage-include` replaces that list rather than adding to it.
+
+`--coverage-thresholds` takes a JSON object and fails the run when a metric
+falls under it — the exit code is the run's, so CI needs no extra step. A
+`--coverage-*` flag given without `--coverage` is refused rather than ignored:
+it would collect nothing, and a green run with an empty report is the failure
+mode worth naming.
+
 ## Keys and integrations
 
 ```bash

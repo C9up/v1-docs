@@ -49,6 +49,17 @@ import { runTestsFromRcFile } from '@c9up/helix-plugin-ream/runner'
 
 This is what `ream test` calls.
 
+Options are overrides on top of the rc file: `suites`, `threads`, `reporters`,
+`bail`, and `coverage` — the last one handed to Helix untouched, since coverage
+is the runner's.
+
+```ts
+await runTestsFromRcFile('./reamrc.ts', {
+  suites: ['unit'],
+  coverage: { enabled: true, include: ['app/**/*.ts'], thresholds: { lines: 80 } },
+})
+```
+
 ## What stays in Ream
 
 `TestClient`, `createTestClient`, `RequestBuilder` and `ApiResponse` live in `@c9up/ream/testing`. They drive a Ream server over HTTP and owe nothing to the runner, so they need no plugin, and a project testing with something else uses them as they are.

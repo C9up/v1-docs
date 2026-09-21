@@ -49,6 +49,17 @@ import { runTestsFromRcFile } from '@c9up/helix-plugin-ream/runner'
 
 C'est ce que `ream test` appelle.
 
+Les options écrasent ce que dit le fichier rc : `suites`, `threads`, `reporters`,
+`bail`, et `coverage` — cette dernière passée telle quelle à Helix, la
+couverture appartenant au runner.
+
+```ts
+await runTestsFromRcFile('./reamrc.ts', {
+  suites: ['unit'],
+  coverage: { enabled: true, include: ['app/**/*.ts'], thresholds: { lines: 80 } },
+})
+```
+
 ## Ce qui reste dans Ream
 
 `TestClient`, `createTestClient`, `RequestBuilder` et `ApiResponse` vivent dans `@c9up/ream/testing`. Ils pilotent un serveur Ream en HTTP et ne doivent rien au lanceur : ils n'ont donc besoin d'aucun plugin, et un projet qui teste avec autre chose les utilise tels quels.
