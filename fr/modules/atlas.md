@@ -1010,6 +1010,46 @@ Au démarrage, `AtlasProvider` :
 3. Enregistre `db` et `db.connection` dans le conteneur
 4. Exécute les migrations en attente via `MigrationRunner` (tout le DDL compilé par `ream-query`)
 
+### Migrations au démarrage
+
+`migrations.autoRun` migre quand l'application démarre. C'est désactivé par
+défaut, et pour une raison : le démarrage a aussi lieu sous `warmUp()`, donc un
+listing de routes ou une passe de génération mutait le schéma, et chaque
+réplique d'un déploiement progressif courait après la même base.
+
+Activez-le pour un hôte qui possède vraiment sa base à lui seul — un conteneur
+qui démarre une fois, une application embarquée sur une base fichier :
+
+```ts
+migrations: { autoRun: true }
+```
+
+**Il est ignoré quand `NODE_ENV` vaut `development`.** Si l'on migre au
+démarrage, c'est parce qu'un conteneur n'a pas de terminal où lancer une
+commande ; une machine de développement en a un. Et le développement est le seul
+environnement qui redémarre en permanence, donc chaque redémarrage rejouait les
+migrations pendant que l'instance remplacée tenait encore le verrou — deux
+échecs par fichier sauvegardé. Lancez `ream migrate` là-bas, comme partout
+ailleurs.
+
+### Une option qu'il ne connaît pas
+
+Une clé sous `migrations` qu'atlas ne reconnaît pas est nommée au démarrage, au
+lieu d'être ignorée. Ce silence a coûté cher : quand `autoRunInProduction` est
+devenu `autoRun`, l'ancienne clé a continué d'être acceptée, les migrations se
+sont arrêtées sans un mot, et un déploiement est parti sur un schéma vide.
+
+Passer la config par `defineConfig()` l'attrape plus tôt — à la compilation, où
+une clé renommée est une erreur de type :
+
+```ts
+import { defineConfig } from '@c9up/atlas'
+
+export default defineConfig({
+  // …
+})
+```
+
 ## Prochaines étapes
 
 - [Rune (Validation)](/fr/modules/rune) — Valider les entrées avant de sauvegarder les entités

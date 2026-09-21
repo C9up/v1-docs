@@ -71,12 +71,55 @@ Then declare what may be swapped, in `package.json`:
 
 `ream new` writes both for you.
 
+On a modular layout — one directory per bounded context — the globs name the
+same two things through it:
+
+```json
+{
+  "hotHook": {
+    "boundaries": [
+      "./app/modules/*/controllers/*.ts",
+      "./app/modules/*/middleware/*.ts"
+    ]
+  }
+}
+```
+
+### Your routes have to import lazily
+
+This is the step that decides whether any of the above does anything, and it is
+easy to skip because nothing fails when you do.
+
+```ts
+// Restarts on every save: the controller is part of the route file's own graph.
+import CommentController from './controllers/CommentController.js'
+router.post('/comments', [CommentController, 'create'])
+
+// Swappable: the controller is reached only when a request arrives.
+router.post('/comments', [() => import('./controllers/CommentController.js'), 'create'])
+```
+
+The router has always accepted both. Middleware is the same: `kernel.use()`
+takes `() => import('#modules/x/middleware/Y.js')`.
+
 **Boundaries name entry modules, and only entry modules.** A module can be
-swapped only if it is reached by a *dynamic* import — which is what a route
-handler or a middleware reference is. A `**` glob wide enough to also catch the
-components an entry imports statically makes those "wrongly imported", every
-change falls back to a full restart, and it looks exactly like hot reloading
-being broken.
+swapped only if it is reached by a *dynamic* import. A file that matches a
+boundary and is imported statically anywhere is reported as
+`shouldBeReloadable` and forces a FULL restart — so a `**` glob wide enough to
+also catch the services and entities an entry imports makes every change
+restart the server, and it looks exactly like hot reloading being broken.
+
+### Telling it apart from a restart
+
+A restart also shows your change, so the page updating proves nothing. The only
+test that separates them is the process id:
+
+```bash
+pgrep -f bin/server.ts     # note it, edit a controller, run it again
+```
+
+Same id, changed output: the module was swapped. New id: the server restarted,
+and something above is not in place yet.
 
 A change outside the boundaries — a route file, a provider, `.env` — restarts
 the server, as it must: those are read once while the application assembles.

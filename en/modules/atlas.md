@@ -1003,6 +1003,45 @@ On boot, `AtlasProvider`:
 3. Registers `db` and `db.connection` in the container
 4. Runs pending migrations through `MigrationRunner` (all DDL compiled by `ream-query`)
 
+### Migrations at boot
+
+`migrations.autoRun` migrates when the application boots. It is off by default,
+and for a reason: boot also runs under `warmUp()`, so a route listing or a
+codegen pass would mutate the schema, and every replica of a rolling deploy
+would race the others for the same database.
+
+Turn it on for a host that genuinely owns its database alone — a container that
+starts once, an embedded app on a file database:
+
+```ts
+migrations: { autoRun: true }
+```
+
+**It is ignored when `NODE_ENV` is `development`.** The reason to migrate at
+boot at all is that a container has no terminal to run a command in; a
+development machine has one. And development is the one environment that
+restarts constantly, so each restart replayed the migrations while the instance
+it replaced still held the lock — two failures per saved file. Run
+`ream migrate` there, as every other environment already does.
+
+### An option it does not know
+
+A key under `migrations` that atlas does not recognise is named at boot rather
+than ignored. That silence used to be expensive: when `autoRunInProduction`
+became `autoRun`, the old key kept being accepted, migrations quietly stopped,
+and a deployment came up on an empty schema.
+
+Wrapping the config in `defineConfig()` catches it earlier — at compile time,
+where a renamed key is a type error:
+
+```ts
+import { defineConfig } from '@c9up/atlas'
+
+export default defineConfig({
+  // …
+})
+```
+
 ## Next Steps
 
 - [Rune (Validation)](/en/modules/rune) — Validate input before saving entities

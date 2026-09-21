@@ -258,6 +258,34 @@ donc **dans** `dist/` pour que ce chemin relatif atterrisse sur la route frère.
 Servir la racine du paquet répondrait aux deux et publierait aussi les
 `index.*.node`, des binaires serveur qui se comptent en dizaines de méga-octets.
 
+### Attraper une erreur d'aurora
+
+Toute erreur levée par aurora est une `AuroraError` portant un `code` stable :
+on peut donc brancher sur ce qui a échoué sans filtrer un message — la prose est
+libre d'évoluer, un code est un contrat.
+
+```js
+import { AuroraError } from '@c9up/aurora'
+
+try {
+  await pages.resolve('Dashboard')
+} catch (error) {
+  if (error instanceof AuroraError && error.code === 'E_AURORA_PAGE_NOT_FOUND') {
+    // …
+  }
+}
+```
+
+`E_AURORA_PAGE_NOT_FOUND` signifie qu'aucun fichier ne porte ce nom.
+`E_AURORA_PAGE_IMPORT_FAILED` signifie que la page existe et que son graphe de
+modules a refusé de se charger — une erreur de syntaxe n'importe où dedans, un
+throw au niveau module, un export manquant dans ce qu'elle importe. Les deux
+étaient autrefois rapportés comme un seul, contre le chemin de la page, ce qui
+envoyait le lecteur vers le seul fichier dont on était sûr qu'il allait bien.
+
+L'erreur d'origine est toujours attachée en `cause`, donc la pile qui désigne la
+ligne survit.
+
 ## Savoir quand le client a pris la main
 
 `hydrate()` s'annonce, donc plus rien n'a besoin de deviner ni de sonder.

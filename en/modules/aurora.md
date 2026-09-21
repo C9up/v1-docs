@@ -258,6 +258,33 @@ path to land on the sibling route. Serving the package root would answer both
 and also publish `index.*.node`, server-only binaries measured in tens of
 megabytes.
 
+### Catching an aurora failure
+
+Every error aurora raises is an `AuroraError` carrying a stable `code`, so a
+caller can branch on what went wrong without matching a message — prose is free
+to improve, a code is a contract.
+
+```js
+import { AuroraError } from '@c9up/aurora'
+
+try {
+  await pages.resolve('Dashboard')
+} catch (error) {
+  if (error instanceof AuroraError && error.code === 'E_AURORA_PAGE_NOT_FOUND') {
+    // …
+  }
+}
+```
+
+`E_AURORA_PAGE_NOT_FOUND` means no file for that name. `E_AURORA_PAGE_IMPORT_FAILED`
+means the page is there and its module graph refused to load — a syntax error
+anywhere in it, a throw at module top level, an export missing from something it
+imports. The two used to be reported as one, against the page's own path, which
+sent the reader to the only file that was certainly fine.
+
+The original failure is always attached as `cause`, so the stack that points at
+the line survives.
+
 ## Knowing when the client has taken over
 
 `hydrate()` announces itself, so nothing has to guess or poll.

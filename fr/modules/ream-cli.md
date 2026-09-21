@@ -72,12 +72,58 @@ Puis on déclare ce qui peut être échangé, dans `package.json` :
 
 `ream new` écrit les deux pour vous.
 
+Sur une structure modulaire — un répertoire par contexte — les globs désignent
+les deux mêmes choses à travers elle :
+
+```json
+{
+  "hotHook": {
+    "boundaries": [
+      "./app/modules/*/controllers/*.ts",
+      "./app/modules/*/middleware/*.ts"
+    ]
+  }
+}
+```
+
+### Vos routes doivent importer paresseusement
+
+C'est l'étape qui décide si tout ce qui précède sert à quelque chose, et on
+l'oublie facilement parce que rien n'échoue quand on la saute.
+
+```ts
+// Redémarre à chaque sauvegarde : le contrôleur fait partie du graphe du
+// fichier de routes lui-même.
+import CommentController from './controllers/CommentController.js'
+router.post('/comments', [CommentController, 'create'])
+
+// Échangeable : le contrôleur n'est atteint qu'à l'arrivée d'une requête.
+router.post('/comments', [() => import('./controllers/CommentController.js'), 'create'])
+```
+
+Le routeur accepte les deux formes depuis toujours. Même chose pour les
+middlewares : `kernel.use()` prend `() => import('#modules/x/middleware/Y.js')`.
+
 **Les frontières désignent des modules d'entrée, et rien d'autre.** Un module
-n'est échangeable que s'il est atteint par un import *dynamique* — ce qu'est
-une référence de handler de route ou de middleware. Un glob `**` assez large
-pour attraper aussi les composants qu'une entrée importe statiquement rend
-ceux-ci « mal importés », chaque changement retombe en redémarrage complet, et
-cela ressemble exactement à un rechargement à chaud cassé.
+n'est échangeable que s'il est atteint par un import *dynamique*. Un fichier qui
+correspond à une frontière et qu'on importe statiquement quelque part est
+signalé `shouldBeReloadable` et force un redémarrage **complet** — un glob `**`
+assez large pour attraper aussi les services et les entités qu'une entrée
+importe fait donc redémarrer le serveur à chaque changement, et cela ressemble
+exactement à un rechargement à chaud cassé.
+
+### Distinguer un échange d'un redémarrage
+
+Un redémarrage affiche aussi votre modification : voir la page changer ne prouve
+donc rien. Le seul test qui les sépare est l'identifiant du processus :
+
+```bash
+pgrep -f bin/server.ts     # notez-le, modifiez un contrôleur, relancez-le
+```
+
+Même identifiant et sortie changée : le module a été échangé. Nouvel
+identifiant : le serveur a redémarré, et quelque chose au-dessus n'est pas
+encore en place.
 
 Un changement hors des frontières — un fichier de routes, un provider, `.env` —
 redémarre le serveur, et c'est normal : ces fichiers sont lus une fois, pendant
