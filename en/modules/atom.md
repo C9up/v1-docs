@@ -175,6 +175,129 @@ class Invoice {
 
 For low-level use, `decimalAtlasAdapter` remains available.
 
+## Bulk
+
+`Atom.bulk` plans a computation in JavaScript and runs the whole of it in one
+crossing into the engine.
+
+The reason it exists is the boundary, not the arithmetic. A call into the native
+engine costs about 200 ns whatever it carries, and a list of decimal strings
+costs about that again for every element in it. A loop that walks a schedule one
+operation at a time therefore spends nearly all of its time crossing. A bulk
+program crosses once: the values go over as a typed array, which is a pointer
+rather than a walk, and the operations go over beside them as bytecode.
+
+```ts
+import { Atom } from '@c9up/atom'
+
+const { net, biggest } = Atom.bulk((b) => {
+  const gross = b.column(quantities).times(b.column(prices))
+  const total = gross.sum()
+  return {
+    net: total.minus(total.times(b.of('0.0025'))),
+    biggest: gross.max(),
+  }
+})
+// → { net: Decimal, biggest: Decimal }
+```
+
+Planned values carry `Decimal`'s method names, so moving a hot path into bulk is
+a change of where the values come from and nothing else.
+
+### What it is for, and what it is not for
+
+Measured on this package's own benchmark (`pnpm bench:bulk`):
+
+| Work | Bulk | Same work otherwise |
+| --- | --- | --- |
+| 2 160 dependent operations (a 360-row schedule) | 0.30 ms | 0.81 ms one call per operation · 2.23 ms through `Decimal` |
+| `dot` over 200 000 values | 97 ms | 176 ms through `Decimal.dot` |
+| `dot` over 200 000 values already held as integers | — | **0.8 ms in a plain `for` loop** |
+
+That last row is the one to read twice. Below roughly three operations per
+element, a plain loop over a `BigInt64Array` beats anything that crosses at all,
+and no amount of planning changes that. Bulk is for **chains of dependent
+operations** — a schedule, a rate solver, a statistic over a column — and not
+for a lone sum.
+
+### Columns and values
+
+```ts
+const plan = Atom.bulk()              // keep the plan and run it more than once
+const quantities = plan.column(rows.map((row) => row.quantity))
+const rate = plan.of('0.0725')
+
+plan.run({ total: quantities.sum() })
+plan.run({ charged: quantities.sum().times(rate) })
+```
+
+A plan takes values in through `column` (decimal values), `minorUnits`
+(whole minor units, see below) and `of` (a single value).
+
+Every column in one plan has to be the same length. A program over columns of
+different lengths is a caller's bug, and valuing the first few rows would return
+a plausible figure for data nobody has.
+
+Columns carry the aggregates: `sum`, `avg`, `min`, `max`, `median`,
+`percentile`, `stddev`, `dot`, `at`, `sorted`, and the elementwise `plus`,
+`minus`, `times`, `neg`, `abs`. Values carry `plus`, `minus`, `times`, `div`,
+`pow`, `sqrt`, `neg`, `abs`, `min`, `max`.
+
+`dot` and `stddev` are fused: the products and the deviations are never
+materialised, which measured about four times faster than allocating the
+intermediate column.
+
+### Columns already held as minor units
+
+`minorUnits(values, scale)` is the counterpart of `Decimal.fromMinorUnits`:
+`minorUnits([1234n, 99n], 2)` is 12.34 and 0.99.
+
+```ts
+const { revenue } = Atom.bulk((b) => ({
+  revenue: b.minorUnits(invoices.map((invoice) => invoice.totalCents), 2).sum(),
+}))
+```
+
+It exists because a whole number needs no parsing and no normalising. Measured
+on 200 000 values, a column taken in this way costs 3.5 ms against 50 ms for
+the same figures written as decimal strings — fourteen times less. Money is usually stored as an
+integer of minor units anyway — `Money.toMinorUnits()` is what goes into that
+column — so this is the shape the data already has.
+
+Only whole numbers are accepted, as `bigint`, `number` or `string`. A value with
+a fractional part is refused rather than rounded: `minorUnits(['12.34'], 2)` is
+a caller who meant `column(['12.34'])`, and silently reading it as 12.34 minor
+units would be wrong by a factor of a hundred.
+
+Columns of different scales mix freely — the engine raises them to a common
+scale rather than rounding either.
+
+### Reading a planned value
+
+A planned value has no string form until the plan has been run:
+
+```ts
+const total = plan.column(amounts).sum()
+`${total}`          // throws ATOM_BULK_NOT_RUN
+plan.run({ total }) // → { total: Decimal }
+```
+
+That is deliberate. Without it, a template literal would quietly yield
+`[object Object]` and `total + 1` a string, inside a calculation where being
+quietly wrong is the worst outcome available.
+
+### Exactness
+
+Bulk runs on 128-bit registers, which is wide enough for a product of two 64-bit
+columns and narrow enough to be a single machine instruction. It is not wide
+enough for everything.
+
+Every step is checked. A value too wide to lay out, or an overflow part way
+through a run, makes the same plan run again on the BigInt executor, which has
+no ceiling — the same graph, evaluated with the same helpers `Decimal` uses. The
+fast path is allowed to be too narrow. It is never allowed to be wrong, and the
+test suite runs every case on both executors and compares.
+
 ## Runtime
 
 Runtime order:
