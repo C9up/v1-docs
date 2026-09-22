@@ -154,8 +154,18 @@ providers: [
 
 C'est tout. Le provider d'aurora :
 - met `pages.root` par défaut sur `<projectRoot>/resources/pages` — il suffit de poser tes pages dedans ;
-- auto-monte `GET /__assets/aurora/*` (le `dist/` pré-compilé d'aurora) ;
-- auto-monte `GET /__assets/pages/*` (ton dossier de pages).
+- sert `/__assets/aurora/*` (le `dist/` pré-compilé d'aurora) ;
+- sert `/__assets/pages/*` (ton dossier de pages) ;
+- sert `/__assets/<package>/dist/*` pour chaque entrée de `browserPackages`.
+
+Ce sont des **middlewares serveur**, pas des routes — le même étage que celui
+où `@adonisjs/static` s'enregistre. Une page est livrée sans bundler : un
+chargement, c'est des dizaines de requêtes `.js`. En routes, chacune traversait
+toute ta pile de middlewares, et une application qui résout un utilisateur
+depuis un cookie de session payait un `SELECT` par fichier pour des octets
+identiques pour tout le monde. Servies avant le routage, elles n'atteignent
+jamais ton kernel — et tu n'as pas à écrire l'exemption toi-même. Seuls `GET`
+et `HEAD` sont captés ; le reste retombe sur tes routes.
 
 Pour utiliser un autre dossier, crée `config/aurora.ts` :
 

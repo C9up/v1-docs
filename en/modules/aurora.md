@@ -152,8 +152,17 @@ providers: [
 
 That's it. Aurora's provider:
 - defaults `pages.root` to `<projectRoot>/resources/pages` — drop your pages there and they're picked up;
-- auto-mounts `GET /__assets/aurora/*` (the runtime's pre-built `dist/`);
-- auto-mounts `GET /__assets/pages/*` (your pages directory).
+- serves `/__assets/aurora/*` (the runtime's pre-built `dist/`);
+- serves `/__assets/pages/*` (your pages directory);
+- serves `/__assets/<package>/dist/*` for every entry in `browserPackages`.
+
+Those are **server middleware**, not routes — the same tier `@adonisjs/static`
+registers on. A page ships unbundled, so one page load is dozens of `.js`
+requests: as routes they each traversed your middleware stack, and an
+application that resolves a user from a session cookie paid a `SELECT` per file
+for bytes that are identical for every visitor. Served ahead of routing, they
+never reach your kernel — and you never have to write the exemption yourself.
+Only `GET` and `HEAD` are claimed; anything else falls through to your routes.
 
 To use a different folder, create `config/aurora.ts`:
 
