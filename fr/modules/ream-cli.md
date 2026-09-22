@@ -141,6 +141,30 @@ Rien n'est injecté hors développement, et le script porte le nonce CSP de la
 requête : une application avec une politique à nonce n'a aucune exception à
 prévoir pour lui.
 
+## Ce que le navigateur apprend
+
+Le serveur de développement injecte un petit script dans les réponses HTML et
+lui pousse les changements en Server-Sent Events. Un swap à chaud ou un
+redémarrage fait bouger un jeton, la page voit le nouveau et se recharge.
+
+Upstream obtient ça du websocket de Vite, et sans Vite il n'obtient rien : son
+assembler écrit `invalidated <fichier>` dans le terminal et le navigateur n'est
+jamais prévenu. Ici aucun bundler n'est nécessaire, le serveur parle déjà SSE.
+
+Le flux répond AVANT tout middleware applicatif. C'est de la plomberie de
+framework, son contenu ne dépend d'aucun utilisateur, d'aucune session et
+d'aucun corps de requête, et une application est libre de mettre son
+authentification dans `server.use([...])` — beaucoup le font, puisqu'elle doit
+tourner avant le routage. Derrière cette pile, le point d'entrée payait tout le
+pipeline à chaque message.
+
+Il recharge sur un CHANGEMENT de jeton, jamais sur une connexion coupée : un
+serveur qui redémarre est injoignable un instant, et recharger à ce
+moment-là affiche la page d'erreur du navigateur. `EventSource` se reconnecte
+tout seul, et le serveur salue la nouvelle connexion avec son jeton — après un
+redémarrage, un identifiant de démarrage différent, donc le rechargement a lieu
+quand le serveur peut réellement servir.
+
 ## Assets
 
 `ream dev` lance le serveur et ce qui construit vos assets comme un tout, et `ream build` construit les assets avant TypeScript. Déclarez-les dans `reamrc.ts` :

@@ -135,6 +135,28 @@ Nothing is injected outside development, and the script carries the request's
 CSP nonce, so an application with a nonce-based policy needs no exception for
 it.
 
+## What the browser is told
+
+The development server injects a small script into HTML responses and pushes to
+it over Server-Sent Events. A hot swap or a restart changes a token, the page
+sees the new one and reloads.
+
+Upstream gets this from Vite's websocket, and without Vite it gets nothing: the
+assembler logs `invalidated <file>` in the terminal and the browser is never
+told. This needs no bundler, because the server already speaks SSE.
+
+The stream is answered BEFORE any application middleware. It is framework
+plumbing, its content depends on no user, no session and no body, and an
+application is free to put authentication in `server.use([...])` — which many
+do, since it has to run before routing. Behind that stack the endpoint paid for
+the whole pipeline on every message.
+
+It reloads on a token CHANGE, never on a dropped connection: a restarting
+server is unreachable for a moment, and reloading then shows the browser's
+error page. `EventSource` reconnects by itself, and the server greets the new
+connection with its token — after a restart a different boot id, so the reload
+happens once the server can actually serve it.
+
 ## Assets
 
 `ream dev` runs the server and whatever builds your assets as one thing, and `ream build` builds the assets before TypeScript. Declare them in `reamrc.ts`:
