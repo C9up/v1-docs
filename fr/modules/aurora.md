@@ -75,7 +75,58 @@ const Counter = component(() => {
 })
 ```
 
-L'état c'est `signal()` du layer réactif — pas d'API "hooks" séparée. Les signaux fonctionnent à l'intérieur ET en dehors d'un setup de composant, donc la même primitive sert pour l'état au niveau module, les valeurs dérivées (`memo`), et les effets de bord (`effect`). `onMount` / `onUnmount` sont les seuls helpers liés au cycle de vie d'un composant ; ils existent parce qu'ils ont besoin d'accès à la file de cleanup propre à l'instance.
+L'état c'est `signal()` du layer réactif — pas d'API "hooks" séparée. Les signaux fonctionnent à l'intérieur ET en dehors d'un setup de composant, donc la même primitive sert pour l'état au niveau module, les valeurs dérivées (`memo`), et les effets de bord (`effect`). Les helpers liés à l'instance sont `onMount` / `onUnmount` et la paire de contexte ci-dessous ; ils existent parce qu'ils ont besoin des files propres à l'instance.
+
+### Contexte — `createContext`, `provide`, `inject`
+
+Un composant composé possède un état que toutes ses parties lisent. Un `Select`
+détient l'indicateur d'ouverture, l'élément actif et les identifiants ; son
+déclencheur, sa liste et chacun de ses éléments en ont besoin. Le contexte
+transmet la valeur vers le bas sans faire passer une prop par chaque niveau
+intermédiaire.
+
+```ts
+import { component, createContext, html, inject, provide, signal } from '@c9up/aurora'
+
+const MenuContext = createContext('Menu')
+
+const MenuTrigger = component(() => {
+  const menu = inject(MenuContext)
+  return html`<button @click=${() => menu.toggle()}>Ouvrir</button>`
+})
+
+const MenuContent = component(() => {
+  const menu = inject(MenuContext)
+  return html`<div ?hidden=${() => !menu.open()}>…</div>`
+})
+
+const Menu = component(() => {
+  const open = signal(false)
+  provide(MenuContext, { open: () => open(), toggle: () => open((v) => !v) })
+  // Construits ICI, dans le setup — voir la règle ci-dessous.
+  return html`<div>${MenuTrigger()}${MenuContent()}</div>`
+})
+```
+
+`inject` remonte jusqu'au `provide` le plus proche : imbriquer le même contexte
+le masque donc pour ce sous-arbre. Un second argument à `createContext` donne
+une valeur par défaut ; sans elle, `inject` lève `E_AURORA_MISSING_CONTEXT` en
+nommant le contexte — ce qu'on veut quand le composant n'a aucun sens seul.
+
+#### La seule règle
+
+Un descendant voit la valeur uniquement s'il est **créé dans le setup du
+fournisseur**. Aurora évalue tout de suite — aucun compilateur ne diffère quoi
+que ce soit — donc des enfants passés déjà construits ont tourné avant que le
+fournisseur n'existe :
+
+```ts
+Parent({ children: MenuItem() })       // ✗ MenuItem() est passé avant — lève
+Parent({ children: () => MenuItem() }) // ✓ le setup l'appelle
+```
+
+Un composant qui fournit quelque chose prend donc ses enfants sous forme de
+fonction et l'appelle lui-même, dans son setup. Tout le reste en découle.
 
 ## SSR — `renderToString`
 

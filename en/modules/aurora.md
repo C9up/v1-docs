@@ -75,7 +75,56 @@ const Counter = component(() => {
 })
 ```
 
-State is plain `signal()` from the reactive layer — there's no separate "hooks" API. Signals work both inside and outside a component setup, so the same primitive serves module-level state, derived values (`memo`), and side effects (`effect`). `onMount` / `onUnmount` are the only component-scoped helpers; they exist because they need access to the per-instance cleanup queue.
+State is plain `signal()` from the reactive layer — there's no separate "hooks" API. Signals work both inside and outside a component setup, so the same primitive serves module-level state, derived values (`memo`), and side effects (`effect`). The component-scoped helpers are `onMount` / `onUnmount` and the context pair below; they exist because they need the per-instance queues.
+
+### Context — `createContext`, `provide`, `inject`
+
+A compound component owns state its parts all read. A `Select` holds the open
+flag, the active item and the ids; its trigger, its list and each of its items
+need them. Context hands the value down without threading a prop through every
+level in between.
+
+```ts
+import { component, createContext, html, inject, provide, signal } from '@c9up/aurora'
+
+const MenuContext = createContext('Menu')
+
+const MenuTrigger = component(() => {
+  const menu = inject(MenuContext)
+  return html`<button @click=${() => menu.toggle()}>Open</button>`
+})
+
+const MenuContent = component(() => {
+  const menu = inject(MenuContext)
+  return html`<div ?hidden=${() => !menu.open()}>…</div>`
+})
+
+const Menu = component(() => {
+  const open = signal(false)
+  provide(MenuContext, { open: () => open(), toggle: () => open((v) => !v) })
+  // Built HERE, inside setup — see the rule below.
+  return html`<div>${MenuTrigger()}${MenuContent()}</div>`
+})
+```
+
+`inject` walks outward to the nearest `provide`, so nesting the same context
+shadows it for that subtree. Pass a second argument to `createContext` for a
+default; without one, `inject` throws `E_AURORA_MISSING_CONTEXT` naming the
+context — which is what you want when the component is meaningless on its own.
+
+#### The one rule
+
+A descendant sees the value only if it is **created inside the provider's
+setup**. Aurora evaluates eagerly — there is no compiler deferring anything —
+so children handed in as a built value ran before the provider existed:
+
+```ts
+Parent({ children: MenuItem() })       // ✗ MenuItem() ran first — throws
+Parent({ children: () => MenuItem() }) // ✓ the setup calls it
+```
+
+A component that provides anything therefore takes its children as a function
+and calls it itself, inside setup. Everything else follows from that.
 
 ## SSR — `renderToString`
 
