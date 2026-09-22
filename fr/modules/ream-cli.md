@@ -159,3 +159,52 @@ Chaque flux est préfixé ligne par ligne, et l'arrêt de l'un arrête l'autre �
 `ream build` exécute les assets **d'abord** et s'arrête là s'ils échouent, plutôt que de livrer un dist avec une feuille de style périmée.
 
 Les deux clés sont optionnelles : sans `assets`, `ream dev` et `ream build` se comportent exactement comme avant, le serveur gardant le terminal.
+
+## Fichiers annexes
+
+Traductions, gabarits de vue, signature d'e-mail : des fichiers qui appartiennent
+à l'application et qu'aucun module n'importe. Rien ne pointe dessus, donc le
+build n'a aucun moyen de savoir qu'ils existent — et sans qu'on le lui dise il
+produit un `dist/` qui démarre puis ne les trouve pas.
+
+Déclare-les dans `reamrc.ts` :
+
+```ts
+export default {
+  metaFiles: [
+    { pattern: 'resources/lang/**/*.{json,yaml,yml}', reloadServer: false },
+    { pattern: 'resources/views/**/*.edge', reloadServer: false },
+  ],
+}
+```
+
+`ream build` copie chaque correspondance dans la sortie en conservant son
+chemin : un loader configuré sur `../resources/lang/` le trouve depuis `dist/`
+parce que `resources/lang/fr.json` a atterri sur `dist/resources/lang/fr.json`.
+
+`reloadServer` décide de ce qu'une modification déclenche en DÉVELOPPEMENT, et
+c'est la valeur par défaut qui est intéressante :
+
+- **`false`** — le fichier est livré, et une modification ne fait rien. C'est ce
+  que veulent les traductions : elles sont lues une fois au démarrage, donc le
+  changement est visible au prochain lancement.
+- **`true`** — le serveur de développement redémarre. À demander seulement quand
+  le fichier est réellement lu au démarrage et que tu courrais sinon après une
+  valeur périmée.
+
+Le drapeau est exigé à chaque appel plutôt que défaillé : savoir si une
+modification coûte un redémarrage est toute la décision que l'entrée existe pour
+consigner.
+
+Un paquet inscrit les siens depuis `configure()`, si bien qu'une application qui
+l'installe obtient l'entrée sans l'écrire :
+
+```ts
+await codemods.addMetaFile('resources/lang/**/*.{json,yaml,yml}', false)
+```
+
+Le dialecte de glob est celui que les frontières de rechargement à chaud
+utilisent déjà — `*` dans un segment, `**` à travers les segments, `?` pour un
+caractère — plus l'alternance `{a,b}`. La CLI et le loader de développement
+l'interprètent avec les mêmes règles, de sorte qu'une entrée ne peut pas être
+copiée au build et ne jamais se déclencher en développement.

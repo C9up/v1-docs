@@ -153,3 +153,50 @@ Output is line-prefixed per process, and when one stops the other is stopped wit
 `ream build` runs the assets **first** and stops there if they fail, rather than shipping a dist with a stale stylesheet.
 
 Both keys are optional: with no `assets`, `ream dev` and `ream build` behave exactly as before, with the server owning the terminal.
+
+## Meta files
+
+Translations, view templates, a mail signature: files the application owns that
+no module ever imports. Nothing points at them, so the build has no way to know
+they exist — and without being told it emits a `dist/` that boots and then
+cannot find them.
+
+Declare them in `reamrc.ts`:
+
+```ts
+export default {
+  metaFiles: [
+    { pattern: 'resources/lang/**/*.{json,yaml,yml}', reloadServer: false },
+    { pattern: 'resources/views/**/*.edge', reloadServer: false },
+  ],
+}
+```
+
+`ream build` copies every match into the output, keeping its path: a loader
+configured with `../resources/lang/` finds it from `dist/` because
+`resources/lang/fr.json` landed at `dist/resources/lang/fr.json`.
+
+`reloadServer` decides what a change does in DEVELOPMENT, and the default is
+the interesting half:
+
+- **`false`** — the file ships, and an edit does nothing. This is what
+  translations want: they are read once at boot, so the change is seen on the
+  next start.
+- **`true`** — the development server restarts on a change. Ask for this only
+  when the file is genuinely read at boot and you would otherwise be chasing a
+  stale value.
+
+The flag is required at every call site rather than defaulted: whether an edit
+costs a restart is the whole decision the entry exists to record.
+
+A package registers its own from `configure()`, so an application that installs
+it gets the entry without writing one:
+
+```ts
+await codemods.addMetaFile('resources/lang/**/*.{json,yaml,yml}', false)
+```
+
+The glob dialect is the one the hot-reload boundaries already use — `*` inside
+a segment, `**` across segments, `?` for one character — plus `{a,b}`
+alternation. The CLI and the development loader match it with the same rules,
+so an entry cannot copy at build time and never fire in development.
