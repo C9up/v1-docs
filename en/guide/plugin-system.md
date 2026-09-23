@@ -34,13 +34,19 @@ The hook runs once per `ream add` / `ream configure` invocation. It MUST be idem
 
 ## The `Codemods` API
 
-The `Codemods` interface is the only argument you operate on. Its five methods cover the recurring patterns: register a provider, seed environment variables, scaffold config or migration files, register a CLI command, and register HTTP middleware. The live source is at `packages/ream/src/Codemods.ts:4`.
+The `Codemods` interface is the only argument you operate on. Its methods cover the recurring patterns: register a provider, seed environment variables, scaffold config or migration files from a stub, register a CLI command, and register HTTP middleware. The live source is at `packages/ream/src/Codemods.ts:4`.
 
 ```typescript
 interface Codemods {
   addProvider(importPath: string): Promise<void>
   addEnvVars(vars: Record<string, string>): Promise<void>
   writeFile(filePath: string, content: string, options?: { force?: boolean }): Promise<void>
+  makeUsingStub(
+    stubsRoot: string,
+    stubPath: string,
+    state?: Record<string, string | number | boolean>,
+    options?: { force?: boolean },
+  ): Promise<{ path: string; contents: string }>
   registerCommand(importPath: string): Promise<void>
   registerMiddleware(importPath: string, options?: { tier?: 'server' | 'router' }): Promise<void>
 }
@@ -82,6 +88,59 @@ export default defineConfig({
 ```
 
 Errors thrown by `writeFile` use the `[configure]` prefix and explain the constraint that was violated (absolute path, symlink escape, write outside root).
+
+### `makeUsingStub(stubsRoot, stubPath, state?, options?)`
+
+**This is how a package generates a file.** `writeFile` still exists, but it is
+for content you COMPUTE; anything you template belongs in a stub.
+
+A stub is a plain file shipped with your package. Its front matter names where
+it lands, and `{{ name }}` placeholders are filled from `state`:
+
+```
+---
+to: config/your-plugin.ts
+---
+import { defineConfig } from '@community/your-plugin'
+
+export default defineConfig({
+  adapter: '{{ adapter }}',
+})
+```
+
+```typescript
+// src/stubs.ts — its own module, so a caller can import the root alone
+import { join } from 'node:path'
+export const stubsRoot = join(import.meta.dirname, '..', 'stubs')
+```
+
+```typescript
+import { stubsRoot } from './stubs.js'
+
+await codemods.makeUsingStub(stubsRoot, 'config/your-plugin.stub', {
+  adapter: 'tailwind',
+})
+```
+
+Add `"stubs"` to your package's `files` array, or the stubs will not ship.
+
+**The application's copy wins.** A file published to `stubs/<stubPath>` in the
+project is used instead of yours — which is what lets someone change the config
+your package generates without forking it. It is the same rule the `make:`
+generators follow for `stubs/make/`.
+
+The destination is rendered too, so `to: config/{{ name }}.ts` lets one stub
+serve several outputs. An unknown placeholder is left alone rather than blanked:
+a stub that silently loses a line is worse than one that visibly kept a
+`{{ }}`. The destination goes through the same guard as `writeFile` — no
+absolute path, no `..`, no symlink out of the project — and a stub with no
+`to:` is refused rather than guessed at.
+
+**Named deviation.** Upstream renders stubs with a template engine (loops,
+conditionals, partials). This is substitution only, the same choice `ream-cli`
+makes for the `make:` generators: a template engine in the configure path is a
+second language in the framework, and a stub that needs one is a stub doing too
+much.
 
 ### `registerCommand(importPath)`
 

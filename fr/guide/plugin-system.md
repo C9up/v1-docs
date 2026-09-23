@@ -30,7 +30,7 @@ export async function configure(
 
 Le hook est asynchrone et retourne `Promise<void>`. Lever une exception interrompt l'opération : toute erreur qui s'échappe de la fonction sort `ream add` avec le code 1 (et `ream configure` avec le code 1). La CLI ne capture pas pour continuer — un configure raté laisse le paquet installé mais le projet non configuré.
 
-Le hook s'exécute une fois par invocation de `ream add` / `ream configure`. Il DOIT être idempotent : un utilisateur qui relance `ream add` après avoir mis à jour le paquet NE DOIT PAS voir de modifications destructrices. Les cinq méthodes de `Codemods` ci-dessous sont conçues pour être sûres à ré-exécuter — `addProvider`, `addEnvVars`, `writeFile` et `registerCommand` ignorent silencieusement les changements déjà appliqués ; `registerMiddleware` est idempotent par tier et rejette d'emblée les collisions cross-tier (enregistrer le même chemin d'import dans `server` ET `router` lève une erreur). Toute écriture de fichier directe que vous effectuez en dehors de `Codemods` DOIT suivre la même convention.
+Le hook s'exécute une fois par invocation de `ream add` / `ream configure`. Il DOIT être idempotent : un utilisateur qui relance `ream add` après avoir mis à jour le paquet NE DOIT PAS voir de modifications destructrices. Les méthodes de `Codemods` ci-dessous sont conçues pour être sûres à ré-exécuter — `addProvider`, `addEnvVars`, `writeFile` et `registerCommand` ignorent silencieusement les changements déjà appliqués ; `registerMiddleware` est idempotent par tier et rejette d'emblée les collisions cross-tier (enregistrer le même chemin d'import dans `server` ET `router` lève une erreur). Toute écriture de fichier directe que vous effectuez en dehors de `Codemods` DOIT suivre la même convention.
 
 ## L'API `Codemods`
 
@@ -41,6 +41,12 @@ interface Codemods {
   addProvider(importPath: string): Promise<void>
   addEnvVars(vars: Record<string, string>): Promise<void>
   writeFile(filePath: string, content: string, options?: { force?: boolean }): Promise<void>
+  makeUsingStub(
+    stubsRoot: string,
+    stubPath: string,
+    state?: Record<string, string | number | boolean>,
+    options?: { force?: boolean },
+  ): Promise<{ path: string; contents: string }>
   registerCommand(importPath: string): Promise<void>
   registerMiddleware(importPath: string, options?: { tier?: 'server' | 'router' }): Promise<void>
 }
@@ -82,6 +88,62 @@ export default defineConfig({
 ```
 
 Les erreurs levées par `writeFile` utilisent le préfixe `[configure]` et expliquent la contrainte violée (chemin absolu, échappement par lien symbolique, écriture hors racine).
+
+### `makeUsingStub(stubsRoot, stubPath, state?, options?)`
+
+**C'est ainsi qu'un paquet génère un fichier.** `writeFile` existe toujours,
+mais il est fait pour du contenu que tu CALCULES ; tout ce que tu templates
+appartient à un stub.
+
+Un stub est un fichier ordinaire livré avec ton paquet. Son front matter nomme
+sa destination, et les placeholders `{{ nom }}` sont remplis depuis `state` :
+
+```
+---
+to: config/your-plugin.ts
+---
+import { defineConfig } from '@community/your-plugin'
+
+export default defineConfig({
+  adapter: '{{ adapter }}',
+})
+```
+
+```typescript
+// src/stubs.ts — son propre module, pour qu'un appelant importe la racine seule
+import { join } from 'node:path'
+export const stubsRoot = join(import.meta.dirname, '..', 'stubs')
+```
+
+```typescript
+import { stubsRoot } from './stubs.js'
+
+await codemods.makeUsingStub(stubsRoot, 'config/your-plugin.stub', {
+  adapter: 'tailwind',
+})
+```
+
+Ajoute `"stubs"` au tableau `files` de ton package.json, sinon les stubs ne
+seront pas livrés.
+
+**La copie de l'application l'emporte.** Un fichier publié dans
+`stubs/<stubPath>` du projet est utilisé à la place du tien — c'est ce qui
+permet à quelqu'un de changer la config que ton paquet génère sans forker le
+paquet. C'est la règle que les générateurs `make:` suivent déjà pour
+`stubs/make/`.
+
+La destination est rendue elle aussi : `to: config/{{ name }}.ts` permet à un
+seul stub de servir plusieurs sorties. Un placeholder inconnu est laissé tel
+quel plutôt que vidé — un stub qui perd une ligne en silence est pire qu'un
+stub qui a visiblement gardé un `{{ }}`. La destination passe par la même garde
+que `writeFile` — pas de chemin absolu, pas de `..`, pas de lien symbolique
+hors du projet — et un stub sans `to:` est refusé plutôt que deviné.
+
+**Déviation nommée.** En amont, les stubs sont rendus par un moteur de template
+(boucles, conditions, partials). Ici c'est de la substitution seule, le même
+choix que fait `ream-cli` pour les générateurs `make:` : un moteur de template
+dans le chemin de configure est une seconde langue dans le framework, et un
+stub qui en a besoin est un stub qui en fait trop.
 
 ### `registerCommand(importPath)`
 
