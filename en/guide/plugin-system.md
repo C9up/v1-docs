@@ -136,11 +136,30 @@ a stub that silently loses a line is worse than one that visibly kept a
 absolute path, no `..`, no symlink out of the project — and a stub with no
 `to:` is refused rather than guessed at.
 
-**Named deviation.** Upstream renders stubs with a template engine (loops,
-conditionals, partials). This is substitution only, the same choice `ream-cli`
-makes for the `make:` generators: a template engine in the configure path is a
-second language in the framework, and a stub that needs one is a stub doing too
-much.
+A stub is not limited to placeholders. The full grammar is there:
+
+```
+{{! a comment }}
+{{#expect name, entity }}
+{{#var plural = name + 's' }}
+{{#if entity.isModel }}…{{#elif entity.isView }}…{{#else}}…{{/if}}
+{{#each methods as method, index }}  {{ method }}()
+{{/each}}
+```
+
+**Named deviation.** `{{ }}` does NOT escape HTML. Upstream's templates are web
+pages; a stub is a source file, and turning `"` into `&quot;` there produces
+code that does not parse — silently. `{{{ }}}` means the same thing, so a stub
+written for upstream keeps working, and `escape` turns escaping back on for
+anyone templating markup.
+
+A value a stub reads and the caller did not pass is an error naming it, not a
+`{{ missing }}` travelling into the generated file.
+
+**The Rust half.** `ream-cli` renders the `make:` stubs, and it cannot evaluate
+the JavaScript the engine compiles to without embedding a runtime. It does the
+substitution itself for a stub that only has placeholders — most of them — and
+hands anything with a block to Node, so both halves read the same grammar.
 
 ### `registerCommand(importPath)`
 
