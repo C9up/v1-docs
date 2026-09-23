@@ -106,6 +106,12 @@ gets a new one. A public client — a SPA, a native app — registers with
 `client_credentials`: "the client itself" means nothing when anyone can read
 its id out of a browser.
 
+The `tokenEndpointAuthMethod` a client registers is the **only** one accepted:
+a client declared `client_secret_basic` sending its secret in the body is
+refused, and the other way round. Accepting both would make the registered
+method decorative — and the body is readable by things that could not read the
+header.
+
 A scope a client was not registered for is **refused**, never silently
 dropped — granting less than was asked is how a client ends up believing it
 holds a permission it does not.
@@ -158,6 +164,19 @@ rather than minting a token directly. It is not a lenient double on purpose: a
 helper that granted whatever was asked would teach applications to ship a
 consent screen nobody has ever seen refuse, and a test that passes against a
 stub is a production incident with a green badge.
+
+## The issuer
+
+It identifies the SERVER, and that is all it does. An access token here is
+opaque — a random string with no claims inside — so nothing is bound to an
+issuer cryptographically; the only thing that can vouch for such a token is the
+server that minted it. That is why `/oauth/introspect` answers with `iss`, and
+why the metadata document names it.
+
+Validated at boot rather than at the first request: a URL, `https` (localhost
+excepted), no query string, no fragment, and a trailing slash dropped — every
+endpoint is built by concatenation, so `https://auth.test/` would otherwise
+produce `https://auth.test//oauth/token`.
 
 ## The store
 

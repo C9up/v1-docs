@@ -110,6 +110,11 @@ perd en reçoit un nouveau. Un client public — une SPA, une application native
 peut pas utiliser `client_credentials` : « le client lui-même » ne veut rien
 dire quand n'importe qui peut lire son id dans un navigateur.
 
+Le `tokenEndpointAuthMethod` qu'un client enregistre est le **seul** accepté :
+un client déclaré `client_secret_basic` qui envoie son secret dans le body est
+refusé, et inversement. Accepter les deux rendrait la méthode enregistrée
+décorative — et le body est lisible par ce qui ne pouvait pas lire l'en-tête.
+
 Un scope pour lequel le client n'est pas enregistré est **refusé**, jamais
 silencieusement retiré — accorder moins que demandé, c'est ainsi qu'un client
 finit par croire qu'il détient une permission qu'il n'a pas.
@@ -163,6 +168,20 @@ double permissif : un helper qui accorderait tout ce qu'on lui demande
 apprendrait aux applications à livrer un écran de consentement que personne n'a
 jamais vu refuser, et un test qui passe contre un stub est un incident de
 production avec une pastille verte.
+
+## L'issuer
+
+Il identifie le SERVEUR, et c'est tout ce qu'il fait. Un jeton d'accès est ici
+opaque — une chaîne aléatoire sans aucune claim à l'intérieur — donc rien n'est
+lié cryptographiquement à un issuer ; la seule chose qui peut répondre de ce
+jeton, c'est le serveur qui l'a frappé. C'est pour ça que
+`/oauth/introspect` répond avec `iss`, et que le document de métadonnées le
+nomme.
+
+Validé au démarrage et pas à la première requête : une URL, `https` (localhost
+excepté), sans query string ni fragment, et le slash final retiré — chaque
+endpoint est construit par concaténation, donc `https://auth.test/` produirait
+sinon `https://auth.test//oauth/token`.
 
 ## Le store
 
