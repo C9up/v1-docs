@@ -139,6 +139,45 @@ active.
 choisissant la colonne qui absorbe le mou. `sticker().drawBorder((char, colors)
 => colors.red(char))` est ce qui transforme la même boîte en boîte d'erreur.
 
+## Piloter la sortie toi-même
+
+Chaque ligne peut être construite sans être écrite — `logger.prepareInfo(msg)`,
+`logger.prepareFatal(error)`, `action.prepareSucceeded()`, `table.prepare()`,
+`box.prepare()`, `steps.prepare()` — ce qui permet de poser une ligne décorée
+ailleurs, ou d'écrire une assertion dessus. `spinner.tap(line => …)` remet les
+frames à un appelant qui possède déjà une région du terminal, et
+`logger.dummy()` avale la sortie d'un passage qui atterrirait au milieu de la
+frame de quelqu'un d'autre.
+
+Une exécution de tâches est aussi une donnée, pas seulement une sortie :
+
+```ts
+const tasks = ui.tasks()
+tasks.add('sync', async (task) => {
+  task.update('42 fichiers')
+  return 'terminé'
+})
+tasks.tasks()[0].onUpdate((task) => report(task.getState(), task.getDuration()))
+await tasks.run()
+tasks.getState()   // 'idle' | 'running' | 'succeeded' | 'failed'
+```
+
+`addIf(condition, …)` et `addUnless(…)` déclarent une étape derrière un flag.
+Chaque `Task` porte `getState()`, `getDuration()`, `getError()`,
+`getSuccessMessage()` et `getLastLoggedLine()`, et un callback rapporte via
+`update()`, `markAsSucceeded()`, `markAsFailed()` ou en renvoyant
+`task.error(raison)`.
+
+`table.columnWidths([10, 20])` fixe les largeurs au lieu de les mesurer, et une
+largeur plus petite que le contenu est respectée — l'appelant a demandé une
+forme.
+
+DÉVIATION NOMMÉE — en amont un widget se construit nu (`new Table()`) puis on
+lui branche les couleurs et le renderer après coup, ce qui fait d'un oubli une
+panne silencieuse. Ici `ui.table()` les fournit à la construction ;
+`useColors()` et `useRenderer()` les remplacent toujours sur un widget
+construit à la main.
+
 ## Les couleurs seules
 
 `@c9up/lumen/colors` ne porte aucun widget ni rien de `node:` :

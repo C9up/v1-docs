@@ -77,6 +77,40 @@ const Counter = component(() => {
 
 State is plain `signal()` from the reactive layer — there's no separate "hooks" API. Signals work both inside and outside a component setup, so the same primitive serves module-level state, derived values (`memo`), and side effects (`effect`). The component-scoped helpers are `onMount` / `onUnmount` and the context pair below; they exist because they need the per-instance queues.
 
+`onMount` follows the component, not the template. A component whose body IS
+another component — `const TextField = component((props) => Field({ ... }))`,
+the shape a compound set is built from — keeps both lifecycles: the outer one
+runs first, then the inner.
+
+### Ids that survive hydration — `uid`, `resetIds`, `byId`
+
+Templates have no `ref` directive, so a component that must measure, focus or
+anchor a node finds it by id — and ARIA wiring needs one anyway, since a
+trigger's `aria-controls` has to name the id its content actually carries.
+
+```ts
+import { byId, component, html, onMount, uid } from '@c9up/aurora'
+
+const Anchored = component(() => {
+  const id = uid('trigger')
+  onMount(() => position(byId(id)))
+  return html`<span id="${id}">?</span>`
+})
+```
+
+The counter is monotonic, so the sequence depends only on the order components
+are constructed in — identical on the server and in the browser for the same
+tree. That holds as long as both passes start from the same place, and that is
+the whole subtlety: a server process is long-lived, so without a reset its
+counter climbs across requests and the second page it serves ships `trigger-14`
+while the browser, starting fresh, looks up `trigger-1`. Every lookup then
+answers `null`, silently — a tooltip that never opens on a page where every
+binding works.
+
+`renderPage` and `hydrate` each reset before they build, so an application
+using either gets matching sequences for free. One calling `renderToString`
+itself calls `resetIds()` before it, the way `renderPage` does.
+
 ### Context — `createContext`, `provide`, `inject`
 
 A compound component owns state its parts all read. A `Select` holds the open

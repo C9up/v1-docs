@@ -77,6 +77,42 @@ const Counter = component(() => {
 
 L'état c'est `signal()` du layer réactif — pas d'API "hooks" séparée. Les signaux fonctionnent à l'intérieur ET en dehors d'un setup de composant, donc la même primitive sert pour l'état au niveau module, les valeurs dérivées (`memo`), et les effets de bord (`effect`). Les helpers liés à l'instance sont `onMount` / `onUnmount` et la paire de contexte ci-dessous ; ils existent parce qu'ils ont besoin des files propres à l'instance.
 
+`onMount` suit le composant, pas le template. Un composant dont le corps EST un
+autre composant — `const TextField = component((props) => Field({ ... }))`, la
+forme dont on construit un ensemble composé — garde les deux cycles de vie :
+l'extérieur d'abord, puis l'intérieur.
+
+### Des ids qui survivent à l'hydratation — `uid`, `resetIds`, `byId`
+
+Les templates n'ont pas de directive `ref` : un composant qui doit mesurer,
+focaliser ou ancrer un nœud le retrouve par son id — et le câblage ARIA en a
+besoin de toute façon, puisque l'`aria-controls` d'un déclencheur doit nommer
+l'id que son contenu porte réellement.
+
+```ts
+import { byId, component, html, onMount, uid } from '@c9up/aurora'
+
+const Anchored = component(() => {
+  const id = uid('trigger')
+  onMount(() => position(byId(id)))
+  return html`<span id="${id}">?</span>`
+})
+```
+
+Le compteur est monotone : la séquence ne dépend que de l'ordre de construction
+des composants — identique sur le serveur et dans le navigateur pour le même
+arbre. Ça ne tient que si les deux passes partent du même endroit, et c'est
+toute la subtilité : un process serveur est long, donc sans remise à zéro son
+compteur grimpe d'une requête à l'autre et la deuxième page servie livre
+`trigger-14` alors que le navigateur, qui repart de zéro, cherche `trigger-1`.
+Chaque recherche répond alors `null`, silencieusement — un tooltip qui n'ouvre
+jamais sur une page où tout le reste fonctionne.
+
+`renderPage` et `hydrate` remettent la séquence à zéro avant de construire :
+une application qui passe par l'un ou l'autre a des séquences alignées sans
+rien faire. Celle qui appelle `renderToString` elle-même appelle `resetIds()`
+juste avant, comme `renderPage` le fait.
+
 ### Contexte — `createContext`, `provide`, `inject`
 
 Un composant composé possède un état que toutes ses parties lisent. Un `Select`

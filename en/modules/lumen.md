@@ -138,6 +138,43 @@ turns on.
 choosing which column absorbs the slack. `sticker().drawBorder((char, colors)
 => colors.red(char))` is how the same box becomes an error box.
 
+## Driving the output yourself
+
+Every line can be built without being written — `logger.prepareInfo(msg)`,
+`logger.prepareFatal(error)`, `action.prepareSucceeded()`, `table.prepare()`,
+`box.prepare()`, `steps.prepare()` — which is what lets a caller put a
+decorated line somewhere else, or assert on it. `spinner.tap(line => …)` hands
+the frames over to a caller that already owns a region of the terminal, and
+`logger.dummy()` swallows the output of a stretch that would land in the middle
+of someone else's frame.
+
+A task run is data as well as output:
+
+```ts
+const tasks = ui.tasks()
+tasks.add('sync', async (task) => {
+  task.update('42 files')
+  return 'done'
+})
+tasks.tasks()[0].onUpdate((task) => report(task.getState(), task.getDuration()))
+await tasks.run()
+tasks.getState()   // 'idle' | 'running' | 'succeeded' | 'failed'
+```
+
+`addIf(condition, …)` and `addUnless(…)` declare a step behind a flag. Each
+`Task` carries `getState()`, `getDuration()`, `getError()`,
+`getSuccessMessage()` and `getLastLoggedLine()`, and a callback reports through
+`update()`, `markAsSucceeded()`, `markAsFailed()` or by returning
+`task.error(reason)`.
+
+`table.columnWidths([10, 20])` fixes the widths instead of measuring, and a
+width smaller than the content is honoured — the caller asked for a shape.
+
+NAMED DEVIATION — upstream builds a widget bare (`new Table()`) and wires the
+colours and the renderer onto it afterwards, which makes forgetting either a
+silent failure. Here `ui.table()` hands both over at construction;
+`useColors()` and `useRenderer()` still swap them on a widget built by hand.
+
 ## Colours on their own
 
 `@c9up/lumen/colors` carries no widget and nothing from `node:`:
