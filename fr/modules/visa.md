@@ -124,6 +124,46 @@ if (!grant.scopes.includes('invoices:read')) {
 }
 ```
 
+## Ce que `ream configure` écrit
+
+```bash
+ream configure @c9up/visa
+```
+
+Trois choses, et rien d'autre : `VISA_ISSUER` dans `.env`, le provider dans
+`reamrc.ts`, et `config/visa.ts` avec un `MemoryStore` et un commentaire qui
+dit de le remplacer. Le store et la route `/authorize` restent les tiens — ce
+sont des décisions, pas du boilerplate, et une supposition générée pour l'un ou
+l'autre est fausse d'une manière qui n'apparaît qu'en production.
+
+Une fois le provider enregistré, le manager se résout par token et il est typé :
+
+```ts
+const visa = await container.make('visa')   // VisaManager, pas unknown
+```
+
+## Les tests
+
+`@c9up/visa/testing` te donne le VRAI serveur sur un store mémoire, avec un
+client déjà enregistré :
+
+```ts
+import { testVisa } from '@c9up/visa/testing'
+
+const t = await testVisa({ scopes: ['profile', 'invoices:read'] })
+const tokens = await t.tokensFor('user-7', 'invoices:read')
+
+// Un test de ressource a maintenant un jeton qui se vérifie vraiment.
+const grant = await t.visa.verify(tokens.access_token)
+```
+
+`tokensFor()` parcourt tout le chemin — autorisation, consentement, code,
+échange — au lieu de frapper un jeton directement. Ce n'est délibérément pas un
+double permissif : un helper qui accorderait tout ce qu'on lui demande
+apprendrait aux applications à livrer un écran de consentement que personne n'a
+jamais vu refuser, et un test qui passe contre un stub est un incident de
+production avec une pastille verte.
+
 ## Le store
 
 `MemoryStore` est fait pour les tests et un process de développement unique :

@@ -120,6 +120,45 @@ if (!grant.scopes.includes('invoices:read')) {
 }
 ```
 
+## What `ream configure` writes
+
+```bash
+ream configure @c9up/visa
+```
+
+Three things, and nothing else: `VISA_ISSUER` in `.env`, the provider in
+`reamrc.ts`, and `config/visa.ts` with a `MemoryStore` and a comment saying to
+replace it. The store and the `/authorize` route stay yours — both are
+decisions rather than boilerplate, and a generated guess at either is wrong in
+a way that only shows up in production.
+
+Once the provider is registered, the manager resolves by token and is typed:
+
+```ts
+const visa = await container.make('visa')   // VisaManager, not unknown
+```
+
+## Testing
+
+`@c9up/visa/testing` gives you the REAL server on a memory store, with a client
+already registered:
+
+```ts
+import { testVisa } from '@c9up/visa/testing'
+
+const t = await testVisa({ scopes: ['profile', 'invoices:read'] })
+const tokens = await t.tokensFor('user-7', 'invoices:read')
+
+// A resource test now has a token that actually verifies.
+const grant = await t.visa.verify(tokens.access_token)
+```
+
+`tokensFor()` walks the whole path — authorize, consent, code, exchange —
+rather than minting a token directly. It is not a lenient double on purpose: a
+helper that granted whatever was asked would teach applications to ship a
+consent screen nobody has ever seen refuse, and a test that passes against a
+stub is a production incident with a green badge.
+
 ## The store
 
 `MemoryStore` is for tests and a single development process: a restart signs
