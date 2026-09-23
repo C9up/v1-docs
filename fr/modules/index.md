@@ -36,6 +36,7 @@ Cette page liste l'etat des modules de l'ecosysteme.
 | Helix plugin | `@c9up/helix-plugin-ream` | Présent | Le pont ream↔helix — plugin `apiClient()` + runner de `ream test` |
 | Rover | `@c9up/rover` | Présent | Transport mail — SMTP, log, transports enfichables |
 | Transit | `@c9up/transit` | Présent | Connexion fédérée — SAML 2.0, LDAP, OpenID Connect générique, Sign in with Apple, OAuth1/OAuth2 et les fournisseurs qui les parlent |
+| Visa | `@c9up/visa` | Présent | Serveur d'autorisation OAuth 2.1 — délivre des jetons à d'autres applications ; PKCE obligatoire, rotation des refresh, révocation, introspection |
 | Vellum | `@c9up/vellum` | Présent | PDF — rendu en images, lecture, fusion/découpe/rotation, tamponnage, signature et vérification |
 | Nebula | `@c9up/nebula` | Présent | Jeu de composants — shadcn/ui porté sur Aurora, rangé en design atomique, copie-la-source |
 | Eon | `@c9up/eon` | Présent | Séries temporelles — connexion TDengine, écriture sans schéma, requêtes |

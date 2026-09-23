@@ -1,0 +1,143 @@
+# Visa
+
+`@c9up/visa` est un serveur d'autorisation OAuth 2.1 : il délivre des jetons à
+**d'autres** applications au nom d'un utilisateur.
+
+Il n'authentifie personne — ça reste le travail de [warden](/fr/modules/warden).
+Visa demande à ton application qui est connecté, et s'occupe de tout le reste.
+Son image miroir est [transit](/fr/modules/transit), qui *consomme* un
+fournisseur ; visa en *est* un.
+
+Aucune dépendance : `node:crypto` seulement. Un paquet posé sur le chemin qui
+frappe et compare des identifiants est un paquet qui peut les remplacer.
+
+```bash
+ream configure @c9up/visa
+```
+
+## Ce qui est implémenté
+
+| | |
+|---|---|
+| Grants | `authorization_code` (PKCE obligatoire), `refresh_token`, `client_credentials` |
+| Endpoints | `/oauth/token`, `/oauth/revoke`, `/oauth/introspect`, `/.well-known/oauth-authorization-server` |
+| Retirés | `implicit` et `password` — sortis d'OAuth 2.1, et indisponibles sous n'importe quelle option |
+
+`/authorize` n'est **pas** monté, et c'est une décision, pas un oubli : il lui
+faut un utilisateur connecté et un écran de consentement, qui appartiennent
+tous les deux à ton application. Une route qui devinerait l'un ou l'autre
+serait fausse d'une manière difficile à voir — un serveur qui n'affiche aucun
+écran de consentement accorde en silence.
+
+## Les décisions, et ce que chacune empêche
+
+- **PKCE sur tous les clients**, confidentiels compris : un code sur le canal
+  avant est interceptable quel que soit celui qui l'a demandé.
+- **`S256` uniquement.** `plain` met le vérifieur dans la requête
+  d'autorisation : tout ce qui peut lire cette requête — un log, un referrer,
+  un proxy — peut alors terminer l'échange, ce qui est précisément ce que PKCE
+  existe pour empêcher. `allowPlainChallenge: true` le réactive.
+- **Comparaison exacte de la redirect URI**, avec l'unique exception que la
+  spec nomme (le port d'une boucle locale, une application native ne pouvant
+  pas savoir quel port l'OS lui donnera). Une comparaison par préfixe, c'est
+  ainsi qu'un open redirect sur le domaine du client devient un code volé.
+- **Une erreur n'est jamais redirigée vers une URI non vérifiée.** Une
+  `redirect_uri` invalide est montrée à l'utilisateur ; la renvoyer
+  apprendrait à un attaquant que le client existe et chargerait une page de
+  son choix dans la session de l'utilisateur.
+- **Tout est haché au repos** — codes, jetons d'accès, jetons de
+  rafraîchissement, secrets clients. Une copie de la base n'est pas un jeu
+  d'identifiants fonctionnels.
+- **Rotation des refresh tokens avec détection de rejeu.** Chaque usage en
+  frappe un nouveau ; un jeton déjà consommé qui revient prouve une fuite, et
+  comme rien ne distingue le voleur de la victime, toute la famille est
+  révoquée et les deux sont déconnectés.
+- **Un code d'autorisation rejoué révoque ce qu'il a acheté.** L'échange
+  légitime a déjà eu lieu : les jetons en vol sont ceux de l'attaquant.
+- **Une seule phrase par échec.** « code inconnu », « expiré », « déjà
+  utilisé » et « mauvais client » donnent tous `invalid_grant: The code is not
+  valid.` — les distinguer, c'est ainsi qu'on sonde un espace de codes.
+
+## Câbler `/authorize`
+
+La décision est celle de visa ; la page est la tienne.
+
+```ts
+// start/routes.ts
+import visa from '@c9up/visa/services/main'
+
+router.get('/oauth/authorize', async (ctx) => {
+  const outcome = await visa.authorize(ctx.request.qs(), ctx.auth.user?.id)
+
+  if (outcome.type === 'redirect') return ctx.response.redirect(outcome.url)
+  if (outcome.type === 'error') {
+    // PAS une redirection : c'est la redirect URI qui a échoué à la validation.
+    return ctx.view.render('oauth/error', { error: outcome.error.toResponse() })
+  }
+  if (!ctx.auth.user) {
+    return ctx.response.redirect(`/login?next=${encodeURIComponent(ctx.request.url(true))}`)
+  }
+  return ctx.view.render('oauth/consent', {
+    client: outcome.request.client,
+    scopes: outcome.request.scopes,
+  })
+})
+
+router.post('/oauth/consent', async (ctx) => {
+  const outcome = await visa.authorize(ctx.request.all(), ctx.auth.user.id)
+  if (outcome.type !== 'consent') return ctx.response.redirect('/')
+  const url = ctx.request.input('approve')
+    ? await visa.grant(outcome.request, ctx.auth.user.id)
+    : visa.deny(outcome.request)
+  return ctx.response.redirect(url)
+})
+```
+
+## Les clients
+
+```ts
+const { client, secret } = await visa.registerClient({
+  id: 'invoices',
+  name: 'Factures',
+  redirectUris: ['https://invoices.example.com/callback'],
+  scopes: ['profile', 'invoices:read'],
+})
+```
+
+`secret` n'est renvoyé qu'une fois et n'est stocké que haché ; un client qui le
+perd en reçoit un nouveau. Un client public — une SPA, une application native
+— s'enregistre avec `tokenEndpointAuthMethod: 'none'`, n'a pas de secret, et ne
+peut pas utiliser `client_credentials` : « le client lui-même » ne veut rien
+dire quand n'importe qui peut lire son id dans un navigateur.
+
+Un scope pour lequel le client n'est pas enregistré est **refusé**, jamais
+silencieusement retiré — accorder moins que demandé, c'est ainsi qu'un client
+finit par croire qu'il détient une permission qu'il n'a pas.
+
+## Protéger une ressource
+
+```ts
+const grant = await visa.verify(bearerToken)
+if (!grant) return ctx.response.unauthorized({ error: 'invalid_token' })
+if (!grant.scopes.includes('invoices:read')) {
+  return ctx.response.forbidden({ error: 'insufficient_scope' })
+}
+```
+
+## Le store
+
+`MemoryStore` est fait pour les tests et un process de développement unique :
+un redémarrage déconnecte tout le monde et une deuxième instance ne voit aucun
+des jetons de la première. Tout le reste implémente `VisaStore` — douze
+méthodes.
+
+Deux d'entre elles, `consumeAuthorizationCode` et `consumeRefreshToken`,
+**doivent être atomiques** : deux requêtes en course avec le même code ne
+doivent pas réussir toutes les deux. C'est cette garantie d'usage unique qui
+porte toute la détection de rejeu, donc un driver sur une vraie base doit dire
+comment il l'obtient.
+
+## Pas encore là
+
+OpenID Connect — `id_token`, discovery, JWKS, `/userinfo`. Le `nonce` est déjà
+transporté dans le code d'autorisation pour ça.
