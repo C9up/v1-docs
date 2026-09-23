@@ -43,7 +43,7 @@ ream make:controller order Order       # app/order/OrderController.ts
 ream make:service order Payment        # app/order/PaymentService.ts
 ream make:entity order OrderItem       # app/order/OrderItem.ts       (table : order_items)
 ream make:validator order CreateOrder  # app/order/CreateOrderValidator.ts
-ream make:module order Order           # les quatre ci-dessus, sans le service, plus une migration
+ream make:module order Order           # l'entité, le contrôleur et le validateur d'un coup
 
 ream make:provider Stripe              # providers/StripeProvider.ts
 ream make:command app:provision        # commands/app-provision.ts
@@ -52,10 +52,13 @@ ream make:event orderShipped           # app/events/order_shipped.ts
 ream make:listener sendMail --event orderShipped   # app/listeners/send_mail.ts
 ```
 
-Deux drapeaux sont communs à tous : `--dry-run` imprime le plan en JSON sans
-rien écrire, et `--force` écrase un fichier déjà présent. Un lancement qui
-écraserait quelque chose refuse en bloc plutôt que d'écrire à moitié, et un
-échec en cours de route restaure ce qui avait déjà été écrit.
+Un générateur n'écrase jamais : un fichier déjà présent est signalé comme
+ignoré et laissé tel quel, et `--force` est la façon de demander le
+remplacement. Deux autres drapeaux sont communs à tous — `--dry-run` imprime ce
+qui serait écrit sans rien écrire, et `--json` rapporte le résultat en un seul
+objet JSON sur la dernière ligne de stdout, ce que lit `@c9up/ream-mcp`. Quand
+`--force` écrase effectivement plusieurs fichiers, un échec en cours de route
+restaure ce que le même lancement avait déjà écrit.
 
 `make:middleware` prend `--stack server|named|router` (par défaut `router`), qui
 choisit la ligne d'enregistrement que le fichier généré suggère :
@@ -71,19 +74,31 @@ choisit la ligne d'enregistrement que le fichier généré suggère :
 `make:migration`, `make:seeder` et `make:factory` ne sont pas ici : elles
 appartiennent au paquet de données, qui sait où vivent les migrations et ce
 qu'une migration importe. Atlas les livre — voir
-[ses commandes console](/fr/atlas/migrations#commandes-console).
+[ses commandes console](/fr/atlas/migrations#commandes-console). C'est aussi
+pourquoi `make:module` s'arrête à trois fichiers : la migration qu'il écrirait
+est au format d'atlas, dans le répertoire d'atlas.
+
+Les générateurs sont eux-mêmes des commandes console, pas des sous-commandes du
+binaire `ream`. `ream make:controller …` est transmis au console de
+l'application exactement comme `ream provision`, si bien qu'un projet peut
+remplacer n'importe laquelle par une commande du même nom.
 
 ### Personnaliser ce qui est généré
 
-Chaque template `make:` peut être surchargé par projet. Publiez-en un,
+Chaque template `make:` peut être surchargé par projet. Éjectez-en un,
 modifiez-le, et le générateur utilise votre copie :
 
 ```bash
-ream stubs:publish --list          # ce qui est publiable, et les variables exposées
-ream stubs:publish controller      # écrit stubs/make/controller.stub
-ream stubs:publish                 # publie tout
-ream stubs:publish controller --force   # écrase un stub déjà publié
+ream eject --list                     # ce qui est éjectable, et les variables lues par chaque stub
+ream eject make/controller.stub       # écrit stubs/make/controller.stub
+ream eject make                       # le répertoire entier
+ream eject                            # tous les stubs livrés par le paquet
+ream eject make/controller.stub --force   # remplace un stub déjà éjecté
+ream eject config/database.stub --pkg @c9up/atlas   # les stubs d'un autre paquet
 ```
+
+Un stub déjà présent est laissé tel quel : relancer `eject` ne vous coûte
+jamais une modification.
 
 Un stub est du texte avec des marqueurs `{{ variable }}` :
 
@@ -98,12 +113,12 @@ export class {{ className }} {
 }
 ```
 
-Un stub publié EST le template intégré — la même chaîne que le générateur
-substitue, pas une copie — donc en publier un ne change rien tant que vous ne
+Un stub éjecté EST le template intégré — la même chaîne que le générateur
+rend, pas une copie — donc en éjecter un ne change rien tant que vous ne
 l'éditez pas. Supprimez le fichier pour revenir au comportement par défaut.
 
-`ream stubs:publish --list` nomme les variables que chaque stub substitue, lues
-sur le template lui-même. `{{ className }}` et `{{ name }}` sont partout ;
+`ream eject --list` nomme les variables que chaque stub peut lire, prises sur le
+template lui-même. `{{ className }}` et `{{ name }}` sont partout ;
 `{{ tableName }}` appartient à l'entité, `{{ fileName }}` est le radical
 snake_case sous lequel le fichier est écrit, et `{{ registration }}` la ligne de
 middleware ci-dessus.
@@ -122,12 +137,17 @@ Sans front matter, le chemin par défaut est utilisé. Le chemin déclaré passe
 la même validation que n'importe quel chemin généré — pas de chemin absolu, pas
 de `..`.
 
-Un stub est **substitué, pas rendu par un moteur de template** : `{{ name }}`
-est remplacé, rien de plus, parce que le générateur est un binaire Rust et
-qu'embarquer un moteur JavaScript pour évaluer des conditions et des partiels
-coûterait plus que ça ne rapporte. Un marqueur inconnu reste visible au lieu
-d'être silencieusement vidé, et un stub mal formé est une erreur plutôt qu'un
-repli silencieux sur le template intégré.
+Un stub est un template, pas une substitution : en plus de
+`{{ expression }}`, il accepte `{{#if}}` / `{{#elif}}` / `{{#else}}`,
+`{{#each liste as item, index}}`, `{{#var x = …}}`, `{{#expect a, b}}` et
+`{{! un commentaire }}`. C'est le moteur qu'utilise `codemods.makeUsingStub()`
+pour la configuration des paquets : un seul dialecte de stub dans le framework,
+une seule chose qui le rend. Un stub mal formé est une erreur plutôt qu'un repli
+silencieux sur le template intégré.
+
+`{{ }}` n'échappe pas le HTML, et `{{{ }}}` veut dire la même chose — un stub
+génère des fichiers source, pas une page web, et échapper un `<T>` dans un type
+généré serait un bug plutôt qu'une protection.
 
 ## Configuration de paquets
 

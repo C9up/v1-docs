@@ -43,7 +43,7 @@ ream make:controller order Order       # app/order/OrderController.ts
 ream make:service order Payment        # app/order/PaymentService.ts
 ream make:entity order OrderItem       # app/order/OrderItem.ts       (table: order_items)
 ream make:validator order CreateOrder  # app/order/CreateOrderValidator.ts
-ream make:module order Order           # the four above, minus the service, plus a migration
+ream make:module order Order           # the entity, the controller and the validator at once
 
 ream make:provider Stripe              # providers/StripeProvider.ts
 ream make:command app:provision        # commands/app-provision.ts
@@ -52,10 +52,13 @@ ream make:event orderShipped           # app/events/order_shipped.ts
 ream make:listener sendMail --event orderShipped   # app/listeners/send_mail.ts
 ```
 
-Two flags are shared by every one of them: `--dry-run` prints the plan as JSON
-and writes nothing, and `--force` overwrites a file that is already there. A run
-that would clobber something refuses as a whole rather than half-writing, and a
-failure part-way through restores what it had already written.
+A generator never overwrites: a file that is already there is reported as
+skipped and left alone, and `--force` is how you ask for the replacement. Two
+more flags are shared by every one of them — `--dry-run` prints what would be
+written without writing it, and `--json` reports the outcome as a single JSON
+object on the last line of stdout, which is what `@c9up/ream-mcp` reads. When
+`--force` does overwrite several files, a failure part-way through restores what
+the same run had already written.
 
 `make:middleware` takes `--stack server|named|router` (default `router`), which
 picks the registration line the generated file suggests:
@@ -71,18 +74,30 @@ picks the registration line the generated file suggests:
 `make:migration`, `make:seeder` and `make:factory` are not here: they belong to
 the data package, which knows where migrations live and what a migration
 imports. Atlas ships them — see [its console commands](/en/atlas/migrations#console-commands).
+That is also why `make:module` stops at three files: the migration it would
+write is atlas' format and atlas' directory.
+
+The generators themselves are console commands, not subcommands of the `ream`
+binary. `ream make:controller …` is forwarded to the application's console the
+same way `ream provision` is, so a project can replace any of them with its own
+command of the same name.
 
 ### Customising what gets generated
 
-Every `make:` template can be overridden per project. Publish one, edit it, and
+Every `make:` template can be overridden per project. Eject one, edit it, and
 the generator uses your copy from then on:
 
 ```bash
-ream stubs:publish --list          # what can be published, and the variables each exposes
-ream stubs:publish controller      # writes stubs/make/controller.stub
-ream stubs:publish                 # publishes every one
-ream stubs:publish controller --force   # overwrite a stub you already published
+ream eject --list                     # what can be ejected, and the variables each stub reads
+ream eject make/controller.stub       # writes stubs/make/controller.stub
+ream eject make                       # the whole directory
+ream eject                            # every stub the package ships
+ream eject make/controller.stub --force   # replace a stub you already ejected
+ream eject config/database.stub --pkg @c9up/atlas   # another package's stubs
 ```
+
+A stub that is already there is left alone, so re-running `eject` never costs
+you an edit.
 
 A stub is plain text with `{{ variable }}` placeholders:
 
@@ -97,12 +112,12 @@ export class {{ className }} {
 }
 ```
 
-A published stub IS the built-in template — the same string the generator
-substitutes, not a copy of it — so publishing one changes nothing until you edit
-it. Delete the file to go back to the default.
+An ejected stub IS the built-in template — the same string the generator
+renders, not a copy of it — so ejecting one changes nothing until you edit it.
+Delete the file to go back to the default.
 
-`ream stubs:publish --list` names the variables each stub can substitute, read
-off the template itself. `{{ className }}` and `{{ name }}` are everywhere;
+`ream eject --list` names the variables each stub can read, taken from the
+template itself. `{{ className }}` and `{{ name }}` are everywhere;
 `{{ tableName }}` is the entity's, `{{ fileName }}` the snake_case stem a file
 is written under, and `{{ registration }}` the middleware line above.
 
@@ -119,12 +134,16 @@ export class {{ className }} {
 Omit the front matter and the default path is used. The declared path goes
 through the same validation as any generated path — no absolute paths, no `..`.
 
-A stub is **substituted, not rendered by a template engine**: `{{ name }}` is
-replaced and nothing else, because the generator is a Rust binary and shipping a
-JavaScript runtime inside it to evaluate conditionals and partials would cost
-more than it is worth. An unknown placeholder is left visible rather than
-silently emptied, and a malformed stub is an error rather than a silent fallback
-to the built-in.
+A stub is a template, not a substitution: besides `{{ expression }}` it takes
+`{{#if}}` / `{{#elif}}` / `{{#else}}`, `{{#each list as item, index}}`,
+`{{#var x = …}}`, `{{#expect a, b}}` and `{{! a comment }}`. It is the engine
+`codemods.makeUsingStub()` uses for package configs, so there is one stub
+dialect in the framework and one thing that renders it. A malformed stub is an
+error rather than a silent fallback to the built-in.
+
+`{{ }}` does not escape HTML, and `{{{ }}}` means the same thing — a stub
+generates source files, not a web page, and escaping a `<T>` in a generated
+type would be a bug rather than a protection.
 
 ## Package Configuration
 

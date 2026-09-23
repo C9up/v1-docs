@@ -6,9 +6,10 @@
 
 - project scaffolding (`new`, `template`)
 - dev/build/start/test, and a `repl` with the app booted
-- code generation (`make:*`), with per-project stubs (`stubs:publish`)
 - the application's own commands: any name the binary does not define is
-  dispatched to its console kernel, and `list` shows both sets as one
+  dispatched to its console kernel, and `list` shows both sets as one. The
+  `make:*` generators and `eject` reach it that way too — they are commands of
+  `@c9up/ream`, not of this binary
 - diagnostics (`doctor`, `info`, `inspect`)
 - package setup (`add`, `configure`), key generation (`generate:key`), MCP
   registration (`mcp`)

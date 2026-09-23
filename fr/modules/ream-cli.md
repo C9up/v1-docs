@@ -6,9 +6,10 @@
 
 - création de projet (`new`, `template`)
 - dev/build/start/test, et un `repl` avec l'application démarrée
-- génération de code (`make:*`), avec des stubs par projet (`stubs:publish`)
 - les commandes de l'application : tout nom que le binaire ne définit pas est
-  transmis à son noyau console, et `list` montre les deux ensembles comme un seul
+  transmis à son noyau console, et `list` montre les deux ensembles comme un
+  seul. Les générateurs `make:*` et `eject` passent aussi par là — ce sont des
+  commandes de `@c9up/ream`, pas de ce binaire
 - diagnostics (`doctor`, `info`, `inspect`)
 - installation de paquets (`add`, `configure`), génération de clé
   (`generate:key`), enregistrement MCP (`mcp`)

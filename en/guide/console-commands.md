@@ -244,20 +244,20 @@ the form that also takes flags:
 ```ts
 export default defineConfig({
   commandsAliases: {
-    resource: 'make:controller --resource',
+    recontrol: 'make:controller --force',
   },
 })
 ```
 
-`ream resource users` then runs `ream make:controller --resource users`.
+`ream recontrol billing Invoice` then runs `ream make:controller --force billing Invoice`.
 
 The kernel also takes them at runtime — that is what the rc file does, and what
 a loader can publish in its metadata:
 
 ```ts
-kernel.addAlias('resource', 'make:controller --resource')
-kernel.getAliases()                  // ['resource']
-kernel.getAliasCommand('resource')   // make:controller's metadata
+kernel.addAlias('recontrol', 'make:controller --force')
+kernel.getAliases()                  // ['recontrol']
+kernel.getAliasCommand('recontrol')  // make:controller's metadata
 ```
 
 ## A command's long help
@@ -614,7 +614,7 @@ import consoleApp from '@c9up/ream/services/console'
 await consoleApp.boot()
 
 if (consoleApp.hasCommand('make:controller')) {
-  const command = await consoleApp.exec('make:controller', ['user', '--resource'])
+  const command = await consoleApp.exec('make:controller', ['billing', 'Invoice'])
 
   command.exitCode  // 0 on success, 1 on an unhandled failure
   command.result    // whatever run() returned
@@ -653,7 +653,7 @@ consoleApp.getNamespaceCommands('make')       // the commands of a namespace
 consoleApp.getNamespaceCommands()             // the ones without a namespace
 consoleApp.getNamespaces()                    // ['db', 'make', …]
 consoleApp.getAliases()                       // the registered alias names
-consoleApp.getAliasCommand('resource')        // the command behind an alias
+consoleApp.getAliasCommand('recontrol')       // the command behind an alias
 consoleApp.getCommandAliases('make:controller')
 consoleApp.getCommandSuggestions('make:contoller')  // close names
 consoleApp.getNamespaceSuggestions('mak')
