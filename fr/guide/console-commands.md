@@ -284,7 +284,11 @@ jamais assignés aux propriétés de la vôtre (ils restent lisibles dans
 
 ## Terminal UI
 
-`this.ui` et `this.colors` complètent `this.logger`.
+`this.ui`, `this.colors` et `this.logger` sont [`@c9up/lumen`](/fr/modules/lumen),
+que n'importe quel paquet peut utiliser seul — la référence de chaque widget,
+des trois modes et des règles de couleur est là-bas. Ce qui suit est ce qu'une
+commande utilise.
+
 
 ```ts
 this.ui.table()

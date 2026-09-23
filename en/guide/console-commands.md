@@ -277,7 +277,11 @@ readable in `this.parsed.flags`). `NO_COLOR` and `FORCE_COLOR` are honoured too.
 
 ## Terminal UI
 
-`this.ui` and `this.colors` complete `this.logger`.
+`this.ui`, `this.colors` and `this.logger` are [`@c9up/lumen`](/en/modules/lumen),
+which any package can use on its own — the reference for every widget, the
+three modes and the colour rules is there. What follows is what a command
+reaches for.
+
 
 ```ts
 this.ui.table()

@@ -13,6 +13,7 @@ This page lists the current status of ecosystem modules.
 | Sigil | `@c9up/sigil` | Present | Canonical password hashing (argon2id, bcrypt, scrypt — TS + Rust N-API) |
 | Warden | `@c9up/warden` | Present | Authentication — delegates password hashing to Sigil |
 | Spectrum | `@c9up/spectrum` | Present | Logging |
+| Lumen | `@c9up/lumen` | Present | Terminal output — colours, logger, tables, boxes, task reports; raw mode for assertions |
 | Parsec | `@c9up/parsec` | Present | Metrics — counters/gauges/histograms, zero-dependency Prometheus exporter, optional OpenTelemetry meter, HTTP middleware |
 | Photon | `@c9up/photon` | Present | Frontend/SSR — client hydration, SPA router, SEO injection into `<head>` |
 | Prism | `@c9up/prism` | Present | Images — resize, convert, crop, composite, watermark; Rust engine with upload guards |
