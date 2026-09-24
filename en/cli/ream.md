@@ -326,6 +326,73 @@ falls under it — the exit code is the run's, so CI needs no extra step. A
 it would collect nothing, and a green run with an empty report is the failure
 mode worth naming.
 
+## The development server
+
+`ream dev` runs the server and whatever the project builds its assets with,
+under one Ctrl-C. When it is listening it says where:
+
+```
+╭─────────────────────────────────────────────╮
+│                                             │
+│    Server address: http://localhost:3333    │
+│    Mode: HMR                                │
+│    Ready in: 412 ms                         │
+│    Press h to show help                     │
+│                                             │
+╰─────────────────────────────────────────────╯
+```
+
+The address is the one that was **bound**, port included — a server that found
+3333 taken and took 3334 says 3334. A host of `0.0.0.0` shows as `localhost`,
+because every-interface is not a link that opens.
+
+### While it runs
+
+| key | |
+|---|---|
+| `r` | restart the server |
+| `c` | clear the console |
+| `o` | open the address in your browser |
+| `h` | show this list |
+| `Ctrl-C` / `Ctrl-D` | quit |
+
+### What a change prints
+
+```
+invalidated app/billing/InvoiceController.ts     ← swapped in the running process
+update start/services.ts                         ← the process restarted
+```
+
+Which one you get is decided by `hotHook.boundaries` in `package.json`:
+
+```json
+{
+  "hotHook": {
+    "boundaries": ["./app/controllers/**/*.ts", "./app/middleware/*.ts"],
+    "restart": ["./config/*.ts"]
+  }
+}
+```
+
+A module reached through a **boundary** can be swapped: whoever imports it does
+so dynamically and will ask for it again, so the next request gets the new
+code. Anything else — a file preloaded at boot, a provider, `start/*.ts` — has
+nobody who can re-import it, so the process restarts instead. That is not a
+failure to hot-reload; a file that runs once at boot would not re-run its
+effects anyway.
+
+`restart` names what always restarts, whatever the graph says. Env files are on
+it already.
+
+The terminal is cleared before a restart, so what follows is the only thing on
+screen. `ream dev --no-clear` keeps the previous logs.
+
+### When a save does nothing
+
+If an edit changes nothing on screen, the file is not part of the running
+process's import graph — nothing has imported it yet. Saving a file the app
+never loaded produces no line, by design.
+
 ## Keys and integrations
 
 ```bash

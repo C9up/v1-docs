@@ -20,8 +20,11 @@ ream configure @c9up/visa
 | | |
 |---|---|
 | Grants | `authorization_code` (PKCE required), `refresh_token`, `client_credentials` |
-| Endpoints | `/oauth/token`, `/oauth/revoke`, `/oauth/introspect`, `/.well-known/oauth-authorization-server` |
+| Endpoints | `/oauth/token`, `/oauth/revoke`, `/oauth/introspect`, `/oauth/register`*, `/.well-known/oauth-authorization-server`, `/.well-known/oauth-protected-resource`* |
+| Also | RFC 9728 (where to authenticate), RFC 8707 (which server a token is for), RFC 7591 (clients that register themselves)* |
 | Removed | `implicit` and `password` — gone from OAuth 2.1, and unavailable under any option |
+
+\* mounted only once declared in `config/visa.ts`.
 
 `/authorize` is **not** mounted, and that is a decision rather than an
 omission: it needs a signed-in user and a consent screen, and both belong to
@@ -118,13 +121,121 @@ holds a permission it does not.
 
 ## Protecting a resource
 
+Declare the guard beside the others in `config/auth.ts`:
+
 ```ts
-const grant = await visa.verify(bearerToken)
+import { visaGuard } from '@c9up/visa'
+
+export default defineConfig({
+  default: 'visa',
+  guards: {
+    visa: visaGuard({
+      store: () => visa.store,
+      findUser: (id) => User.find(id),
+    }),
+  },
+})
+```
+
+The authenticated user carries the token it was authenticated with:
+
+```ts
+const token = ctx.auth.user.currentAccessToken
+token.abilities          // the token's scopes
+token.allows('invoices.read')
+token.authorize('invoices.write')   // throws E_UNAUTHORIZED_ACCESS
+token.isExpired()
+token.lastUsedAt
+```
+
+`findUser` runs on **every** request, deliberately: a token issued to an
+account that has since been disabled stops working here, once, instead of
+wherever each application remembers to check.
+
+`createToken(user, abilities, { name, expiresInSeconds })` mints one directly
+for a first-party client — name it with `tokenClientId` — and
+`invalidateToken(token)` revokes one.
+
+The lower-level form is still there for a resource server with no guard:
+
+```ts
+const grant = await visa.verify(bearerToken, new Date(), 'https://api.example/mcp')
 if (!grant) return ctx.response.unauthorized({ error: 'invalid_token' })
-if (!grant.scopes.includes('invoices:read')) {
-  return ctx.response.forbidden({ error: 'insufficient_scope' })
+```
+
+### Telling a client where to authenticate (RFC 9728)
+
+A 401 with nothing else in it is a dead end: the caller learns it needs a token
+and nothing about where tokens come from. Declare the resource and the metadata
+document is served:
+
+```ts
+// config/visa.ts
+protectedResource: {
+  resource: 'https://api.example/mcp',
+  scopesSupported: ['profile'],
 }
 ```
+
+Then carry the challenge on the refusal:
+
+```ts
+response.header('www-authenticate', guard.challenge())
+// Bearer resource_metadata="https://api.example/.well-known/oauth-protected-resource/mcp"
+```
+
+An MCP client walks from the 401 to that document to this server on its own.
+
+### Binding a token to one server (RFC 8707)
+
+A token with no stated audience is a token for everything. A client that sends
+`resource=https://api.example/mcp` gets one bound to it, and
+`verify(token, now, resource)` refuses one minted for somewhere else. The
+authorization endpoint binds what the user was shown; an exchange may narrow
+that list, never widen it. `resourcesSupported` in config turns an unknown
+resource into `invalid_target` instead of something to mint for.
+
+Tokens issued before a client started asking are unbound, and stay accepted
+everywhere.
+
+## Connected applications
+
+What a user has authorised, and how they end it:
+
+```ts
+const apps = await visa.listAuthorizations(userId)
+// [{ clientId, name, scopes, grantedAt, lastUsedAt?, active }]
+
+await visa.revokeAuthorization(userId, clientId)
+```
+
+One row per **application**, not per token: a person authorised an application
+once, and tokens come and go under that decision. An application whose tokens
+have all expired still shows, marked inactive — "last used" matters most when
+nothing is live, and hiding it would say an application never touched their
+data when it did.
+
+Revoking takes both kinds of token and then forgets the consent, in that order:
+someone revoking in a hurry wants the sessions dead first.
+
+## Clients that register themselves (RFC 7591)
+
+Off unless you turn it on. An MCP client such as claude.ai has nobody to fill
+in a form for it; a server on the public internet with this open lets anyone
+create a client.
+
+```ts
+// config/visa.ts
+registration: {
+  enabled: true,
+  initialAccessToken: env.get('VISA_REGISTRATION_TOKEN'),
+  scopes: ['profile'],
+}
+```
+
+What a self-registered client may **be** is the server's decision, not the
+request's: grants, scopes and auth method come from this config, the id is
+chosen here, and a redirect URI must be https or http on a loopback address.
 
 ## What `ream configure` writes
 
@@ -132,9 +243,13 @@ if (!grant.scopes.includes('invoices:read')) {
 ream configure @c9up/visa
 ```
 
-Three things, and nothing else: `VISA_ISSUER` in `.env`, the provider in
-`reamrc.ts`, and `config/visa.ts` with a `MemoryStore` and a comment saying to
-replace it. The store and the `/authorize` route stay yours — both are
+Four things: `VISA_ISSUER` in `.env`, the provider in `reamrc.ts`,
+`config/visa.ts` with a `MemoryStore` and a comment saying to replace it, and
+the migration for the five tables the atlas store reads. It fails before
+touching the project if that migration cannot be read — a provider registered
+and a config written with no tables underneath is worse than stopping.
+
+The store and the `/authorize` route stay yours — both are
 decisions rather than boilerplate, and a generated guess at either is wrong in
 a way that only shows up in production.
 
@@ -182,12 +297,27 @@ produce `https://auth.test//oauth/token`.
 
 `MemoryStore` is for tests and a single development process: a restart signs
 every user out and a second instance sees none of the first one's tokens.
-Anything else implements `VisaStore` — twelve methods.
+An application running atlas gets one:
 
-Two of them, `consumeAuthorizationCode` and `consumeRefreshToken`, **must be
-atomic**: two requests racing with the same code must not both succeed. That
-single-use guarantee is what the whole replay detection is built on, so a
-driver on a real database has to say how it achieves it.
+```ts
+import { AtlasStore } from '@c9up/visa/stores/atlas'
+
+const store = new AtlasStore(db)
+```
+
+`ream configure @c9up/visa` writes the migration for its five tables. It is
+built on the query builder rather than on SQL text, so dialects stay atlas'
+problem, and it takes the `db` service through a structural slice of what it
+calls — visa itself imports nothing.
+
+Anything else implements `VisaStore`.
+
+Two of its methods, `consumeAuthorizationCode` and `consumeRefreshToken`,
+**must be atomic**: two requests racing with the same code must not both
+succeed. That single-use guarantee is what the whole replay detection is built
+on, so a driver on a real database has to say how it achieves it — the atlas
+store does it in one UPDATE guarded on the column still being null, and never
+reads first.
 
 ## Not here yet
 

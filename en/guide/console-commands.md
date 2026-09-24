@@ -519,10 +519,16 @@ A scripted answer goes through the **same validation** as a typed one. If it
 fails, the prompt throws: there is nobody to re-ask, and a test injecting a
 value the real prompt would refuse gives unearned confidence.
 
-**A deliberate difference:** selection prompts are answered by typing a number,
-not with arrow keys. Keyboard navigation means raw mode, cursor control and
-redrawing — a widget library, which is what enquirer is. Everything else —
-method names, options, traps — is there.
+Selection prompts navigate: **↑ ↓** move the pointer, **space** ticks a box on
+a `multiple`, **enter** answers, **escape** or **Ctrl-C** cancels. A long list
+keeps a window around the cursor, and the pointer wraps at both ends.
+`autocomplete` narrows as you type.
+
+A default is an **index**, so the pointer starts there on a `choice` and those
+lines come pre-ticked on a `multiple` — pressing enter straight away takes it.
+
+Cancelling is not an empty answer: it throws `E_CONSOLE_PROMPT_CANCELLED`
+rather than returning nothing and letting the command carry on.
 
 ## Discovering and inspecting
 

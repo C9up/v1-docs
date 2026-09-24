@@ -333,6 +333,73 @@ métrique passe dessous — le code de sortie est celui du run, la CI n'a donc r
 qu'ignoré : il ne collecterait rien, et un run vert avec un rapport vide est le
 mode de panne qui mérite d'être nommé.
 
+## Le serveur de développement
+
+`ream dev` lance le serveur et ce qui construit les assets, sous un seul
+Ctrl-C. Quand il écoute, il dit où :
+
+```
+╭─────────────────────────────────────────────╮
+│                                             │
+│    Server address: http://localhost:3333    │
+│    Mode: HMR                                │
+│    Ready in: 412 ms                         │
+│    Press h to show help                     │
+│                                             │
+╰─────────────────────────────────────────────╯
+```
+
+C'est l'adresse **effectivement liée**, port compris — un serveur qui trouve
+3333 occupé et prend 3334 annonce 3334. Un hôte `0.0.0.0` s'affiche
+`localhost` : toutes-les-interfaces n'est pas un lien qui s'ouvre.
+
+### Pendant qu'il tourne
+
+| touche | |
+|---|---|
+| `r` | redémarrer le serveur |
+| `c` | effacer la console |
+| `o` | ouvrir l'adresse dans le navigateur |
+| `h` | afficher cette liste |
+| `Ctrl-C` / `Ctrl-D` | quitter |
+
+### Ce qu'un changement imprime
+
+```
+invalidated app/billing/InvoiceController.ts     ← échangé dans le process vivant
+update start/services.ts                         ← le process a redémarré
+```
+
+Lequel des deux dépend de `hotHook.boundaries`, dans `package.json` :
+
+```json
+{
+  "hotHook": {
+    "boundaries": ["./app/controllers/**/*.ts", "./app/middleware/*.ts"],
+    "restart": ["./config/*.ts"]
+  }
+}
+```
+
+Un module atteint via une **frontière** peut être échangé : celui qui l'importe
+le fait dynamiquement et le redemandera, donc la requête suivante obtient le
+nouveau code. Tout le reste — un fichier préchargé au boot, un provider,
+`start/*.ts` — n'a personne pour le réimporter, donc le process redémarre. Ce
+n'est pas un échec du rechargement à chaud : un fichier qui tourne une fois au
+démarrage ne rejouerait pas ses effets de toute façon.
+
+`restart` nomme ce qui redémarre toujours, quoi qu'en dise le graphe. Les
+fichiers d'environnement y sont déjà.
+
+Le terminal est effacé avant un redémarrage, pour que ce qui suit soit seul à
+l'écran. `ream dev --no-clear` garde les logs précédents.
+
+### Quand une sauvegarde ne fait rien
+
+Si une modification ne change rien à l'écran, c'est que le fichier n'est pas
+dans le graphe d'imports du process — rien ne l'a encore importé. Sauvegarder
+un fichier que l'app n'a jamais chargé ne produit aucune ligne, c'est voulu.
+
 ## Clés et intégrations
 
 ```bash

@@ -528,10 +528,16 @@ Une réponse scriptée passe par la **même validation** qu'une réponse tapée.
 elle échoue, le prompt lève : il n'y a personne à qui redemander, et un test qui
 injecte une valeur que le vrai prompt refuserait donne une confiance imméritée.
 
-**Écart assumé :** les prompts de sélection se répondent en tapant un numéro,
-pas avec les flèches. La navigation clavier suppose le mode raw, la gestion du
-curseur et le redessin — une bibliothèque de widgets, ce qu'est enquirer. Le
-reste — noms de méthodes, options, traps — est là.
+Les prompts de sélection se naviguent : **↑ ↓** déplacent le pointeur,
+**espace** coche sur un `multiple`, **entrée** valide, **échap** ou **Ctrl-C**
+annulent. Une longue liste garde une fenêtre autour du curseur, et le pointeur
+boucle aux deux bouts. `autocomplete` filtre au fil de la frappe.
+
+Un défaut est un **index** : le pointeur y démarre sur un `choice`, et ces
+lignes sont déjà cochées sur un `multiple` — entrée tout de suite le prend.
+
+Annuler n'est pas une réponse vide : ça lève `E_CONSOLE_PROMPT_CANCELLED` au
+lieu de ne rien retourner en laissant la commande continuer.
 
 ## Découvrir et inspecter
 
