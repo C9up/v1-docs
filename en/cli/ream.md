@@ -393,6 +393,51 @@ If an edit changes nothing on screen, the file is not part of the running
 process's import graph — nothing has imported it yet. Saving a file the app
 never loaded produces no line, by design.
 
+### The debug toolbar
+
+Every HTML page served in development carries a bar at the bottom: the status,
+how long the request took, how many queries it ran and how long they took, the
+heap, and the message of anything that was thrown.
+
+Click any of it and the full profile opens: the SQL of each statement with its
+bindings and the model it came from, the route and the controller that answered,
+the lines logged while it ran, and the stack when it failed.
+
+```
+/__ream/profiler                 every request kept, newest first
+/__ream/profiler/<token>         one request, every panel
+```
+
+Each response also carries its token in an `X-Debug-Token` header, which is how
+a client that is not a page — an API call, a test — finds the profile of the
+request it just made.
+
+The last 50 requests are kept, in memory, and the bar is injected only in
+development. A production response is byte-for-byte what the handler produced.
+
+#### The query panel
+
+Queries reach the profiler as `db:query` events on the application's emitter,
+which a connection only emits when it is asked to:
+
+```ts
+// config/database.ts
+export default {
+  url: env.get('DATABASE_URL'),
+  debug: app.inDev,
+}
+```
+
+Without it the panel reads "No query" whatever the request did. A data layer
+other than atlas gets the same panel by emitting the same event.
+
+#### The log panel
+
+Log lines arrive the same way, as `log:line`. `@c9up/spectrum` bridges its own
+registry onto the emitter when the container has one, so an application logging
+through `ctx.logger` gets the panel with no configuration. The panel is absent
+from a request that logged nothing.
+
 ## Keys and integrations
 
 ```bash

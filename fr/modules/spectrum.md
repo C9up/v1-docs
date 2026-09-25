@@ -290,6 +290,34 @@ descripteur (`destination: 1`) devient du JSON sur la sortie du processus, ce
 qu'une app conteneurisée envoie à son collecteur. Une liste `channels` explicite
 l'emporte toujours.
 
+## Observer chaque ligne
+
+`onLog` vous donne chaque entrée telle qu'un canal la voit — après les
+sérialiseurs et après le masquage, jamais le sac brut :
+
+```ts
+import { onLog } from '@c9up/spectrum'
+
+const off = onLog((entry) => {
+  if (entry.level === 'error') report(entry)
+})
+```
+
+Il retourne une fonction de désinscription. Un listener qui lève est avalé :
+observer un log ne doit jamais changer le fait que le log soit écrit.
+
+`SpectrumProvider` s'abonne pour vous dès que le conteneur expose un émetteur
+`events`, et relaie chaque entrée en `log:line` :
+
+```ts
+emitter.on('log:line', (entry) => { /* … */ })
+```
+
+C'est ce qui alimente le panneau des logs de la barre de debug du framework, et
+c'est le même montage qu'atlas utilise pour `db:query` — un paquet qui ne peut
+pas importer l'émetteur du framework possède un petit registre, et le provider
+fait le pont.
+
 ## Étapes suivantes
 
 - [Blackhole (Sécurité)](/fr/modules/blackhole) — Filtrage de sécurité

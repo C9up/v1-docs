@@ -314,6 +314,33 @@ human console, `pino/file` with a path becomes a file, and with a descriptor
 (`destination: 1`) becomes JSON on the process output, which is what a
 containerised app ships to its collector. An explicit `channels` list still wins.
 
+## Observing every line
+
+`onLog` hands you each entry as a channel would see it — after the serializers
+and after redaction, never the raw bag:
+
+```ts
+import { onLog } from '@c9up/spectrum'
+
+const off = onLog((entry) => {
+  if (entry.level === 'error') report(entry)
+})
+```
+
+It returns an unsubscribe function. A listener that throws is swallowed:
+observing a log must never change whether the log is written.
+
+`SpectrumProvider` subscribes for you when the container exposes an `events`
+emitter, forwarding each entry as `log:line`:
+
+```ts
+emitter.on('log:line', (entry) => { /* … */ })
+```
+
+That is what feeds the log panel of the framework's debug toolbar, and it is
+the same arrangement atlas uses for `db:query` — a package that cannot import
+the framework's emitter owns a small registry, and the provider bridges it.
+
 ## Next Steps
 
 - [Blackhole (Security)](/en/modules/blackhole) — Rust-side request filtering

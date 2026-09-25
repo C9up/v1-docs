@@ -400,6 +400,53 @@ Si une modification ne change rien à l'écran, c'est que le fichier n'est pas
 dans le graphe d'imports du process — rien ne l'a encore importé. Sauvegarder
 un fichier que l'app n'a jamais chargé ne produit aucune ligne, c'est voulu.
 
+### La barre de debug
+
+Toute page HTML servie en développement porte une barre en bas : le statut, le
+temps de la requête, le nombre de requêtes SQL et leur durée, le tas mémoire, et
+le message de ce qui a été levé le cas échéant.
+
+Un clic dessus ouvre le profil complet : le SQL de chaque statement avec ses
+paramètres et le modèle d'où il vient, la route et le contrôleur qui ont
+répondu, les lignes loguées pendant l'exécution, et la stack en cas d'échec.
+
+```
+/__ream/profiler                 toutes les requêtes gardées, la plus récente d'abord
+/__ream/profiler/<token>         une requête, tous les panneaux
+```
+
+Chaque réponse porte aussi son token dans un en-tête `X-Debug-Token` : c'est
+ainsi qu'un client qui n'est pas une page — un appel d'API, un test — retrouve
+le profil de la requête qu'il vient de faire.
+
+Les 50 dernières requêtes sont gardées, en mémoire, et la barre n'est injectée
+qu'en développement. Une réponse de production est octet pour octet ce que le
+handler a produit.
+
+#### Le panneau des requêtes SQL
+
+Les requêtes arrivent au profiler sous forme d'événements `db:query` sur
+l'émetteur de l'application, qu'une connexion n'émet que si on le lui demande :
+
+```ts
+// config/database.ts
+export default {
+  url: env.get('DATABASE_URL'),
+  debug: app.inDev,
+}
+```
+
+Sans ça le panneau affiche « No query » quoi qu'ait fait la requête. Une autre
+couche de données que atlas obtient le même panneau en émettant le même
+événement.
+
+#### Le panneau des logs
+
+Les lignes de log arrivent de la même façon, en `log:line`. `@c9up/spectrum`
+branche son propre registre sur l'émetteur quand le conteneur en expose un :
+une application qui logue via `ctx.logger` a donc le panneau sans configuration.
+Le panneau est absent d'une requête qui n'a rien logué.
+
 ## Clés et intégrations
 
 ```bash
