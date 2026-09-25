@@ -300,6 +300,29 @@ ream repl           # un REPL Node avec l'app démarrée : `app`, `container`, `
 ream inspect        # routes, providers, liaisons du conteneur
 ```
 
+### Ce que fait `ream build`
+
+Le dossier de sortie est vidé, le pipeline d'assets déclaré dans `reamrc.ts`
+tourne, `tsc` compile, puis le manifeste, le lockfile et ce que `metaFiles`
+désigne sont copiés à côté de la sortie. Cette dernière étape n'est pas du
+confort : `dist/reamrc.js` importe `#providers/AppProvider.js`, et Node résout
+un specifier `#` contre le `package.json` qui gouverne le fichier importateur —
+sans lui dans `dist/`, il remonte jusqu'à celui du projet, dont la map pointe
+sur les sources TypeScript.
+
+Vidé **en premier**, parce que `tsc` écrase ce qu'il émet mais n'enlève jamais
+ce qu'il n'émet plus : un module renommé ou supprimé laissait son ancien `.js`
+derrière lui, et le `ream start` suivant continuait de l'importer. Un build qui
+échoue au typage emporte sa propre sortie, pour qu'il n'y ait rien de
+à-moitié-compilé à démarrer par erreur.
+
+Rien n'est strippé. La surface réservée au développement — le client de reload,
+la barre de debug, les routes du profiler — est conditionnée à `NODE_ENV` à
+l'exécution, pas à la compilation : ce qui décide, c'est la façon de démarrer le
+process, pas la façon dont il a été buildé. Une application buildée lancée en
+`NODE_ENV=development` affiche la barre ; avec `NODE_ENV` absent ou autre chose,
+la réponse est octet pour octet ce que le handler a produit.
+
 `ream test` lit ses suites dans le fichier rc et les passe au runner : les noms
 de suites et leurs globs vivent donc à un seul endroit, pas dans un script. Un
 projet `api` ou `web` frais les a déjà : une suite `unit`, une suite

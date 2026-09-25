@@ -295,6 +295,28 @@ ream repl           # a Node REPL with the app booted: `app`, `container`, `awai
 ream inspect        # routes, providers, container bindings
 ```
 
+### What `ream build` does
+
+The output directory is emptied, the assets pipeline named in `reamrc.ts` runs,
+`tsc` compiles, and the manifest, the lockfile and whatever `metaFiles` names
+are copied in beside the output. That last step is not a convenience:
+`dist/reamrc.js` imports `#providers/AppProvider.js`, and Node resolves a `#`
+specifier against the `package.json` governing the importing file — without one
+in `dist/` it reaches the project's, whose map points at the TypeScript sources.
+
+Emptied **first**, because `tsc` overwrites what it emits and never removes what
+it no longer emits: a renamed or deleted module left its old `.js` behind, and
+the next `ream start` went on importing it. A build that fails type-checking
+takes its own output with it, so there is nothing half-compiled to start by
+mistake.
+
+Nothing is stripped. The development-only surface — the reload client, the
+debug toolbar, the profiler routes — is gated on `NODE_ENV` at runtime, not at
+build time, so what decides is how the process is started, not how it was
+built. A built application run with `NODE_ENV=development` shows the toolbar;
+with `NODE_ENV` unset or anything else, the response is byte-for-byte what the
+handler produced.
+
 `ream test` reads its suites from the rc file and hands them to the runner, so
 the suite names and their globs live in one place rather than in a script. A new
 `api` or `web` project already has them: a `unit` suite and a `functional` one,
