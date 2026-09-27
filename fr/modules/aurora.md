@@ -52,9 +52,24 @@ de rendu divergeaient et livraient chacun un bug différent.
 | `srcdoc="${doc}"` | `E_AURORA_SLOT_IN_SRCDOC` | L'iframe décode la valeur et la parse comme un document entier. Pointez-la vers une URL que vous servez. |
 | `<script>`, `<style>`, `<textarea>`, `<title>`… | `E_AURORA_SLOT_IN_RAW_TEXT` | Le parseur ne lit pas leur contenu comme du markup. Pour `<textarea>` et `<title>` le contenu EST du texte, mais les commentaires avec lesquels aurora ancre un slot en feraient partie — liez la propriété : `<textarea .value="${value}">`. Pour les autres, construisez la valeur hors du template. |
 
-Dans `<svg>` et `<math>` aucune des règles raw-text ne s'applique, le parseur ne
+Dans `<svg>` et `<math>` les règles raw-text sont suspendues, le parseur ne
 changeant jamais d'état en contenu étranger — `<svg><title>${label}</title></svg>`
-est un slot texte ordinaire.
+est un slot texte ordinaire. Elles reprennent à un **point d'intégration HTML**
+(`foreignObject`, `desc`, `title` en SVG, `annotation-xml` en MathML), où le
+parseur est revenu en HTML : un `<script>` y est un vrai script, et un slot dedans
+est refusé comme ailleurs.
+
+**`.value` est la seule propriété que le serveur rend.** Les liaisons `.prop` sont
+client-only — il n'y a pas de markup pour `textContent` — mais un `<input>` porte
+sa valeur en attribut et un `<textarea>` en contenu, donc les deux sont écrites :
+
+```ts
+html`<input name="title" .value="${title}">`      // → <input name="title" value="Draft">
+html`<textarea name="bio" .value="${bio}">`       // → <textarea name="bio">Bio</textarea>
+```
+
+C'est ce qui rend le refus ci-dessus praticable : un formulaire rendu côté serveur
+arrive rempli, et un envoi avant hydratation transmet bien les valeurs.
 
 ### Les URL dans un attribut qui navigue
 
