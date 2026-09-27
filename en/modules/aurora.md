@@ -37,6 +37,38 @@ Slots inside templates are typed positions:
 
 Templates are cached by their static string array, so re-rendering the same template is cheap.
 
+### Where a slot may not go
+
+A slot is escaped for the position it lands in. Five positions have no escaping
+that would make them safe, so they are refused by name — the same error from
+`renderToString`, `render` and `hydrate` alike, because the two render paths used
+to disagree and each shipped a different bug.
+
+| Refused | Code | Why, and what to write instead |
+|---|---|---|
+| `<${tag}>` | `E_AURORA_SLOT_IN_TAG_NAME` | The template compiles once into a fragment and a slot is a node position; a tag name is not one. Write the tag out, or pick between two templates. |
+| `<img ${name}="v">` | `E_AURORA_SLOT_IN_ATTRIBUTE_NAME` | Same reason. Write the attribute out and bind its value. |
+| `onclick="${code}"` | `E_AURORA_SLOT_IN_EVENT_ATTRIBUTE` | That value is JavaScript; escaping it as HTML does not stop it running. Use `@click="${handler}"`, which binds a function. |
+| `srcdoc="${doc}"` | `E_AURORA_SLOT_IN_SRCDOC` | The iframe decodes the value and parses it as a whole document. Point it at a URL you serve. |
+| `<script>`, `<style>`, `<textarea>`, `<title>`… | `E_AURORA_SLOT_IN_RAW_TEXT` | The parser does not read their content as markup. For `<textarea>` and `<title>` the content IS text, but the comments aurora anchors a slot with would be part of it — bind the property: `<textarea .value="${value}">`. For the rest, build the value outside the template. |
+
+Inside `<svg>` and `<math>` none of the raw-text rules apply, because the parser
+never switches state in foreign content — `<svg><title>${label}</title></svg>` is
+an ordinary text slot.
+
+### URLs in an attribute that navigates
+
+`href`, `xlink:href`, `action` and `formaction` are checked, and a value whose
+scheme would execute — `javascript:`, `vbscript:`, `data:` — is prefixed with
+`unsafe:` rather than rejected. A URL in an `href` is usually data, and throwing
+there would trade an XSS for a blank page; the attribute stays in place, inert,
+and legible to whoever comes looking.
+
+The whole value is judged, not each slot: `href="java${'script:alert(1)'}"` is
+safe in each half and a running script once they meet. `src` is deliberately
+outside the check, because a `data:` URI is how an inline image is written and
+that position does not navigate.
+
 ## Signals — `signal`, `effect`, `memo`
 
 ```ts
@@ -648,6 +680,15 @@ http.post('/a', body, { xsrf: false })  // …or for one request
 new HttpClient({ xsrfCookieName: 'XSRF-TOKEN', xsrfHeaderName: 'X-XSRF-TOKEN' })
 createRpcClient({ xsrf: false })     // same switches, forwarded to its client
 ```
+
+> **"A different origin" is decided by the URL parser, not by a pattern.** The
+> earlier check asked whether the URL started with a scheme, which a
+> protocol-relative one does not — so `//evil.example/x` read as relative and the
+> client sent it the token, the default Bearer and any default `Authorization`
+> header. `\\evil.example/x`, `/\evil.example/x` and `\/evil.example/x` did the
+> same, because a browser treats a backslash in the authority position as a slash.
+> The URL is now resolved and its origin compared; a URL that cannot be resolved
+> counts as foreign.
 
 A header you set yourself always wins. The cookie value is echoed **verbatim**,
 never URL-decoded: the server reads it out of the `Cookie` header raw and

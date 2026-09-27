@@ -37,6 +37,38 @@ Les emplacements dans les templates sont typés :
 
 Les templates sont cachés par leur tableau de strings statiques, le re-rendu du même template est donc bon marché.
 
+### Où un slot ne peut pas aller
+
+Un slot est échappé pour la position où il atterrit. Cinq positions n'ont aucun
+échappement qui les rendrait sûres : elles sont refusées nommément, avec la même
+erreur depuis `renderToString`, `render` et `hydrate` — parce que les deux chemins
+de rendu divergeaient et livraient chacun un bug différent.
+
+| Refusé | Code | Pourquoi, et quoi écrire à la place |
+|---|---|---|
+| `<${tag}>` | `E_AURORA_SLOT_IN_TAG_NAME` | Le template se compile une fois en fragment et un slot est une position de nœud ; un nom de balise n'en est pas une. Écrivez la balise, ou choisissez entre deux templates. |
+| `<img ${name}="v">` | `E_AURORA_SLOT_IN_ATTRIBUTE_NAME` | Même raison. Écrivez l'attribut et liez sa valeur. |
+| `onclick="${code}"` | `E_AURORA_SLOT_IN_EVENT_ATTRIBUTE` | Cette valeur est du JavaScript ; l'échapper en HTML ne l'empêche pas de s'exécuter. Utilisez `@click="${handler}"`, qui lie une fonction. |
+| `srcdoc="${doc}"` | `E_AURORA_SLOT_IN_SRCDOC` | L'iframe décode la valeur et la parse comme un document entier. Pointez-la vers une URL que vous servez. |
+| `<script>`, `<style>`, `<textarea>`, `<title>`… | `E_AURORA_SLOT_IN_RAW_TEXT` | Le parseur ne lit pas leur contenu comme du markup. Pour `<textarea>` et `<title>` le contenu EST du texte, mais les commentaires avec lesquels aurora ancre un slot en feraient partie — liez la propriété : `<textarea .value="${value}">`. Pour les autres, construisez la valeur hors du template. |
+
+Dans `<svg>` et `<math>` aucune des règles raw-text ne s'applique, le parseur ne
+changeant jamais d'état en contenu étranger — `<svg><title>${label}</title></svg>`
+est un slot texte ordinaire.
+
+### Les URL dans un attribut qui navigue
+
+`href`, `xlink:href`, `action` et `formaction` sont contrôlés, et une valeur dont
+le schéma s'exécuterait — `javascript:`, `vbscript:`, `data:` — est préfixée par
+`unsafe:` plutôt que rejetée. Une URL dans un `href` est le plus souvent une
+donnée, et lever là échangerait un XSS contre une page blanche ; l'attribut reste
+en place, inerte, et lisible pour qui vient regarder.
+
+C'est la valeur entière qui est jugée, pas chaque slot : `href="java${'script:alert(1)'}"`
+est sûr dans chaque moitié et devient un script exécuté une fois les deux réunies.
+`src` est délibérément hors du contrôle, une URI `data:` étant la façon d'écrire
+une image inline et cette position ne naviguant pas.
+
 ## Signaux — `signal`, `effect`, `memo`
 
 ```ts
@@ -660,6 +692,16 @@ http.post('/a', body, { xsrf: false })  // …ou pour une requête
 new HttpClient({ xsrfCookieName: 'XSRF-TOKEN', xsrfHeaderName: 'X-XSRF-TOKEN' })
 createRpcClient({ xsrf: false })     // mêmes interrupteurs, transmis à son client
 ```
+
+> **« Une autre origine » est tranché par le parseur d'URL, pas par un motif.**
+> L'ancienne vérification demandait si l'URL commençait par un schéma — ce qu'une
+> URL protocol-relative ne fait pas. Donc `//evil.example/x` passait pour
+> relative et le client lui envoyait le token, le Bearer par défaut et tout
+> en-tête `Authorization` par défaut. `\\evil.example/x`, `/\evil.example/x` et
+> `\/evil.example/x` faisaient pareil, un navigateur traitant un antislash en
+> position d'autorité comme un slash. L'URL est désormais résolue et son origine
+> comparée ; une URL irrésoluble compte comme étrangère.
+
 
 Un en-tête que tu poses toi-même l'emporte toujours. La valeur du cookie est
 renvoyée **telle quelle**, jamais décodée : le serveur la lit brute dans l'en-tête
