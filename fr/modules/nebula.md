@@ -303,7 +303,7 @@ Chaque composant du registre de shadcn a une contrepartie ici, et la quarantaine
 | DataTable | TanStack Table (groupes de colonnes, virtualisation, épinglage, filtres à facettes, côté serveur) | tri, filtre, pagination, sélection — en mémoire |
 | Sidebar | ~15 parties | les parties qui ne sont pas des atomes re-habillés |
 | Carousel | embla (boucle, défilement auto, N vues) | scroll-snap, une vue, ni boucle ni défilement auto |
-| Toaster | sonner (toasts sur promesse, contenu arbitraire, positions multiples) | quatre variantes, action, pause au survol |
+| Toaster | le manager de Base UI (priorité d'affichage, toasts ancrés, payload typée) — ou sonner, avec six positions | cinq variantes, toasts sur promesse, update et dédup par id, action, `onClose`, pause au survol, quatre coins |
 | Resizable | imbrication libre, dispositions persistées, repli à zéro | deux volets, une poignée |
 | Combobox | simple, multi-sélection et création | sélection simple |
 | ScrollArea | barres redessinées par Radix | barres natives, stylées |

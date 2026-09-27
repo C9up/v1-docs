@@ -298,7 +298,7 @@ Every component in shadcn's registry has a counterpart here, and the ~40 simple 
 | DataTable | TanStack Table (column grouping, virtualisation, pinning, faceted filters, server-side) | sort, filter, page, select — in memory |
 | Sidebar | ~15 parts | the parts that are not re-skinned atoms |
 | Carousel | embla (loop, autoplay, N slides per view) | scroll-snap, one slide per view, no loop or autoplay |
-| Toaster | sonner (promise toasts, arbitrary content, multiple positions) | four variants, action, pause on hover |
+| Toaster | Base UI's manager (display priority, anchored toasts, typed payload) — or sonner, with six positions | five variants, promise toasts, update and dedup by id, action, `onClose`, pause on hover, four corners |
 | Resizable | arbitrary nesting, persisted layouts, collapse-to-zero | two panes, one handle |
 | Combobox | single, multi-select and creatable | single-select |
 | ScrollArea | scrollbars redrawn by Radix | native scrollbars, styled |
