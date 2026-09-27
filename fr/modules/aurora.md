@@ -108,10 +108,29 @@ compteur grimpe d'une requête à l'autre et la deuxième page servie livre
 Chaque recherche répond alors `null`, silencieusement — un tooltip qui n'ouvre
 jamais sur une page où tout le reste fonctionne.
 
-`renderPage` et `hydrate` remettent la séquence à zéro avant de construire :
-une application qui passe par l'un ou l'autre a des séquences alignées sans
-rien faire. Celle qui appelle `renderToString` elle-même appelle `resetIds()`
-juste avant, comme `renderPage` le fait.
+`renderPage` et `hydrate` prennent chacun un compteur neuf avant de construire :
+une application qui passe par l'un ou l'autre a des séquences alignées sans rien
+faire.
+
+Un compteur ne suffit plus dès qu'une page a plus d'une racine d'hydratation, et
+une page avec un composant live en a deux : `renderPage` construit la racine de
+la page et `liveClient` hydrate son propre conteneur. Les ids sont donc aussi
+**cloisonnés par racine**. `renderPage` utilise l'id de l'élément racine, la
+même chaîne que son amorce relit sur le conteneur — `id="aurora-root-trigger-1"`.
+Un composant live utilise son id de session, que la réponse de montage porte
+déjà des deux côtés. Rien à câbler dans un cas comme dans l'autre.
+
+Une application qui rend une racine elle-même enveloppe les deux passes dans
+`withIdScope`, avec la même portée de chaque côté :
+
+```ts
+import { withIdScope } from '@c9up/aurora'
+
+// serveur
+const markup = withIdScope('sidebar', () => renderToString(Sidebar()))
+// navigateur — `hydrate` prend la portée sur l'id du conteneur par défaut
+hydrate(document.getElementById('sidebar'), Sidebar)
+```
 
 ### Contexte — `createContext`, `provide`, `inject`
 
@@ -954,10 +973,23 @@ registry.define('Counter', () => {
 import { createLiveRouter, wireLiveEvents } from '@c9up/aurora'
 // router HTTP + relay résolus du conteneur (idiome agnostique)
 const live = createLiveRouter(registry, relay)
-wireLiveEvents(httpRouter, live)              // route POST /__live/event
+
+// POST /__live/event. Le garde-fou est obligatoire et décide par requête :
+// renvoyer false rejette l'événement en 403. Un garde-fou qui lève rejette
+// aussi.
+wireLiveEvents(httpRouter, live, (ctx, body) => ownsSession(ctx, body.id))
+
 // au rendu d'une page : const { id, channel, html } = live.mount('Counter', uid)
 // à la déconnexion relay : live.disconnect(uid)
 ```
+
+> **Le garde-fou n'est pas facultatif.** Un id de session est un `randomUUID`,
+> donc il faut le connaître pour piloter quoi que ce soit — mais un identifiant
+> imprévisible est un secret, et un secret n'est pas un contrôle d'autorisation :
+> il fuit par un référent, une ligne de log, une capture d'écran partagée.
+> Appliquez la même politique d'auth / CSRF / propriété que la page qui a monté
+> la session. Si la route est déjà fermée par un middleware hôte, renvoyez `true`
+> et dites-le dans le code.
 
 ### Côté client
 

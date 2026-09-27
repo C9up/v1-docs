@@ -107,9 +107,28 @@ while the browser, starting fresh, looks up `trigger-1`. Every lookup then
 answers `null`, silently — a tooltip that never opens on a page where every
 binding works.
 
-`renderPage` and `hydrate` each reset before they build, so an application
-using either gets matching sequences for free. One calling `renderToString`
-itself calls `resetIds()` before it, the way `renderPage` does.
+`renderPage` and `hydrate` each take a fresh counter before they build, so an
+application using either gets matching sequences for free.
+
+A counter alone is not enough once a page has more than one hydration root, and
+a page with a live component has two: `renderPage` builds the page root and
+`liveClient` hydrates its own container. So ids are also **namespaced per root**.
+`renderPage` uses the root element's id, which is the same string its bootstrap
+reads back off the container — `id="aurora-root-trigger-1"`. A live component
+uses its session id, which the mount response already carries to both sides.
+Nothing to wire either way.
+
+An application rendering a root itself wraps both passes in `withIdScope`, with
+the same scope on each side:
+
+```ts
+import { withIdScope } from '@c9up/aurora'
+
+// server
+const markup = withIdScope('sidebar', () => renderToString(Sidebar()))
+// browser — `hydrate` takes the scope from the container's id by default
+hydrate(document.getElementById('sidebar'), Sidebar)
+```
 
 ### Context — `createContext`, `provide`, `inject`
 
@@ -936,10 +955,22 @@ registry.define('Counter', () => {
 import { createLiveRouter, wireLiveEvents } from '@c9up/aurora'
 // HTTP router + relay resolved from the container (agnostic idiom)
 const live = createLiveRouter(registry, relay)
-wireLiveEvents(httpRouter, live)              // POST /__live/event route
+
+// POST /__live/event. The guard is required, and it decides per request:
+// return false and the event is rejected with 403. A guard that throws also
+// rejects.
+wireLiveEvents(httpRouter, live, (ctx, body) => ownsSession(ctx, body.id))
+
 // rendering a page: const { id, channel, html } = live.mount('Counter', uid)
 // on relay disconnect: live.disconnect(uid)
 ```
+
+> **The guard is not optional.** A session id is a `randomUUID`, so a caller
+> needs it to drive anything — but an unguessable identifier is a secret, and a
+> secret is not an authorisation check: it leaks through a referrer, a log line,
+> a shared screenshot. Apply the same auth / CSRF / ownership policy as the page
+> that mounted the session. If the route is already closed by host middleware,
+> return `true` and say so in the code.
 
 ### Client side
 
