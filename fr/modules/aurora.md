@@ -50,14 +50,21 @@ de rendu divergeaient et livraient chacun un bug différent.
 | `<img ${name}="v">` | `E_AURORA_SLOT_IN_ATTRIBUTE_NAME` | Même raison. Écrivez l'attribut et liez sa valeur. |
 | `onclick="${code}"` | `E_AURORA_SLOT_IN_EVENT_ATTRIBUTE` | Cette valeur est du JavaScript ; l'échapper en HTML ne l'empêche pas de s'exécuter. Utilisez `@click="${handler}"`, qui lie une fonction. |
 | `srcdoc="${doc}"` | `E_AURORA_SLOT_IN_SRCDOC` | L'iframe décode la valeur et la parse comme un document entier. Pointez-la vers une URL que vous servez. |
-| `<script>`, `<style>`, `<textarea>`, `<title>`… | `E_AURORA_SLOT_IN_RAW_TEXT` | Le parseur ne lit pas leur contenu comme du markup. Pour `<textarea>` et `<title>` le contenu EST du texte, mais les commentaires avec lesquels aurora ancre un slot en feraient partie — liez la propriété : `<textarea .value="${value}">`. Pour les autres, construisez la valeur hors du template. |
+| `<script>`, `<style>`, `<textarea>`, `<title>`… | `E_AURORA_SLOT_IN_RAW_TEXT` | Le parseur ne lit pas leur contenu comme du markup. Pour `<textarea>` et `<title>` le contenu EST du texte, mais les commentaires avec lesquels aurora ancre un slot en feraient partie — liez la propriété : `<textarea .value="${value}">`. Pour les autres, construisez la valeur hors du template. `<plaintext>` n'a pas de balise de fin, donc tout slot placé après est refusé. Un `/` ne ferme pas un élément HTML — `<script/>` ouvre un script comme `<script>`. |
+| `.text`, `.textContent`, `.innerText` sur `<script>` ou `<style>` | `E_AURORA_SLOT_IN_RAW_TEXT` | La version propriété d'un slot à l'intérieur de l'élément : elle écrit la source que le navigateur exécute. |
+| `.innerHTML`, `.outerHTML`, `.srcdoc` | `E_AURORA_SLOT_IN_HTML_PROPERTY` | Ces propriétés parsent leur valeur comme du HTML, gestionnaires compris. Mettez le contenu dans un slot texte, ou passez un template `html` imbriqué. |
 
 Dans `<svg>` et `<math>` les règles raw-text sont suspendues, le parseur ne
 changeant jamais d'état en contenu étranger — `<svg><title>${label}</title></svg>`
-est un slot texte ordinaire. Elles reprennent à un **point d'intégration HTML**
-(`foreignObject`, `desc`, `title` en SVG, `annotation-xml` en MathML), où le
-parseur est revenu en HTML : un `<script>` y est un vrai script, et un slot dedans
-est refusé comme ailleurs.
+est un slot texte ordinaire. Deux choses y restent vraies :
+
+- Un `<script>` ou un `<style>` **exécute son contenu** en SVG et en MathML aussi,
+  donc un slot à l'intérieur est refusé où qu'il soit.
+- Les règles HTML reprennent à un **point d'intégration HTML** — `foreignObject`,
+  `desc` et `title` en SVG ; `mi`, `mo`, `mn`, `ms`, `mtext` et `annotation-xml`
+  en MathML — et après une balise HTML qui met fin au contenu étranger (`<p>`,
+  `<div>`, `<br>`, `<span>`, `<table>`…), que le parseur lit comme du HTML quelle
+  que soit l'imbrication du markup.
 
 **`.value` est la seule propriété que le serveur rend.** Les liaisons `.prop` sont
 client-only — il n'y a pas de markup pour `textContent` — mais un `<input>` porte
@@ -71,18 +78,25 @@ html`<textarea name="bio" .value="${bio}">`       // → <textarea name="bio">Bi
 C'est ce qui rend le refus ci-dessus praticable : un formulaire rendu côté serveur
 arrive rempli, et un envoi avant hydratation transmet bien les valeurs.
 
-### Les URL dans un attribut qui navigue
+### Les URL qui naviguent ou chargent du code
 
-`href`, `xlink:href`, `action` et `formaction` sont contrôlés, et une valeur dont
-le schéma s'exécuterait — `javascript:`, `vbscript:`, `data:` — est préfixée par
+`href`, `xlink:href`, `action` et `formaction` sont contrôlés sur tout élément, et
+`src` sur `<script>`, `<iframe>`, `<frame>` et `<embed>`, `data` sur `<object>` —
+les éléments qui exécutent ce qu'ils chargent. Une valeur dont le schéma
+s'exécuterait — `javascript:`, `vbscript:`, `data:` — est préfixée par
 `unsafe:` plutôt que rejetée. Une URL dans un `href` est le plus souvent une
 donnée, et lever là échangerait un XSS contre une page blanche ; l'attribut reste
 en place, inerte, et lisible pour qui vient regarder.
 
 C'est la valeur entière qui est jugée, pas chaque slot : `href="java${'script:alert(1)'}"`
 est sûr dans chaque moitié et devient un script exécuté une fois les deux réunies.
-`src` est délibérément hors du contrôle, une URI `data:` étant la façon d'écrire
-une image inline et cette position ne naviguant pas.
+`src` sur une `<img>`, une `<video>` ou une `<source>` n'est pas touché, une URI
+`data:` étant la façon d'écrire une image inline et cette position n'exécutant
+rien.
+
+Une liaison `.prop` reçoit le même contrôle : `.href`, `.src`, `.action`,
+`.formAction` et `.data` sont neutralisés partout où l'attribut qu'ils écrivent le
+serait.
 
 ## Signaux — `signal`, `effect`, `memo`
 

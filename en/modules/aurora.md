@@ -50,14 +50,21 @@ to disagree and each shipped a different bug.
 | `<img ${name}="v">` | `E_AURORA_SLOT_IN_ATTRIBUTE_NAME` | Same reason. Write the attribute out and bind its value. |
 | `onclick="${code}"` | `E_AURORA_SLOT_IN_EVENT_ATTRIBUTE` | That value is JavaScript; escaping it as HTML does not stop it running. Use `@click="${handler}"`, which binds a function. |
 | `srcdoc="${doc}"` | `E_AURORA_SLOT_IN_SRCDOC` | The iframe decodes the value and parses it as a whole document. Point it at a URL you serve. |
-| `<script>`, `<style>`, `<textarea>`, `<title>`… | `E_AURORA_SLOT_IN_RAW_TEXT` | The parser does not read their content as markup. For `<textarea>` and `<title>` the content IS text, but the comments aurora anchors a slot with would be part of it — bind the property: `<textarea .value="${value}">`. For the rest, build the value outside the template. |
+| `<script>`, `<style>`, `<textarea>`, `<title>`… | `E_AURORA_SLOT_IN_RAW_TEXT` | The parser does not read their content as markup. For `<textarea>` and `<title>` the content IS text, but the comments aurora anchors a slot with would be part of it — bind the property: `<textarea .value="${value}">`. For the rest, build the value outside the template. `<plaintext>` has no end tag, so every slot after it is refused. A `/` does not close an HTML element — `<script/>` opens a script like `<script>` does. |
+| `.text`, `.textContent`, `.innerText` on `<script>` or `<style>` | `E_AURORA_SLOT_IN_RAW_TEXT` | The property spelling of a slot inside the element: it writes the source the browser runs. |
+| `.innerHTML`, `.outerHTML`, `.srcdoc` | `E_AURORA_SLOT_IN_HTML_PROPERTY` | These properties parse their value as HTML, handlers and all. Put the content in a text slot, or pass a nested `html` template. |
 
 Inside `<svg>` and `<math>` the raw-text rules are suspended, because the parser
 never switches state in foreign content — `<svg><title>${label}</title></svg>` is
-an ordinary text slot. They resume at an **HTML integration point**
-(`foreignObject`, `desc`, `title` in SVG, `annotation-xml` in MathML), where the
-parser is back in HTML: a `<script>` there is a real script, and a slot in it is
-refused like any other.
+an ordinary text slot. Two things still hold there:
+
+- A `<script>` or `<style>` **runs its content** in SVG and MathML too, so a slot
+  inside one is refused wherever it is.
+- The HTML rules come back at an **HTML integration point** — `foreignObject`,
+  `desc` and `title` in SVG; `mi`, `mo`, `mn`, `ms`, `mtext` and `annotation-xml`
+  in MathML — and after an HTML tag that ends foreign content (`<p>`, `<div>`,
+  `<br>`, `<span>`, `<table>`…), which the parser reads as HTML however the
+  markup is nested.
 
 **`.value` is the one property the server renders.** `.prop` bindings are
 client-only — there is no markup for `textContent` — but an `<input>` carries its
@@ -71,18 +78,23 @@ html`<textarea name="bio" .value="${bio}">`       // → <textarea name="bio">Bi
 Which is what makes the refusal above workable: a server-rendered form arrives
 filled, and a submit before hydration sends the values.
 
-### URLs in an attribute that navigates
+### URLs that navigate or load code
 
-`href`, `xlink:href`, `action` and `formaction` are checked, and a value whose
-scheme would execute — `javascript:`, `vbscript:`, `data:` — is prefixed with
+`href`, `xlink:href`, `action` and `formaction` are checked on every element, and
+`src` on `<script>`, `<iframe>`, `<frame>` and `<embed>`, `data` on `<object>` —
+the elements that run what they load. A value whose scheme would execute —
+`javascript:`, `vbscript:`, `data:` — is prefixed with
 `unsafe:` rather than rejected. A URL in an `href` is usually data, and throwing
 there would trade an XSS for a blank page; the attribute stays in place, inert,
 and legible to whoever comes looking.
 
 The whole value is judged, not each slot: `href="java${'script:alert(1)'}"` is
-safe in each half and a running script once they meet. `src` is deliberately
-outside the check, because a `data:` URI is how an inline image is written and
-that position does not navigate.
+safe in each half and a running script once they meet. `src` on an `<img>`,
+`<video>` or `<source>` is left alone, because a `data:` URI is how an inline
+image is written and that position runs nothing.
+
+A `.prop` binding gets the same check: `.href`, `.src`, `.action`, `.formAction`
+and `.data` are neutralised wherever the attribute they write would be.
 
 ## Signals — `signal`, `effect`, `memo`
 
