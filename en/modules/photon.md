@@ -229,7 +229,7 @@ import { render as svelteRender } from 'svelte/server'
 import PhotonRoot from '@c9up/photon/svelte'
 export function render(pageData) {
   const component = pages[`./pages/${pageData.component}.svelte`].default
-  return svelteRender(PhotonRoot, { props: { component, props: pageData.props } }).body
+  return svelteRender(PhotonRoot, { props: { component, props: pageData.props, page: pageData } }).body
 }
 ```
 
@@ -715,8 +715,103 @@ elementManager.enableTriggers()
 // …and `flush()` when the list leaves the page.
 ```
 
-The framework components built on it (`<InfiniteScroll>` and the rest) are not
-shipped yet.
+Most pages use it through the framework component instead.
+
+## Framework components
+
+`@c9up/photon/react`, `@c9up/photon/vue` and `@c9up/photon/svelte` export the
+components of `@inertiajs/react`, `@inertiajs/vue3` and `@inertiajs/svelte`,
+with the same props and slots: `usePage`, `Deferred`, `WhenVisible` and
+`InfiniteScroll`. Each subpath is imported only by an app of that framework.
+
+```tsx
+import { Deferred, InfiniteScroll, WhenVisible } from '@c9up/photon/react'
+
+<Deferred data="stats" fallback={<Spinner />}>
+  {({ reloading }) => <Stats stats={stats} dimmed={reloading} />}
+</Deferred>
+
+<WhenVisible data="comments" fallback={<p>Loading comments…</p>}>
+  <Comments comments={comments} />
+</WhenVisible>
+
+<InfiniteScroll data="users" loading={<Spinner />}>
+  {users.data.map((user) => <UserRow key={user.id} user={user} />)}
+</InfiniteScroll>
+```
+
+```vue
+<Deferred data="stats">
+  <template #fallback><Spinner /></template>
+  <template #default="{ reloading }"><Stats :stats="stats" :dimmed="reloading" /></template>
+</Deferred>
+```
+
+`usePage()` reads the router in the browser. On the server there is no router,
+so the SSR entry hands the page over, the way Inertia's `App` does:
+
+```tsx
+// React — resources/ssr.tsx
+import { PhotonPage } from '@c9up/photon/react'
+return renderToString(
+  createElement(PhotonPage, { page: pageData }, createElement(mod.default, pageData.props)),
+)
+
+// Vue — resources/ssr.ts
+import { PhotonPage } from '@c9up/photon/vue'
+const app = createSSRApp({ render: () => h(PhotonPage, { page: pageData }, () => h(Page, pageData.props)) })
+
+// Svelte — PhotonRoot takes the whole page too
+svelteRender(PhotonRoot, { props: { component, props: pageData.props, page: pageData } })
+```
+
+`Link` is there in the three frameworks too, with Inertia's props (`href`,
+`method`, `data`, `replace`, `only`, `except`, `headers`, `preserveState`, …):
+an anchor the router follows, or — for any method but GET — a button, as
+upstream renders it. Prefetching is not supported (Photon keeps no visit cache).
+
+```tsx
+<Link href="/orders" data={{ status: 'open' }}>Open orders</Link>
+<Link href={`/orders/${id}`} method="delete" onSuccess={() => toast('Deleted')}>Delete</Link>
+```
+
+Visits other than GET go through the router too — `router.post(url, data)`,
+`put`, `patch`, `delete`, or `visit(url, { method, data })`. The data is sent as
+JSON, or as multipart as soon as it holds a file (`forceFormData` to insist), with
+the `XSRF-TOKEN` cookie echoed as `X-XSRF-TOKEN`. A page that comes back with
+validation errors (scoped by `errorBag`) calls `onError` instead of `onSuccess`.
+A mutation that fails leaves the page as it is rather than reloading its URL as
+a GET.
+
+Forms work as in Inertia. `useForm` holds a form's data, errors and submission
+state — `form.data` and `form.setData` in React, the fields at the top level in
+Vue and Svelte (`v-model="form.email"`, `bind:value={form.email}`):
+
+```ts
+const form = useForm({ email: '', password: '' })
+form.post('/login', { onSuccess: () => form.reset('password') })
+// form.errors.email · form.processing · form.isDirty · form.wasSuccessful
+// form.recentlySuccessful · form.transform(fn) · form.cancel() · useForm('Login', {...})
+```
+
+`<Form>` reads its data from its own fields at submit and gives its children
+the same state:
+
+```tsx
+<Form action="/login" method="post" resetOnSuccess={['password']}>
+  {({ errors, processing }) => (
+    <>
+      <input name="email" />
+      {errors.email && <p>{errors.email}</p>}
+      <button disabled={processing}>Log in</button>
+    </>
+  )}
+</Form>
+```
+
+Two parts of Inertia's forms are not ported: Laravel Precognition (live
+validation against a Laravel endpoint), and upload `progress`, which stays
+`null` because the router sends with `fetch`.
 
 ## Validation errors
 
