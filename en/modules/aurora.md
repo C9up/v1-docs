@@ -50,6 +50,7 @@ to disagree and each shipped a different bug.
 | `<img ${name}="v">` | `E_AURORA_SLOT_IN_ATTRIBUTE_NAME` | Same reason. Write the attribute out and bind its value. |
 | `onclick="${code}"` | `E_AURORA_SLOT_IN_EVENT_ATTRIBUTE` | That value is JavaScript; escaping it as HTML does not stop it running. Use `@click="${handler}"`, which binds a function. |
 | `srcdoc="${doc}"` | `E_AURORA_SLOT_IN_SRCDOC` | The iframe decodes the value and parses it as a whole document. Point it at a URL you serve. |
+| `<script src="${url}">`, `.src` on a script, `href`/`xlink:href` on an SVG script | `E_AURORA_SLOT_IN_SCRIPT_SOURCE` | Whatever the URL points at runs with the page's authority — `https://` on another origin and a `blob:` included — and no check on the value can tell the script you meant from one the value picked. Write the URL into the template; a script chosen at runtime belongs in code that creates the element. |
 | `<script>`, `<style>`, `<textarea>`, `<title>`… | `E_AURORA_SLOT_IN_RAW_TEXT` | The parser does not read their content as markup. For `<textarea>` and `<title>` the content IS text, but the comments aurora anchors a slot with would be part of it — bind the property: `<textarea .value="${value}">`. For the rest, build the value outside the template. `<plaintext>` has no end tag, so every slot after it is refused. A `/` does not close an HTML element — `<script/>` opens a script like `<script>` does. |
 | `.text`, `.textContent`, `.innerText` on `<script>` or `<style>` | `E_AURORA_SLOT_IN_RAW_TEXT` | The property spelling of a slot inside the element: it writes the source the browser runs. |
 | `.innerHTML`, `.outerHTML`, `.srcdoc` | `E_AURORA_SLOT_IN_HTML_PROPERTY` | These properties parse their value as HTML, handlers and all. Put the content in a text slot, or pass a nested `html` template. |
@@ -78,11 +79,15 @@ html`<textarea name="bio" .value="${bio}">`       // → <textarea name="bio">Bi
 Which is what makes the refusal above workable: a server-rendered form arrives
 filled, and a submit before hydration sends the values.
 
+An `<input type="file">` is the exception: a script may only clear it. A
+non-empty `.value` there throws `E_AURORA_FILE_INPUT_VALUE` on the client render
+and on hydration; bind `""` to reset the field.
+
 ### URLs that navigate or load code
 
 `href`, `xlink:href`, `action` and `formaction` are checked on every element, and
-`src` on `<script>`, `<iframe>`, `<frame>` and `<embed>`, `data` on `<object>` —
-the elements that run what they load. A value whose scheme would execute —
+`src` on `<iframe>`, `<frame>` and `<embed>`, `data` on `<object>` — the elements
+that run what they load. A `<script>`'s URL takes no slot at all (see above). A value whose scheme would execute —
 `javascript:`, `vbscript:`, `data:` — is prefixed with
 `unsafe:` rather than rejected. A URL in an `href` is usually data, and throwing
 there would trade an XSS for a blank page; the attribute stays in place, inert,
@@ -626,7 +631,7 @@ api.setHeader('Accept-Language', 'fr')            // manage default headers (cha
 
 - Methods: `get` / `post` / `put` / `patch` / `delete`, plus `raw(method, url, body?)` for the untouched `Response`.
 - A non-2xx response throws `HttpError` (`status`, `response`, parsed `data`). `isHttpError(e)` is a type guard for clean `catch` narrowing.
-- `extend(options)` derives a child client with merged defaults.
+- `extend(options)` derives a child client with merged defaults, the XSRF settings included.
 - Pass a `parse` option for a runtime-validated, fully-typed result; without it, the generic type is an unchecked assertion of the response shape (the usual HTTP boundary).
 - A default same-origin `http` instance is exported for quick same-origin calls.
 

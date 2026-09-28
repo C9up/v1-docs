@@ -19,13 +19,25 @@ const photon = new PhotonMiddleware({
   framework: 'react',                    // 'react' | 'vue' | 'svelte'
   entryClient: 'resources/app.tsx',      // Point d'entree d'hydratation client
   entryServer: 'resources/ssr.tsx',      // Point d'entree SSR
-  buildDir: 'public/build',              // Repertoire de sortie pour les assets de production
+  buildDir: 'public/build',              // Où le build client est écrit
+  assetsUrl: '/build',                   // L'URL que le serveur statique lui donne
+  ssrBuildDir: 'build/ssr',              // Le bundle SSR — jamais sous public/
   viteDevUrl: 'http://localhost:5173',   // URL du serveur de dev Vite (developpement uniquement)
 })
 
 // Enregistrement du middleware via .middleware()
 router.use([photon.middleware()])
 ```
+
+`buildDir` est un chemin sur disque et `assetsUrl` l'URL à laquelle il est
+servi : le serveur statique retire `public/`, donc `public/build/app.js` devient
+`/build/app.js`. Réglez les deux quand le build change de place, ou pointez
+`assetsUrl` vers un CDN.
+
+Le bundle SSR est du code serveur et va dans `ssrBuildDir`, que le boot refuse
+à l'intérieur de `buildDir` ou de `public/` — partout où le serveur statique le
+distribuerait. AdonisJS écrit ses points d'entrée serveur sous le dossier de
+build public ; Photon s'en écarte volontairement.
 
 `buildDir` est résolu depuis la **racine de l'application**, que le provider
 obtient via `app.makePath()` — et non depuis le répertoire où le processus a
@@ -216,10 +228,28 @@ export async function render(pageData) {
 
 // Svelte 5 — resources/ssr.ts
 import { render as svelteRender } from 'svelte/server'
+import PhotonRoot from '@c9up/photon/svelte'
 export function render(pageData) {
-  return svelteRender(pages[`./pages/${pageData.component}.svelte`].default, { props: pageData.props }).body
+  const component = pages[`./pages/${pageData.component}.svelte`].default
+  return svelteRender(PhotonRoot, { props: { component, props: pageData.props } }).body
 }
 ```
+
+Pour Svelte, l'entrée client passe la même racine à `hydrate` :
+
+```ts
+import PhotonRoot from '@c9up/photon/svelte'
+hydrate({ resolveComponent, svelteRoot: PhotonRoot })
+```
+
+`PhotonRoot` tient la page dans son état, comme `App.svelte` dans
+`@inertiajs/svelte` : une page garde son propre état quand ses props changent —
+un groupe différé, un rechargement partiel. Svelte 5 ne sait pas mettre à jour
+les props d'un composant monté depuis l'extérieur d'un fichier `.svelte` ; sans
+la racine, la page est donc remontée à chaque fois. Elle est passée plutôt
+qu'intégrée parce que Photon est un seul paquet TypeScript pour trois
+frameworks : un import `.svelte` dans ses sources casserait la vérification de
+types de toute app React ou Vue.
 
 ### Choisir quelles pages sont rendues côté serveur
 
@@ -252,13 +282,13 @@ Deux builds Vite — le bundle client (avec le manifest) et le module SSR :
 {
   "scripts": {
     "build:client": "vite build",
-    "build:ssr": "vite build --ssr resources/ssr.tsx --outDir public/build/ssr",
+    "build:ssr": "vite build --ssr resources/ssr.tsx --outDir build/ssr",
     "build:front": "pnpm build:client && pnpm build:ssr"
   }
 }
 ```
 
-Le build client écrit `public/build/.vite/manifest.json` (Vite 5+) — Photon le trouve automatiquement. Le build SSR écrit `public/build/ssr/ssr.js`, que le renderer de Photon importe en production.
+Le build client écrit `public/build/.vite/manifest.json` (Vite 5+) — Photon le trouve automatiquement. Le build SSR écrit `build/ssr/ssr.js`, hors de tout dossier servi, que le renderer de Photon importe en production.
 
 ### Tailwind
 
@@ -371,6 +401,37 @@ Si le fetch SPA-nav échoue (réponse non-2xx, mauvais `Content-Type`, JSON malf
 
 **Apps en sous-chemin** avec un élément `<base href="/admin/">` dans le document sont gérées correctement : les ancres relatives sont résolues contre `document.baseURI` plutôt que `location.href`.
 
+### Naviguer depuis le code — `router`
+
+`@c9up/photon/client` exporte un `router` qui a la forme de celui d'Inertia : du
+code écrit pour `@inertiajs/core` se lit de la même façon.
+
+```ts
+import { router } from '@c9up/photon/client'
+
+router.visit('/orders')                          // comme un clic sur un lien
+router.visit('/orders?page=2', { replace: true }) // remplace l'entrée d'historique
+router.reload({ only: ['stats'] })               // partiel : seulement ces props
+router.reload({ except: ['auditLogs'] })
+router.reload({ only: ['rows'], reset: ['rows'] }) // remplacer, pas combiner
+router.visit('/login', { errorBag: 'login' })    // cibler les erreurs de validation
+```
+
+Les visites prennent les callbacks d'Inertia — `onBefore` (renvoyer `false`
+annule), `onBeforeUpdate`, `onSuccess`, `onFinish` — ainsi que `data` (paramètres
+de query), `preserveUrl` et `preserveErrors`. Le routeur a aussi
+`router.on('success', cb)` (renvoie la fonction qui arrête l'écoute),
+`router.remember(data, key)` / `router.restore(key)` pour un état gardé dans
+l'entrée d'historique de la page, et `router.replace({ url })` pour changer
+l'adresse sans requête.
+
+Un rechargement partiel (`only`, `except` ou `reset`) fusionne la réponse dans la
+page affichée sans la remonter ; les props non demandés gardent leur valeur, et
+il prend les `errors` du serveur. `reload()` envoie `Cache-Control: no-cache`.
+Une URL d'une autre origine est une navigation complète. Un écart avec Inertia :
+les deux méthodes renvoient une promesse, résolue une fois la page appliquée,
+qu'on peut donc attendre ; l'ignorer, comme le fait le code Inertia, marche aussi.
+
 ### Contrat côté serveur
 
 Le `PhotonMiddleware` détecte déjà le header de requête `X-Photon` et renvoie une réponse JSON (component, props, url, framework) au lieu d'un document HTML complet. Aucun câblage supplémentaire requis :
@@ -430,12 +491,12 @@ Aucune configuration supplementaire n'est necessaire. Photon gere la detection d
 Lancez les deux builds Vite de [Commandes de build](#commandes-de-build), puis démarrez l'app avec `NODE_ENV=production` :
 
 ```bash
-pnpm build:front   # vite build  +  vite build --ssr … --outDir public/build/ssr
+pnpm build:front   # vite build  +  vite build --ssr … --outDir build/ssr
 NODE_ENV=production pnpm start
 ```
 
 Cela produit :
-- Le module SSR à `public/build/ssr/ssr.js` (importé par le processus Ream)
+- Le module SSR à `build/ssr/ssr.js` (importé par le processus Ream, jamais servi)
 - Le bundle client avec code splitting + assets hachés
 - `public/build/.vite/manifest.json` associant l'entrée à ses chunks
 
@@ -531,10 +592,6 @@ Les sous-objets `og` / `twitter` fusionnent champ par champ ; les tableaux `keyw
 
 Chaque valeur textuelle (`title`, `description`, og:*, twitter:*, `content` custom) passe par un echappeur d'attribut HTML qui remplace `&`, `<`, `>`, `"`, `'`. Un titre controle par l'utilisateur contenant `<script>...</script>` est rendu en toute securite comme `&lt;script&gt;...&lt;/script&gt;`. **Jamais** desactive — il n'y a pas d'opt-out, par design.
 
-### Limitation : pas de mise a jour du `<head>` en SPA-nav pour l'instant
-
-Le router SPA-nav de 44.1 echange le contenu de `<div id="app">` mais ne met PAS a jour `<head>` lors de la navigation cote client. Le rendu SSR initial porte les bons tags ; la navigation in-browser suivante conserve le head de la premiere page jusqu'a un rechargement complet. La synchronisation `<head>` en SPA est une story de suivi (lire le payload `pageData.meta` et patcher le head du document).
-
 ## Reference PhotonConfig
 
 | Propriete | Type | Defaut | Description |
@@ -542,7 +599,9 @@ Le router SPA-nav de 44.1 echange le contenu de `<div id="app">` mais ne met PAS
 | `framework` | `'react' \| 'vue' \| 'svelte'` | — | Framework frontend a utiliser |
 | `entryClient` | `string` | — | Chemin vers le point d'entree d'hydratation client (ex. `'resources/app.tsx'`) |
 | `entryServer` | `string` | — | Chemin vers le point d'entree SSR (ex. `'resources/ssr.tsx'`) |
-| `buildDir` | `string` | `'public/build'` | Repertoire de sortie pour les assets de production |
+| `buildDir` | `string` | `'public/build'` | Où le build client est écrit, sur disque |
+| `assetsUrl` | `string` | `'/build'` | URL d'où le build client est servi (chemin depuis la racine ou URL http(s)) |
+| `ssrBuildDir` | `string` | `'build/ssr'` | Où le bundle SSR est écrit ; refusé dans `buildDir` ou `public/` |
 | `viteDevUrl` | `string` | `'http://localhost:5173'` | URL du serveur de dev Vite (developpement uniquement) |
 | `defaultMeta` | `MetaTags` | — | Tags `<head>` par defaut a l'echelle de l'app (44.2) |
 
@@ -602,6 +661,69 @@ ctx.photon.render('Dashboard', {
 Un rappel nu est une prop paresseuse, invoquée à chaque rendu, et une promesse
 est attendue : `{ total: () => compterCommandes() }` envoie le nombre.
 
+Le routeur navigateur demande chaque groupe `defer` une fois la page affichée —
+une requête par groupe, pour qu'un groupe lent ne retienne pas les autres — et
+fusionne le résultat dans la page sans la remonter (React et Vue gardent l'état
+du composant ; Svelte remonte encore). Les `errors` d'un formulaire restent
+telles quelles.
+
+Lors d'un rechargement partiel — un groupe différé, `router.reload({ only })` —
+les props étiquetés `merge`, `merge().prepend()` ou `deepMerge` sont combinés
+avec ce que la page tient, en suivant `matchOn` ; une visite complète les
+remplace, comme dans Inertia.
+
+Une valeur `once` est gardée par la page qui l'a reçue : chaque requête annonce
+les clés encore tenues et non expirées (`x-photon-except-once-props`), le serveur
+ne les résout pas, et le routeur remet sa copie avec sa première échéance.
+
+Un prop `scroll` se pagine depuis la page avec `useInfiniteScrollData`, la
+moitié « données » du défilement infini d'Inertia, sous les mêmes noms :
+
+```ts
+import { useInfiniteScrollData } from '@c9up/photon/client'
+
+const users = useInfiniteScrollData({ getPropName: () => 'users' })
+if (users.hasNext()) await users.fetchNext()   // ?page=N, lignes ajoutées après
+if (users.hasPrevious()) await users.fetchPrevious() // lignes ajoutées avant
+```
+
+Chaque appel est un rechargement partiel du prop ; la barre d'adresse ne bouge
+pas, et une page `null` d'un côté arrête les requêtes. Un rechargement avec
+`reset: ['users']` remet le curseur à zéro.
+
+`useInfiniteScroll` le branche sur la page, comme celui d'Inertia : il charge un
+côté quand son élément déclencheur entre à l'écran, étiquette chaque ligne avec
+sa page, fait suivre l'URL à la page la plus visible, et garde la ligne du
+lecteur en place quand des lignes arrivent au-dessus. Le curseur et les plages
+de lignes sont gardés avec `router.remember` : le bouton retour — ou un
+rechargement de l'onglet — ramène la liste telle qu'elle était.
+
+```ts
+import { useInfiniteScroll } from '@c9up/photon/client'
+
+const { dataManager, elementManager, flush } = useInfiniteScroll({
+  getPropName: () => 'users',
+  getItemsElement: () => list,          // l'élément dont les enfants sont les lignes
+  getStartElement: () => topSentinel,
+  getEndElement: () => bottomSentinel,
+  getScrollableParent: () => null,      // null : c'est la fenêtre qui défile
+  getTriggerMargin: () => 200,
+  inReverseMode: () => false,
+  shouldFetchNext: () => true,
+  shouldFetchPrevious: () => true,
+  shouldPreserveUrl: () => false,
+  onBeforeNextRequest() {}, onBeforePreviousRequest() {},
+  onCompleteNextRequest() {}, onCompletePreviousRequest() {},
+})
+elementManager.setupObservers()
+elementManager.processServerLoadedElements(dataManager.getLastLoadedPage())
+elementManager.enableTriggers()
+// …et `flush()` quand la liste quitte la page.
+```
+
+Les composants par framework construits dessus (`<InfiniteScroll>` et les
+autres) ne sont pas encore livrés.
+
 ## Erreurs de validation
 
 `props.errors` est partagé avec chaque page, pour qu'un composant de formulaire
@@ -618,3 +740,23 @@ ctx.photon.flash(() => ctx.session.flashMessages.all())
 
 `clearHistory` compte au logout : sans lui, le bouton retour rejoue des pages
 construites avec les données de la session précédente, depuis le cache du client.
+
+Le routeur garde chaque page dans `history.state`. Avec `encryptHistory`, cette
+copie est chiffrée en AES-GCM sous une clé gardée dans `sessionStorage` ;
+`clearHistory` supprime la clé, donc toute entrée antérieure devient illisible et
+le bouton retour — ou une page restaurée depuis le cache avant-arrière — recharge
+l'URL depuis le serveur. Deux écarts volontaires avec le client d'Inertia : un IV
+aléatoire par entrée (Inertia en réutilise un par clé), et sans Web Crypto (page
+non servie en HTTPS) rien n'est rangé plutôt que la page en clair.
+
+Le sac flash arrive à la page comme un événement `photon:flash` sur `document` —
+une fois par page, jamais pour un groupe différé, et jamais rejoué par le bouton
+retour :
+
+```ts
+document.addEventListener('photon:flash', (event) => {
+  if (!(event instanceof CustomEvent)) return
+  const { flash } = event.detail
+  if (flash.success) toast.success(String(flash.success))
+})
+```

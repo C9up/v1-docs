@@ -50,6 +50,7 @@ de rendu divergeaient et livraient chacun un bug différent.
 | `<img ${name}="v">` | `E_AURORA_SLOT_IN_ATTRIBUTE_NAME` | Même raison. Écrivez l'attribut et liez sa valeur. |
 | `onclick="${code}"` | `E_AURORA_SLOT_IN_EVENT_ATTRIBUTE` | Cette valeur est du JavaScript ; l'échapper en HTML ne l'empêche pas de s'exécuter. Utilisez `@click="${handler}"`, qui lie une fonction. |
 | `srcdoc="${doc}"` | `E_AURORA_SLOT_IN_SRCDOC` | L'iframe décode la valeur et la parse comme un document entier. Pointez-la vers une URL que vous servez. |
+| `<script src="${url}">`, `.src` sur un script, `href`/`xlink:href` sur un script SVG | `E_AURORA_SLOT_IN_SCRIPT_SOURCE` | Ce que l'URL désigne s'exécute avec l'autorité de la page — `https://` sur une autre origine et `blob:` compris — et aucun contrôle de la valeur ne distingue le script voulu de celui que la valeur a choisi. Écrivez l'URL dans le template ; un script choisi à l'exécution relève du code qui crée l'élément. |
 | `<script>`, `<style>`, `<textarea>`, `<title>`… | `E_AURORA_SLOT_IN_RAW_TEXT` | Le parseur ne lit pas leur contenu comme du markup. Pour `<textarea>` et `<title>` le contenu EST du texte, mais les commentaires avec lesquels aurora ancre un slot en feraient partie — liez la propriété : `<textarea .value="${value}">`. Pour les autres, construisez la valeur hors du template. `<plaintext>` n'a pas de balise de fin, donc tout slot placé après est refusé. Un `/` ne ferme pas un élément HTML — `<script/>` ouvre un script comme `<script>`. |
 | `.text`, `.textContent`, `.innerText` sur `<script>` ou `<style>` | `E_AURORA_SLOT_IN_RAW_TEXT` | La version propriété d'un slot à l'intérieur de l'élément : elle écrit la source que le navigateur exécute. |
 | `.innerHTML`, `.outerHTML`, `.srcdoc` | `E_AURORA_SLOT_IN_HTML_PROPERTY` | Ces propriétés parsent leur valeur comme du HTML, gestionnaires compris. Mettez le contenu dans un slot texte, ou passez un template `html` imbriqué. |
@@ -78,11 +79,16 @@ html`<textarea name="bio" .value="${bio}">`       // → <textarea name="bio">Bi
 C'est ce qui rend le refus ci-dessus praticable : un formulaire rendu côté serveur
 arrive rempli, et un envoi avant hydratation transmet bien les valeurs.
 
+Un `<input type="file">` fait exception : un script ne peut que le vider. Une
+`.value` non vide y lève `E_AURORA_FILE_INPUT_VALUE` au rendu client comme à
+l'hydratation ; liez `""` pour réinitialiser le champ.
+
 ### Les URL qui naviguent ou chargent du code
 
 `href`, `xlink:href`, `action` et `formaction` sont contrôlés sur tout élément, et
-`src` sur `<script>`, `<iframe>`, `<frame>` et `<embed>`, `data` sur `<object>` —
-les éléments qui exécutent ce qu'ils chargent. Une valeur dont le schéma
+`src` sur `<iframe>`, `<frame>` et `<embed>`, `data` sur `<object>` — les éléments
+qui exécutent ce qu'ils chargent. L'URL d'un `<script>` ne prend aucun slot (voir
+plus haut). Une valeur dont le schéma
 s'exécuterait — `javascript:`, `vbscript:`, `data:` — est préfixée par
 `unsafe:` plutôt que rejetée. Une URL dans un `href` est le plus souvent une
 donnée, et lever là échangerait un XSS contre une page blanche ; l'attribut reste
@@ -639,7 +645,7 @@ api.setHeader('Accept-Language', 'fr')            // gestion des headers par dé
 
 - Méthodes : `get` / `post` / `put` / `patch` / `delete`, plus `raw(method, url, body?)` pour la `Response` brute.
 - Une réponse non-2xx lève `HttpError` (`status`, `response`, `data` parsé). `isHttpError(e)` est un type-guard pour un `catch` propre.
-- `extend(options)` dérive un client enfant avec les défauts fusionnés.
+- `extend(options)` dérive un client enfant avec les défauts fusionnés, réglages XSRF compris.
 - Passe une option `parse` pour un résultat validé au runtime et entièrement typé ; sans elle, le type générique est une assertion non vérifiée de la forme de la réponse (la frontière HTTP habituelle).
 - Une instance `http` same-origin par défaut est exportée pour les appels rapides.
 

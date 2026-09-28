@@ -73,13 +73,25 @@ L'erreur levée porte `context: { manifestPath, buildDir }` pour le diagnostic, 
 
 **Lieu du throw :** `packages/photon/src/PhotonRenderer.ts`.
 
+### E_PHOTON_MANIFEST_INVALID
+
+**Cause.** Le manifest Vite est là mais illisible, pas du JSON, ou pas un objet de manifest. Photon l'ignorait avec un warning puis pointait chaque page vers un `client.js` que le build n'avait jamais écrit : le serveur semblait sain et rien ne s'hydratait. Le boot échoue désormais.
+
+**Fix.**
+1. Reconstruis le client et redéploie tout le dossier de build — une copie partielle en est la cause habituelle.
+2. Vérifie que le processus peut lire le fichier.
+
+L'erreur levée porte `context: { manifestPath }`, et `cause` l'erreur de lecture ou de parsing.
+
+**Lieu du throw :** `packages/photon/src/PhotonRenderer.ts`.
+
 ### E_PHOTON_SSR_LOAD_FAILED
 
 **Cause.** Le manifest Vite est présent, mais le module SSR échoue au chargement : sortie de build manquante pour `entryServer`, erreur de syntaxe dans le fichier SSR bundlé, ou peer dependency manquante au runtime. À distinguer de `E_PHOTON_MANIFEST_MISSING` — ce dernier code est levé quand le manifest est absent ; celui-ci quand le manifest est là mais que `import()` du SSR rejette.
 
 **Fix.**
 1. Relance `ream build` (ou ton script de build) et lis attentivement les warnings.
-2. Vérifie que le fichier SSR existe à l'un des chemins attendus (`<buildDir>/ssr/ssr.js` ou `<buildDir>/ssr/<entryName>.js`).
+2. Vérifie que le fichier SSR existe à l'un des chemins attendus (`<ssrBuildDir>/ssr.js` ou `<ssrBuildDir>/<entryName>.js`, `ssrBuildDir` valant `build/ssr` par défaut).
 3. Si le build tourne mais l'import échoue quand même, inspecte le fichier bundlé pour des peer dependencies absentes (par ex. `react-dom/server` pour l'adapter React).
 
 **Lieu du throw :** `packages/photon/src/PhotonRenderer.ts`.
