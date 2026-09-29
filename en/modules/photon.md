@@ -18,7 +18,10 @@ import { PhotonMiddleware } from '@c9up/photon'
 const photon = new PhotonMiddleware({
   framework: 'react',                    // 'react' | 'vue' | 'svelte'
   entryClient: 'resources/app.tsx',      // Client hydration entry
-  entryServer: 'resources/ssr.tsx',      // SSR render entry
+  ssr: {
+    enabled: true,                       // Off by default
+    entrypoint: 'resources/ssr.tsx',     // SSR render entry
+  },
   buildDir: 'public/build',              // Where the client build is written
   assetsUrl: '/build',                   // The URL the static server gives it
   ssrBuildDir: 'build/ssr',              // The SSR bundle — never under public/
@@ -250,15 +253,18 @@ break the typecheck of every React and Vue app.
 
 ### Choosing which pages server-render
 
-`ssr.pages` narrows SSR to a list of components, or to a predicate. The
-predicate receives the HTTP context alongside the component name, so the
-decision can turn on the request:
+Server rendering is off until `ssr.enabled` is `true`; then every page is
+server-rendered, unless `ssr.pages` narrows it to a list of components or to a
+predicate. The predicate receives the HTTP context, then the component name, so
+the decision can turn on the request (the context is `undefined` only for a
+render outside the HTTP pipeline):
 
 ```ts
 // config/photon.ts
 export default defineConfig({
   ssr: {
-    pages: (component, ctx) => {
+    enabled: true,
+    pages: (ctx, page) => {
       // Server-render for crawlers, hydrate on the client for everyone else.
       const ua = ctx?.request.header('user-agent') ?? ''
       return /bot|crawler|spider/i.test(ua)
@@ -302,7 +308,7 @@ import { defineConfig } from '@c9up/photon'
 export default defineConfig({
   framework: 'react',
   entryClient: 'resources/app.tsx',
-  entryServer: 'resources/ssr.tsx',
+  ssr: { enabled: true, entrypoint: 'resources/ssr.tsx' },
   buildDir: 'public/build',
   viteDevUrl: 'http://localhost:5173',
 })
@@ -316,14 +322,15 @@ When `viteDevUrl` is set (development), Photon:
 ### Server rendering in development
 
 Development server-renders too. Production loads the SSR bundle a build
-produced; there is none in dev, so Photon compiles `entryServer` through Vite
-on every render — an edit to a page component shows without restarting the
+produced; there is none in dev, so Photon compiles `ssr.entrypoint` through
+Vite on every render — an edit to a page component shows without restarting the
 process.
 
 Vite is an **optional peer**: install it to get this, and without it dev falls
 back to the client-only shell. Photon starts the compiler only when
-`entryServer` actually exists, so a project that renders purely on the client
-pays nothing for it.
+`ssr.enabled` is `true`, so a project that renders purely on the client pays
+nothing for it. Enabled with no file at `ssr.entrypoint`, every server render
+fails with `E_PHOTON_SSR_LOAD_FAILED` rather than quietly serving the shell.
 
 ```bash
 npm install -D vite
@@ -560,7 +567,6 @@ import { defineConfig } from '@c9up/photon'
 export default defineConfig({
   framework: 'react',
   entryClient: 'resources/app.tsx',
-  entryServer: 'resources/ssr.tsx',
   defaultMeta: {
     og: { siteName: 'Example', locale: 'en_US' },
     twitter: { site: '@example' },
@@ -594,12 +600,16 @@ Every text value (`title`, `description`, og:*, twitter:*, custom `content`) pas
 |---|---|---|---|
 | `framework` | `'react' \| 'vue' \| 'svelte'` | — | Frontend framework to use |
 | `entryClient` | `string` | — | Path to the client hydration entry (e.g. `'resources/app.tsx'`) |
-| `entryServer` | `string` | — | Path to the SSR render entry (e.g. `'resources/ssr.tsx'`) |
 | `buildDir` | `string` | `'public/build'` | Where the client build is written, on disk |
 | `assetsUrl` | `string` | `'/build'` | URL the client build is served from (a root-relative path or an http(s) URL) |
 | `ssrBuildDir` | `string` | `'build/ssr'` | Where the SSR bundle is written; refused inside `buildDir` or `public/` |
 | `viteDevUrl` | `string` | `'http://localhost:5173'` | Vite dev server URL (dev only) |
 | `defaultMeta` | `MetaTags` | — | Application-wide default `<head>` tags (44.2) |
+| `ssr.enabled` | `boolean` | `false` | Server-render pages |
+| `ssr.entrypoint` | `string` | `'resources/ssr.tsx'` | Path to the SSR render entry |
+| `ssr.pages` | `string[] \| (ctx, page) => boolean \| Promise<boolean>` | every page | Which pages to server-render |
+| `encryptHistory` | `boolean` | `false` | Encrypt every page's history state; `ctx.photon.encryptHistory(false)` turns it off for one response |
+| `assetsVersion` | `string \| number` | manifest fingerprint | A fixed asset version, sent with every page |
 
 ## Errors
 
@@ -851,7 +861,7 @@ which is how two forms on one page keep their messages apart.
 
 ```ts
 ctx.photon.clearHistory()        // call it on logout
-ctx.photon.encryptHistory()
+ctx.photon.encryptHistory()         // or for every page: encryptHistory: true in the config
 ctx.photon.flash(() => ctx.session.flashMessages.all())
 ```
 

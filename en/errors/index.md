@@ -50,11 +50,11 @@ Server-side errors are thrown from `@c9up/photon` (SSR / renderer); client-side 
 
 ### E_PHOTON_INVALID_CONFIG
 
-**Cause.** A field in `config/photon.ts` (or the `PhotonConfig` passed to `PhotonRenderer`) fails validation: `buildDir` resolves outside the project root, or `entryServer` / `entryClient` contains path-traversal segments or characters outside `[\w./\-@#]`.
+**Cause.** A field in `config/photon.ts` (or the `PhotonConfig` passed to `PhotonRenderer`) fails validation: `buildDir` resolves outside the project root, or `ssr.entrypoint` / `entryClient` contains path-traversal segments or characters outside `[\w./\-@#]`.
 
 **Fix.**
 1. Open `config/photon.ts` and verify `buildDir` is a relative path INSIDE your project (e.g. `dist`, NOT `../dist`).
-2. Verify `entryServer` and `entryClient` are relative paths without `..` segments and end in `.tsx?` / `.jsx?` / `.vue` / `.svelte`.
+2. Verify `ssr.entrypoint` and `entryClient` are relative paths without `..` segments and end in `.tsx?` / `.jsx?` / `.vue` / `.svelte`.
 3. Restart the renderer (`PhotonRenderer.boot()` re-validates).
 
 **Throw site:** `packages/photon/src/PhotonRenderer.ts`.
@@ -86,7 +86,7 @@ The thrown error's `context` carries `{ manifestPath }`, and `cause` the read or
 
 ### E_PHOTON_SSR_LOAD_FAILED
 
-**Cause.** The Vite manifest is present, but the SSR entry module fails to load: missing build output for `entryServer`, syntax error in the bundled SSR file, or an unmet peer dependency at runtime. Distinct from `E_PHOTON_MANIFEST_MISSING` — that code fires when the manifest is absent; this one fires when the manifest is there but `import()` of the SSR entry rejects.
+**Cause.** The Vite manifest is present, but the SSR entry module fails to load: missing build output for `ssr.entrypoint` (or, in development, no file there at all), syntax error in the bundled SSR file, or an unmet peer dependency at runtime. Distinct from `E_PHOTON_MANIFEST_MISSING` — that code fires when the manifest is absent; this one fires when the manifest is there but `import()` of the SSR entry rejects.
 
 **Fix.**
 1. Re-run `ream build` (or your project's build script) and check its output for warnings.

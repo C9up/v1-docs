@@ -51,11 +51,11 @@ Les erreurs côté serveur sont levées par `@c9up/photon` (SSR / renderer) ; le
 
 ### E_PHOTON_INVALID_CONFIG
 
-**Cause.** Un champ de `config/photon.ts` (ou la `PhotonConfig` passée à `PhotonRenderer`) échoue la validation : `buildDir` se résout en dehors de la racine du projet, ou `entryServer` / `entryClient` contient des segments de path-traversal ou des caractères hors de `[\w./\-@#]`.
+**Cause.** Un champ de `config/photon.ts` (ou la `PhotonConfig` passée à `PhotonRenderer`) échoue la validation : `buildDir` se résout en dehors de la racine du projet, ou `ssr.entrypoint` / `entryClient` contient des segments de path-traversal ou des caractères hors de `[\w./\-@#]`.
 
 **Fix.**
 1. Ouvre `config/photon.ts` et vérifie que `buildDir` est un path relatif INTÉRIEUR au projet (par ex. `dist`, PAS `../dist`).
-2. Vérifie que `entryServer` et `entryClient` sont des paths relatifs sans segments `..` et se terminent par `.tsx?` / `.jsx?` / `.vue` / `.svelte`.
+2. Vérifie que `ssr.entrypoint` et `entryClient` sont des paths relatifs sans segments `..` et se terminent par `.tsx?` / `.jsx?` / `.vue` / `.svelte`.
 3. Redémarre le renderer (`PhotonRenderer.boot()` revalide).
 
 **Lieu du throw :** `packages/photon/src/PhotonRenderer.ts`.
@@ -87,7 +87,7 @@ L'erreur levée porte `context: { manifestPath }`, et `cause` l'erreur de lectur
 
 ### E_PHOTON_SSR_LOAD_FAILED
 
-**Cause.** Le manifest Vite est présent, mais le module SSR échoue au chargement : sortie de build manquante pour `entryServer`, erreur de syntaxe dans le fichier SSR bundlé, ou peer dependency manquante au runtime. À distinguer de `E_PHOTON_MANIFEST_MISSING` — ce dernier code est levé quand le manifest est absent ; celui-ci quand le manifest est là mais que `import()` du SSR rejette.
+**Cause.** Le manifest Vite est présent, mais le module SSR échoue au chargement : sortie de build manquante pour `ssr.entrypoint` (ou, en développement, aucun fichier à cet endroit), erreur de syntaxe dans le fichier SSR bundlé, ou peer dependency manquante au runtime. À distinguer de `E_PHOTON_MANIFEST_MISSING` — ce dernier code est levé quand le manifest est absent ; celui-ci quand le manifest est là mais que `import()` du SSR rejette.
 
 **Fix.**
 1. Relance `ream build` (ou ton script de build) et lis attentivement les warnings.

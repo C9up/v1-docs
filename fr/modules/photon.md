@@ -18,7 +18,10 @@ import { PhotonMiddleware } from '@c9up/photon'
 const photon = new PhotonMiddleware({
   framework: 'react',                    // 'react' | 'vue' | 'svelte'
   entryClient: 'resources/app.tsx',      // Point d'entree d'hydratation client
-  entryServer: 'resources/ssr.tsx',      // Point d'entree SSR
+  ssr: {
+    enabled: true,                       // Désactivé par défaut
+    entrypoint: 'resources/ssr.tsx',     // Point d'entrée SSR
+  },
   buildDir: 'public/build',              // Où le build client est écrit
   assetsUrl: '/build',                   // L'URL que le serveur statique lui donne
   ssrBuildDir: 'build/ssr',              // Le bundle SSR — jamais sous public/
@@ -253,15 +256,19 @@ types de toute app React ou Vue.
 
 ### Choisir quelles pages sont rendues côté serveur
 
-`ssr.pages` restreint le SSR à une liste de composants, ou à un prédicat. Ce
-prédicat reçoit le contexte HTTP en plus du nom du composant, si bien que la
-décision peut dépendre de la requête :
+Le rendu serveur est désactivé tant que `ssr.enabled` ne vaut pas `true` ;
+ensuite toutes les pages sont rendues côté serveur, sauf si `ssr.pages` restreint
+le SSR à une liste de composants ou à un prédicat. Ce prédicat reçoit le contexte
+HTTP, puis le nom du composant, si bien que la décision peut dépendre de la
+requête (le contexte ne vaut `undefined` que pour un rendu hors du pipeline
+HTTP) :
 
 ```ts
 // config/photon.ts
 export default defineConfig({
   ssr: {
-    pages: (component, ctx) => {
+    enabled: true,
+    pages: (ctx, page) => {
       // Rendu serveur pour les robots, hydratation client pour les autres.
       const ua = ctx?.request.header('user-agent') ?? ''
       return /bot|crawler|spider/i.test(ua)
@@ -305,7 +312,7 @@ import { defineConfig } from '@c9up/photon'
 export default defineConfig({
   framework: 'react',
   entryClient: 'resources/app.tsx',
-  entryServer: 'resources/ssr.tsx',
+  ssr: { enabled: true, entrypoint: 'resources/ssr.tsx' },
   buildDir: 'public/build',
   viteDevUrl: 'http://localhost:5173',
 })
@@ -320,13 +327,14 @@ Quand `viteDevUrl` est defini (developpement), Photon :
 
 Le développement rend aussi côté serveur. La production charge le bundle SSR
 produit par un build ; il n'y en a pas en dev, donc Photon compile
-`entryServer` via Vite à chaque rendu — une modification d'un composant de page
+`ssr.entrypoint` via Vite à chaque rendu — une modification d'un composant de page
 apparaît sans redémarrer le processus.
 
 Vite est un **peer optionnel** : installez-le pour en bénéficier, et sans lui le
 dev retombe sur la coque client seule. Photon ne démarre le compilateur que si
-`entryServer` existe réellement, donc un projet qui rend uniquement côté client
-ne paie rien pour cela.
+`ssr.enabled` vaut `true`, donc un projet qui rend uniquement côté client ne paie
+rien pour cela. Activé sans fichier à `ssr.entrypoint`, chaque rendu serveur
+échoue avec `E_PHOTON_SSR_LOAD_FAILED` au lieu de servir la coque en silence.
 
 ```bash
 npm install -D vite
@@ -564,7 +572,6 @@ import { defineConfig } from '@c9up/photon'
 export default defineConfig({
   framework: 'react',
   entryClient: 'resources/app.tsx',
-  entryServer: 'resources/ssr.tsx',
   defaultMeta: {
     og: { siteName: 'Example', locale: 'fr_FR' },
     twitter: { site: '@example' },
@@ -598,12 +605,16 @@ Chaque valeur textuelle (`title`, `description`, og:*, twitter:*, `content` cust
 |---|---|---|---|
 | `framework` | `'react' \| 'vue' \| 'svelte'` | — | Framework frontend a utiliser |
 | `entryClient` | `string` | — | Chemin vers le point d'entree d'hydratation client (ex. `'resources/app.tsx'`) |
-| `entryServer` | `string` | — | Chemin vers le point d'entree SSR (ex. `'resources/ssr.tsx'`) |
 | `buildDir` | `string` | `'public/build'` | Où le build client est écrit, sur disque |
 | `assetsUrl` | `string` | `'/build'` | URL d'où le build client est servi (chemin depuis la racine ou URL http(s)) |
 | `ssrBuildDir` | `string` | `'build/ssr'` | Où le bundle SSR est écrit ; refusé dans `buildDir` ou `public/` |
 | `viteDevUrl` | `string` | `'http://localhost:5173'` | URL du serveur de dev Vite (developpement uniquement) |
 | `defaultMeta` | `MetaTags` | — | Tags `<head>` par defaut a l'echelle de l'app (44.2) |
+| `ssr.enabled` | `boolean` | `false` | Rendre les pages côté serveur |
+| `ssr.entrypoint` | `string` | `'resources/ssr.tsx'` | Chemin vers le point d'entrée SSR |
+| `ssr.pages` | `string[] \| (ctx, page) => boolean \| Promise<boolean>` | toutes les pages | Les pages rendues côté serveur |
+| `encryptHistory` | `boolean` | `false` | Chiffrer l'historique de chaque page ; `ctx.photon.encryptHistory(false)` le désactive pour une réponse |
+| `assetsVersion` | `string \| number` | empreinte du manifest | Une version d'assets fixe, envoyée avec chaque page |
 
 ## Erreurs
 
@@ -862,7 +873,7 @@ permet à deux formulaires d'une même page de garder leurs messages séparés.
 
 ```ts
 ctx.photon.clearHistory()        // à appeler au logout
-ctx.photon.encryptHistory()
+ctx.photon.encryptHistory()         // ou pour chaque page : encryptHistory: true dans la config
 ctx.photon.flash(() => ctx.session.flashMessages.all())
 ```
 
