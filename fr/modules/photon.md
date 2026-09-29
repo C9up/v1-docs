@@ -182,77 +182,117 @@ export default defineConfig({
 
 ### Entrée client — `resources/app.tsx`
 
-Un seul appel au `hydrate()` de Photon. Le `import.meta.glob` paresseux code-split chaque page.
+`createPhotonApp`, depuis le sous-chemin de ton framework, lit la page envoyée
+par le serveur, la monte et démarre le routeur. `resolvePageComponent` découpe
+chaque page en chunk via un `import.meta.glob` paresseux.
 
 ```tsx
-import './app.css' // votre entrée CSS / Tailwind (optionnel)
-import { hydrate } from '@c9up/photon/client'
+import './app.css' // ton entrée CSS / Tailwind (optionnel)
+import { createPhotonApp } from '@c9up/photon/react'
+import { resolvePageComponent } from '@c9up/photon/client'
 
-const pages = import.meta.glob<{ default: unknown }>('./pages/*.tsx')
+createPhotonApp({
+  resolve: (name) =>
+    resolvePageComponent(`./pages/${name}.tsx`, import.meta.glob('./pages/**/*.tsx')),
+})
+```
 
-hydrate({
-  resolveComponent: async (name) => {
-    const loader = pages[`./pages/${name}.tsx`]
-    if (!loader) throw new Error(`Page inconnue : ${name}`)
-    return await loader()
+Sans `setup`, `App` est hydraté quand le serveur a rendu la page, et monté
+sinon (SSR désactivé). Donne un `setup` pour envelopper `App` dans tes propres
+providers, ou pour le monter toi-même :
+
+```tsx
+import { hydrateRoot } from 'react-dom/client'
+
+createPhotonApp({
+  resolve,
+  setup({ el, App, props }) {
+    hydrateRoot(el, <ThemeProvider><App {...props} /></ThemeProvider>)
   },
 })
 ```
 
+Vue et Svelte prennent les mêmes options. Le `setup` de Vue reçoit aussi
+`plugin`, qui installe `$photon` (le routeur) et `$page` pour les templates :
+
+```ts
+// Vue — resources/app.ts
+import { createSSRApp, h } from 'vue'
+import { createPhotonApp } from '@c9up/photon/vue'
+
+createPhotonApp({
+  resolve: (name) => resolvePageComponent(`./pages/${name}.vue`, import.meta.glob('./pages/**/*.vue')),
+  setup({ el, App, props, plugin }) {
+    createSSRApp({ render: () => h(App, props) }).use(plugin).mount(el)
+  },
+})
+
+// Svelte 5 — resources/app.ts
+import { createPhotonApp } from '@c9up/photon/svelte'
+
+createPhotonApp({
+  resolve: (name) => resolvePageComponent(`./pages/${name}.svelte`, import.meta.glob('./pages/**/*.svelte')),
+})
+```
+
+`App` rend la page affichée, puis celle que le routeur visite ensuite : une page
+garde son propre état quand seules ses props changent — un groupe différé, un
+rechargement partiel. Pour Svelte, `App` est `PhotonRoot`.
+
 ### Entrée SSR — `resources/ssr.tsx`
 
-**C'est vous** qui écrivez le rendu serveur : il exporte `render(pageData)` qui renvoie le HTML interne, que Photon enveloppe dans `<div id="app">…</div>` et associe au bloc page-data + aux balises d'assets. `import.meta.glob(..., { eager: true })` bundle chaque page pour qu'un seul build SSR résolve n'importe quel composant par son nom.
+L'export par défaut de l'entrée SSR rend une page. `createPhotonApp`, à qui l'on
+donne la `page`, renvoie `{ head, body }` : Photon écrit `body` dans
+`<div id="app" data-server-rendered="true">`, à côté des données de la page et
+des balises d'assets, et `head` dans `<head>`. L'`import.meta.glob` eager
+embarque toutes les pages, si bien qu'un seul build SSR résout n'importe quelle
+page par son nom.
 
 ```tsx
-import { type ComponentType, createElement } from 'react'
 import { renderToString } from 'react-dom/server'
+import { createPhotonApp } from '@c9up/photon/react'
+import type { PhotonPageData } from '@c9up/photon/client'
 
-const pages = import.meta.glob<{ default: ComponentType }>('./pages/*.tsx', { eager: true })
+const pages = import.meta.glob('./pages/**/*.tsx', { eager: true })
 
-interface PageData { component: string; props: Record<string, unknown> }
-
-export function render(pageData: PageData): string {
-  const mod = pages[`./pages/${pageData.component}.tsx`]
-  if (!mod) throw new Error(`Page inconnue : ${pageData.component}`)
-  return renderToString(createElement(mod.default, pageData.props))
+export default function render(page: PhotonPageData) {
+  return createPhotonApp({
+    page,
+    render: renderToString,
+    resolve: (name) => pages[`./pages/${name}.tsx`],
+  })
 }
 ```
 
-Vue et Svelte ne diffèrent que par cette entrée :
+Vue et Svelte ne diffèrent que par la façon de rendre l'app :
 
 ```ts
 // Vue — resources/ssr.ts
-import { createSSRApp } from 'vue'
 import { renderToString } from 'vue/server-renderer'
-export async function render(pageData) {
-  const app = createSSRApp(pages[`./pages/${pageData.component}.vue`].default, pageData.props)
-  return await renderToString(app)
+import { createPhotonApp } from '@c9up/photon/vue'
+
+export default function render(page) {
+  return createPhotonApp({ page, render: renderToString, resolve: (name) => pages[`./pages/${name}.vue`] })
 }
 
 // Svelte 5 — resources/ssr.ts
-import { render as svelteRender } from 'svelte/server'
-import PhotonRoot from '@c9up/photon/svelte'
-export function render(pageData) {
-  const component = pages[`./pages/${pageData.component}.svelte`].default
-  return svelteRender(PhotonRoot, { props: { component, props: pageData.props, page: pageData } }).body
+import { render as renderSvelte } from 'svelte/server'
+import { createPhotonApp } from '@c9up/photon/svelte'
+
+export default function render(page) {
+  return createPhotonApp({
+    page,
+    resolve: (name) => pages[`./pages/${name}.svelte`],
+    setup: ({ App, props }) => renderSvelte(App, { props }),
+  })
 }
 ```
 
-Pour Svelte, l'entrée client passe la même racine à `hydrate` :
+Le `setup` de Svelte est obligatoire côté serveur : importer `svelte/server`
+dans Photon mettrait le rendu serveur dans chaque bundle client.
 
-```ts
-import PhotonRoot from '@c9up/photon/svelte'
-hydrate({ resolveComponent, svelteRoot: PhotonRoot })
-```
-
-`PhotonRoot` tient la page dans son état, comme `App.svelte` dans
-`@inertiajs/svelte` : une page garde son propre état quand ses props changent —
-un groupe différé, un rechargement partiel. Svelte 5 ne sait pas mettre à jour
-les props d'un composant monté depuis l'extérieur d'un fichier `.svelte` ; sans
-la racine, la page est donc remontée à chaque fois. Elle est passée plutôt
-qu'intégrée parce que Photon est un seul paquet TypeScript pour trois
-frameworks : un import `.svelte` dans ses sources casserait la vérification de
-types de toute app React ou Vue.
+Une entrée peut aussi renvoyer une simple chaîne HTML, et exporter sa fonction
+sous le nom `render` plutôt que par défaut.
 
 ### Choisir quelles pages sont rendues côté serveur
 
@@ -342,7 +382,11 @@ npm install -D vite
 
 ## Hydratation client
 
-Photon livre un point d'entrée navigateur en un seul appel qui reprend le DOM rendu côté serveur et démarre un router SPA-nav minimal. Importe-le une fois depuis ton entrée client, Photon possède le reste :
+`createPhotonApp` (plus haut) est l'entrée client d'une app. En dessous,
+`hydrate()` de `@c9up/photon/client` fait la même chose sans sous-chemin de
+framework : il choisit l'adapteur du framework d'après les données de la page
+et monte lui-même le composant de page. Utilise-le quand tu n'as pas besoin de
+`setup` :
 
 ```typescript
 // resources/app.tsx (React)
@@ -366,10 +410,11 @@ La même forme fonctionne pour Vue (`./pages/*.vue`) et Svelte (`./pages/*.svelt
 1. Lit le bloc `<script id="photon-data" type="application/json">` émis par le serveur.
 2. Valide la forme du payload (`component`, `props`, `url`, `framework`).
 3. Appelle `resolveComponent(name)` pour charger le module de la page.
-4. Dispatche vers l'adapteur correspondant :
-   - **React** — `react-dom/client.hydrateRoot(target, createElement(Component, props))`.
-   - **Vue** — `createSSRApp(Component, props).mount(target)` (PAS `createApp` — `createSSRApp` réutilise le markup SSR au lieu de l'écraser).
-   - **Svelte** — `hydrate(Component, { target, props })` (Svelte 5+).
+4. Dispatche vers l'adapteur correspondant, qui hydrate la cible quand le
+   serveur l'a rendue (`data-server-rendered`) et la monte sinon :
+   - **React** — `hydrateRoot(target, createElement(Component, props))`, ou `createRoot(target).render(…)`.
+   - **Vue** — `createSSRApp(…).mount(target)`, ou `createApp(…).mount(target)`.
+   - **Svelte** — `hydrate(Component, { target, props })`, ou `mount(…)` (Svelte 5+). Passe `svelteRoot: PhotonRoot` pour qu'une page garde son état quand ses props changent.
 5. Installe un listener `click` + `popstate` au niveau du document (le router SPA-nav ci-dessous).
 6. Appelle `onHydrated()` si tu en fournis un.
 
@@ -380,6 +425,23 @@ La même forme fonctionne pour Vue (`./pages/*.vue`) et Svelte (`./pages/*.svelt
 | `resolveComponent` | `(name: string) => Promise<{ default: unknown }>` | — | Associe un nom de composant à son module. Habituellement adossé à `import.meta.glob`. |
 | `target` | `string` | `'#app'` | Sélecteur CSS du nœud racine SSR. |
 | `onHydrated` | `() => void` | — | Se déclenche une fois après que la primitive `hydrate` du framework a résolu. |
+| `svelteRoot` | `unknown` | — | Svelte uniquement : `PhotonRoot` de `@c9up/photon/svelte`. |
+
+### Passer une entrée à `createPhotonApp`
+
+Une app écrite avec `hydrate()` et un export nommé `render` continue de
+fonctionner. Pour la passer à `createPhotonApp` :
+
+1. Entrée client : remplace `hydrate({ resolveComponent })` par
+   `createPhotonApp({ resolve })` depuis le sous-chemin de ton framework.
+   `resolve` peut renvoyer le composant ou son module, directement ou en
+   promesse.
+2. Entrée SSR : exporte `render(page)` par défaut et renvoie
+   `createPhotonApp({ page, render, resolve })` (Svelte : `setup` au lieu de
+   `render`). L'enveloppe `PhotonPage` / `PhotonRoot` écrite à la main
+   disparaît : `App` fournit la page à `usePage()` côté serveur.
+3. Config : `ssr: { enabled: true, entrypoint: 'resources/ssr.tsx' }` remplace
+   `entryServer` — le rendu serveur est désactivé tant qu'il n'est pas activé.
 
 ### Navigation SPA
 
@@ -466,6 +528,7 @@ Le point d'entrée `hydrate()` lance `PhotonClientError` (re-exporté depuis `@c
 | `E_PHOTON_HYDRATION_NO_TARGET` | Le sélecteur de mount (`#app` par défaut) n'a matché aucun nœud DOM. |
 | `E_PHOTON_HYDRATION_UNSUPPORTED_FRAMEWORK` | `framework` vaut autre chose que `react` / `vue` / `svelte`. |
 | `E_PHOTON_HYDRATION_ADAPTER_LOAD_FAILED` | Le runtime du framework (`react-dom/client`, `vue`, `svelte`) n'a pas pu être importé — généralement une étape `pnpm add` manquante. |
+| `E_PHOTON_UNKNOWN_PAGE` | Le `resolve` de `createPhotonApp` n'a rien renvoyé pour un nom de page. |
 
 ### Apps en sous-chemin et cible de mount personnalisée
 
@@ -766,7 +829,8 @@ import { Deferred, InfiniteScroll, WhenVisible } from '@c9up/photon/react'
 ```
 
 `usePage()` lit le routeur dans le navigateur. Côté serveur il n'y a pas de
-routeur : l'entrée SSR transmet la page, comme le fait l'`App` d'Inertia :
+routeur : l'`App` de `createPhotonApp` fournit la page. Une entrée SSR qui rend
+le composant de page à la main la transmet elle-même :
 
 ```tsx
 // React — resources/ssr.tsx

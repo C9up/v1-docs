@@ -115,7 +115,7 @@ L'erreur levée porte `context: { manifestPath }`, et `cause` l'erreur de lectur
 1. Confirme que la route qui renvoie cette page passe bien par `PhotonMiddleware` / `PhotonRenderer.render()`.
 2. Si tu sers un fallback SPA, rends-le aussi via Photon — même un shell vide a besoin du bloc data pour que `hydrate()` le trouve.
 
-**Lieu du throw :** `packages/photon/src/client/hydrate.ts`.
+**Lieu du throw :** `packages/photon/src/client/boot.ts`.
 
 ### E_PHOTON_HYDRATION_BAD_DATA
 
@@ -126,7 +126,7 @@ L'erreur levée porte `context: { manifestPath }`, et `cause` l'erreur de lectur
 2. Désactive tout middleware qui réécrit le HTML (compression, link-rewriting, injection de nonce CSP) qui touche le body — vérifie que le bloc reste intact en production.
 3. Si tu as personnalisé le template SSR, garde le bloc `<script type="application/json" id="photon-data">…</script>` exactement tel que `PhotonRenderer.render()` l'émet.
 
-**Lieu du throw :** `packages/photon/src/client/hydrate.ts`.
+**Lieu du throw :** `packages/photon/src/client/boot.ts`.
 
 ### E_PHOTON_HYDRATION_NO_TARGET
 
@@ -136,7 +136,7 @@ L'erreur levée porte `context: { manifestPath }`, et `cause` l'erreur de lectur
 1. Confirme que le HTML SSR contient bien l'élément qui matche `hydrate({ target })`.
 2. Si tu as personnalisé l'enveloppe HTML du renderer, garde le `<div id="app">…</div>` (ou override `target` pour matcher l'id de ton wrapper).
 
-**Lieu du throw :** `packages/photon/src/client/hydrate.ts`.
+**Lieu du throw :** `packages/photon/src/client/boot.ts`.
 
 ### E_PHOTON_HYDRATION_UNSUPPORTED_FRAMEWORK
 
@@ -157,6 +157,32 @@ L'erreur levée porte `context: { manifestPath }`, et `cause` l'erreur de lectur
 2. Le `cause` de l'erreur porte l'échec de résolution module original — utile quand le package est installé mais qu'un sous-chemin manque (par ex. `react-dom/client` requiert React 18+).
 
 **Lieu du throw :** `packages/photon/src/client/hydrate.ts`.
+
+### E_PHOTON_UNKNOWN_ROUTE
+
+**Cause.** Un `Link`, un `Form`, `router.visit` ou `urlFor` a nommé une route que le navigateur ne connaît pas : elle n'est pas parmi les routes transmises avec `setRoutes()`, ou `setRoutes()` n'a jamais été appelé.
+
+**Fix.**
+1. Appelle `setRoutes(router.namedRoutes())` une fois, avant le rendu de la première page ; le `hint` de l'erreur liste les routes connues.
+2. Vérifie le nom par rapport au `router.as(...)` du serveur.
+
+**Lieu du throw :** `packages/photon/src/client/routes.ts`.
+
+### E_PHOTON_MISSING_ROUTE_PARAMS
+
+**Cause.** Une route nommée a des paramètres (`/users/:id`) que `routeParams` n'a pas fournis. Le message les nomme ; `context` porte la route et les paramètres donnés.
+
+**Fix.** Passe chaque paramètre de la route dans `routeParams`.
+
+**Lieu du throw :** `packages/photon/src/client/routes.ts`.
+
+### E_PHOTON_UNKNOWN_PAGE
+
+**Cause.** Le `resolve` donné à `createPhotonApp` n'a rien renvoyé pour un nom de page — le plus souvent un chemin construit depuis le nom qui ne correspond à aucun fichier d'`import.meta.glob`.
+
+**Fix.** Compare le chemin que `resolve` construit depuis le nom de page avec ton dossier de pages ; `resolvePageComponent` lève une erreur avec le chemin cherché.
+
+**Lieu du throw :** `packages/photon/src/client/app.ts`.
 
 ### À propos des hydration mismatches
 
