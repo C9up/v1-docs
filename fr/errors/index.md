@@ -232,6 +232,27 @@ Si tu en vois un, la cause est presque toujours un **render non déterministe** 
 |------|-------------|
 | `REAM_UNKNOWN_TYPE` | Type de générateur inconnu. Disponibles : `service`, `entity`, `controller`, `validator`, `provider`, `migration`. |
 
+## Erreurs Temps réel (Relay)
+
+Renvoyées dans le corps JSON des routes relay, ou en événement `error` sur un hub.
+
+| Code | Description |
+|------|-------------|
+| `E_RELAY_BAD_REQUEST` | `subscribe` sans `uid` ni `channel` exploitables (deux chaînes non vides). |
+| `E_RELAY_CHANNEL_TOO_LONG` | Le nom du canal dépasse 256 caractères. |
+| `E_RELAY_NOT_CONNECTED` | Aucune connexion n'a cet uid sur cette instance — elle s'est fermée, ou la requête est arrivée sur une autre instance (voir *Plusieurs instances*). |
+| `E_RELAY_NOT_OWNER` | La connexion a été ouverte par un autre utilisateur ; subscribe, unsubscribe et trames de hub doivent venir du même. |
+| `E_RELAY_CHANNEL_NO_AUTHORIZER` | Aucun `relay.authorize()` ne couvre le canal, et `allowUnauthorizedChannels` est désactivé. |
+| `E_RELAY_CHANNEL_FORBIDDEN` | L'autorisateur du canal a refusé, ou levé une erreur. |
+| `E_RELAY_MAX_CHANNELS` | La connexion tient déjà `maxChannelsPerClient` canaux. |
+| `E_RELAY_MAX_CLIENTS` | L'instance tient déjà `maxClients` connexions ; envoyé en trame `error` avant la fermeture du flux. |
+| `E_RELAY_UNKNOWN_CONNECTION` | Une requête de hub sans token de connexion valide — appelez d'abord `<path>/negotiate`. |
+| `E_RELAY_MAX_CONNECTIONS` | Un hub a déjà `maxConnections` flux ouverts (503). |
+| `E_RELAY_UNAUTHORIZED` | Une invocation de hub exige un utilisateur authentifié, ou authentifié par un autre garde. |
+| `E_RELAY_FORBIDDEN` | Une invocation de hub n'a pas le rôle ou la permission exigés. |
+| `E_RELAY_UNKNOWN_EVENT` | Une invocation de hub ne nomme aucun handler. |
+| `E_RELAY_HANDLER_ERROR` | Un handler de hub a levé une erreur. |
+
 ## Erreurs Sécurité (Blackhole)
 
 | Code | Description |

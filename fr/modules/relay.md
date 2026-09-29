@@ -71,7 +71,7 @@ l'ont déjà reçu.
 **Les souscriptions exigent l'instance qui tient le flux.** Le bus transporte
 les broadcasts, pas les connexions : l'uid d'une connexion, ses canaux, les
 tokens et les groupes d'un hub vivent sur l'instance qui a ouvert le flux. Un
-`subscribe` qui arrive sur une autre instance répond `400 E_NOT_CONNECTED`.
+`subscribe` qui arrive sur une autre instance répond `400 E_RELAY_NOT_CONNECTED`.
 Dirigez les requêtes relay d'un client vers une seule instance — sessions
 collantes sur `/__relay/*` et les chemins des hubs — ou faites-les servir par
 une seule instance.
@@ -119,6 +119,26 @@ en silence.
 
 Sans `transport`, relay reste mono-instance.
 
+## Diffuser les événements de l'application
+
+Relay n'a pas de correspondance événement → canal à lui : l'application écoute
+ses événements et diffuse, dans un listener qu'elle écrit et lit comme les
+autres — ce que fait une app AdonisJS avec Transmit.
+
+```ts
+// start/services.ts
+import emitter from '@c9up/ream/events/services/main'
+import relay from '@c9up/relay/services/main'
+import { TaskAssigned } from '#events/task_assigned'
+
+emitter.on(TaskAssigned, (event) => {
+  relay.broadcast(`project/${event.projectId}`, { type: 'task.assigned', taskId: event.taskId })
+})
+```
+
+Qui peut écouter `project/:id` se décide une fois, dans l'autorisateur du canal ;
+ce que porte chaque événement, et vers quel canal, reste dans le listener.
+
 ## Endpoints typiques
 
 - `GET /__relay/events` connexion SSE
@@ -149,7 +169,7 @@ première trame, `connected { uid }`, et renvoyé dans `subscribe` / `unsubscrib
 Chaque connexion a le sien, si bien que deux onglets d'un même compte restent
 ouverts côte à côte. Qui l'a ouverte est enregistré à côté : si la connexion
 était authentifiée, un `subscribe` ou un `unsubscribe` doit venir du même
-utilisateur (`403 E_NOT_OWNER` sinon) ; l'uid aléatoire d'une connexion anonyme
+utilisateur (`403 E_RELAY_NOT_OWNER` sinon) ; l'uid aléatoire d'une connexion anonyme
 est son seul credential.
 
 `relay.shutdown()` arrête l'écoute du bus et le timer de keep-alive, comme celui

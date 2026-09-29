@@ -231,6 +231,27 @@ If you see one, the cause is almost always a **non-deterministic render**: a `Da
 |------|-------------|
 | `REAM_UNKNOWN_TYPE` | Unknown generator type. Available: `service`, `entity`, `controller`, `validator`, `provider`, `migration`. |
 
+## Realtime Errors (Relay)
+
+Returned in the JSON body of the relay routes, or as an `error` event on a hub.
+
+| Code | Description |
+|------|-------------|
+| `E_RELAY_BAD_REQUEST` | `subscribe` without a usable `uid` or `channel` (both non-empty strings). |
+| `E_RELAY_CHANNEL_TOO_LONG` | The channel name exceeds 256 characters. |
+| `E_RELAY_NOT_CONNECTED` | No connection has this uid on this instance — it closed, or the request reached another instance (see *Running more than one instance*). |
+| `E_RELAY_NOT_OWNER` | The connection was opened by another user; subscribe, unsubscribe and hub frames must come from the same one. |
+| `E_RELAY_CHANNEL_NO_AUTHORIZER` | No `relay.authorize()` covers the channel, and `allowUnauthorizedChannels` is off. |
+| `E_RELAY_CHANNEL_FORBIDDEN` | The channel's authorizer refused, or threw. |
+| `E_RELAY_MAX_CHANNELS` | The connection holds `maxChannelsPerClient` channels already. |
+| `E_RELAY_MAX_CLIENTS` | The instance holds `maxClients` connections already; sent as an `error` frame before the stream closes. |
+| `E_RELAY_UNKNOWN_CONNECTION` | A hub request with no valid connection token — call `<path>/negotiate` first. |
+| `E_RELAY_MAX_CONNECTIONS` | A hub already has `maxConnections` open streams (503). |
+| `E_RELAY_UNAUTHORIZED` | A hub invocation needs an authenticated user, or one authenticated through another guard. |
+| `E_RELAY_FORBIDDEN` | A hub invocation lacks the required role or permission. |
+| `E_RELAY_UNKNOWN_EVENT` | A hub invocation names no handler. |
+| `E_RELAY_HANDLER_ERROR` | A hub handler threw. |
+
 ## Security Errors (Blackhole)
 
 | Code | Description |

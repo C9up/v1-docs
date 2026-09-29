@@ -69,7 +69,7 @@ already had it.
 **Subscriptions need the instance that holds the stream.** The bus carries
 broadcasts, not connections: a connection's uid, its channels, a hub's tokens
 and groups live on the instance that opened the stream. A `subscribe` that
-reaches another instance answers `400 E_NOT_CONNECTED`. Route a client's relay
+reaches another instance answers `400 E_RELAY_NOT_CONNECTED`. Route a client's relay
 requests to one instance — sticky sessions on `/__relay/*` and the hub paths —
 or run one instance for them.
 
@@ -115,6 +115,26 @@ start-up is a failed boot rather than a silent half-working deployment.
 
 Leave `transport` out and relay is single-instance.
 
+## Broadcasting application events
+
+Relay has no event-to-channel mapping of its own: the application listens to
+its events and broadcasts, in a listener it writes and reads like any other —
+the same thing an AdonisJS app does with Transmit.
+
+```ts
+// start/services.ts
+import emitter from '@c9up/ream/events/services/main'
+import relay from '@c9up/relay/services/main'
+import { TaskAssigned } from '#events/task_assigned'
+
+emitter.on(TaskAssigned, (event) => {
+  relay.broadcast(`project/${event.projectId}`, { type: 'task.assigned', taskId: event.taskId })
+})
+```
+
+Who may listen on `project/:id` is decided once, by the channel's authorizer;
+what each event carries, and to which channel, stays in the listener.
+
 ## Typical endpoints
 
 - `GET /__relay/events` SSE connection
@@ -144,7 +164,7 @@ Every stream gets a uid from the server — never from the client — sent in it
 first frame, `connected { uid }`, and echoed back in `subscribe` / `unsubscribe`.
 Each connection has its own, so two tabs of one account stay open side by side.
 Who opened it is recorded beside it: if the connection was authenticated, a
-`subscribe` or `unsubscribe` must come from the same user (`403 E_NOT_OWNER`
+`subscribe` or `unsubscribe` must come from the same user (`403 E_RELAY_NOT_OWNER`
 otherwise); an anonymous connection's random uid is its only credential.
 
 `relay.shutdown()` stops the bus listener and the keep-alive timer, as
