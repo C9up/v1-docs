@@ -775,6 +775,34 @@ upstream renders it. Prefetching is not supported (Photon keeps no visit cache).
 <Link href={`/orders/${id}`} method="delete" onSuccess={() => toast('Deleted')}>Delete</Link>
 ```
 
+As in `@adonisjs/inertia`, `Link`, `Form` and the router also take a **named
+route**: `route`, `routeParams`, `qs`, and the route's own method unless
+`method` is given. The routes are Ream's, handed to the browser once:
+
+```ts
+import { setRoutes, router } from '@c9up/photon/client'
+setRoutes(routes) // router.namedRoutes() on the server (paths + methods)
+
+<Link route="users.show" routeParams={{ id: user.id }}>Profile</Link>
+<Form route="users.update" routeParams={{ id: user.id }}>…</Form>   // PUT
+router.visit({ route: 'users.update', routeParams: { id } }, { data })
+```
+
+`router.namedManifest()` works too, every route then a GET. `Form` also takes
+`action={{ url, method }}`. Augment `PhotonRoutes` with the map
+`router.generateTypes()` writes and names and params type-check:
+
+```ts
+declare module '@c9up/photon/client' {
+  interface PhotonRoutes extends RouteParams {}
+}
+```
+
+Adonis passes its routes down a `TuyauProvider`; Photon sets them once for the
+module — they are the application's, the same on every page. The client entry
+can use `resolvePageComponent(name, import.meta.glob('./pages/**/*.tsx'))`,
+Adonis's helper, to resolve pages.
+
 Visits other than GET go through the router too — `router.post(url, data)`,
 `put`, `patch`, `delete`, or `visit(url, { method, data })`. The data is sent as
 JSON, or as multipart as soon as it holds a file (`forceFormData` to insist), with
