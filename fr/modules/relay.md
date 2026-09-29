@@ -8,18 +8,27 @@ Relay est le module de transport realtime client de Ream (`@c9up/relay`) avec SS
 - Hubs bidirectionnels parlant le protocole JSON SignalR sur SSE
 - canaux subscribables
 - autorisation de canaux
-- relai d'événements
 - diffusion multi-instances via un bus Redis
 
 ## API principale
 
 ```ts
-import { Relay } from '@c9up/relay'
+// start/services.ts
+import relay from '@c9up/relay/services/main'
 
-const rt = new Relay()
-rt.authorize('user:*', async (ctx, userId) => ctx.auth.user?.id === userId)
-rt.relay('task.*')
+relay.registerRoutes()
+// `:id` est un paramètre, `projects/*` un préfixe. L'autorisateur reçoit le
+// contexte de la requête de souscription et les paramètres capturés.
+relay.authorize<{ id: string }>('users/:id', (ctx, { id }) => ctx.auth?.user?.id === id)
+relay.authorize('reports/*', (ctx) => ctx.bouncer?.allows('reports.read') ?? false)
+
+// n'importe où dans l'app
+relay.broadcast('users/42', { unread: 3 })
 ```
+
+L'autorisateur reçoit tout le contexte de la requête de souscription, comme un
+contrôleur : `ctx.bouncer`, le tenant, tout ce qu'un middleware y a mis. `auth`
+et `bouncer` sont typés ; le reste est là à l'exécution.
 
 ## Configuration
 
@@ -39,6 +48,9 @@ export default defineConfig({
   maxChannelsPerClient: 100,
   // Le bus qui transporte un broadcast d'une instance à l'autre. Voir plus bas.
   transport: transports.redis({ connection: 'main' }),
+  // Une trame de keep-alive vers chaque client, pour que les proxys ne ferment
+  // pas les flux inactifs : millisecondes ou durée. Par défaut false.
+  pingInterval: '30s',
 })
 ```
 
@@ -51,7 +63,18 @@ répartiteur a choisie pour lui.
 
 `transport` comble ce trou : chaque broadcast est recopié sur le bus, et chaque
 instance redistribue ce qui arrive à ses propres clients. La redistribution est
-purement locale, donc un message ne repart jamais sur le bus.
+purement locale, donc un message ne repart jamais sur le bus, et chaque
+publication porte l'identifiant du relais qui l'a émise, lequel ignore les
+siennes — le bus rend aussi un message à son émetteur, dont les clients locaux
+l'ont déjà reçu.
+
+**Les souscriptions exigent l'instance qui tient le flux.** Le bus transporte
+les broadcasts, pas les connexions : l'uid d'une connexion, ses canaux, les
+tokens et les groupes d'un hub vivent sur l'instance qui a ouvert le flux. Un
+`subscribe` qui arrive sur une autre instance répond `400 E_NOT_CONNECTED`.
+Dirigez les requêtes relay d'un client vers une seule instance — sessions
+collantes sur `/__relay/*` et les chemins des hubs — ou faites-les servir par
+une seule instance.
 
 ```ts
 import { defineConfig, transports } from '@c9up/relay'
@@ -98,7 +121,7 @@ Sans `transport`, relay reste mono-instance.
 
 ## Endpoints typiques
 
-- `GET /__relay/events` connexion SSE (hint optionnel `?uid=<id>`)
+- `GET /__relay/events` connexion SSE
 - `POST /__relay/subscribe` abonnement canal
 - `POST /__relay/unsubscribe` desabonnement
 
@@ -119,14 +142,18 @@ la socket. Les construire dans une phase ultérieure laissait une fenêtre, apr�
 que le serveur écoutait, où une requête vers une route déjà demandée par
 l'application répondait 404.
 
-### Sécurité du uid hint
+### Connexions
 
-Quand un client authentifié se connecte à `/__relay/events?uid=<id>`,
-le serveur pré-flight le hint contre `ctx.auth.user.id` AVANT
-d'upgrade la réponse en SSE. Si les deux ne matchent pas, une
-réponse bufferisée `403 E_UID_HIJACK` est renvoyée et le stream
-n'est jamais ouvert. Le hint est donc purement informationnel —
-le uid canonique vient toujours de `ctx.auth`, jamais du query string.
+Chaque flux reçoit un uid du serveur — jamais du client — envoyé dans sa
+première trame, `connected { uid }`, et renvoyé dans `subscribe` / `unsubscribe`.
+Chaque connexion a le sien, si bien que deux onglets d'un même compte restent
+ouverts côte à côte. Qui l'a ouverte est enregistré à côté : si la connexion
+était authentifiée, un `subscribe` ou un `unsubscribe` doit venir du même
+utilisateur (`403 E_NOT_OWNER` sinon) ; l'uid aléatoire d'une connexion anonyme
+est son seul credential.
+
+`relay.shutdown()` arrête l'écoute du bus et le timer de keep-alive, comme celui
+de Transmit ; les flux ouverts se terminent avec le processus.
 
 ## Hubs (SignalR)
 
@@ -151,6 +178,23 @@ class ChatHub extends Hub {
 relay.hub('/hubs/chat', new ChatHub())
 ```
 
+`onConnect` s'exécute une fois le handshake du client acquitté — une trame
+envoyée avant la réponse au handshake fait refuser la connexion par le client
+SignalR. La valeur renvoyée par une méthode est ce que résout le `invoke()` du
+client.
+
+Un flux qui n'a pas terminé le handshake après `handshakeTimeoutMs` (15 s par
+défaut, celui du client) est fermé, et au-delà de `maxConnections` flux ouverts
+(10 000 par défaut) un nouveau est refusé en 503. Ce sont des options de
+l'adaptateur passé en troisième argument :
+
+```ts
+import { SignalRAdapter } from '@c9up/relay'
+
+const hub = new ChatHub()
+relay.hub('/hubs/chat', hub, new SignalRAdapter(hub, { handshakeTimeoutMs: 10_000, maxConnections: 2_000 }))
+```
+
 ### Garder un hub
 
 `useGuards` s'applique à chaque invocation du hub :
@@ -164,7 +208,9 @@ class AdminHub extends Hub {
 }
 ```
 
-`roles` est satisfait par **n'importe lequel** des noms, `permissions` par
+`guards` nomme les gardes par lesquels la requête a pu s'authentifier — ce que
+Warden expose comme `auth.authenticatedViaGuard`. `roles` est satisfait par
+**n'importe lequel** des noms, `permissions` par
 **tous**. L'asymétrie est voulue, et c'est le même partage que le pipeline HTTP,
 le routeur RPC et le moteur GraphQL : un rôle dit qui on est — un admin *ou* un
 propriétaire peut agir — tandis qu'une permission dit ce qu'une action exige, et
@@ -181,11 +227,11 @@ Une méthode de hub reçoit **tous** les arguments envoyés par le client :
 ```ts
 class MathHub extends Hub {
   async onSum(ctx: HubContext, a: number, b: number, c: number) {
-    ctx.send('result', a + b + c)
+    return a + b + c
   }
 }
 
-// client : connection.invoke('Sum', 1, 2, 3)
+// client : await connection.invoke('Sum', 1, 2, 3)   // → 6
 ```
 
 Une méthode qui déclare un seul paramètre n'est pas affectée — les arguments en

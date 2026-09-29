@@ -236,4 +236,8 @@ If you see one, the cause is almost always a **non-deterministic render**: a `Da
 | Code | Description |
 |------|-------------|
 | `E_BLACKHOLE_RATE_LIMITED` | Too many requests from this IP. Wait and retry. |
-| `CSRF_FAILED` | Invalid or missing CSRF token. Echo the `XSRF-TOKEN` cookie in the `X-XSRF-TOKEN` header (or the `_csrf` form field). |
+| `E_BAD_CSRF_TOKEN` | Invalid or missing CSRF token. Echo the `XSRF-TOKEN` cookie in the `X-XSRF-TOKEN` header (or the `_csrf` form field). |
+| `E_BLACKHOLE_CSRF_ORIGIN_MISMATCH` | A state-changing request came from another origin — another host, or the same host over another scheme — not listed in `csrf.trustedOrigins`. |
+| `E_BLACKHOLE_PATH_TRAVERSAL` | The path holds `..`, raw or percent-encoded. |
+| `E_BLACKHOLE_PARAMETER_POLLUTION` | A query-string key appears twice (keys ending in `[]` may repeat). |
+| `E_BLACKHOLE_MISSING_IP` | Rate limiting is on and the request has no client address to count it under. |

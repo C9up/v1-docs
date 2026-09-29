@@ -237,4 +237,8 @@ Si tu en vois un, la cause est presque toujours un **render non déterministe** 
 | Code | Description |
 |------|-------------|
 | `E_BLACKHOLE_RATE_LIMITED` | Trop de requêtes depuis cette IP. Attendez et réessayez. |
-| `CSRF_FAILED` | Token CSRF invalide ou manquant. Renvoyez le cookie `XSRF-TOKEN` dans le header `X-XSRF-TOKEN` (ou le champ de formulaire `_csrf`). |
+| `E_BAD_CSRF_TOKEN` | Token CSRF invalide ou manquant. Renvoyez le cookie `XSRF-TOKEN` dans le header `X-XSRF-TOKEN` (ou le champ de formulaire `_csrf`). |
+| `E_BLACKHOLE_CSRF_ORIGIN_MISMATCH` | Une requête qui modifie l'état vient d'une autre origine — un autre hôte, ou le même hôte sur un autre schéma — absente de `csrf.trustedOrigins`. |
+| `E_BLACKHOLE_PATH_TRAVERSAL` | Le chemin contient `..`, brut ou encodé. |
+| `E_BLACKHOLE_PARAMETER_POLLUTION` | Une clé de la query string apparaît deux fois (les clés en `[]` peuvent se répéter). |
+| `E_BLACKHOLE_MISSING_IP` | La limite de débit est active et la requête n'a pas d'adresse client sous laquelle la compter. |

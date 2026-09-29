@@ -786,8 +786,15 @@ new SessionStrategy({
   rememberMeTokens: new MemoryRememberMeTokenDriver(), // votre propre driver en production
   rememberMeAge: 63_072_000,                           // secondes ; 2 ans, le défaut d'Adonis
   rememberMeCookieName: 'remember_web',                // le `remember_<guard>` d'Adonis
+  rememberMeCookie: { sameSite: 'strict' },            // surcharges facultatives, voir plus bas
 })
 ```
+
+`ctx.auth.use('web').login(user, true)` écrit le cookie pour vous : chiffré,
+`HttpOnly`, `SameSite=Lax`, `Path=/`, et `Secure` en production — un credential
+qui vit des années ne part jamais en HTTP clair ni dans une requête cross-site.
+`rememberMeCookie` surcharge `path`, `domain`, `sameSite` et `secure` ; `HttpOnly`
+reste. `rememberMeAge` doit être un nombre entier positif de secondes.
 
 À la connexion, émettez-en un et posez-le en cookie **httpOnly** ; sur une
 requête sans session, essayez-le ; à la déconnexion, révoquez-le :
@@ -810,10 +817,11 @@ Ce qui rend le mécanisme sûr, et pourquoi chaque point compte :
 
 - **Seul `sha256(secret)` est stocké.** Une fuite de la table ne permet à
   personne de se connecter : le secret n'existe que dans le cookie.
-- **Chaque usage recycle le secret.** La valeur que détenait le navigateur
-  cesse de fonctionner dès qu'elle sert, donc un cookie volé meurt au retour du
-  véritable utilisateur. C'est pourquoi l'appelant doit écrire le
-  `cookieValue` renvoyé.
+- **Chaque usage recycle le secret, une seule fois.** La valeur que détenait le
+  navigateur cesse de fonctionner dès qu'elle sert, donc un cookie volé meurt au
+  retour du véritable utilisateur. La rotation est un compare-and-set : de deux
+  requêtes présentant le même cookie au même instant, une seule passe. C'est
+  pourquoi l'appelant doit écrire le `cookieValue` renvoyé.
 - **L'utilisateur est relu, jamais déduit du token.** Un token survit à la
   ligne qu'il désigne ; un compte supprimé ou désactivé ne doit pas revenir.
 - **Les empreintes sont comparées en temps constant**, et un mauvais secret, un
@@ -825,7 +833,9 @@ Ce qui rend le mécanisme sûr, et pourquoi chaque point compte :
 `MemoryRememberMeTokenDriver` convient aux tests et aux applications
 mono-process ; un cluster a besoin d'un stockage partagé implémentant
 `RememberMeTokenDriver` (`create` / `find` / `update` / `delete` /
-`deleteAllForUser`).
+`deleteAllForUser`). `update(identifier, previousHash, hash, expiresAt)` ne doit
+remplacer la ligne **que si son empreinte vaut encore `previousHash`** —
+`UPDATE … WHERE identifier = ? AND hash = ?` — et dire s'il l'a fait.
 
 ### Savoir COMMENT l'utilisateur est arrivé là
 
@@ -887,7 +897,9 @@ decoded.secret.release()     // la vraie valeur, délibérément
 `'1h'`, `'7 days'` — pour qu'une config reprise d'une app AdonisJS fonctionne
 telle quelle. Un nombre nu vaut toujours des **secondes**, comme partout
 ailleurs dans ce module. Le `expiresInSeconds` livré au départ fonctionne
-encore ; si une config pose les deux, `expiresIn` l'emporte.
+encore ; si une config pose les deux, `expiresIn` l'emporte. Une durée est un
+nombre entier de secondes : `'500ms'` est refusé, car le `exp` d'un jeton ne
+peut pas contenir de fraction.
 
 ::: tip Écart nommé
 warden embarque son propre `Secret` plutôt que d'importer `@c9up/ream` : il n'a
@@ -925,10 +937,42 @@ Deux choses qu'il fait pour vous :
 - Un utilisateur inconnu et un mot de passe faux renvoient le **même** message.
   Les distinguer transforme l'endpoint en oracle de noms d'utilisateurs.
 
-`strategy.challenge` donne la valeur `WWW-Authenticate` à envoyer avec un 401
-pour que le navigateur demande. `safeCompare(a, b)` est exporté pour une app qui
+Inscrite comme garde, les routes `@Guard('basic')` lisent l'en-tête
+`Authorization: Basic …` ; un refus répond 401 avec
+`WWW-Authenticate: Basic realm="…", charset="UTF-8"`, pour que le navigateur
+demande. `strategy.challenge` donne cette valeur pour une réponse construite à
+la main. `safeCompare(a, b)` est exporté pour une app qui
 vérifie un secret partagé en clair — un `===` simple sort plus tôt sur une
 divergence précoce, et cet écart est mesurable.
+
+---
+
+## Limiter les connexions — AuthRateLimiter
+
+Comptez une tentative de connexion **avant** de vérifier le mot de passe, sous
+l'IP du client et l'identifiant essayé, et effacez les deux en cas de succès :
+
+```ts
+import { AuthRateLimiter, RedisAttemptStore } from '@c9up/warden'
+
+const limiter = new AuthRateLimiter({
+  maxAttempts: 5,
+  windowSeconds: 900,
+  // store: new RedisAttemptStore(redis),   // partagé entre instances
+})
+
+const keys = AuthRateLimiter.loginKeys(ctx.request.ip(), email)
+const decision = await limiter.attempt(...keys)
+if (!decision.allowed) return response.status(429).json({ retryAfter: decision.retryAfterSeconds })
+const user = await verify(email, password)
+if (user) await limiter.clear(...keys)
+```
+
+Compter d'abord est ce qui tient face à une rafale : chaque tentative est un
+incrément atomique, si bien que vingt essais simultanés ne peuvent pas tous lire
+« pas encore bloqué ». L'identifiant est normalisé (casse, espaces autour),
+`maxAttempts` et `windowSeconds` doivent être des entiers positifs, et le store
+mémoire est borné. `MfaManager` utilise le même limiteur pour son verrouillage.
 
 ---
 
@@ -1039,7 +1083,7 @@ const mfa = new MfaManager({
   totp: new TotpProvider(),
   backupCodes: new BackupCodesProvider(),
   // store: new AtlasMfaFactorStore(db),   // facteurs persistants en production
-  rateLimit: { maxAttempts: 5, windowSeconds: 900 },
+  rateLimit: { maxAttempts: 5, windowSeconds: 900 }, // + store: new RedisAttemptStore(redis) en cluster
 })
 
 // 1. Enrôlement — affichez `uri` sous forme de QR code
@@ -1051,15 +1095,30 @@ const codes = await mfa.createBackupCodes(user.id)
 
 // Step-up à la connexion — un code TOTP OU un code de secours, rate-limité par utilisateur
 if (await mfa.verify(user.id, submitted)) {
-  // émettez un JWT portant `mfa: true`
+  // JWT : un jeton qui porte le step-up
+  const token = auth.issueFor(user, 'jwt', { mfa: true })
+  // session : l'enregistrer sur cette session
+  ctx.auth.use('web').markMfaVerified()
 }
 ```
 
-Helpers de statut : `isEnabled(userId)`, `listFactors(userId)` (ne divulgue jamais de secret), `disableFactor(factorId)`, `isLocked(userId)`.
+Helpers de statut : `isEnabled(userId)`, `listFactors(userId)` (ne divulgue jamais de secret), `disableFactor(factorId)`, `await isLocked(userId)`.
+
+Chaque code ne sert qu'une fois, même quand deux requêtes le présentent au même
+instant : le garde anti-rejeu TOTP réserve un code atomiquement
+(`claim(key, ttlMs)`, écriture si absent), et un code de secours est consommé par
+`MfaFactorStore.consumeBackupHash(factorId, hash)`, qui ne doit retirer
+l'empreinte que si elle est encore là. Une tentative est comptée **avant** la
+vérification du code, si bien qu'une rafale d'essais simultanés ne peut pas
+atteindre tous les providers. Sur plusieurs instances, partagez les compteurs et
+le garde anti-rejeu : `rateLimit.store: new RedisAttemptStore(redis)` et
+`new TotpProvider({ replayGuard: new RedisTotpReplayGuard(redis) })`. Les nombres
+sont vérifiés à la construction : TOTP `digits` 6–8, `period` 1–3600 s, `window`
+0–10 ; codes de secours `count` 1–100, `length` 8–64.
 
 ### @RequireMfa — protéger des routes
 
-Une route décorée par `@RequireMfa()` n'est accessible que si le payload de l'utilisateur authentifié porte un claim `mfa` truthy (posé par votre flux de step-up une fois `MfaManager.verify()` réussi). Sinon le middleware d'auth renvoie **403 `E_WARDEN_MFA_REQUIRED`**.
+Une route décorée par `@RequireMfa()` n'est accessible que si le credential de la requête a passé un step-up MFA : un JWT signé avec `{ mfa: true }`, ou une session sur laquelle `markMfaVerified()` a tourné. Sinon le middleware d'auth renvoie **403 `E_WARDEN_MFA_REQUIRED`**. `user.mfa` est posé par le garde d'après ce credential, jamais d'après ce que renvoie `findUser` — un compte où la MFA est *activée* n'a pas pour autant passé le step-up. Une nouvelle connexion et une déconnexion effacent le step-up de la session.
 
 ```typescript
 import { Guard, RequireMfa } from '@c9up/warden'

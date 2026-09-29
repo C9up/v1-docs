@@ -8,18 +8,27 @@ Relay is Ream's realtime module (`@c9up/relay`): server-sent events for broadcas
 - bidirectional Hubs speaking the SignalR JSON protocol over SSE
 - channel subscriptions
 - channel authorization
-- Event relay
 - multi-instance broadcast over a Redis bus
 
 ## Main API
 
 ```ts
-import { Relay } from '@c9up/relay'
+// start/services.ts
+import relay from '@c9up/relay/services/main'
 
-const rt = new Relay()
-rt.authorize('user:*', async (ctx, userId) => ctx.auth.user?.id === userId)
-rt.relay('task.*')
+relay.registerRoutes()
+// `:id` is a param, `projects/*` a prefix. The authorizer gets the subscribe
+// request's context and the params its pattern captured.
+relay.authorize<{ id: string }>('users/:id', (ctx, { id }) => ctx.auth?.user?.id === id)
+relay.authorize('reports/*', (ctx) => ctx.bouncer?.allows('reports.read') ?? false)
+
+// anywhere in the app
+relay.broadcast('users/42', { unread: 3 })
 ```
+
+The authorizer is handed the whole context of the subscribe request, as for a
+controller: `ctx.bouncer`, the tenant, anything a middleware put there. `auth`
+and `bouncer` are typed; the rest is there at run time.
 
 ## Configuration
 
@@ -38,6 +47,9 @@ export default defineConfig({
   maxChannelsPerClient: 100,
   // The bus that carries a broadcast between instances. See below.
   transport: transports.redis({ connection: 'main' }),
+  // A keep-alive frame to every client, so proxies do not close idle
+  // streams: milliseconds or a duration. Default false.
+  pingInterval: '30s',
 })
 ```
 
@@ -49,7 +61,17 @@ each one is connected to whichever instance the balancer picked.
 
 `transport` is the bus that closes the gap: every broadcast is mirrored onto
 it, and each instance re-delivers what arrives to its own clients. The
-re-delivery is local only, so a message never bounces back onto the bus.
+re-delivery is local only, so a message never bounces back onto the bus, and
+each publication carries the id of the relay that sent it, which ignores its own
+— the bus hands a message back to its publisher too, and the local clients
+already had it.
+
+**Subscriptions need the instance that holds the stream.** The bus carries
+broadcasts, not connections: a connection's uid, its channels, a hub's tokens
+and groups live on the instance that opened the stream. A `subscribe` that
+reaches another instance answers `400 E_NOT_CONNECTED`. Route a client's relay
+requests to one instance — sticky sessions on `/__relay/*` and the hub paths —
+or run one instance for them.
 
 ```ts
 import { defineConfig, transports } from '@c9up/relay'
@@ -95,7 +117,7 @@ Leave `transport` out and relay is single-instance.
 
 ## Typical endpoints
 
-- `GET /__relay/events` SSE connection (optional `?uid=<id>` hint)
+- `GET /__relay/events` SSE connection
 - `POST /__relay/subscribe` channel subscribe
 - `POST /__relay/unsubscribe` channel unsubscribe
 
@@ -116,14 +138,17 @@ socket. Building them in a later phase left a window, after the server was
 listening, in which a request for a route the application had already asked for
 answered 404.
 
-### uid hint security
+### Connections
 
-When an authenticated client connects to `/__relay/events?uid=<id>`,
-the server pre-flights the hint against `ctx.auth.user.id` BEFORE
-upgrading the connection to SSE. If they don't match, a buffered
-`403 E_UID_HIJACK` is returned and the stream is never opened. The
-hint is therefore informational only — the canonical uid always
-comes from `ctx.auth`, never from the query string.
+Every stream gets a uid from the server — never from the client — sent in its
+first frame, `connected { uid }`, and echoed back in `subscribe` / `unsubscribe`.
+Each connection has its own, so two tabs of one account stay open side by side.
+Who opened it is recorded beside it: if the connection was authenticated, a
+`subscribe` or `unsubscribe` must come from the same user (`403 E_NOT_OWNER`
+otherwise); an anonymous connection's random uid is its only credential.
+
+`relay.shutdown()` stops the bus listener and the keep-alive timer, as
+Transmit's does; the open streams end with the process.
 
 ## Hubs (SignalR)
 
@@ -148,6 +173,22 @@ class ChatHub extends Hub {
 relay.hub('/hubs/chat', new ChatHub())
 ```
 
+`onConnect` runs once the client's handshake has been answered — a frame sent
+before the handshake reply makes the SignalR client refuse the connection. A
+method's return value is what the client's `invoke()` resolves with.
+
+A stream that has not completed the handshake within `handshakeTimeoutMs`
+(default 15 s, the client's own) is closed, and past `maxConnections` open
+streams (default 10 000) a new one is refused with 503. Both are options of the
+adapter passed as the third argument:
+
+```ts
+import { SignalRAdapter } from '@c9up/relay'
+
+const hub = new ChatHub()
+relay.hub('/hubs/chat', hub, new SignalRAdapter(hub, { handshakeTimeoutMs: 10_000, maxConnections: 2_000 }))
+```
+
 ### Guarding a hub
 
 `useGuards` applies to every invocation on the hub:
@@ -161,7 +202,9 @@ class AdminHub extends Hub {
 }
 ```
 
-`roles` is satisfied by **any** of the names, `permissions` by **all** of them.
+`guards` names the guards the request may have authenticated through — what
+Warden reports as `auth.authenticatedViaGuard`. `roles` is satisfied by **any**
+of the names, `permissions` by **all** of them.
 The asymmetry is deliberate and is the same split the HTTP pipeline, the RPC
 router and the GraphQL engine use: a role names who someone is — an admin *or*
 an owner may act — while a permission names what an action needs, and it needs
@@ -177,11 +220,11 @@ A hub method receives **every** argument the client sent:
 ```ts
 class MathHub extends Hub {
   async onSum(ctx: HubContext, a: number, b: number, c: number) {
-    ctx.send('result', a + b + c)
+    return a + b + c
   }
 }
 
-// client: connection.invoke('Sum', 1, 2, 3)
+// client: await connection.invoke('Sum', 1, 2, 3)   // → 6
 ```
 
 A method declaring one parameter is unaffected — the extras are simply ignored,

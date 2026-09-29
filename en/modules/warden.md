@@ -766,8 +766,15 @@ new SessionStrategy({
   rememberMeTokens: new MemoryRememberMeTokenDriver(), // your own driver in production
   rememberMeAge: 63_072_000,                           // seconds; 2 years, Adonis' default
   rememberMeCookieName: 'remember_web',                // Adonis' `remember_<guard>`
+  rememberMeCookie: { sameSite: 'strict' },            // optional overrides, see below
 })
 ```
+
+`ctx.auth.use('web').login(user, true)` writes the cookie for you, encrypted,
+`HttpOnly`, `SameSite=Lax`, `Path=/`, and `Secure` in production — a credential
+that lives for years never leaves over plain HTTP or rides a cross-site request.
+`rememberMeCookie` overrides `path`, `domain`, `sameSite` and `secure`; `HttpOnly`
+stays. `rememberMeAge` must be a positive whole number of seconds.
 
 At login, mint one and set it as an **httpOnly** cookie; on a request without a
 session, try it; at logout, revoke it:
@@ -790,9 +797,11 @@ What makes this safe, and why each part matters:
 
 - **Only `sha256(secret)` is stored.** A dump of the tokens table does not let
   anyone sign in — the secret exists solely in the user's cookie.
-- **Every use recycles the secret.** The value the browser held stops working
-  the moment it is used, so a stolen cookie dies as soon as the real user comes
-  back. That is why the caller must write the returned `cookieValue`.
+- **Every use recycles the secret, once.** The value the browser held stops
+  working the moment it is used, so a stolen cookie dies as soon as the real
+  user comes back. The rotation is a compare-and-set: of two requests presenting
+  the same cookie at the same time, only one gets through. That is why the
+  caller must write the returned `cookieValue`.
 - **The user is re-read, never trusted from the token.** A token outlives the
   row it points at; a deleted or disabled account cannot walk back in.
 - **Hashes are compared in constant time**, and a bad secret, an unknown
@@ -802,7 +811,10 @@ What makes this safe, and why each part matters:
 
 `MemoryRememberMeTokenDriver` is for tests and single-process apps; a cluster
 needs a shared store implementing `RememberMeTokenDriver` (`create` / `find` /
-`update` / `delete` / `deleteAllForUser`).
+`update` / `delete` / `deleteAllForUser`). `update(identifier, previousHash,
+hash, expiresAt)` must replace the row **only if its hash is still
+`previousHash`** — `UPDATE … WHERE identifier = ? AND hash = ?` — and return
+whether it did.
 
 ### Knowing HOW the user got here
 
@@ -864,7 +876,8 @@ decoded.secret.release()     // the real value, deliberately
 `'7 days'` — so a config carried over from an AdonisJS app works as written. A
 bare number is always **seconds**, as everywhere else in this module. The
 seconds-only `expiresInSeconds` warden shipped first still works; when a config
-sets both, `expiresIn` wins.
+sets both, `expiresIn` wins. A lifetime is a whole number of seconds: `'500ms'`
+is refused, since a token's `exp` cannot hold a fraction.
 
 ::: tip Named deviation
 warden ships its own `Secret` rather than importing `@c9up/ream`: it has no
@@ -900,10 +913,41 @@ Two things it does on your behalf:
 - An unknown user and a wrong password return the **same** message. Telling them
   apart turns the endpoint into a username oracle.
 
-`strategy.challenge` gives the `WWW-Authenticate` value to send with a 401 so the
-browser prompts. `safeCompare(a, b)` is exported for an app checking a plaintext
+Register it as a guard and `@Guard('basic')` routes read the
+`Authorization: Basic …` header; a refusal answers 401 with
+`WWW-Authenticate: Basic realm="…", charset="UTF-8"`, so the browser prompts.
+`strategy.challenge` gives that value for a response you build yourself. `safeCompare(a, b)` is exported for an app checking a plaintext
 shared secret — a plain `===` returns sooner on an early mismatch, and that
 difference is measurable.
+
+---
+
+## Throttling sign-in — AuthRateLimiter
+
+Count a sign-in attempt **before** checking the password, under the client's IP
+and the identifier it tries, and clear both on success:
+
+```ts
+import { AuthRateLimiter, RedisAttemptStore } from '@c9up/warden'
+
+const limiter = new AuthRateLimiter({
+  maxAttempts: 5,
+  windowSeconds: 900,
+  // store: new RedisAttemptStore(redis),   // shared across instances
+})
+
+const keys = AuthRateLimiter.loginKeys(ctx.request.ip(), email)
+const decision = await limiter.attempt(...keys)
+if (!decision.allowed) return response.status(429).json({ retryAfter: decision.retryAfterSeconds })
+const user = await verify(email, password)
+if (user) await limiter.clear(...keys)
+```
+
+Counting first is what holds against a burst: each attempt is one atomic
+increment, so twenty concurrent guesses cannot all read "not blocked yet". The
+identifier is normalized (case, surrounding spaces), `maxAttempts` and
+`windowSeconds` must be positive whole numbers, and the memory store is bounded.
+`MfaManager` uses the same limiter for its lockout.
 
 ---
 
@@ -1012,7 +1056,7 @@ const mfa = new MfaManager({
   totp: new TotpProvider(),
   backupCodes: new BackupCodesProvider(),
   // store: new AtlasMfaFactorStore(db),   // persistent factors in production
-  rateLimit: { maxAttempts: 5, windowSeconds: 900 },
+  rateLimit: { maxAttempts: 5, windowSeconds: 900 }, // + store: new RedisAttemptStore(redis) on a cluster
 })
 
 // 1. Enroll — render `uri` as a QR code
@@ -1024,15 +1068,29 @@ const codes = await mfa.createBackupCodes(user.id)
 
 // Sign-in step-up — a TOTP code OR a backup code, rate-limited per user
 if (await mfa.verify(user.id, submitted)) {
-  // issue a JWT carrying `mfa: true`
+  // JWT: a token that carries the step-up
+  const token = auth.issueFor(user, 'jwt', { mfa: true })
+  // session: record it on this session
+  ctx.auth.use('web').markMfaVerified()
 }
 ```
 
-Status helpers: `isEnabled(userId)`, `listFactors(userId)` (never leaks secret material), `disableFactor(factorId)`, `isLocked(userId)`.
+Status helpers: `isEnabled(userId)`, `listFactors(userId)` (never leaks secret material), `disableFactor(factorId)`, `await isLocked(userId)`.
+
+Each code works once, even when two requests present it at the same instant:
+the TOTP replay guard claims a code atomically (`claim(key, ttlMs)`, set-if-absent),
+and a backup code is consumed by `MfaFactorStore.consumeBackupHash(factorId,
+hash)`, which must remove the hash only if it is still there. An attempt is
+counted **before** the code is checked, so a burst of concurrent guesses cannot
+all reach the providers. On several instances, share the counts and the replay
+guard: `rateLimit.store: new RedisAttemptStore(redis)` and
+`new TotpProvider({ replayGuard: new RedisTotpReplayGuard(redis) })`. The numbers
+are checked at construction: TOTP `digits` 6–8, `period` 1–3600 s, `window` 0–10;
+backup-code `count` 1–100, `length` 8–64.
 
 ### @RequireMfa — gating routes
 
-A route decorated with `@RequireMfa()` is reachable only when the authenticated user's payload carries a truthy `mfa` claim (set by your step-up flow once `MfaManager.verify()` succeeds). Otherwise the auth middleware returns **403 `E_WARDEN_MFA_REQUIRED`**.
+A route decorated with `@RequireMfa()` is reachable only when the credential the request came with completed an MFA step-up: a JWT signed with `{ mfa: true }`, or a session on which `markMfaVerified()` ran. Otherwise the auth middleware returns **403 `E_WARDEN_MFA_REQUIRED`**. `user.mfa` is set by the guard from that credential, never from what `findUser` returns — an account with MFA *enabled* has not stepped up. A new sign-in and a logout clear the session's step-up.
 
 ```typescript
 import { Guard, RequireMfa } from '@c9up/warden'

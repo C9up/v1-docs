@@ -11,20 +11,26 @@ ream configure @c9up/blackhole
 
 The package ships these entry points:
 - `@c9up/blackhole/provider` — Ream IoC provider (reads `config/blackhole.ts`)
-- `@c9up/blackhole/middleware` — Ream middleware
+- `@c9up/blackhole/server_middleware` — Ream server-tier middleware (rate limit, shield, CORS, protective headers — on every request, a 404 included)
+- `@c9up/blackhole/middleware` — Ream router-tier middleware (CSRF; every check when it runs alone)
 - `@c9up/blackhole/express` — `blackholeExpress(options)` for Express
 - `@c9up/blackhole/fastify` — `blackholeFastify(options)` Fastify plugin
+- `@c9up/blackhole/hono` — `blackholeHono(options)` Hono middleware
 - `@c9up/blackhole` — `createBlackhole(options)` low-level API to wire into any framework yourself
 
-All three adapters share one pipeline (`./core`): there is no duplicated security logic between them.
+Every adapter shares one pipeline (`./core`): there is no duplicated security logic between them.
 
 ### Usage
 
 ```ts
-// Ream — config/blackhole.ts + start/kernel.ts
+// Ream — config/blackhole.ts + start/kernel.ts (what `ream configure` writes)
+server.use([() => import('@c9up/blackhole/server_middleware')])
 router.use([() => import('@c9up/blackhole/middleware')])
-// equivalent direct form: import { blackholeMiddleware } from '@c9up/blackhole/middleware'
-//                         router.use([blackholeMiddleware])
+
+// Hono
+import { blackholeHono } from '@c9up/blackhole/hono'
+app.use(blackholeHono({ csrf: true, secret: process.env.APP_KEY, clientIp: (c) => getConnInfo(c).remote.address ?? '' }))
+// the token: c.get('csrfToken'); the CSP nonce: c.get('cspNonce')
 
 // Express
 import { blackholeExpress } from '@c9up/blackhole/express'
@@ -36,6 +42,19 @@ fastify.register(blackholeFastify({ csrf: true, secret: process.env.APP_KEY }))
 ```
 
 After it runs, the CSRF token is on `request.csrfToken` and the CSP nonce on `response.nonce`.
+
+In Ream the work is split across two tiers. The server-tier middleware runs
+before route matching, so a request for a route that does not exist is
+rate-limited, shielded and gets the protective headers too. The router-tier
+one runs the CSRF check, which needs the parsed body, and skips what the first
+already did — each request is counted once. When `rateLimit.keyFor` is set, the
+limit is taken on the router tier instead: the key may read what a router
+middleware sets, such as the authenticated user. Registered alone, the
+router-tier middleware runs every check, as before.
+
+Hono has no runtime-neutral client address: pass `clientIp` (the default reads
+the socket of `@hono/node-server`). The scheme compared with the Origin is the
+request URL's; behind a proxy, pass `protocol`.
 
 ## Architecture
 
@@ -75,8 +94,8 @@ With defaults, XSS sanitization and CSRF validation are on; rate limiting and CO
 
 Outgoing **response** bodies are sanitized with [ammonia](https://crates.io/crates/ammonia) (the html5ever parser used by Firefox/Servo), not naive entity escaping:
 
-- `text/html` responses are parsed and dangerous nodes neutralized (`<script>`, `on*` handlers, `javascript:` URIs) while custom tags / web components are preserved and existing entities are never double-encoded.
-- `text/plain` responses are entity-escaped.
+- `text/html` fragments are parsed and rebuilt from an allow-list: dangerous nodes are removed (`<script>`, `on*` handlers, `javascript:` URIs), and any tag outside the list — custom elements and web components included — is unwrapped, its content kept. Existing entities are never double-encoded.
+- Every other content type (`text/plain`, JSON, CSV…) is sent unchanged: with `X-Content-Type-Options: nosniff` (a default header) the browser never reads it as markup, and escaping it would only corrupt it.
 - A server-rendered **full document** (opening with `<!doctype>` or `<html>`) is left intact — ammonia is for fragments, and treating a whole document as one would strip its wrappers.
 
 Request query strings and bodies are **not** mutated; user input is neutralized where it is rendered (the response), not silently rewritten on the way in.
@@ -98,15 +117,29 @@ When CSRF is enabled, a `secret` is **required**. `createBlackhole({ csrf: true 
    - the `X-XSRF-TOKEN` header (Axios / Angular `HttpClient` read the cookie automatically),
    - the `X-CSRF-TOKEN` header (manual SPA clients),
    - the `_csrf` form field (server-rendered forms — see `csrfField()` below).
-3. **Validate** — The submitted token must equal the cookie (constant-time) **and** carry a valid HMAC signature under the secret. A mismatch, a forged/unsigned value, or a missing token is rejected with `403 CSRF_FAILED`.
+3. **Validate** — The submitted token must equal the cookie (constant-time) **and** carry a valid HMAC signature under the secret. A mismatch, a forged/unsigned value, or a missing token is rejected with `403 E_BAD_CSRF_TOKEN`.
 
 ```
-POST /orders                                       → 403 CSRF_FAILED (no token)
+POST /orders                                       → 403 E_BAD_CSRF_TOKEN (no token)
 POST /orders  cookie: XSRF-TOKEN=a1b2.SIG
               X-XSRF-TOKEN: a1b2.SIG               → 200 OK
-POST /orders  cookie: XSRF-TOKEN=a1b2.SIG  X-XSRF-TOKEN: ZZZ      → 403 CSRF_FAILED
-POST /orders  cookie: XSRF-TOKEN=forged   X-XSRF-TOKEN: forged    → 403 CSRF_FAILED (no valid signature)
+POST /orders  cookie: XSRF-TOKEN=a1b2.SIG  X-XSRF-TOKEN: ZZZ      → 403 E_BAD_CSRF_TOKEN
+POST /orders  cookie: XSRF-TOKEN=forged   X-XSRF-TOKEN: forged    → 403 E_BAD_CSRF_TOKEN (no valid signature)
 ```
+
+### Origin check
+
+Before the token, a guarded request that carries an `Origin` (or, failing
+that, a `Referer`) must come from the same origin — the same host **and the
+same scheme** as the request — or from one of `csrf.trustedOrigins`. A page
+served over plain `http://app.test` is another origin than `https://app.test`:
+it is what a MITM controls, so it is refused with
+`403 E_BLACKHOLE_CSRF_ORIGIN_MISMATCH` even with a valid token. The scheme is
+the one the host framework resolved (Ream's `request.protocol()`, Express's
+`req.protocol`, Fastify's `request.protocol`, each behind its trusted-proxy
+setting). A trusted origin written with a scheme matches that scheme only;
+without one, any. A request with neither header — a non-browser client — goes
+on to the token check.
 
 ### Configuration
 
@@ -170,7 +203,8 @@ When the limit is exceeded:
 HTTP status: `429 Too Many Requests`
 
 The rate limiter:
-- Buckets per resolved client IP — a request with **no** resolvable IP is rejected (`400 MISSING_IP`) rather than sharing a global bucket (which would let one client DoS everyone). IP resolution (trusted proxies) is the host framework's job.
+- Buckets per resolved client IP — a request with **no** resolvable IP is rejected (`400 E_BLACKHOLE_MISSING_IP`) rather than sharing a global bucket (which would let one client DoS everyone). IP resolution (trusted proxies) is the host framework's job.
+- Requires `max` and `windowSeconds` to be positive whole numbers: `createBlackhole` throws otherwise, rather than run a limit of 0 or a window of 0 that would let every request through
 - Resets the counter when the time window expires
 - Periodically evicts stale entries to prevent unbounded memory growth
 
@@ -181,7 +215,11 @@ The request phase resolves to one of:
 | Result | Meaning |
 |--------|---------|
 | `Allow` | Request passed all checks — your handler runs |
-| `Reject` | Request blocked — `400` (path-traversal / param-pollution / missing IP), `403` (CSRF), or `429` (rate limit) |
+| `Reject` | Request blocked — `400` (`E_BLACKHOLE_PATH_TRAVERSAL` / `E_BLACKHOLE_PARAMETER_POLLUTION` / `E_BLACKHOLE_MISSING_IP`), `403` (`E_BAD_CSRF_TOKEN` / `E_BLACKHOLE_CSRF_ORIGIN_MISMATCH`), or `429` (`E_BLACKHOLE_RATE_LIMITED`) |
+
+A rejection carries the same protective headers (CSP, HSTS, `nosniff`…) as a
+page, and so does a CORS preflight. They are set before the handler runs, so an
+error page built after a throw has them too.
 
 ## Next Steps
 
