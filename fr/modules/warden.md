@@ -1086,7 +1086,7 @@ const mfa = new MfaManager({
   rateLimit: { maxAttempts: 5, windowSeconds: 900 }, // + store: new RedisAttemptStore(redis) en cluster
 })
 
-// 1. Enrôlement — affichez `uri` sous forme de QR code
+// 1. Enrôlement — affichez `uri` sous forme de QR code (avec @c9up/prism : `await qrcode.toString(uri)`)
 const { factorId, uri } = await mfa.enrollTotp({ id: user.id, name: user.email })
 // 2. Confirmation avec un premier code de l'application d'authentification
 await mfa.confirmTotp(factorId, code)              // → true une fois confirmé

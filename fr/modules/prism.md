@@ -13,6 +13,7 @@ sur un moteur Rust.
 - filigrane texte à partir d'une police fournie par l'appelant
 - lecture de l'en-tête d'une image sans la décoder
 - auto-orientation EXIF, et métadonnées supprimées à la sortie
+- QR codes en SVG, PNG, WebP ou AVIF, stylés ou simples, avec un logo
 
 ## Configurer
 
@@ -167,6 +168,105 @@ Un filtre boîte plutôt que Lanczos : plusieurs fois moins cher et visiblement
 plus doux, ce qui est le bon arbitrage pour un avatar de 32 px et le mauvais
 pour une bannière de 1200. `exact: true` ignore le rapport d'aspect, comme
 `fit: 'fill'`.
+
+## QR codes
+
+`qrcode` écrit un QR code en SVG — la sortie à privilégier sur une page, nette à
+toutes les tailles et de quelques centaines d'octets — ou en PNG, WebP ou AVIF
+par les mêmes encodeurs que le reste de Prism. Sa forme est celle du paquet npm
+`qrcode` :
+
+```ts
+import { qrcode } from '@c9up/prism'
+
+const svg = await qrcode.toString(uri)                               // SVG
+const png = await qrcode.toBuffer(uri, { width: 300 })               // PNG
+const avif = await qrcode.toBuffer(uri, { type: 'avif', margin: 2 })
+const src = await qrcode.toDataURL(uri, { type: 'svg' })             // <img src>
+```
+
+| Option | Défaut | |
+|---|---|---|
+| `errorCorrectionLevel` | `M` | `L`, `M`, `Q`, `H` (ou `low` … `high`) : environ 7 à 30 % du symbole peut être perdu |
+| `version` | la plus petite qui suffit | 1 à 40 |
+| `margin` | `4` | zone de silence, en modules — ce qu'attendent les lecteurs |
+| `scale` | `4` | pixels par module |
+| `width` | — | côté en pixels ; l'emporte sur `scale` dès qu'il contient le symbole |
+| `color.dark` / `color.light` | `#000000ff` / `#ffffffff` | hexadécimal, de `#rgb` à `#rrggbbaa` ; une couleur claire transparente retire le fond |
+| `type` | `svg` (`toString`), `png` | `png`, `webp`, `avif`, `svg`, ou leurs types MIME |
+| `rendererOpts.quality` | `100` | WebP et AVIF ; 100 est sans perte en WebP — des bords dégradés font hésiter les lecteurs |
+
+Le SVG est celui du paquet d'origine : un seul `path` de segments horizontaux,
+un `viewBox`, et `shape-rendering="crispEdges"`, si bien qu'un balisage stylé
+pour l'un fonctionne avec l'autre.
+
+Tout peut venir d'une requête, donc tout est borné : un texte au-delà de ce que
+contient un QR code au niveau choisi lève `E_PRISM_QR_TOO_LONG` ; une image de
+plus de 4096 pixels de côté, une marge au-delà de 64, une version hors 1–40, une
+couleur qui n'est pas de l'hexadécimal strict ou une couleur foncée à moins de
+3:1 de contraste avec la claire lève `E_PRISM_INVALID_QR_OPTION` — là où le paquet d'origine se rabat en silence. Le
+SVG est écrit à partir des canaux de couleur analysés, jamais de la chaîne
+fournie : une couleur ne peut pas injecter de balisage.
+
+`toString` n'écrit que du SVG (les rendus texte du paquet d'origine visent un
+terminal), et WebP et AVIF sont disponibles côté serveur, ce que le paquet
+d'origine ne propose que dans un navigateur.
+
+### Style
+
+Les options de `qr-code-styling`, sous ses noms, changent le dessin du code :
+formes des modules, repères d'angle, couleurs ou dégradés, fond arrondi et
+logo. Les mêmes options stylent le SVG et les images, qui sont ce SVG rendu.
+
+```ts
+const svg = await qrcode.toString(url, {
+  dotsOptions: {
+    type: 'classy-rounded',
+    gradient: {
+      type: 'linear',
+      rotation: Math.PI / 4,
+      colorStops: [
+        { offset: 0, color: '#1e3a8a' },
+        { offset: 1, color: '#7c3aed' },
+      ],
+    },
+  },
+  cornersSquareOptions: { type: 'extra-rounded', color: '#111827' },
+  cornersDotOptions: { type: 'dot', color: '#be123c' },
+  backgroundOptions: { round: 0.15, color: '#f8fafc' },
+  image: await readFile(app.makePath('resources/logo.png')),
+})
+```
+
+| Option | Valeurs |
+|---|---|
+| `dotsOptions.type` | `square` (défaut), `dots`, `rounded`, `extra-rounded`, `classy`, `classy-rounded` — les formes arrondies suivent leurs voisins |
+| `cornersSquareOptions.type` | les cadres 7 × 7 des repères : `square`, `dot`, `extra-rounded`, ou une forme de module ; sans valeur, dessinés comme les modules |
+| `cornersDotOptions.type` | les centres 3 × 3 des repères : `square`, `dot`, ou une forme de module autre que `dots` |
+| `….color` | hexadécimal ; les cadres prennent par défaut la couleur des modules, les centres celle des cadres |
+| `….gradient` | `{ type: 'linear' \| 'radial', rotation, colorStops }`, 1 à 16 arrêts ; l'emporte sur `color` |
+| `backgroundOptions` | `color` (défaut `color.light`), `gradient`, `round` de 0 (carré) à 1 (un cercle) |
+| `image` | les octets du logo — PNG, JPEG ou WebP |
+| `imageOptions.imageSize` | part de la correction d'erreur que le logo peut couvrir, au-dessus de 0 et jusqu'à `0.5` ; défaut `0.4` |
+| `imageOptions.margin` | espace autour du logo, en modules ; défaut `0` |
+| `imageOptions.hideBackgroundDots` | retirer les modules sous le logo ; défaut `true` |
+
+Les longueurs restent en modules : `margin`, `scale` et `width` gardent le sens
+donné plus haut. Le logo est un envoi comme un autre : il passe par la sonde et
+les limites de Prism, est décodé, puis intégré réencodé en PNG — jamais
+téléchargé depuis une URL. Avec un logo, la correction d'erreur passe par
+défaut à `H`, et la zone masquée est calculée sur la capacité de récupération du
+niveau, comme le fait `qr-code-styling`.
+
+Un code doit rester lisible, donc ce qui ne le serait pas est refusé avec
+`E_PRISM_INVALID_QR_OPTION` : un `imageSize` au-delà de 0.5, une couleur ou un
+arrêt de dégradé à moins de 3:1 de contraste avec le fond (le seuil WCAG des
+éléments graphiques ; un fond transparent n'est pas jugé), et des centres de
+repère dessinés en neuf `dots` séparés, que ZXing — le décodeur de la plupart
+des lecteurs sur téléphone — ne trouve pas. Avec des modules `dots` et sans
+`cornersDotOptions.type`, les centres sont un seul rond `dot`. Chaque style est
+relu par ZXing dans les tests. Non repris : `shape: 'circle'`, `roundSize` et
+les options de canvas.
 
 ## Servir des images à une page
 
@@ -389,6 +489,8 @@ quand son format de sortie change.
 | `E_PRISM_INVALID_GEOMETRY` | recadrage hors image, rotation hors angles droits |
 | `E_PRISM_INVALID_FONT` | la police du filigrane est illisible |
 | `E_PRISM_INVALID_OPERATION` | une opération à laquelle il manque un champ |
+| `E_PRISM_QR_TOO_LONG` | plus de texte qu'un QR code n'en contient au niveau et à la version choisis |
+| `E_PRISM_INVALID_QR_OPTION` | une option de QR code hors bornes, une couleur qui n'est pas de l'hexadécimal strict, ou un style qui ne serait pas lisible |
 | `E_PRISM_NATIVE_REQUIRED` | le moteur Rust n'est pas installé pour cette plateforme |
 
 ## Le moteur

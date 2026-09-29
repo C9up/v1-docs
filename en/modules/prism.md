@@ -12,6 +12,7 @@ Resize, convert, crop, composite and watermark, on a Rust engine.
 - text watermark from a caller-supplied font
 - read an image's header without decoding it
 - EXIF auto-orientation, and metadata stripped on the way out
+- QR codes as SVG, PNG, WebP or AVIF, styled or plain, with a logo
 
 ## Configure
 
@@ -161,6 +162,102 @@ await images.edit(photo).thumbnail({ width: 32, height: 32 }).toFormat('webp')
 A box filter rather than Lanczos: several times cheaper and visibly softer,
 which is the right trade for a 32px avatar and the wrong one for a 1200px
 hero. `exact: true` ignores the aspect ratio, as `fit: 'fill'` does.
+
+## QR codes
+
+`qrcode` writes a QR code as SVG — the output to reach for on a page, sharp at
+every size and a few hundred bytes — or as PNG, WebP or AVIF through the same
+encoders as the rest of Prism. Its shape is the npm `qrcode` package's:
+
+```ts
+import { qrcode } from '@c9up/prism'
+
+const svg = await qrcode.toString(uri)                               // SVG
+const png = await qrcode.toBuffer(uri, { width: 300 })               // PNG
+const avif = await qrcode.toBuffer(uri, { type: 'avif', margin: 2 })
+const src = await qrcode.toDataURL(uri, { type: 'svg' })             // <img src>
+```
+
+| Option | Default | |
+|---|---|---|
+| `errorCorrectionLevel` | `M` | `L`, `M`, `Q`, `H` (or `low` … `high`): about 7 to 30 % of the symbol may be lost |
+| `version` | smallest that fits | 1 to 40 |
+| `margin` | `4` | quiet zone, in modules — what scanners expect |
+| `scale` | `4` | pixels per module |
+| `width` | — | side in pixels; wins over `scale` once it holds the symbol |
+| `color.dark` / `color.light` | `#000000ff` / `#ffffffff` | hex, `#rgb` to `#rrggbbaa`; a transparent light colour drops the background |
+| `type` | `svg` (`toString`), `png` | `png`, `webp`, `avif`, `svg`, or their MIME types |
+| `rendererOpts.quality` | `100` | WebP and AVIF; 100 is lossless for WebP — lossy edges make scanners hesitate |
+
+The SVG is upstream's: one `path` of horizontal runs, a `viewBox`, and
+`shape-rendering="crispEdges"`, so markup styled for one works with the other.
+
+Everything may come from a request, so everything is bounded: text beyond what
+a QR code holds at the chosen level is `E_PRISM_QR_TOO_LONG`; an image over
+4096 pixels a side, a margin over 64, a version outside 1–40, a colour that is
+not strict hex or a dark colour with less than 3:1 contrast against the light
+one is `E_PRISM_INVALID_QR_OPTION` — where upstream falls back
+quietly. The SVG is written from the parsed colour channels, never from the
+string given, so a colour cannot inject markup.
+
+`toString` writes SVG only (upstream's text-art renderers are for a terminal),
+and WebP and AVIF are available on the server, which upstream only offers in a
+browser.
+
+### Styling
+
+The options of `qr-code-styling`, in its names, change how the code is drawn:
+module shapes, the finder patterns, colours or gradients, a rounded background
+and a logo. The same options style the SVG and the images, which are that SVG
+rendered.
+
+```ts
+const svg = await qrcode.toString(url, {
+  dotsOptions: {
+    type: 'classy-rounded',
+    gradient: {
+      type: 'linear',
+      rotation: Math.PI / 4,
+      colorStops: [
+        { offset: 0, color: '#1e3a8a' },
+        { offset: 1, color: '#7c3aed' },
+      ],
+    },
+  },
+  cornersSquareOptions: { type: 'extra-rounded', color: '#111827' },
+  cornersDotOptions: { type: 'dot', color: '#be123c' },
+  backgroundOptions: { round: 0.15, color: '#f8fafc' },
+  image: await readFile(app.makePath('resources/logo.png')),
+})
+```
+
+| Option | Values |
+|---|---|
+| `dotsOptions.type` | `square` (default), `dots`, `rounded`, `extra-rounded`, `classy`, `classy-rounded` — the rounded shapes follow their neighbours |
+| `cornersSquareOptions.type` | the finders' 7 × 7 frames: `square`, `dot`, `extra-rounded`, or a module shape; unset, drawn as the modules are |
+| `cornersDotOptions.type` | the finders' 3 × 3 centres: `square`, `dot`, or a module shape other than `dots` |
+| `….color` | hex; the frames default to the modules' colour, the centres to the frames' |
+| `….gradient` | `{ type: 'linear' \| 'radial', rotation, colorStops }`, 1 to 16 stops; wins over `color` |
+| `backgroundOptions` | `color` (default `color.light`), `gradient`, `round` from 0 (square) to 1 (a circle) |
+| `image` | the logo's bytes — PNG, JPEG or WebP |
+| `imageOptions.imageSize` | share of the error correction the logo may cover, above 0 and up to `0.5`; default `0.4` |
+| `imageOptions.margin` | space around the logo, in modules; default `0` |
+| `imageOptions.hideBackgroundDots` | leave out the modules under the logo; default `true` |
+
+Lengths stay in modules, so `margin`, `scale` and `width` mean what they mean
+above. The logo is an upload like any other: it goes through Prism's probe and
+limits, is decoded, and is embedded re-encoded as PNG — never fetched from a
+URL. With a logo the error correction defaults to `H`, and the area it hides is
+sized from the level's recovery capacity, as `qr-code-styling` does.
+
+A code must still scan, so what would not is refused with
+`E_PRISM_INVALID_QR_OPTION`: an `imageSize` over 0.5, a colour or gradient stop
+with less than 3:1 contrast against the background (WCAG's figure for graphics;
+a transparent background is not judged), and finder centres drawn as nine
+separate `dots`, which ZXing — the decoder behind most phone scanners — does not
+find. With `dots` modules and no `cornersDotOptions.type`, the centres are one
+round `dot` instead. Every style is read back by ZXing in the tests. Not
+carried over: `shape: 'circle'`, `roundSize` and the canvas options.
 
 ## Serving images to a page
 
@@ -378,6 +475,8 @@ when its output format is switched.
 | `E_PRISM_INVALID_GEOMETRY` | a crop outside the image, a rotation off the right angles |
 | `E_PRISM_INVALID_FONT` | the watermark font could not be read |
 | `E_PRISM_INVALID_OPERATION` | an operation missing a field it needs |
+| `E_PRISM_QR_TOO_LONG` | more text than a QR code holds at the chosen level and version |
+| `E_PRISM_INVALID_QR_OPTION` | a QR option out of range, a colour that is not strict hex, or a style that would not scan |
 | `E_PRISM_NATIVE_REQUIRED` | the Rust engine is not installed for this platform |
 
 ## The engine
