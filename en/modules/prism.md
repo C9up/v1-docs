@@ -259,6 +259,70 @@ find. With `dots` modules and no `cornersDotOptions.type`, the centres are one
 round `dot` instead. Every style is read back by ZXing in the tests. Not
 carried over: `shape: 'circle'`, `roundSize` and the canvas options.
 
+### Swiss QR-bills
+
+The payment slip at the foot of a Swiss invoice — receipt, payment part and the
+QR code with its Swiss cross — under `@c9up/prism/swissqrbill/*`, with the
+shape of the `swissqrbill` package: `pdf`, `svg`, `utils`, `errors` and
+`types`.
+
+```ts
+import PDFDocument from 'pdfkit'
+import { SwissQRBill } from '@c9up/prism/swissqrbill/pdf'
+import { SwissQRBill as SwissQRBillSVG } from '@c9up/prism/swissqrbill/svg'
+import { ValidationError } from '@c9up/prism/swissqrbill/errors'
+import { calculateQRReferenceChecksum, isQRIBAN } from '@c9up/prism/swissqrbill/utils'
+
+const data = {
+  amount: 1199.95,
+  currency: 'CHF',
+  creditor: {
+    account: 'CH44 3199 9123 0008 8901 2',
+    name: 'Robert Schneider AG',
+    address: 'Rue du Lac',
+    buildingNumber: 1268,
+    zip: 2501,
+    city: 'Biel',
+    country: 'CH',
+  },
+  reference: '210000000003139471430009017',
+}
+
+const doc = new PDFDocument({ size: 'A4' })
+new SwissQRBill(data, { language: 'FR' }).attachTo(doc)  // vector, into your document
+doc.end()
+
+const svg = new SwissQRBillSVG(data).toString()
+```
+
+The constructor validates: wrong data throws a `ValidationError` before
+anything is drawn. `attachTo(doc)` draws the slip at the foot of the current
+page when it fits, on a new page otherwise. It draws vector content (text,
+lines and the QR code) into the PDFKit document the application owns, so the
+text stays selectable. PDFKit is the application's dependency, not Prism's.
+`SwissQRCode` draws the QR code alone, and `utils` holds the IBAN, reference
+and amount helpers.
+
+The QR code is encoded by the engine with the mask the Swiss reference encoder
+picks, so it is the same symbol module for module. The tests compare the
+output with `swissqrbill` 4.4.2 itself: the SVG byte for byte, and the PDFKit
+calls in order. A `ValidationError` carries the package's own codes and
+messages (`CREDITOR_ACCOUNT_IS_INVALID`, `QR_REFERENCE_IS_INVALID`…), so code
+that branched on `error.code` keeps working.
+
+Where Prism does more:
+
+- data too long for the QR code is refused by the constructor with
+  `E_PRISM_QR_TOO_LONG`, not halfway through drawing;
+- SVG attributes are escaped;
+- a character outside the font width tables no longer breaks an SVG address
+  one word per line;
+- a creditor reference (`RF…`) is checked without regard to case, as
+  ISO 11649 reads.
+
+The SVG classes return a string (no DOM element), and `Table` is not carried
+over.
+
 ## Serving images to a page
 
 A page that offers a dozen widths of every image needs those widths to exist. The `serve` block mounts one route that produces them on demand:

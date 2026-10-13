@@ -268,6 +268,70 @@ des lecteurs sur téléphone — ne trouve pas. Avec des modules `dots` et sans
 relu par ZXing dans les tests. Non repris : `shape: 'circle'`, `roundSize` et
 les options de canvas.
 
+### Bulletins QR suisses
+
+Le bulletin de versement au pied d'une facture suisse — récépissé, section
+paiement et QR code avec sa croix suisse — sous `@c9up/prism/swissqrbill/*`,
+avec la forme du paquet `swissqrbill` : `pdf`, `svg`, `utils`, `errors` et
+`types`.
+
+```ts
+import PDFDocument from 'pdfkit'
+import { SwissQRBill } from '@c9up/prism/swissqrbill/pdf'
+import { SwissQRBill as SwissQRBillSVG } from '@c9up/prism/swissqrbill/svg'
+import { ValidationError } from '@c9up/prism/swissqrbill/errors'
+import { calculateQRReferenceChecksum, isQRIBAN } from '@c9up/prism/swissqrbill/utils'
+
+const data = {
+  amount: 1199.95,
+  currency: 'CHF',
+  creditor: {
+    account: 'CH44 3199 9123 0008 8901 2',
+    name: 'Robert Schneider AG',
+    address: 'Rue du Lac',
+    buildingNumber: 1268,
+    zip: 2501,
+    city: 'Biel',
+    country: 'CH',
+  },
+  reference: '210000000003139471430009017',
+}
+
+const doc = new PDFDocument({ size: 'A4' })
+new SwissQRBill(data, { language: 'FR' }).attachTo(doc)  // vectoriel, dans votre document
+doc.end()
+
+const svg = new SwissQRBillSVG(data).toString()
+```
+
+Le constructeur valide : des données fausses lèvent une `ValidationError`
+avant que rien ne soit dessiné. `attachTo(doc)` dessine le bulletin au pied de
+la page courante s'il y tient, sur une nouvelle page sinon. Il dessine du
+contenu vectoriel (texte, traits et QR code) dans le document PDFKit de
+l'application, donc le texte reste sélectionnable. PDFKit est une dépendance de
+l'application, pas de Prism. `SwissQRCode` dessine le QR code seul, et `utils`
+regroupe les fonctions d'IBAN, de référence et de montant.
+
+Le moteur encode le QR code avec le masque que choisit l'encodeur de référence
+suisse : c'est le même symbole, module pour module. Les tests comparent la
+sortie à `swissqrbill` 4.4.2 lui-même : le SVG octet pour octet, et les appels
+PDFKit dans leur ordre. Une `ValidationError` porte les codes et messages du
+paquet (`CREDITOR_ACCOUNT_IS_INVALID`, `QR_REFERENCE_IS_INVALID`…), donc un
+code qui testait `error.code` continue de fonctionner.
+
+Là où Prism en fait plus :
+
+- des données trop longues pour le QR code sont refusées par le constructeur
+  avec `E_PRISM_QR_TOO_LONG`, pas au milieu du dessin ;
+- les attributs du SVG sont échappés ;
+- un caractère absent des tables de largeur de la police ne coupe plus une
+  adresse SVG à un mot par ligne ;
+- une référence de créancier (`RF…`) est vérifiée sans tenir compte de la
+  casse, comme le prévoit ISO 11649.
+
+Les classes SVG rendent une chaîne (pas d'élément DOM), et `Table` n'est pas
+repris.
+
 ## Servir des images à une page
 
 Une page qui propose une douzaine de largeurs par image a besoin que ces largeurs existent. Le bloc `serve` monte une route qui les produit à la demande :
