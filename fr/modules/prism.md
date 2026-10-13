@@ -314,8 +314,8 @@ regroupe les fonctions d'IBAN, de référence et de montant.
 
 Le moteur encode le QR code avec le masque que choisit l'encodeur de référence
 suisse : c'est le même symbole, module pour module. Les tests comparent la
-sortie à `swissqrbill` 4.4.2 lui-même : le SVG octet pour octet, et les appels
-PDFKit dans leur ordre. Une `ValidationError` porte les codes et messages du
+sortie à `swissqrbill` 4.4.2 lui-même : le SVG octet pour octet hors du QR
+code, le QR code module pour module, et les appels PDFKit dans leur ordre. Une `ValidationError` porte les codes et messages du
 paquet (`CREDITOR_ACCOUNT_IS_INVALID`, `QR_REFERENCE_IS_INVALID`…), donc un
 code qui testait `error.code` continue de fonctionner.
 
@@ -323,6 +323,8 @@ Là où Prism en fait plus :
 
 - des données trop longues pour le QR code sont refusées par le constructeur
   avec `E_PRISM_QR_TOO_LONG`, pas au milieu du dessin ;
+- le SVG dessine le QR code en un seul tracé plutôt qu'un rectangle par
+  module : le bulletin entier pèse environ 12 Ko au lieu de 210 ;
 - les attributs du SVG sont échappés ;
 - un caractère absent des tables de largeur de la police ne coupe plus une
   adresse SVG à un mot par ligne ;

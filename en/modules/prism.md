@@ -305,8 +305,8 @@ and amount helpers.
 
 The QR code is encoded by the engine with the mask the Swiss reference encoder
 picks, so it is the same symbol module for module. The tests compare the
-output with `swissqrbill` 4.4.2 itself: the SVG byte for byte, and the PDFKit
-calls in order. A `ValidationError` carries the package's own codes and
+output with `swissqrbill` 4.4.2 itself: the SVG byte for byte outside the QR
+code, the QR code module for module, and the PDFKit calls in order. A `ValidationError` carries the package's own codes and
 messages (`CREDITOR_ACCOUNT_IS_INVALID`, `QR_REFERENCE_IS_INVALID`…), so code
 that branched on `error.code` keeps working.
 
@@ -314,6 +314,8 @@ Where Prism does more:
 
 - data too long for the QR code is refused by the constructor with
   `E_PRISM_QR_TOO_LONG`, not halfway through drawing;
+- the SVG draws the QR code as one path rather than a rectangle per module:
+  the whole slip weighs about 12 KB instead of 210;
 - SVG attributes are escaped;
 - a character outside the font width tables no longer breaks an SVG address
   one word per line;
