@@ -168,7 +168,7 @@ refuses rather than converts:
   `javascript:` and `data:` are refused;
 - a price is a number or decimal digits with a `.`: `'CHF 12'`, `'1,234.50'`
   and `-1` are refused;
-- a currency is a three-letter ISO 4217 code;
+- a currency is an ISO 4217 code, from the maintenance agency's list;
 - a date is ISO 8601 and exists; a date-time without a time zone is a warning.
 
 A `speakable` section needs its CSS selector or XPath, and paywalled content (`isAccessibleForFree: false`) a `hasPart` naming its section. Not covered: FAQ and How-to, which Google no longer shows; fact checks (ClaimReview), whose support Google is phasing out; and book actions, which come from a feed of onboarded providers.
@@ -198,7 +198,8 @@ request's nonce, escaped:
 | `E_EPHEMERIS_INVALID_NODE` | a node that is not a plain object, or has no `@type` |
 | `E_EPHEMERIS_INVALID_VALUE` | a value JSON cannot hold faithfully |
 | `E_EPHEMERIS_UNSAFE_KEY` | a `__proto__`, `constructor` or `prototype` key |
-| `E_EPHEMERIS_CYCLE` | data that contains itself |
+| `E_EPHEMERIS_SLOT_TAKEN` | a second node with another `@id` put in a filled graph slot |
+| `E_EPHEMERIS_CYCLE` | data that contains itself — in a helper, the graph or the serializer |
 | `E_EPHEMERIS_TOO_DEEP` | data nested more than 64 levels deep |
 | `E_EPHEMERIS_TOO_LONG` | text over 10,000 characters |
 | `E_EPHEMERIS_TOO_MANY` | a breadcrumb of more than 32 items |

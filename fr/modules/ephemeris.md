@@ -176,7 +176,7 @@ refuse plutôt que de convertir :
   `javascript:` et `data:` sont refusées ;
 - un prix est un nombre, ou des chiffres avec un point décimal : `'CHF 12'`,
   `'1,234.50'` et `-1` sont refusés ;
-- une devise est un code ISO 4217 de trois lettres ;
+- une devise est un code ISO 4217, d'après la liste de l'agence de maintenance ;
 - une date est au format ISO 8601 et existe ; une date-heure sans fuseau est un
   avertissement.
 
@@ -208,7 +208,8 @@ le nonce de la requête, échappé :
 | `E_EPHEMERIS_INVALID_NODE` | un nœud qui n'est pas un objet simple, ou sans `@type` |
 | `E_EPHEMERIS_INVALID_VALUE` | une valeur que JSON ne peut pas tenir fidèlement |
 | `E_EPHEMERIS_UNSAFE_KEY` | une clé `__proto__`, `constructor` ou `prototype` |
-| `E_EPHEMERIS_CYCLE` | des données qui se contiennent elles-mêmes |
+| `E_EPHEMERIS_SLOT_TAKEN` | un second nœud, d'un autre `@id`, mis dans un emplacement déjà rempli |
+| `E_EPHEMERIS_CYCLE` | des données qui se contiennent elles-mêmes — dans une fonction d'aide, le graphe ou le sérialiseur |
 | `E_EPHEMERIS_TOO_DEEP` | une imbrication de plus de 64 niveaux |
 | `E_EPHEMERIS_TOO_LONG` | un texte de plus de 10 000 caractères |
 | `E_EPHEMERIS_TOO_MANY` | un fil d'Ariane de plus de 32 éléments |
