@@ -693,6 +693,31 @@ export default defineConfig({
 
 Les valeurs par route fusionnent par-dessus ces defauts.
 
+### Données structurées (JSON-LD)
+
+`jsonLd` décrit la page aux moteurs de recherche en JSON-LD schema.org : un
+nœud, plusieurs, ou un document `{ "@context", "@graph" }` entier — ce que
+construit `@c9up/ephemeris`, ou tout objet de cette forme.
+Photon ne dépend que de la forme.
+
+```ts
+import { product, SchemaGraph } from '@c9up/ephemeris'
+
+ctx.photon.meta({
+  jsonLd: new SchemaGraph({ url: request.completeUrl() })
+    .mainEntity(product({ '@type': 'Product', name: anvil.name, offers }))
+    .toJsonLd(),
+})
+```
+
+Il est écrit dans `<head>` en un seul `<script type="application/ld+json">`,
+avec le nonce CSP de la requête, et remplacé à chaque navigation SPA — une page
+qui n'en a pas ne garde rien de la précédente. `<`, `>`, `&`, U+2028 et U+2029
+sont écrits en échappements `\u`, donc aucune valeur ne peut fermer le script.
+Les couches fusionnent par `@id` : `defaultMeta` peut déclarer l'identité du
+site et une page la compléter — les types s'additionnent et ce que la page
+fixe l'emporte ; les nœuds sans `@id` suivent dans l'ordre.
+
 ### Precedence
 
 Couches, de la plus basse a la plus haute :

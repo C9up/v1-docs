@@ -685,6 +685,31 @@ export default defineConfig({
 
 Per-route values merge on top of these defaults.
 
+### Structured data (JSON-LD)
+
+`jsonLd` describes the page to search engines in schema.org JSON-LD: one node,
+several, or a whole `{ "@context", "@graph" }` document — what
+`@c9up/ephemeris` builds, or any plain object of that shape.
+Photon depends on the shape only.
+
+```ts
+import { product, SchemaGraph } from '@c9up/ephemeris'
+
+ctx.photon.meta({
+  jsonLd: new SchemaGraph({ url: request.completeUrl() })
+    .mainEntity(product({ '@type': 'Product', name: anvil.name, offers }))
+    .toJsonLd(),
+})
+```
+
+It is written in `<head>` as one `<script type="application/ld+json">`, with
+the request's CSP nonce, and replaced on every SPA navigation — a page without
+any leaves none of the previous page's behind. `<`, `>`, `&`, U+2028 and
+U+2029 are written as `\u` escapes, so no value can end the script. Layers
+merge by `@id`: `defaultMeta` can declare the site's identity and a page add
+to it — the types are united and what the page sets wins; nodes without an
+`@id` follow in order.
+
 ### Precedence
 
 Layers, lowest to highest:
