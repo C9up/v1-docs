@@ -369,6 +369,7 @@ The module-level `aurora.render(ctx, name, props)` (the agnostic core) still wor
 | `lang` | `'en'` | `<html lang="…">` value |
 | `rootId` | `'aurora-root'` | id of the `<div>` that wraps the SSR body — must match what your client side expects |
 | `headExtra` | `''` | Raw HTML spliced into `<head>` after the importmap. Use for `<title>`, meta tags, stylesheets |
+| `jsonLd` | — | The page's structured data: a schema.org node, a list or a `{ "@context", "@graph" }` document (what `@c9up/ephemeris` builds, or any plain object). Written in `<head>` as `<script type="application/ld+json">` with the request's nonce, escaped so no value can end it — prefer it to building the tag into `headExtra`, which is written raw |
 | `importmap` | `{ "@c9up/aurora": "/__assets/aurora/index.js" }` | Extra entries to merge into the page's importmap |
 
 ### Why plain JS (and not TS)?

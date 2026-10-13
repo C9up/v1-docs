@@ -204,7 +204,7 @@ Dans un layout, un `@section('name')…@endsection` est un **yield** avec un con
 
 Deux couches de fonctions sont toujours en portée d'expression :
 
-- **Globals du cœur** — casse de chaînes (`camelCase`, `pascalCase`, `snakeCase`, `dashCase`, `titleCase`), texte (`truncate`, `excerpt`, `nl2br`), `pluralize`, formatage (`prettyBytes`, `prettyMs`, `ordinal`), `inspect`, et les helpers `html` (`html.attrs`, `html.classNames`, `html.safe`). Ils calquent les globals intégrés d'Edge.
+- **Globals du cœur** — casse de chaînes (`camelCase`, `pascalCase`, `snakeCase`, `dashCase`, `titleCase`), texte (`truncate`, `excerpt`, `nl2br`), `pluralize`, formatage (`prettyBytes`, `prettyMs`, `ordinal`), `inspect`, et les helpers `html` (`html.attrs`, `html.classNames`, `html.safe`). Ils calquent les globals intégrés d'Edge. Inker ajoute `html.jsonLd(data, cspNonce())`, qui écrit les données structurées d'une page en `<script type="application/ld+json">` — la valeur échappée comme le fait `js.stringify`, pour qu'aucune valeur ne ferme la balise, et le nonce sur la balise.
 - **Helpers enregistrés** — passés au constructeur (option `helpers`) ou câblés par le provider : `t()` (i18n), `route`/`urlFor` et `signedUrlFor`, `asset`, `csrfField` / `csrfMeta`, etc. Un nom enregistré surcharge un global du cœur de même nom.
 
 ```ts

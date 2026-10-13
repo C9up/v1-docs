@@ -204,7 +204,7 @@ Inside a component:
 
 Two function layers are always in expression scope:
 
-- **Core globals** — string casing (`camelCase`, `pascalCase`, `snakeCase`, `dashCase`, `titleCase`), text (`truncate`, `excerpt`, `nl2br`), `pluralize`, formatting (`prettyBytes`, `prettyMs`, `ordinal`), `inspect`, and the `html` helpers (`html.attrs`, `html.classNames`, `html.safe`). These mirror Edge's built-in globals.
+- **Core globals** — string casing (`camelCase`, `pascalCase`, `snakeCase`, `dashCase`, `titleCase`), text (`truncate`, `excerpt`, `nl2br`), `pluralize`, formatting (`prettyBytes`, `prettyMs`, `ordinal`), `inspect`, and the `html` helpers (`html.attrs`, `html.classNames`, `html.safe`). These mirror Edge's built-in globals. Inker adds `html.jsonLd(data, cspNonce())`, which writes a page's structured data as `<script type="application/ld+json">` — the value escaped as `js.stringify` does, so no value can end the script, and the nonce on the tag.
 - **Registered helpers** — passed to the constructor (`helpers` option) or wired by the provider: `t()` (i18n), `route`/`urlFor` and `signedUrlFor`, `asset`, `csrfField` / `csrfMeta`, etc. A registered name overrides a core global of the same name.
 
 ```ts
