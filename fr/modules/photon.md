@@ -380,6 +380,54 @@ rien pour cela. Activé sans fichier à `ssr.entrypoint`, chaque rendu serveur
 npm install -D vite
 ```
 
+## En-têtes de sécurité et CSP
+
+Les en-têtes de protection appartiennent à [Blackhole](/fr/modules/blackhole) :
+la Content-Security-Policy (appliquée ou en observation), `X-Frame-Options` et
+`X-Content-Type-Options`. Quand la réponse porte déjà l'un d'eux, une page
+rendue par Photon n'ajoute aucun des siens : la politique, son nonce, son
+`report-to` et un `DENY` arrivent au navigateur tels qu'ils sont configurés — et
+un en-tête que Blackhole doit omettre reste omis.
+
+Une application sans couche de sécurité garde le jeu minimal de Photon :
+`default-src 'self'; script-src 'self'; object-src 'none'` (avec l'origine de
+Vite en développement), `X-Frame-Options: SAMEORIGIN` et `nosniff`.
+
+Quand la requête a un nonce (`response.nonce`, que Blackhole fournit pour une
+politique qui nomme `@nonce`, ou `cspNonce` dans le store de la requête), Photon
+l'écrit sur chaque `<script>` de la page : en production, une politique stricte
+fonctionne telle quelle :
+
+```ts
+// config/blackhole.ts
+export default defineConfig({
+  securityHeaders: {
+    csp: { directives: { 'script-src': ['@nonce', "'strict-dynamic'"] } },
+  },
+})
+```
+
+En développement, les scripts viennent du serveur Vite, une autre origine. Avec
+un nonce et `'strict-dynamic'`, ils se chargent grâce au nonce ; avec une
+politique qui liste des origines, ajoutez celle de Vite à `script-src`. Dans les
+deux cas, le rechargement à chaud ouvre un WebSocket vers Vite, que
+`connect-src` (ou `default-src`) doit autoriser — en développement seulement :
+
+```ts
+const vite = app.inDev ? ['http://localhost:5173', 'ws://localhost:5173'] : []
+
+export default defineConfig({
+  securityHeaders: {
+    csp: {
+      directives: {
+        'script-src': ["'self'", ...vite],
+        'connect-src': ["'self'", ...vite],
+      },
+    },
+  },
+})
+```
+
 ## Hydratation client
 
 `createPhotonApp` (plus haut) est l'entrée client d'une app. En dessous,

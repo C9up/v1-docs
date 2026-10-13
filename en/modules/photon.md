@@ -376,6 +376,53 @@ fails with `E_PHOTON_SSR_LOAD_FAILED` rather than quietly serving the shell.
 npm install -D vite
 ```
 
+## Security headers and CSP
+
+The protective headers belong to [Blackhole](/en/modules/blackhole): the
+Content-Security-Policy (enforced or report-only), `X-Frame-Options` and
+`X-Content-Type-Options`. When the response already carries any of them, a
+page Photon renders adds none of its own, so the policy, its nonce, its
+`report-to` and a `DENY` reach the browser as configured — and a header
+Blackhole was told to leave out stays out.
+
+An application with no security layer still gets Photon's minimal set:
+`default-src 'self'; script-src 'self'; object-src 'none'` (with the Vite
+origin in development), `X-Frame-Options: SAMEORIGIN` and `nosniff`.
+
+When the request has a nonce (`response.nonce`, which Blackhole seeds for a
+policy naming `@nonce`, or `cspNonce` in the request store), Photon writes it
+on every `<script>` of the page, so a strict policy works as is in production:
+
+```ts
+// config/blackhole.ts
+export default defineConfig({
+  securityHeaders: {
+    csp: { directives: { 'script-src': ['@nonce', "'strict-dynamic'"] } },
+  },
+})
+```
+
+In development the scripts come from the Vite server, another origin. Under a
+nonce and `'strict-dynamic'` they load with the nonce; under a policy that
+lists origins, add Vite's to `script-src`. Either way, hot reload opens a
+WebSocket to Vite, which `connect-src` (or `default-src`) must allow — in
+development only:
+
+```ts
+const vite = app.inDev ? ['http://localhost:5173', 'ws://localhost:5173'] : []
+
+export default defineConfig({
+  securityHeaders: {
+    csp: {
+      directives: {
+        'script-src': ["'self'", ...vite],
+        'connect-src': ["'self'", ...vite],
+      },
+    },
+  },
+})
+```
+
 ## Client Hydration
 
 `createPhotonApp` (above) is the client entry of an app. Beneath it,
