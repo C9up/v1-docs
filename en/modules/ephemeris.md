@@ -128,6 +128,10 @@ it, read from Search Central — each rule carries its page and the page's date:
 | `product`, `merchantListing` | product snippet, merchant listing — with their offers, reviews and rating |
 | `review`, `aggregateRating` | review snippet |
 | `event`, `jobPosting`, `recipe`, `video`, `softwareApplication`, `course` | their rich results |
+| `itemList`, `movie` | carousels |
+| `dataset`, `discussionForumPosting`, `qaPage`, `quiz` | datasets, forums (comments at every depth), Q&A pages, education Q&A |
+| `employerAggregateRating`, `imageObject`, `vacationRental`, `productGroup`, `mathSolver` | employer ratings, image license metadata, vacation rentals, product variants, math solvers |
+| `merchantReturnPolicy`, `shippingService`, `memberProgram` | return, shipping and loyalty policies — also checked where an organization or a merchant's offer carries them |
 
 ```ts
 import { breadcrumb, localBusiness, RequirementError, type RequirementWarning } from '@c9up/ephemeris'
@@ -167,7 +171,7 @@ refuses rather than converts:
 - a currency is a three-letter ISO 4217 code;
 - a date is ISO 8601 and exists; a date-time without a time zone is a warning.
 
-FAQ and How-to are not covered: Google no longer shows them.
+A `speakable` section needs its CSS selector or XPath, and paywalled content (`isAccessibleForFree: false`) a `hasPart` naming its section. Not covered: FAQ and How-to, which Google no longer shows; fact checks (ClaimReview), whose support Google is phasing out; and book actions, which come from a feed of onboarded providers.
 
 ## With Photon, Aurora and Inker
 

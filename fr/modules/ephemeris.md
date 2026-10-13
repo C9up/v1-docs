@@ -135,6 +135,10 @@ de cette page :
 | `product`, `merchantListing` | extrait produit, fiche marchand — avec leurs offres, avis et note |
 | `review`, `aggregateRating` | extrait d'avis |
 | `event`, `jobPosting`, `recipe`, `video`, `softwareApplication`, `course` | leurs résultats enrichis |
+| `itemList`, `movie` | carrousels |
+| `dataset`, `discussionForumPosting`, `qaPage`, `quiz` | jeux de données, forums (commentaires à toute profondeur), pages de questions-réponses, Q&A éducatives |
+| `employerAggregateRating`, `imageObject`, `vacationRental`, `productGroup`, `mathSolver` | notes d'employeur, licences d'image, locations de vacances, variantes de produit, solveurs mathématiques |
+| `merchantReturnPolicy`, `shippingService`, `memberProgram` | politiques de retour, de livraison et de fidélité — vérifiées aussi là où une organisation ou une offre marchande les porte |
 
 ```ts
 import { breadcrumb, localBusiness, RequirementError, type RequirementWarning } from '@c9up/ephemeris'
@@ -176,7 +180,7 @@ refuse plutôt que de convertir :
 - une date est au format ISO 8601 et existe ; une date-heure sans fuseau est un
   avertissement.
 
-FAQ et HowTo ne sont pas couverts : Google ne les affiche plus.
+Une section `speakable` doit donner son sélecteur CSS ou son XPath, et un contenu payant (`isAccessibleForFree: false`) un `hasPart` qui nomme sa section. Non couverts : FAQ et HowTo, que Google n'affiche plus ; les vérifications de faits (ClaimReview), dont Google retire la prise en charge ; et les actions de livre, qui passent par un flux de fournisseurs agréés.
 
 ## Avec Photon, Aurora et Inker
 
