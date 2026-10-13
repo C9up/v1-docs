@@ -15,6 +15,7 @@ Cette page liste l'etat des modules de l'ecosysteme.
 | Spectrum | `@c9up/spectrum` | Présent | Logs |
 | Lumen | `@c9up/lumen` | Présent | Sortie terminal — couleurs, logger, tables, boîtes, rapports de tâches ; mode raw pour les assertions |
 | Parsec | `@c9up/parsec` | Présent | Métriques — compteurs/jauges/histogrammes, exporteur Prometheus sans dépendance, meter OpenTelemetry optionnel, middleware HTTP |
+| Ephemeris | `@c9up/ephemeris` | Présent | Données structurées — JSON-LD schema.org : tout le vocabulaire typé, un `@graph` d'entités reliées, une balise script incassable, les exigences de Google pour les résultats enrichis vérifiées |
 | Photon | `@c9up/photon` | Présent | Frontend/SSR — hydratation client, router SPA, injection SEO dans `<head>` |
 | Prism | `@c9up/prism` | Présent | Images — redimensionner, convertir, recadrer, composer, filigraner ; moteur Rust avec gardes d'upload |
 | Aurora | `@c9up/aurora` | Présent | Runtime UI réactif — DOM via tagged-templates + signaux + SSR + dist isomorphe (pas de bundler côté app) |

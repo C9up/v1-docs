@@ -15,6 +15,7 @@ This page lists the current status of ecosystem modules.
 | Spectrum | `@c9up/spectrum` | Present | Logging |
 | Lumen | `@c9up/lumen` | Present | Terminal output — colours, logger, tables, boxes, task reports; raw mode for assertions |
 | Parsec | `@c9up/parsec` | Present | Metrics — counters/gauges/histograms, zero-dependency Prometheus exporter, optional OpenTelemetry meter, HTTP middleware |
+| Ephemeris | `@c9up/ephemeris` | Present | Structured data — schema.org JSON-LD: the whole vocabulary typed, an `@graph` of linked entities, an unbreakable script tag, Google's rich-result requirements checked |
 | Photon | `@c9up/photon` | Present | Frontend/SSR — client hydration, SPA router, SEO injection into `<head>` |
 | Prism | `@c9up/prism` | Present | Images — resize, convert, crop, composite, watermark; Rust engine with upload guards |
 | Aurora | `@c9up/aurora` | Present | Reactive UI runtime — tagged-template DOM + signals + SSR + isomorphic dist (no app-side bundler) |
