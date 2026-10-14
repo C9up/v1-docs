@@ -4,7 +4,8 @@ Status: **Present (TS + Rust N-API)**.
 
 - Package: `@c9up/vellum`
 - Goal: convert PDF pages to images, read what a document holds, and reshape it
-  — merge, split, rotate, stamp.
+  — merge, split, rotate, stamp. It also writes documents from nothing:
+  [Generating documents](./vellum-documents).
 
 The work happens in Rust behind N-API, because PDF has no adequate JavaScript
 implementation. This is a capability the platform lacks, not an optimisation of

@@ -4,7 +4,8 @@ Statut : **Présent (TS + Rust N-API)**.
 
 - Paquet : `@c9up/vellum`
 - Objectif : convertir les pages d'un PDF en images, lire ce que contient un
-  document et le remanier — fusionner, découper, pivoter, tamponner.
+  document et le remanier — fusionner, découper, pivoter, tamponner. Il écrit
+  aussi des documents à partir de rien : [Générer des documents](./vellum-documents).
 
 Le travail se fait en Rust derrière N-API, parce que le PDF n'a pas
 d'implémentation JavaScript satisfaisante. C'est une capacité qui manque à la

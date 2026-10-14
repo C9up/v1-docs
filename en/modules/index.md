@@ -39,7 +39,7 @@ This page lists the current status of ecosystem modules.
 | Rover | `@c9up/rover` | Present | Mail transport — SMTP, log, pluggable transports |
 | Transit | `@c9up/transit` | Present | Federated sign-in — SAML 2.0, LDAP, generic OpenID Connect, Sign in with Apple, OAuth1/OAuth2 and the providers that speak them |
 | Visa | `@c9up/visa` | Present | OAuth 2.1 authorization server — issues tokens to other applications; PKCE required, refresh rotation, revocation, introspection |
-| Vellum | `@c9up/vellum` | Present | PDF — render to images, read, merge/split/rotate, stamp, sign and verify |
+| Vellum | `@c9up/vellum` | Present | PDF — generate documents, render to images, read, merge/split/rotate, stamp, sign and verify |
 | Nebula | `@c9up/nebula` | Present | Component set — shadcn/ui ported to Aurora, organised as atomic design, copy-the-source |
 | Eon | `@c9up/eon` | Present | Time series — TDengine connection, schemaless writes, queries |
 | Ream MCP | `@c9up/ream-mcp` | Present | Model Context Protocol server — grounded docs, introspection, scaffolding for agents |
