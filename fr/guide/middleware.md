@@ -70,6 +70,10 @@ router.post('/orders', handler).middleware('auth', 'throttle')
 
 ## Ordre d'exécution (Pattern oignon)
 
+::: warning Les appels gRPC contournent le pipeline
+Un appel gRPC servi par [Neutrino](/fr/modules/neutrino) ne passe par aucun middleware, ni serveur, ni routeur, ni nommé. Protégez-le avec les intercepteurs de Neutrino.
+:::
+
 ```
 Requête entrante
   → Middleware global 1 (avant)

@@ -135,6 +135,10 @@ router
 
 ## Execution Order
 
+::: warning gRPC calls skip the pipeline
+A gRPC call served by [Neutrino](/en/modules/neutrino) never goes through server, router or named middleware. Protect it with Neutrino's interceptors.
+:::
+
 For a matched route the pipeline executes in this fixed order:
 
 ```
