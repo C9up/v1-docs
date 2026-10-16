@@ -317,6 +317,19 @@ built. A built application run with `NODE_ENV=development` shows the toolbar;
 with `NODE_ENV` unset or anything else, the response is byte-for-byte what the
 handler produced.
 
+### Running the build output
+
+The build output is an application root of its own, and that is the folder a
+deployment ships. Standing in it, `ream start` runs its `bin/server.js`, and any
+other command goes to its compiled `bin/console.js` through plain `node` — no
+TypeScript loader, which a production install does not have:
+
+```bash
+cd dist
+ream start              # node bin/server.js
+ream migration:status   # node bin/console.js migration:status
+```
+
 `ream test` reads its suites from the rc file and hands them to the runner, so
 the suite names and their globs live in one place rather than in a script. A new
 `api` or `web` project already has them: a `unit` suite and a `functional` one,

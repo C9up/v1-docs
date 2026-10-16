@@ -323,6 +323,20 @@ process, pas la façon dont il a été buildé. Une application buildée lancée
 `NODE_ENV=development` affiche la barre ; avec `NODE_ENV` absent ou autre chose,
 la réponse est octet pour octet ce que le handler a produit.
 
+### Lancer la sortie du build
+
+La sortie du build est une racine d'application à part entière, et c'est ce
+dossier qu'un déploiement embarque. Depuis ce dossier, `ream start` lance son
+`bin/server.js`, et toute autre commande passe par son `bin/console.js` compilé,
+avec `node` seul, sans le chargeur TypeScript qu'une installation de production
+n'a pas :
+
+```bash
+cd dist
+ream start              # node bin/server.js
+ream migration:status   # node bin/console.js migration:status
+```
+
 `ream test` lit ses suites dans le fichier rc et les passe au runner : les noms
 de suites et leurs globs vivent donc à un seul endroit, pas dans un script. Un
 projet `api` ou `web` frais les a déjà : une suite `unit`, une suite
