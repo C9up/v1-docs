@@ -80,6 +80,13 @@ Dans une page Ream, préfère le `createRpcClient` d'aurora : il branche le
 s'associe à `command()`. Il re-exporte la surface de comet, donc `RpcError` /
 `isRpcError` / les types viennent de `@c9up/aurora` sans changement.
 
+Il lit aussi le cookie `XSRF-TOKEN` et le renvoie dans l'en-tête `X-XSRF-TOKEN`
+à chaque appel. Une page authentifiée par un cookie de session en a besoin : le
+serveur compare cet en-tête au cookie, et un POST qui ne le porte pas est
+refusé. Le client de comet envoie ce que son transport envoie : un transport
+`fetch` écrit à la main devrait donc ajouter l'en-tête lui-même. Sans le cookie
+— hors du navigateur, ou derrière un jeton bearer —, rien n'est ajouté.
+
 ```ts
 import { createRpcClient, isRpcError } from "@c9up/aurora/rpc";
 

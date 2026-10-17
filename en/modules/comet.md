@@ -78,6 +78,13 @@ In a Ream page, prefer aurora's `createRpcClient`: it wires aurora's `HttpClient
 It re-exports comet's surface, so `RpcError` / `isRpcError` / the types come from
 `@c9up/aurora` unchanged.
 
+It also reads the `XSRF-TOKEN` cookie and echoes it as `X-XSRF-TOKEN` on every
+call. A page authenticated by a session cookie needs that header: the server
+checks it against the cookie, and a POST without it is refused. Comet's own
+client sends what its transport sends, so a hand-written `fetch` transport would
+have to add the header itself. Without the cookie — outside the browser, or
+behind a bearer token — nothing is added.
+
 ```ts
 import { createRpcClient, isRpcError } from "@c9up/aurora/rpc";
 
