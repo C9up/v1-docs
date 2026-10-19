@@ -15,6 +15,41 @@ const rows = await db.rawQuery('SELECT * FROM users WHERE id = ?', [id])
 > n'ait été exécuté — vérifiez que `@c9up/atlas/provider` figure dans les providers
 > de votre `reamrc.ts` et que `config/database.ts` définit au moins une connexion.
 
+## Connexions chiffrées (TLS)
+
+Une connexion est en clair tant que son URL ne demande pas TLS. Pour
+PostgreSQL, on le demande avec `sslmode`, et on donne les fichiers avec
+`sslrootcert`, `sslcert` et `sslkey` :
+
+```ts
+url: 'postgres://app@db.internal:5432/app?sslmode=verify-full'
+  + '&sslrootcert=/run/secrets/ca.crt'
+  + '&sslcert=/run/secrets/app.crt&sslkey=/run/secrets/app.key'
+```
+
+`verify-full` chiffre, vérifie le certificat du serveur contre `sslrootcert` et
+son nom contre l'hôte, et présente le certificat client quand le serveur le
+demande. Ce que fait chaque mode :
+
+| `sslmode` | Résultat |
+|---|---|
+| absent (et pas de `PGSSLMODE`) | en clair, sans tentative TLS |
+| `disable` | en clair |
+| `verify-full` | TLS, certificat et nom du serveur vérifiés |
+| `require`, `verify-ca` | TLS, nom du serveur non vérifié : accepté avec un avertissement |
+| `prefer`, `allow` | refusé avec `E_ATLAS_INSECURE_SSLMODE` : ils repassent en clair sans le dire |
+
+Les variables `PGSSLMODE`, `PGSSLROOTCERT`, `PGSSLCERT` et `PGSSLKEY`
+s'appliquent quand l'URL ne donne pas la valeur. Les fichiers sont vérifiés
+avant la première connexion, et une erreur nomme celui qui ne se lit pas. Ils
+sont relus à chaque nouvelle connexion : un certificat renouvelé est pris sans
+redémarrer. La clé client doit être un fichier PEM déchiffré : une clé chiffrée
+est refusée, avec la commande `openssl pkey` qui la déchiffre.
+
+MySQL suit le même défaut : en clair tant que l'URL ne donne pas de `ssl-mode`
+(`REQUIRED`, `VERIFY_CA`, `VERIFY_IDENTITY`, avec `ssl-ca`, `ssl-cert`,
+`ssl-key`).
+
 ## Points d'entrée du query builder
 
 ```ts

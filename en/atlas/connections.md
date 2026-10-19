@@ -15,6 +15,40 @@ const rows = await db.rawQuery('SELECT * FROM users WHERE id = ?', [id])
 > check that `@c9up/atlas/provider` is in your `reamrc.ts` providers and that
 > `config/database.ts` defines at least one connection.
 
+## Encrypted connections (TLS)
+
+A connection is in plaintext unless its URL asks for TLS. For PostgreSQL, ask
+with `sslmode`, and give the files with `sslrootcert`, `sslcert` and `sslkey`:
+
+```ts
+url: 'postgres://app@db.internal:5432/app?sslmode=verify-full'
+  + '&sslrootcert=/run/secrets/ca.crt'
+  + '&sslcert=/run/secrets/app.crt&sslkey=/run/secrets/app.key'
+```
+
+`verify-full` encrypts, checks the server's certificate against `sslrootcert`
+and its name against the host, and presents the client certificate when the
+server asks for one. Each mode does this:
+
+| `sslmode` | Result |
+|---|---|
+| absent (and no `PGSSLMODE`) | plaintext, no TLS attempt |
+| `disable` | plaintext |
+| `verify-full` | TLS, server certificate and name checked |
+| `require`, `verify-ca` | TLS, server name not checked: accepted with a warning |
+| `prefer`, `allow` | refused with `E_ATLAS_INSECURE_SSLMODE`: they fall back to plaintext without saying so |
+
+The `PGSSLMODE`, `PGSSLROOTCERT`, `PGSSLCERT` and `PGSSLKEY` variables apply
+when the URL does not name the value. The files are checked before the first
+connection, and an error names the one that cannot be read. They are read
+again for each new connection, so a renewed certificate is picked up without
+a restart. The client key must be a decrypted PEM file: an encrypted key is
+refused, with the `openssl pkey` command that decrypts it.
+
+MySQL follows the same default: plaintext unless the URL names an `ssl-mode`
+(`REQUIRED`, `VERIFY_CA`, `VERIFY_IDENTITY`, with `ssl-ca`, `ssl-cert`,
+`ssl-key`).
+
 ## Query-builder entry points
 
 ```ts
