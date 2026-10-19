@@ -207,6 +207,7 @@ If you see one, the cause is almost always a **non-deterministic render**: a `Da
 | `ATLAS_INVALID_IN` | `IN` or `NOT IN` operator requires an array value. |
 | `ATLAS_INVALID_PER_PAGE` | `paginate()` was called with `perPage < 1`. |
 | `ATLAS_INVALID_CTE_NAME` | CTE name must be a valid identifier (letters, numbers, underscores). |
+| `E_ATLAS_INSECURE_SSLMODE` | The connection asks for `sslmode=prefer` or `allow` (URL or `PGSSLMODE`), which fall back to plaintext without saying so. Use `disable` or `verify-full`. See [Encrypted connections](../atlas/connections.md#encrypted-connections-tls). |
 
 ## Rune Errors
 

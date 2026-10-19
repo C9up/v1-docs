@@ -206,6 +206,7 @@ Si tu en vois un, la cause est presque toujours un **render non déterministe** 
 | `ATLAS_INVALID_LIMIT` | `limit()` a été appelé avec une valeur négative. |
 | `ATLAS_INVALID_OFFSET` | `offset()` a été appelé avec une valeur négative. |
 | `ATLAS_INVALID_IN` | L'opérateur `IN` ou `NOT IN` requiert un tableau. |
+| `E_ATLAS_INSECURE_SSLMODE` | La connexion demande `sslmode=prefer` ou `allow` (URL ou `PGSSLMODE`), qui repassent en clair sans le dire. Utilisez `disable` ou `verify-full`. Voir [Connexions chiffrées](../atlas/connections.md#connexions-chiffrees-tls). |
 
 ## Erreurs Rune
 

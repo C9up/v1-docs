@@ -8,6 +8,8 @@ Atlas already enforces several guardrails:
 - parameterized values in compiled SQL
 - Rust-native SQL compilation path
 - optional strict mode to disable unsafe raw methods
+- no TLS mode that falls back to plaintext silently: `sslmode=prefer` and
+  `allow` are refused
 
 ## Unsafe surfaces to control
 
@@ -28,6 +30,12 @@ import { setAtlasStrictMode } from '@c9up/atlas'
 
 setAtlasStrictMode(process.env.NODE_ENV === 'production')
 ```
+
+When the database is reached over a network you do not control, encrypt the
+connection and check the server's name with `sslmode=verify-full` (see
+[Encrypted connections](./connections.md#encrypted-connections-tls)).
+`require` and `verify-ca` encrypt without checking the name, so any
+certificate from the same authority passes: atlas accepts them with a warning.
 
 And validate runtime-driven columns:
 

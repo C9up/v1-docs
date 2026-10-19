@@ -8,6 +8,8 @@ Atlas applique déjà plusieurs garde-fous:
 - valeurs paramétrées dans le SQL compilé
 - compilation SQL native Rust
 - mode strict optionnel pour bloquer les méthodes raw non sûres
+- aucun mode TLS qui repasse en clair en silence : `sslmode=prefer` et
+  `allow` sont refusés
 
 ## Surfaces sensibles à contrôler
 
@@ -28,6 +30,12 @@ import { setAtlasStrictMode } from '@c9up/atlas'
 
 setAtlasStrictMode(process.env.NODE_ENV === 'production')
 ```
+
+Quand la base est jointe par un réseau que vous ne contrôlez pas, chiffrez la
+connexion et vérifiez le nom du serveur avec `sslmode=verify-full` (voir
+[Connexions chiffrées](./connections.md#connexions-chiffrees-tls)).
+`require` et `verify-ca` chiffrent sans vérifier le nom : n'importe quel
+certificat de la même autorité passe. Atlas les accepte avec un avertissement.
 
 Puis validation des colonnes dynamiques:
 
