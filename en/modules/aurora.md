@@ -25,7 +25,7 @@ const greeting = (name: string) => html`<p>Hello, ${name}!</p>`
 Slots inside templates are typed positions:
 
 - **Text slot** — `<p>${value}</p>` interpolates a string, number, or signal as a text node.
-- **Attribute slot** — `<a href="${url}">` sets an attribute; if the value is a signal, the attribute re-renders on change.
+- **Attribute slot** — `<a href="${url}">` sets an attribute; if the value is a signal, the attribute re-renders on change. A slot that is the whole value leaves the attribute out for `null`, `undefined` or `false` and writes it empty for `true`, on the server as in the browser; joined with static text (`class="a ${x}"`), `null`, `undefined` and `false` add nothing.
 - **Property slot** — `<input .value="${signal}">` (dotted prefix) writes a DOM property.
 - **Boolean attribute** — `<button ?disabled="${signal}">` toggles the attribute presence.
 - **Event slot** — `<button @click="${handler}">` adds a listener.
@@ -80,8 +80,9 @@ Which is what makes the refusal above workable: a server-rendered form arrives
 filled, and a submit before hydration sends the values.
 
 An `<input type="file">` is the exception: a script may only clear it. A
-non-empty `.value` there throws `E_AURORA_FILE_INPUT_VALUE` on the client render
-and on hydration; bind `""` to reset the field.
+non-empty `.value` there throws `E_AURORA_FILE_INPUT_VALUE` on the server, on the
+client render and on hydration, wherever the `type` is written in the tag; bind
+`""` to reset the field.
 
 ### URLs that navigate or load code
 

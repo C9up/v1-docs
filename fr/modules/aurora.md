@@ -25,7 +25,7 @@ const greeting = (name: string) => html`<p>Bonjour, ${name} !</p>`
 Les emplacements dans les templates sont typés :
 
 - **Slot texte** — `<p>${value}</p>` interpole une string, un nombre ou un signal en nœud texte.
-- **Slot attribut** — `<a href="${url}">` pose un attribut ; si la valeur est un signal, l'attribut se re-render au changement.
+- **Slot attribut** — `<a href="${url}">` pose un attribut ; si la valeur est un signal, l'attribut se re-render au changement. Un slot qui forme toute la valeur omet l'attribut pour `null`, `undefined` ou `false` et l'écrit vide pour `true`, côté serveur comme dans le navigateur ; mêlé à du texte fixe (`class="a ${x}"`), `null`, `undefined` et `false` n'ajoutent rien.
 - **Slot propriété** — `<input .value="${signal}">` (préfixe pointé) écrit une propriété DOM.
 - **Attribut booléen** — `<button ?disabled="${signal}">` toggle la présence de l'attribut.
 - **Slot événement** — `<button @click="${handler}">` ajoute un écouteur.
@@ -80,8 +80,9 @@ C'est ce qui rend le refus ci-dessus praticable : un formulaire rendu côté ser
 arrive rempli, et un envoi avant hydratation transmet bien les valeurs.
 
 Un `<input type="file">` fait exception : un script ne peut que le vider. Une
-`.value` non vide y lève `E_AURORA_FILE_INPUT_VALUE` au rendu client comme à
-l'hydratation ; liez `""` pour réinitialiser le champ.
+`.value` non vide y lève `E_AURORA_FILE_INPUT_VALUE` au rendu serveur, au rendu
+client et à l'hydratation, où que `type` soit écrit dans la balise ; liez `""`
+pour réinitialiser le champ.
 
 ### Les URL qui naviguent ou chargent du code
 
