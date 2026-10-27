@@ -251,6 +251,18 @@ Parent({ children: () => MenuItem() }) // ✓ le setup l'appelle
 Un composant qui fournit quelque chose prend donc ses enfants sous forme de
 fonction et l'appelle lui-même, dans son setup. Tout le reste en découle.
 
+Un slot réactif écrit dans ce setup garde les fournisseurs sous lesquels il a
+été écrit. Le rendu l'appelle plus tard (au montage, puis chaque fois que ce
+qu'il lit change), et les parties construites dedans trouvent encore leur
+fournisseur, côté client, côté serveur et à l'hydratation :
+
+```ts
+Menu({ children: () => html`${() => items().map((item) => MenuItem(item))}` })
+```
+
+Seul `inject` les voit : `provide`, `onMount` et `onUnmount` restent réservés au
+setup d'un composant.
+
 ## SSR — `renderToString`
 
 ```ts

@@ -244,6 +244,18 @@ Parent({ children: () => MenuItem() }) // ✓ the setup calls it
 A component that provides anything therefore takes its children as a function
 and calls it itself, inside setup. Everything else follows from that.
 
+A reactive slot written inside that setup keeps the providers it was written
+under. The renderer calls it later — when it mounts, and each time what it
+reads changes — and parts built in it still reach their provider, on the
+client, on the server and when hydrating:
+
+```ts
+Menu({ children: () => html`${() => items().map((item) => MenuItem(item))}` })
+```
+
+Only `inject` sees them: `provide`, `onMount` and `onUnmount` still belong to a
+component's own setup.
+
 ## SSR — `renderToString`
 
 ```ts
