@@ -349,7 +349,7 @@ export default defineConfig({
 })
 ```
 
-C'est tout ce dont `Image` de [Nebula](/fr/modules/nebula) a besoin — son résolveur par défaut pointe déjà sur `/__image`, et l'échelle de largeurs que les deux utilisent est la même.
+C'est tout ce dont [l'`Image` de Nebula](/fr/nebula/components/image) a besoin — son résolveur par défaut pointe déjà sur `/__image`, et l'échelle de largeurs que les deux utilisent est la même.
 
 Une requête nomme une source, une largeur, et éventuellement un format et une qualité :
 

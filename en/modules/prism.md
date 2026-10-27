@@ -340,7 +340,7 @@ export default defineConfig({
 })
 ```
 
-That is all [Nebula](/en/modules/nebula)'s `Image` needs — its default resolver already points at `/__image`, and the width ladder the two use is the same one.
+That is all [Nebula's `Image`](/en/nebula/components/image) needs — its default resolver already points at `/__image`, and the width ladder the two use is the same one.
 
 A request names a source, a width, and optionally a format and a quality:
 

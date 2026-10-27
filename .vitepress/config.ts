@@ -1,5 +1,46 @@
 import { defineConfig } from 'vitepress'
 
+// Nebula's components by layer, as the registry files them. Each one has a
+// page at /<lang>/nebula/components/<name>; the title is the export's name.
+const nebulaLayers = {
+  atoms: ['AccessibleIcon', 'AspectRatio', 'Avatar', 'Badge', 'Button', 'Checkbox', 'Image', 'Input', 'Kbd', 'Label', 'Marker', 'NativeSelect', 'Progress', 'ScrollArea', 'Separator', 'Skeleton', 'Slider', 'Spinner', 'Switch', 'Textarea', 'Toggle', 'VisuallyHidden'],
+  molecules: ['Accordion', 'Alert', 'Attachment', 'Breadcrumb', 'Bubble', 'ButtonGroup', 'Card', 'Collapsible', 'Empty', 'Field', 'InputGroup', 'InputOTP', 'Item', 'Message', 'Pagination', 'Picture', 'PieceMap', 'RadioGroup', 'Resizable', 'Table', 'Tabs', 'ToggleGroup', 'Toolbar', 'Typography'],
+  organisms: ['AlertDialog', 'Calendar', 'Carousel', 'Chart', 'Combobox', 'Command', 'CommandDialog', 'ContextMenu', 'DataTable', 'DatePicker', 'DateRangePicker', 'Dialog', 'Drawer', 'DropdownMenu', 'Form', 'HoverCard', 'Menubar', 'MessageScroller', 'NavigationMenu', 'Popover', 'Questionnaire', 'Select', 'Sheet', 'Sidebar', 'Toaster', 'Tooltip'],
+  templates: ['AppShell', 'AuthLayout', 'SettingsLayout'],
+} as const
+
+/** `InputOTP` → `input-otp`, `DataTable` → `data-table`: the registry's names. */
+const registryName = (title: string): string =>
+  title.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase()
+
+function nebulaSidebar(lang: 'en' | 'fr') {
+  const t = lang === 'en'
+    ? { guide: 'Nebula', overview: 'Overview', installation: 'Installation', source: 'Owning the source', composition: 'Composition and reactivity', languages: 'Languages and direction', scope: 'Narrower than shadcn', atoms: 'Atoms', molecules: 'Molecules', organisms: 'Organisms', templates: 'Templates' }
+    : { guide: 'Nebula', overview: "Vue d'ensemble", installation: 'Installation', source: 'Posséder la source', composition: 'Composition et réactivité', languages: 'Langues et sens de lecture', scope: 'Plus étroit que shadcn', atoms: 'Atomes', molecules: 'Molécules', organisms: 'Organismes', templates: 'Templates' }
+  const base = `/${lang}/nebula`
+  return [
+    {
+      text: t.guide,
+      items: [
+        { text: t.overview, link: `${base}/` },
+        { text: t.installation, link: `${base}/installation` },
+        { text: t.source, link: `${base}/owning-the-source` },
+        { text: t.composition, link: `${base}/composition` },
+        { text: t.languages, link: `${base}/languages` },
+        { text: t.scope, link: `${base}/scope` },
+      ],
+    },
+    ...(Object.keys(nebulaLayers) as (keyof typeof nebulaLayers)[]).map((layer) => ({
+      text: t[layer],
+      collapsed: true,
+      items: nebulaLayers[layer].map((title) => ({
+        text: title,
+        link: `${base}/components/${registryName(title)}`,
+      })),
+    })),
+  ]
+}
+
 export default defineConfig({
   title: 'Ream',
   description: 'Rust-powered Node.js framework',
@@ -86,7 +127,7 @@ export default defineConfig({
                 { text: 'Helix (Testing)', link: '/en/modules/helix' },
                 { text: 'Helix plugin (ream bridge)', link: '/en/modules/helix-plugin-ream' },
                 { text: 'Inker (Templates)', link: '/en/modules/inker' },
-                { text: 'Nebula (Components)', link: '/en/modules/nebula' },
+                { text: 'Nebula (Components)', link: '/en/nebula/' },
                 { text: 'Neutrino (Protobuf, gRPC)', link: '/en/modules/neutrino' },
                 { text: 'Nova (Notifications)', link: '/en/modules/nova' },
                 { text: 'Parsec (Metrics)', link: '/en/modules/parsec' },
@@ -133,6 +174,7 @@ export default defineConfig({
               ],
             },
           ],
+          '/en/nebula/': nebulaSidebar('en'),
           '/en/atlas/': [
             {
               text: 'Atlas',
@@ -232,7 +274,7 @@ export default defineConfig({
                 { text: 'Helix (Testing)', link: '/fr/modules/helix' },
                 { text: 'Helix plugin (pont ream)', link: '/fr/modules/helix-plugin-ream' },
                 { text: 'Inker (Templates)', link: '/fr/modules/inker' },
-                { text: 'Nebula (Composants)', link: '/fr/modules/nebula' },
+                { text: 'Nebula (Composants)', link: '/fr/nebula/' },
                 { text: 'Neutrino (Protobuf, gRPC)', link: '/fr/modules/neutrino' },
                 { text: 'Nova (Notifications)', link: '/fr/modules/nova' },
                 { text: 'Parsec (Métriques)', link: '/fr/modules/parsec' },
@@ -279,6 +321,7 @@ export default defineConfig({
               ],
             },
           ],
+          '/fr/nebula/': nebulaSidebar('fr'),
           '/fr/atlas/': [
             {
               text: 'Atlas',
