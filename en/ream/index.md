@@ -104,9 +104,36 @@ writes nothing for a brand-new untouched one, and — when the handler called
 `regenerate()` — writes under the new id before dropping the old, so a crash
 between the two leaves a valid session rather than none.
 
+A modified session that existed when the request came in is written only over
+its entry: if that entry is gone by then — the user logged out in another tab,
+or every session of theirs was destroyed — nothing is written, and the
+response sends no session cookie. A slow request that read the signed-in
+session before a logout therefore cannot put it back after.
+
+### The cookie store
+
+With `store: 'cookie'` the session lives in the browser, encrypted. The value
+is sealed with its expiry, the session's `age`, and checked by the server: a
+copy of the cookie stops working when the session would have ended, whatever
+the browser does with `maxAge`. Each re-emission (every response under
+`rolling: true`) moves that expiry forward. It is also sealed for the cookie's
+name, so a value encrypted for another cookie under the same key is refused.
+
+What the cookie store cannot do on its own is revoke: a logout replaces the
+cookie in that browser, and nothing on the server can delete a copy —
+`ctx.session.revocable` is `false`. Warden's session guard refuses to sign
+anyone in on it without a `blacklist` (see
+[SessionStrategy](/en/modules/warden#sessionstrategy)); the other choice is a
+server-side store — `database` or `redis`.
+
+::: warning Signed out once
+A cookie written before this change carries no expiry and is refused: users of
+an application on the cookie store sign in again once, after the upgrade.
+:::
+
 ### Writing a session store
 
-A store implements `read` / `write` / `destroy` / `touch`. `read()` answers
+A store implements `read` / `write` / `update` / `destroy` / `touch`. `read()` answers
 `null` when it holds nothing for that id, and the record when it does —
 AdonisJS's `SessionStoreContract`:
 
@@ -117,10 +144,20 @@ class MyStore implements SessionDriver {
     return row ?? null      // NOT {}
   }
   async write(id: string, data: Record<string, unknown>, ttl: number) { /* … */ }
+  // Write only over an entry that is still there, in one step.
+  async update(id: string, data: Record<string, unknown>, ttl: number): Promise<boolean> { /* … */ }
   async destroy(id: string) { /* … */ }
   async touch(id: string, ttl: number) { /* … */ }
 }
 ```
+
+`update()` answers `false` when the entry is gone and writes nothing. The
+memory, redis (`SET … XX`) and database (one `UPDATE`) stores do it in one
+step; the file store, which has no conditional write, takes a lock per session
+(a directory created beside its file) around every change, so a `destroy()`
+cannot land between its check and its write. A store without `update()` is
+refused when it is attached (`E_SESSION_STORE_NOT_CONDITIONAL`): a read
+followed by a write would leave that race open.
 
 ::: warning Breaking for custom stores
 `read()` used to return a bare record, so a store had to answer `{}` both for

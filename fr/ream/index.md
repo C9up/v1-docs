@@ -110,9 +110,38 @@ son expiration, n'écrit rien pour une session neuve et intacte, et — si le
 handler a appelé `regenerate()` — écrit sous le nouvel identifiant avant de
 supprimer l'ancien, pour qu'un crash entre les deux laisse une session valide plutôt qu'aucune.
 
+Une session modifiée qui existait à l'arrivée de la requête ne s'écrit que
+par-dessus son entrée : si cette entrée a disparu entre-temps (l'utilisateur
+s'est déconnecté dans un autre onglet, ou toutes ses sessions ont été
+détruites), rien ne s'écrit et la réponse n'envoie aucun cookie de session.
+Une requête lente qui avait lu la session connectée avant une déconnexion ne
+peut donc pas la remettre après.
+
+### Le stockage cookie
+
+Avec `store: 'cookie'`, la session vit dans le navigateur, chiffrée. La valeur
+est scellée avec son échéance, l'`age` de la session, que le serveur vérifie :
+une copie du cookie cesse de fonctionner quand la session aurait pris fin, quoi
+que fasse le navigateur du `maxAge`. Chaque réémission (chaque réponse en
+`rolling: true`) repousse cette échéance. Elle est aussi scellée pour le nom du
+cookie : une valeur chiffrée pour un autre cookie avec la même clé est refusée.
+
+Ce que le stockage cookie ne sait pas faire seul, c'est révoquer : une
+déconnexion remplace le cookie de ce navigateur, et rien sur le serveur ne peut
+supprimer une copie ; `ctx.session.revocable` vaut `false`. Le guard de session
+de Warden refuse d'y connecter qui que ce soit sans `blacklist` (voir
+[SessionStrategy](/fr/modules/warden#sessionstrategy)) ; l'autre choix est un
+stockage côté serveur, `database` ou `redis`.
+
+::: warning Une reconnexion
+Un cookie écrit avant ce changement ne porte pas d'échéance et il est refusé :
+les utilisateurs d'une application sur le stockage cookie se reconnectent une
+fois, après la mise à jour.
+:::
+
 ### Écrire un stockage de session
 
-Un stockage implémente `read` / `write` / `destroy` / `touch`. `read()` répond
+Un stockage implémente `read` / `write` / `update` / `destroy` / `touch`. `read()` répond
 `null` quand il ne détient rien pour cet identifiant, et l'enregistrement quand
 il détient quelque chose — c'est le `SessionStoreContract` d'AdonisJS :
 
@@ -123,10 +152,21 @@ class MyStore implements SessionDriver {
     return row ?? null      // PAS {}
   }
   async write(id: string, data: Record<string, unknown>, ttl: number) { /* … */ }
+  // N'écrire que par-dessus une entrée encore là, en une étape.
+  async update(id: string, data: Record<string, unknown>, ttl: number): Promise<boolean> { /* … */ }
   async destroy(id: string) { /* … */ }
   async touch(id: string, ttl: number) { /* … */ }
 }
 ```
+
+`update()` répond `false` quand l'entrée a disparu, et n'écrit rien. Les
+stockages mémoire, redis (`SET … XX`) et base de données (un seul `UPDATE`) le
+font en une étape ; le stockage fichier, qui n'a pas d'écriture
+conditionnelle, prend un verrou par session (un dossier créé à côté de son
+fichier) autour de chaque modification, si bien qu'un `destroy()` ne peut pas
+tomber entre sa vérification et son écriture. Un stockage sans `update()` est
+refusé dès qu'on le branche (`E_SESSION_STORE_NOT_CONDITIONAL`) : une lecture
+suivie d'une écriture laisserait la course ouverte.
 
 ::: warning Cassant pour les stockages maison
 `read()` rendait un enregistrement nu : un stockage devait donc répondre `{}`

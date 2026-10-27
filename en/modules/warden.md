@@ -748,6 +748,46 @@ if (result.authenticated) ctx.auth = { authenticated: true, user: result.user!, 
 await strategy.logout(ctx.session)
 ```
 
+`logout()` forgets the user id and **rotates the session id** too. A request
+that was still running when the user logged out holds the old id; with its
+entry gone, Ream's session store writes nothing back, so that request cannot
+sign the user in again, and neither can a copy of the old id.
+
+### Revoking a sign-in — `blacklist`
+
+Under the cookie session store the session lives in the browser, and the
+server has nothing to delete at logout: a cookie copied before it, or re-sent
+by a request running across it, would still be signed in. Give the guard a
+`blacklist` — the same `TokenBlacklist` `JwtStrategy` revokes tokens with:
+
+```typescript
+import { RedisBlacklistDriver, SessionStrategy, TokenBlacklist } from '@c9up/warden'
+
+new SessionStrategy({
+  findUser,
+  blacklist: new TokenBlacklist(new RedisBlacklistDriver(client)),
+})
+```
+
+Without one, `login()` on such a session throws `INVALID_CONFIG`: an
+application on the cookie store finds out at its first sign-in, not after a
+stolen cookie.
+
+Every sign-in then gets an id, stored in the session beside the user id
+(`auth_user_id_sid`). `logout()` lists it for twice the session's lifetime, so
+the listing outlives every copy of the cookie. A session that carries a listed
+id is signed out, and the keys are forgotten so the cookie sent back carries
+nothing. Another sign-in of the same user, on another device, is not affected.
+
+Once a `blacklist` is set, a session with no sign-in id is refused, as
+`JwtStrategy` refuses a token with no `jti`: it could never be revoked. Users
+signed in before the change sign in again once.
+
+The lifetime is read from Ream's session (`session.config.ttl`). Another
+session store can pass `sessionAge` (seconds) instead; the default is two hours.
+`MemoryBlacklistDriver` works for one process; several instances need a shared
+store such as `RedisBlacklistDriver`.
+
 The `SessionStore` interface is intentionally minimal — `get(key)`, `put(key, value)`, `forget(key)`, `regenerate()`. The method names mirror the **AdonisJS `Session` API** (`put`, not `set`), so Ream's `Session` — exposed on `ctx.session` by `SessionMiddleware` — satisfies the contract structurally with no adapter. (If you hand-rolled a `SessionStore` against the old `set()` name, rename it to `put()`.)
 
 > **`ctx.session`.** The request session lives on `ctx.session` (AdonisJS parity), populated by Ream's `SessionMiddleware`. Register that middleware **before** the auth middleware so `ctx.session` is set when the session strategy resolves the user.

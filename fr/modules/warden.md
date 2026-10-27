@@ -768,6 +768,51 @@ if (result.authenticated) ctx.auth = { authenticated: true, user: result.user!, 
 await strategy.logout(ctx.session)
 ```
 
+`logout()` oublie l'id utilisateur et **fait aussi tourner l'id de session**.
+Une requête encore en cours au moment de la déconnexion tient l'ancien id ;
+son entrée ayant disparu, le stockage de session de Ream n'y réécrit rien : la
+requête ne peut pas reconnecter l'utilisateur, et une copie de l'ancien id non
+plus.
+
+### Révoquer une connexion — `blacklist`
+
+Avec le stockage de session cookie, la session vit dans le navigateur, et le
+serveur n'a rien à supprimer à la déconnexion : un cookie copié avant, ou
+renvoyé par une requête en cours pendant la déconnexion, resterait connecté.
+Donne au guard une `blacklist`, la même `TokenBlacklist` qui révoque les jetons
+de `JwtStrategy` :
+
+```typescript
+import { RedisBlacklistDriver, SessionStrategy, TokenBlacklist } from '@c9up/warden'
+
+new SessionStrategy({
+  findUser,
+  blacklist: new TokenBlacklist(new RedisBlacklistDriver(client)),
+})
+```
+
+Sans elle, `login()` sur une telle session lève `INVALID_CONFIG` : une
+application sur le stockage cookie s'en aperçoit à sa première connexion, pas
+après un vol de cookie.
+
+Chaque connexion reçoit alors un id, rangé dans la session à côté de l'id
+utilisateur (`auth_user_id_sid`). `logout()` l'inscrit pour deux fois la durée
+de la session, si bien que l'inscription survit à toutes les copies du cookie.
+Une session qui porte un id inscrit est déconnectée, et ses clés sont oubliées :
+le cookie renvoyé ne porte plus rien. Une autre connexion du même utilisateur,
+sur un autre appareil, n'est pas touchée.
+
+Dès qu'une `blacklist` est posée, une session sans id de connexion est refusée,
+comme `JwtStrategy` refuse un jeton sans `jti` : elle ne pourrait jamais être
+révoquée. Les utilisateurs connectés avant le changement se reconnectent une
+fois.
+
+La durée se lit sur la session de Ream (`session.config.ttl`). Un autre
+stockage de session peut passer `sessionAge` (en secondes) à la place ; le
+défaut est de deux heures. `MemoryBlacklistDriver` suffit pour un seul
+processus ; plusieurs instances demandent un stockage partagé comme
+`RedisBlacklistDriver`.
+
 L'interface `SessionStore` est volontairement minimale — `get(key)`, `put(key, value)`, `forget(key)`, `regenerate()`. Les noms de méthodes épousent l'**API `Session` d'AdonisJS** (`put`, pas `set`), si bien que la `Session` de Ream — exposée sur `ctx.session` par `SessionMiddleware` — satisfait le contrat structurellement, sans adaptateur. (Si tu avais écrit un `SessionStore` maison contre l'ancien `set()`, renomme-le en `put()`.)
 
 > **`ctx.session`.** La session de requête vit sur `ctx.session` (parité AdonisJS), peuplée par le `SessionMiddleware` de Ream. Enregistre ce middleware **avant** le middleware d'auth pour que `ctx.session` soit posé quand la stratégie session résout l'utilisateur.
