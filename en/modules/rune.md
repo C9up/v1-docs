@@ -71,6 +71,22 @@ rules.number()
   .optional()   // Accept undefined or null
 ```
 
+### Array and Record Rules
+
+```typescript
+rules.array(rules.string())
+  .minLength(1) // At least one item
+  .maxLength(5) // At most five items
+  .notEmpty()   // Same as minLength(1)
+
+rules.record(rules.number())
+  .minLength(1) // At least one key
+```
+
+On an array or a record, `min()` and `max()` are `minLength()` and `maxLength()`:
+the size they bound is the number of items, or of keys. The error names the
+rule that ran — `array.minLength`, `record.maxLength`.
+
 ### Boolean Rules
 
 ```typescript

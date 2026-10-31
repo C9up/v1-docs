@@ -797,7 +797,10 @@ après un vol de cookie.
 
 Chaque connexion reçoit alors un id, rangé dans la session à côté de l'id
 utilisateur (`auth_user_id_sid`). `logout()` l'inscrit pour deux fois la durée
-de la session, si bien que l'inscription survit à toutes les copies du cookie.
+de la session, si bien que l'inscription survit à toutes les copies du cookie :
+Ream compte la durée d'un cookie réémis depuis le moment où sa requête a lu la
+session, si bien que même une requête en cours pendant la déconnexion ne rend
+rien qui vive plus d'une durée après elle.
 Une session qui porte un id inscrit est déconnectée, et ses clés sont oubliées :
 le cookie renvoyé ne porte plus rien. Une autre connexion du même utilisateur,
 sur un autre appareil, n'est pas touchée.

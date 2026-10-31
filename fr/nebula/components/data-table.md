@@ -122,6 +122,8 @@ DataTable<Member>({
 
 `rows` prend un accesseur. De nouvelles lignes gardent le tri et le filtre ; par défaut, elles ramènent aussi le tableau à la première page, puisque la page avait été choisie dans des données disparues. `autoResetPage: false` garde la page pour des lignes rafraîchies sur place, comme cette liste interrogée à intervalles. Un accesseur doit rendre le même tableau tant que les données ne changent pas — un tableau neuf à chaque lecture compte à chaque fois comme de nouvelles données.
 
+Les lignes sont gardées par `rowKey`, avec le [`each`](/fr/modules/aurora#listes-—-each) d'aurora. Une ligne dont la clé est toujours là garde son élément, et avec lui un menu ouvert, le focus ou le survol qu'il contient ; elle se déplace quand le tri ou la page change sa place. Ses cellules sont redessinées quand son élément est un autre objet ; une relecture qui rend les mêmes objets ne redessine rien.
+
 ### Dans une autre langue
 
 ```ts
@@ -159,7 +161,7 @@ Une clé absente de `paginationLabels` garde son défaut anglais.
 |---|---|---|---|
 | `columns` | `readonly Column<Row>[]` | — | Les colonnes, dans l'ordre. Lues une fois, à la construction. |
 | `rows` | `Reactive<readonly Row[]>` | — | Les lignes, ou un accesseur pour des lignes qui changent. |
-| `rowKey` | `(row: Row) => string` | — | Une identité stable par ligne — ce que contient la sélection. |
+| `rowKey` | `(row: Row) => string` | — | Une identité stable par ligne — ce que contient la sélection, et ce qui garde l'élément d'une ligne d'un changement à l'autre. |
 | `pageSize` | `number` | — | Lignes par page. Omise : toutes les lignes, sans pagination. |
 | `autoResetPage` | `boolean` | `true` | Revenir à la première page quand `rows` change. |
 | `filterPlaceholder` | `string` | `'Filter…'` | Le texte d'attente du champ de filtre. |

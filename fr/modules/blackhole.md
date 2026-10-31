@@ -41,7 +41,7 @@ import { blackholeFastify } from '@c9up/blackhole/fastify'
 fastify.register(blackholeFastify({ csrf: true, secret: process.env.APP_KEY }))
 ```
 
-Après son passage, le token CSRF est sur `request.csrfToken` et le nonce CSP sur `response.nonce`.
+Après son passage, le token CSRF est sur `request.csrfToken` et le nonce CSP sur `response.nonce`. Les en-têtes de protection qu'il a posés sont aussi dans `ctx.store` (`securityHeaders`) : une couche de vue qui a ses propres en-têtes, comme Photon, sait ainsi qu'un en-tête absent a été omis exprès.
 
 Dans Ream, le travail est réparti sur deux tiers. Le middleware du tier server
 tourne avant la résolution de la route : une requête vers une route qui

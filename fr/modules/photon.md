@@ -384,14 +384,18 @@ npm install -D vite
 
 Les en-têtes de protection appartiennent à [Blackhole](/fr/modules/blackhole) :
 la Content-Security-Policy (appliquée ou en observation), `X-Frame-Options` et
-`X-Content-Type-Options`. Quand la réponse porte déjà l'un d'eux, une page
-rendue par Photon n'ajoute aucun des siens : la politique, son nonce, son
-`report-to` et un `DENY` arrivent au navigateur tels qu'ils sont configurés — et
-un en-tête que Blackhole doit omettre reste omis.
+`X-Content-Type-Options`. Blackhole inscrit le jeu qu'il a posé dans le store de
+la requête (`securityHeaders`), et une page rendue par Photon n'ajoute alors
+aucun des siens : la politique, son nonce, son `report-to` et un `DENY`
+arrivent au navigateur tels qu'ils sont configurés, et un en-tête que Blackhole
+doit omettre reste omis.
 
-Une application sans couche de sécurité garde le jeu minimal de Photon :
-`default-src 'self'; script-src 'self'; object-src 'none'` (avec l'origine de
-Vite en développement), `X-Frame-Options: SAMEORIGIN` et `nosniff`.
+Sans cette inscription, Photon complète chaque protection absente de la réponse
+avec son jeu minimal : `default-src 'self'; script-src 'self'; object-src
+'none'` (avec l'origine de Vite en développement), `X-Frame-Options: SAMEORIGIN`
+et `nosniff`. Un en-tête déjà présent est gardé, et une politique en
+observation compte comme la politique : un `X-Frame-Options: DENY` posé à la
+main reçoit quand même une politique et `nosniff` à côté.
 
 Quand la requête a un nonce (`response.nonce`, que Blackhole fournit pour une
 politique qui nomme `@nonce`, ou `cspNonce` dans le store de la requête), Photon

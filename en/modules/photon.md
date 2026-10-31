@@ -380,14 +380,17 @@ npm install -D vite
 
 The protective headers belong to [Blackhole](/en/modules/blackhole): the
 Content-Security-Policy (enforced or report-only), `X-Frame-Options` and
-`X-Content-Type-Options`. When the response already carries any of them, a
-page Photon renders adds none of its own, so the policy, its nonce, its
-`report-to` and a `DENY` reach the browser as configured — and a header
-Blackhole was told to leave out stays out.
+`X-Content-Type-Options`. Blackhole records the set it applied in the request
+store (`securityHeaders`), and a page Photon renders then adds none of its own:
+the policy, its nonce, its `report-to` and a `DENY` reach the browser as
+configured, and a header Blackhole was told to leave out stays out.
 
-An application with no security layer still gets Photon's minimal set:
-`default-src 'self'; script-src 'self'; object-src 'none'` (with the Vite
-origin in development), `X-Frame-Options: SAMEORIGIN` and `nosniff`.
+Without that record, Photon fills each protection the response lacks with its
+minimal set: `default-src 'self'; script-src 'self'; object-src 'none'` (with
+the Vite origin in development), `X-Frame-Options: SAMEORIGIN` and `nosniff`.
+A header already on the response is kept, and a report-only policy counts as
+the policy, so a lone `X-Frame-Options: DENY` set by hand still gets a policy
+and `nosniff` beside it.
 
 When the request has a nonce (`response.nonce`, which Blackhole seeds for a
 policy naming `@nonce`, or `cspNonce` in the request store), Photon writes it

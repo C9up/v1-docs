@@ -67,6 +67,22 @@ rules.number()
   .positive()     // Doit être > 0
 ```
 
+### Règles array et record
+
+```typescript
+rules.array(rules.string())
+  .minLength(1)   // Au moins un élément
+  .maxLength(5)   // Au plus cinq éléments
+  .notEmpty()     // Comme minLength(1)
+
+rules.record(rules.number())
+  .minLength(1)   // Au moins une clé
+```
+
+Sur un tableau ou un record, `min()` et `max()` valent `minLength()` et
+`maxLength()` : la taille qu'ils bornent est le nombre d'éléments, ou de clés.
+L'erreur nomme la règle exécutée : `array.minLength`, `record.maxLength`.
+
 ### Champs optionnels
 
 ```typescript

@@ -41,7 +41,7 @@ import { blackholeFastify } from '@c9up/blackhole/fastify'
 fastify.register(blackholeFastify({ csrf: true, secret: process.env.APP_KEY }))
 ```
 
-After it runs, the CSRF token is on `request.csrfToken` and the CSP nonce on `response.nonce`.
+After it runs, the CSRF token is on `request.csrfToken` and the CSP nonce on `response.nonce`. The protective headers it set are also in `ctx.store` (`securityHeaders`), so a view layer with headers of its own, such as Photon, knows that a header left out was left out on purpose.
 
 In Ream the work is split across two tiers. The server-tier middleware runs
 before route matching, so a request for a route that does not exist is

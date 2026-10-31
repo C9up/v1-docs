@@ -123,8 +123,13 @@ Avec `store: 'cookie'`, la session vit dans le navigateur, chiffrée. La valeur
 est scellée avec son échéance, l'`age` de la session, que le serveur vérifie :
 une copie du cookie cesse de fonctionner quand la session aurait pris fin, quoi
 que fasse le navigateur du `maxAge`. Chaque réémission (chaque réponse en
-`rolling: true`) repousse cette échéance. Elle est aussi scellée pour le nom du
-cookie : une valeur chiffrée pour un autre cookie avec la même clé est refusée.
+`rolling: true`) repousse cette échéance à un `age` après le moment où la
+requête a LU la session, et non après sa réponse : une requête qui dure une
+heure ne peut pas rendre les données lues avec une durée neuve, et celle qui a
+survécu à la session ne renvoie aucun cookie. Une session régénérée pendant la
+requête (une connexion) compte depuis la réponse. Elle est aussi scellée pour le
+nom du cookie : une valeur chiffrée pour un autre cookie avec la même clé est
+refusée.
 
 Ce que le stockage cookie ne sait pas faire seul, c'est révoquer : une
 déconnexion remplace le cookie de ce navigateur, et rien sur le serveur ne peut

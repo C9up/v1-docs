@@ -775,7 +775,9 @@ stolen cookie.
 
 Every sign-in then gets an id, stored in the session beside the user id
 (`auth_user_id_sid`). `logout()` lists it for twice the session's lifetime, so
-the listing outlives every copy of the cookie. A session that carries a listed
+the listing outlives every copy of the cookie: Ream counts a re-issued cookie's
+lifetime from when its request read the session, so even a request running
+across the logout hands back nothing that lives past one lifetime after it. A session that carries a listed
 id is signed out, and the keys are forgotten so the cookie sent back carries
 nothing. Another sign-in of the same user, on another device, is not affected.
 

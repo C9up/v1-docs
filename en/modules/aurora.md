@@ -127,6 +127,31 @@ const doubled = memo(() => count() * 2)
 
 `signal()` returns a function. Call it with no args to read, with one arg to write. Signals are tracked automatically inside `effect()` and `memo()` callbacks.
 
+### Lists — `each`
+
+A slot that returns an array, `${() => rows().map(renderRow)}`, rebuilds every row whenever the array changes, even a new array holding the same rows. A list re-read every few seconds then loses its open menus, its focus and its hover each time. `each` keeps one row per key:
+
+```ts
+import { each, html } from '@c9up/aurora'
+
+html`<ul>${each(
+  rows,                       // an array, or a signal or accessor returning one
+  (row) => row.id,            // the key: an id, never the index
+  (row, index) => html`<li>${() => `${index() + 1}. ${row().name}`}</li>`,
+)}</ul>`
+```
+
+`render` runs once per key. It receives accessors: `row()` is the row's current element and `index()` its current position. When the array changes, a row whose key stays keeps its nodes, its effects and its components. It moves if its position changed, and the parts that read `row()` in an accessor update in place. A new key builds a row, and a key that left disposes its row and runs its `onUnmount`. A part built from `row()` outside an accessor keeps the value it had when the row was built.
+
+An accessor may return a list, to show something else when it is empty. It has to re-run only when that choice changes, so read the condition through a `memo`: an accessor that reads `rows()` itself builds a new list, and new rows, on every change.
+
+```ts
+const empty = memo(() => rows().length === 0)
+html`<ul>${() => (empty() ? html`<li>None yet</li>` : each(rows, (row) => row.id, renderRow))}</ul>`
+```
+
+Two elements with the same key throw `E_AURORA_DUPLICATE_KEY`. On the server, `each` renders as the array of its rows; hydration adopts those rows and keeps them by key from then on.
+
 ### Component lifecycle
 
 ```ts

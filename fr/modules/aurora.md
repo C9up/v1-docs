@@ -130,6 +130,31 @@ const doubled = memo(() => count() * 2)
 
 `signal()` retourne une fonction. On l'appelle sans arg pour lire, avec un arg pour écrire. Les signaux sont trackés automatiquement à l'intérieur de `effect()` et `memo()`.
 
+### Listes — `each`
+
+Un slot qui rend un tableau, `${() => rows().map(renderRow)}`, reconstruit toutes ses lignes à chaque nouveau tableau, même quand celui-ci contient les mêmes lignes. Une liste relue toutes les quelques secondes perd alors à chaque fois ses menus ouverts, son focus et son survol. `each` garde une ligne par clé :
+
+```ts
+import { each, html } from '@c9up/aurora'
+
+html`<ul>${each(
+  rows,                       // un tableau, ou un signal ou un accesseur qui en rend un
+  (row) => row.id,            // la clé : un identifiant, jamais l'index
+  (row, index) => html`<li>${() => `${index() + 1}. ${row().name}`}</li>`,
+)}</ul>`
+```
+
+`render` est appelé une fois par clé. Il reçoit des accesseurs : `row()` est l'élément actuel de la ligne et `index()` sa position actuelle. Quand le tableau change, une ligne dont la clé reste garde ses nœuds, ses effets et ses composants. Elle est déplacée si sa position a changé, et ce qui lit `row()` dans un accesseur se met à jour sur place. Une nouvelle clé construit une ligne ; une clé disparue dispose la sienne et lance son `onUnmount`. Ce qui est construit à partir de `row()` hors d'un accesseur garde la valeur qu'il avait à la construction de la ligne.
+
+Un accesseur peut rendre une liste, pour afficher autre chose quand elle est vide. Il ne doit alors se relancer que quand ce choix change, d'où la condition lue par un `memo` : un accesseur qui lit `rows()` lui-même construit une nouvelle liste, et de nouvelles lignes, à chaque changement.
+
+```ts
+const empty = memo(() => rows().length === 0)
+html`<ul>${() => (empty() ? html`<li>Rien pour l'instant</li>` : each(rows, (row) => row.id, renderRow))}</ul>`
+```
+
+Deux éléments de même clé lèvent `E_AURORA_DUPLICATE_KEY`. Côté serveur, `each` se rend comme le tableau de ses lignes ; l'hydratation adopte ces lignes, puis les garde par clé.
+
 ### Cycle de vie d'un composant
 
 ```ts

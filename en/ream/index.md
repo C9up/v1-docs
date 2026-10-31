@@ -116,8 +116,12 @@ With `store: 'cookie'` the session lives in the browser, encrypted. The value
 is sealed with its expiry, the session's `age`, and checked by the server: a
 copy of the cookie stops working when the session would have ended, whatever
 the browser does with `maxAge`. Each re-emission (every response under
-`rolling: true`) moves that expiry forward. It is also sealed for the cookie's
-name, so a value encrypted for another cookie under the same key is refused.
+`rolling: true`) moves that expiry forward, to one `age` after the request READ
+the session, not after its response: a request that runs for an hour cannot
+hand back the data it read with a fresh lifetime, and one that outlasted the
+session sends no cookie at all. A session regenerated during the request (a
+login) counts from the response. It is also sealed for the cookie's name, so a
+value encrypted for another cookie under the same key is refused.
 
 What the cookie store cannot do on its own is revoke: a logout replaces the
 cookie in that browser, and nothing on the server can delete a copy —
