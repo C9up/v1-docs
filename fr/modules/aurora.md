@@ -175,6 +175,21 @@ autre composant — `const TextField = component((props) => Field({ ... }))`, la
 forme dont on construit un ensemble composé — garde les deux cycles de vie :
 l'extérieur d'abord, puis l'intérieur.
 
+Le setup tourne une fois, et il n'abonne rien. Un composant est construit dans
+l'accesseur du slot qui l'affiche — `${() => (open() ? Panel() : '')}` — et ce
+slot suit ce que l'accesseur lit lui-même (`open`), jamais ce que lisent le
+setup de `Panel` ou son `onMount`. Un composant qui met à jour son propre état
+met à jour ses propres liaisons ; il ne reconstruit pas le slot qui l'entoure.
+Une valeur que le setup lit directement est donc lue une fois : pour la suivre,
+la mettre dans un accesseur.
+
+```ts
+const Price = component((props) => {
+  const once = props.amount()                    // lu une fois, au setup
+  return html`<b>${() => props.amount()}</b>`    // suit le signal
+})
+```
+
 ### Des ids qui survivent à l'hydratation — `uid`, `resetIds`, `byId`
 
 Les templates n'ont pas de directive `ref` : un composant qui doit mesurer,

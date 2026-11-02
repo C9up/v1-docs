@@ -172,6 +172,20 @@ another component — `const TextField = component((props) => Field({ ... }))`,
 the shape a compound set is built from — keeps both lifecycles: the outer one
 runs first, then the inner.
 
+Setup runs once, and it subscribes nothing. A component is built inside the
+accessor of the slot that shows it — `${() => (open() ? Panel() : '')}` — and
+that slot follows what the accessor itself reads (`open`), never what `Panel`'s
+setup or its `onMount` read. A component updating its own state updates its
+own bindings; it does not rebuild the slot around it. A value a setup reads
+directly is therefore read once: put it in an accessor to follow it.
+
+```ts
+const Price = component((props) => {
+  const once = props.amount()                    // read once, at setup
+  return html`<b>${() => props.amount()}</b>`    // follows the signal
+})
+```
+
 ### Ids that survive hydration — `uid`, `resetIds`, `byId`
 
 Templates have no `ref` directive, so a component that must measure, focus or
