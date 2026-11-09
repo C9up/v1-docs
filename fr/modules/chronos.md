@@ -129,7 +129,7 @@ Les valeurs hors des années 0000-9999 sont refusées dès leur construction, et
 erreurs ; l'année 50 est l'année 0050).
 
 `toISO()` écrit la valeur sur sa propre horloge — `Z` en UTC, le décalage local
-dans tout autre fuseau — comme Luxon ; `toUTC().toISO()` donne la forme UTC.
+dans tout autre fuseau ; `toUTC().toISO()` donne la forme UTC.
 
 Une date de calendrier qui n'existe pas est refusée, plutôt que ramenée à la
 suivante qui existe.
@@ -221,7 +221,7 @@ june.length('week')   // 4.285714285714286
 - Arithmetique: `plus`, `minus` (une quantite et une unite, ou une `Duration`), `diff` (une `Duration`), `set`
 - Bornes: `startOf`, `endOf`
 - Fuseau et locale: `setZone` (avec `keepLocalTime`), `toUTC`, `setLocale`
-- Sorties: `toFormat` (jetons Luxon), `format` (jetons facon moment), `toISO`, `toISODate`, `toISOTime`, `toSQL`, `toSQLDate`, `toSQLTime`, `toLocaleString`, `toDate`, `toMillis`, `valueOf`, `toJSON`
+- Sorties: `toFormat` (jetons `yyyy-MM-dd`, `dd LLL yyyy`, `EEEE`), `format` (jetons `YYYY-MM-DD`), `toISO`, `toISODate`, `toISOTime`, `toSQL`, `toSQLDate`, `toSQLTime`, `toLocaleString`, `toDate`, `toMillis`, `valueOf`, `toJSON`
 
 Mode natif:
 - Le binaire NAPI Rust est requis — pas de fallback JavaScript. Compilez-le avec `cd packages/chronos && pnpm build:napi`.

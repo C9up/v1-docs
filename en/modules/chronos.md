@@ -129,7 +129,7 @@ Values outside years 0000-9999 are refused when they are built, and
 50 is year 0050).
 
 `toISO()` writes the value on its own wall clock — `Z` in UTC, the local offset
-in any other zone — like Luxon; `toUTC().toISO()` gives the UTC form.
+in any other zone; `toUTC().toISO()` gives the UTC form.
 
 A calendar date that does not exist is refused, rather than resolved to the
 next one that does.
@@ -219,7 +219,7 @@ june.length('week')   // 4.285714285714286
 - Arithmetic: `plus`, `minus` (an amount and a unit, or a `Duration`), `diff` (a `Duration`), `set`
 - Boundaries: `startOf`, `endOf`
 - Zone and locale: `setZone` (with `keepLocalTime`), `toUTC`, `setLocale`
-- Output: `toFormat` (Luxon tokens), `format` (moment-style tokens), `toISO`, `toISODate`, `toISOTime`, `toSQL`, `toSQLDate`, `toSQLTime`, `toLocaleString`, `toDate`, `toMillis`, `valueOf`, `toJSON`
+- Output: `toFormat` (`yyyy-MM-dd`, `dd LLL yyyy`, `EEEE` tokens), `format` (`YYYY-MM-DD` tokens), `toISO`, `toISODate`, `toISOTime`, `toSQL`, `toSQLDate`, `toSQLTime`, `toLocaleString`, `toDate`, `toMillis`, `valueOf`, `toJSON`
 
 Native mode:
 - The Rust NAPI binary is required — there is no JavaScript fallback. Build it with `cd packages/chronos && pnpm build:napi`.
