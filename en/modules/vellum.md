@@ -223,6 +223,23 @@ Every input is treated as hostile, because these documents come from uploads:
   be a wrong render nobody reports.
 - Text written onto a page is escaped, so a document title cannot inject content
   stream operators.
+- Nesting is bounded wherever the document chooses it: objects, colour spaces,
+  functions, the field tree of a form. A stack overflow is not a panic, so no
+  net would catch it; a document nested too deep is refused instead.
+- What reading one page may cost is bounded, because a document's size says
+  nothing about it: a 1 MiB compressed stream inflates to 1 GiB, and forms
+  drawing one another ten times per level turn 2 KB into hours of work. A page
+  over a budget is refused, never drawn without the part that did not fit.
+
+| Option | Default | Bounds |
+| --- | --- | --- |
+| `maxPixels` | 50 million | The pixels one page may rasterise to. |
+| `maxTotalPixels` | 500 million | The pixels `renderAll` may rasterise across every page, checked before the first is drawn. |
+| `maxDecodedBytes` | 256 MiB | The decoded stream data one page may need: content, images, fonts. |
+| `maxOperations` | 10 million | The content operators and glyphs one page may take to draw, nested forms included. |
+
+Each is set in `config/vellum.ts`, and `render` and `renderAll` take them per
+call. Raise one knowingly, for a document you trust.
 
 ## Interactive forms
 

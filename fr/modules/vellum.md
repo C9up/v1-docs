@@ -225,6 +225,26 @@ d'envois utilisateurs :
   un rendu faux que personne ne signale.
 - Le texte écrit sur une page est échappé, pour qu'un titre de document ne puisse
   pas injecter d'opérateurs de flux de contenu.
+- L'imbrication est bornée partout où le document la choisit : objets, espaces de
+  couleur, fonctions, arbre des champs d'un formulaire. Un débordement de pile
+  n'est pas une panique, aucun filet ne le rattraperait ; un document imbriqué
+  trop profond est refusé à la place.
+- Ce que coûte la lecture d'une page est borné, parce que la taille d'un document
+  n'en dit rien : un flux compressé de 1 Mio se décompresse en 1 Gio, et des
+  formulaires qui se dessinent dix fois l'un l'autre à chaque niveau font de 2 Ko
+  des heures de travail. Une page qui dépasse un budget est refusée, jamais
+  dessinée sans la partie qui n'y tenait pas.
+
+| Option | Par défaut | Borne |
+| --- | --- | --- |
+| `maxPixels` | 50 millions | Les pixels qu'une page peut produire au rendu. |
+| `maxTotalPixels` | 500 millions | Les pixels que `renderAll` peut produire sur toutes les pages, vérifiés avant de dessiner la première. |
+| `maxDecodedBytes` | 256 Mio | Les données de flux décodées dont une page peut avoir besoin : contenu, images, polices. |
+| `maxOperations` | 10 millions | Les opérateurs de contenu et glyphes que le dessin d'une page peut demander, formulaires imbriqués compris. |
+
+Chacune se règle dans `config/vellum.ts`, et `render` comme `renderAll` les
+acceptent à l'appel. N'en relever une qu'en connaissance de cause, pour un
+document de confiance.
 
 ## Formulaires interactifs
 
