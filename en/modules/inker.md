@@ -177,7 +177,7 @@ In a layout a `@section('name')…@endsection` is a **yield** with default conte
 
 ## Components
 
-`@component('name', { props })` renders a component template with its **own** scope built from the passed props (it does not inherit the caller's data). Block body content and `@slot('name')…@endslot` blocks render in the **caller's** scope and are injected at the component's slot outlets:
+`@component('name', { props })` renders a component template with its **own** scope built from the passed props (it does not inherit the caller's data). Engine globals (`engine.global(…)`) and the values a renderer `share()`s — the request, `app`, `qs` — are visible in every component, under its props. Block body content and `@slot('name')…@endslot` blocks render in the **caller's** scope and are injected at the component's slot outlets:
 
 ```inker
 {{-- components/card.inker --}}

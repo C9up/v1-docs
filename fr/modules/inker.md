@@ -177,7 +177,7 @@ Dans un layout, un `@section('name')…@endsection` est un **yield** avec un con
 
 ## Composants
 
-`@component('name', { props })` rend un template de composant avec son **propre** scope construit à partir des props passées (il n'hérite pas des données de l'appelant). Le contenu du corps de bloc et les blocs `@slot('name')…@endslot` rendent dans le scope de **l'appelant** et sont injectés aux sorties de slot du composant :
+`@component('name', { props })` rend un template de composant avec son **propre** scope construit à partir des props passées (il n'hérite pas des données de l'appelant). Les globales du moteur (`engine.global(…)`) et les valeurs qu'un renderer `share()` — la requête, `app`, `qs` — sont visibles dans chaque composant, sous ses props. Le contenu du corps de bloc et les blocs `@slot('name')…@endslot` rendent dans le scope de **l'appelant** et sont injectés aux sorties de slot du composant :
 
 ```inker
 {{-- components/card.inker --}}
