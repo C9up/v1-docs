@@ -111,11 +111,11 @@ await mail.send((message) => {
 
 | Method | Description |
 |---|---|
-| `.from(address)` | Sender address (overrides config default) |
-| `.to(address)` | Add a recipient (call multiple times for multiple recipients) |
-| `.cc(address)` | Add a CC recipient |
-| `.bcc(address)` | Add a BCC recipient |
-| `.replyTo(address)` | Set the Reply-To address |
+| `.from(address, name?)` | Sender address (overrides config default) |
+| `.to(address, name?)` / `.to([...])` | Add a recipient (call multiple times, or pass an array of addresses and `{ address, name }`) |
+| `.cc(address, name?)` | Add a CC recipient |
+| `.bcc(address, name?)` | Add a BCC recipient |
+| `.replyTo(address, name?)` | Add a Reply-To address (each call adds one) |
 | `.subject(text)` | Email subject |
 | `.html(content)` | HTML body |
 | `.text(content)` | Plain text body |
@@ -331,8 +331,15 @@ message.hasAnyRecipient('ada@acme.test')        // to / cc / bcc
 message.hasAnyRecipient()                       // is there a recipient at all
 ```
 
-Addresses are stored in their display form, so `hasFrom('a@b.c')` matches inside
-`"Name" <a@b.c>`. With a display name, the comparison is exact.
+Addresses are stored structured: a bare address, or `{ address, name }` when a
+display name was given. `hasFrom('a@b.c')` matches either form; with a display
+name, both halves must match.
+
+Each address argument is exactly one mailbox. A value holding a list, a display
+form or a comment (`a@x.test, b@y.test`, `Bob <b@y.test>`) is refused with
+`E_MAIL_INVALID_ADDRESS`, and a line break or NUL anywhere, including in array
+entries, with `E_MAIL_HEADER_INJECTION`: a contact form passing its fields to
+`to(email, name)` cannot be turned into a relay.
 
 ## Lifecycle events
 

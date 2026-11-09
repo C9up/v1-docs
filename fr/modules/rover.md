@@ -111,11 +111,11 @@ await mail.send((message) => {
 
 | Methode | Description |
 |---|---|
-| `.from(address)` | Adresse expediteur (surcharge le defaut de la config) |
-| `.to(address)` | Ajouter un destinataire (appel multiple pour plusieurs destinataires) |
-| `.cc(address)` | Ajouter un destinataire en copie |
-| `.bcc(address)` | Ajouter un destinataire en copie cachee |
-| `.replyTo(address)` | Definir l'adresse de reponse |
+| `.from(address, name?)` | Adresse expéditeur (surcharge le défaut de la config) |
+| `.to(address, name?)` / `.to([...])` | Ajouter un destinataire (appel multiple, ou un tableau d'adresses et de `{ address, name }`) |
+| `.cc(address, name?)` | Ajouter un destinataire en copie |
+| `.bcc(address, name?)` | Ajouter un destinataire en copie cachée |
+| `.replyTo(address, name?)` | Ajouter une adresse de réponse (chaque appel en ajoute une) |
 | `.subject(text)` | Objet de l'email |
 | `.html(content)` | Corps HTML |
 | `.text(content)` | Corps en texte brut |
@@ -326,9 +326,17 @@ message.hasAnyRecipient('ada@acme.test')        // to / cc / bcc
 message.hasAnyRecipient()                       // y a-t-il un destinataire
 ```
 
-Les adresses sont stockées sous leur forme d'affichage, donc `hasFrom('a@b.c')`
-retrouve l'adresse à l'intérieur de `"Nom" <a@b.c>`. Avec un nom d'affichage, la
-comparaison est exacte.
+Les adresses sont stockées structurées : une adresse seule, ou
+`{ address, name }` quand un nom d'affichage est donné. `hasFrom('a@b.c')`
+reconnaît les deux formes ; avec un nom d'affichage, les deux moitiés doivent
+correspondre.
+
+Chaque argument d'adresse est une seule boîte. Une valeur contenant une liste,
+une forme d'affichage ou un commentaire (`a@x.test, b@y.test`, `Bob <b@y.test>`)
+est refusée avec `E_MAIL_INVALID_ADDRESS`, et un saut de ligne ou un NUL, y
+compris dans les entrées d'un tableau, avec `E_MAIL_HEADER_INJECTION` : un
+formulaire de contact qui passe ses champs à `to(email, name)` ne peut pas
+servir de relais.
 
 ## Événements de cycle de vie
 
