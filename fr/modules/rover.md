@@ -310,6 +310,34 @@ qui le nomme échoue à la **compilation** plutôt qu'au démarrage.
 une config écrite ainsi n'a rien à changer — mais les nouvelles déclarent
 `mailers`.
 
+## Vues et moteur de templates
+
+`htmlView()`, `textView()` et `watchView()` passent par
+`MessageBuilder.templateEngine` quand un moteur est enregistré : un objet avec
+`render(templatePath, sharedState, data)`, ce qui permet à une application de
+rendre ses mails avec son propre moteur de vues. `sharedState` porte les
+`globals` de la config et, pour les vues html et watch, deux helpers qui
+intègrent une image et renvoient son URL `cid:` :
+
+```ts
+import { MessageBuilder } from '@c9up/rover'
+
+MessageBuilder.templateEngine = {
+  render: (template, shared, data) => views.share(shared).render(template, data),
+}
+```
+
+```html
+<img src="{{ embedImage(app.makePath('resources/logo.png')) }}">
+<img src="{{ embedImageData(chartPng) }}">
+```
+
+Sans moteur enregistré, le moteur intégré de rover rend les fichiers `.html`
+sous `viewsRoot`. Il est volontairement réduit : `{{ value }}` (échappé),
+`{{{ raw }}}`, `{{#if}}` et `{{> partial}}` — ni boucles, ni expressions, ni
+helpers, donc pas d'`embedImage` non plus. Un mail qui en a besoin enregistre un
+moteur.
+
 ## Mails dépêchables
 
 ```ts

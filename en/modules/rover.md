@@ -312,6 +312,33 @@ it fails to **compile** rather than at boot.
 `transports` is rover's older name for the same map. It still works — a config
 written against it needs no change — but new configs declare `mailers`.
 
+## Views and the template engine
+
+`htmlView()`, `textView()` and `watchView()` render through
+`MessageBuilder.templateEngine` when one is registered: an object with
+`render(templatePath, sharedState, data)`, which is how an application's own
+view engine renders its mails. `sharedState` carries the config's `globals`
+and, for the html and watch views, two helpers that embed an image and return
+its `cid:` URL:
+
+```ts
+import { MessageBuilder } from '@c9up/rover'
+
+MessageBuilder.templateEngine = {
+  render: (template, shared, data) => views.share(shared).render(template, data),
+}
+```
+
+```html
+<img src="{{ embedImage(app.makePath('resources/logo.png')) }}">
+<img src="{{ embedImageData(chartPng) }}">
+```
+
+With no engine registered, rover's built-in engine renders `.html` files under
+`viewsRoot`. It is deliberately small: `{{ value }}` (escaped), `{{{ raw }}}`,
+`{{#if}}` and `{{> partial}}` — no loops, expressions or helpers, so no
+`embedImage` either. A mail that needs those registers an engine.
+
 ## Dispatchable mails
 
 ```ts
