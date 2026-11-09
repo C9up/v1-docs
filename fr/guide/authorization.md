@@ -221,8 +221,8 @@ leur propre logique.
 ### Station — callbacks `defineResource({ policies })`
 
 La table de callbacks `PolicyFn` par action de Station est **supprimée**. L'accès
-grossier est désormais un gate de permission `${resource}.${action}` résolu via
-Warden, et l'ownership par ligne migre dans une **policy** Bouncer Warden (où
+grossier est désormais un gate d'entrée `station.access` plus un gate de
+permission `station.${resource}.${action}` résolus via Warden, et l'ownership par ligne migre dans une **policy** Bouncer Warden (où
 `this.permissions` et la ressource sont tous deux disponibles). Voir la
 [section Autorisation de Station](/fr/modules/station#autorisation) pour la note
 sur l'ownership. Ce gate grossier résout les permissions au **scope global** —
@@ -244,12 +244,17 @@ class ArticlePolicy extends BasePolicy {
 ### Le stopgap admin fail-closed
 
 Le stopgap fail-closed de l'Epic 54 (qui refusait d'emblée les actions admin
-jusqu'à l'existence d'une vraie policy) est **supprimé**. Accordez plutôt les
-permissions `<resource>.<action>` correspondantes dans le rights store :
+jusqu'à l'existence d'une vraie policy) est **supprimé**. Accordez plutôt
+`station.access` et les permissions `station.<resource>.<action>`
+correspondantes dans le rights store :
 
 ```ts
 rights
-  .defineRole("admin", ["user.create", "user.delete", "article.update"], "global")
+  .defineRole(
+    "admin",
+    ["station.access", "station.users.create", "station.users.destroy", "station.articles.edit"],
+    "global",
+  )
   .assignRole("root", "admin", "global")
 ```
 

@@ -214,7 +214,8 @@ the same `RightsResolver.resolve(user, scope)` set instead of their own logic.
 ### Station — `defineResource({ policies })` callbacks
 
 Station's per-action `PolicyFn` callback table is **removed**. Coarse access is
-now a `${resource}.${action}` permission gate resolved through Warden, and
+now a `station.access` entry gate plus a `station.${resource}.${action}`
+permission gate resolved through Warden, and
 per-row ownership moves into a Warden Bouncer **policy** (where `this.permissions`
 and the resource are both available). See the
 [Station authorization section](/en/modules/station#authorization) for the
@@ -237,12 +238,17 @@ class ArticlePolicy extends BasePolicy {
 ### The fail-closed admin stopgap
 
 The Epic 54 fail-closed stopgap (which denied admin actions outright until a
-real policy existed) is **removed**. Grant the corresponding
-`<resource>.<action>` permissions in the rights store instead:
+real policy existed) is **removed**. Grant `station.access` and the
+corresponding `station.<resource>.<action>` permissions in the rights store
+instead:
 
 ```ts
 rights
-  .defineRole("admin", ["user.create", "user.delete", "article.update"], "global")
+  .defineRole(
+    "admin",
+    ["station.access", "station.users.create", "station.users.destroy", "station.articles.edit"],
+    "global",
+  )
   .assignRole("root", "admin", "global")
 ```
 
