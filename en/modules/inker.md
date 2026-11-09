@@ -203,6 +203,9 @@ Inside a component:
 
 - `$props` is a chainable API — `all()`, `get(key, fallback)`, `has(key)`, `only(keys)`, `except(keys)`, `merge(defaults)` (caller props win; `class` is combined), and `toAttrs()` (serialise to an HTML attribute string).
 - `$slots.main()` renders the default (body) slot; `$slots.<name>()` a named slot; `$slots.<name>` is `undefined` when absent, so `@if($slots.footer)` works.
+- A slot can take an argument: `@slot('row', item)…@endslot` binds `item` to what the component passes, so a list component renders each entry with `$slots.row(entry)`.
+
+The props are any JavaScript expression — an object literal with quoted keys, arrays, calls or ternaries, a variable, a spread (`{ ...$props.all(), id: 'k' }`). The name can be an expression too: `@component(kind, props)` and `@include(partialName)` resolve the name when they render, under the same path rules as a literal one (no `..`, no absolute path, contained in the disk root).
 
 ## Helpers & globals
 

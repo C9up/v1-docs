@@ -203,6 +203,9 @@ Un partial ou un composant inexistant n'est une erreur (`E_INKER_TEMPLATE_NOT_FO
 
 - `$props` est une API chaînable — `all()`, `get(key, fallback)`, `has(key)`, `only(keys)`, `except(keys)`, `merge(defaults)` (les props de l'appelant l'emportent ; `class` est combiné), et `toAttrs()` (sérialise en une chaîne d'attributs HTML).
 - `$slots.main()` rend le slot par défaut (body) ; `$slots.<name>()` un slot nommé ; `$slots.<name>` vaut `undefined` s'il est absent, donc `@if($slots.footer)` fonctionne.
+- Un slot peut recevoir un argument : `@slot('row', item)…@endslot` lie `item` à ce que le composant passe, et un composant de liste rend chaque entrée avec `$slots.row(entry)`.
+
+Les props sont n'importe quelle expression JavaScript — un objet littéral avec des clés entre guillemets, des tableaux, des appels ou des ternaires, une variable, un spread (`{ ...$props.all(), id: 'k' }`). Le nom peut aussi être une expression : `@component(kind, props)` et `@include(partialName)` résolvent le nom au moment du rendu, sous les mêmes règles de chemin qu'un nom littéral (pas de `..`, pas de chemin absolu, contenu dans la racine du disque).
 
 ## Helpers & globals
 
