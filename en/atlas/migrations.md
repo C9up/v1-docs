@@ -64,6 +64,10 @@ ream schema:generate        # generate schema classes from the live database
 ream atlas:check            # verify the models against the live schema
 ```
 
+In production, `migration:run` asks for confirmation before applying anything;
+`--force` skips the question. A run that cannot ask (no terminal) or whose
+question is declined applies nothing.
+
 ### Where the paths come from
 
 The connection's own config, the way Lucid keeps it — so a command reads what

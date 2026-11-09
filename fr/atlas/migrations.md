@@ -69,6 +69,10 @@ ream schema:generate        # génère les classes de schéma depuis la base
 ream atlas:check            # vérifie les modèles face au schéma réel
 ```
 
+En production, `migration:run` demande confirmation avant d'appliquer quoi que
+ce soit ; `--force` évite la question. Un run qui ne peut pas poser la question
+(pas de terminal) ou dont la réponse est non n'applique rien.
+
 ### D'où viennent les chemins
 
 De la config de la connexion, là où Lucid les garde — la commande lit donc ce
