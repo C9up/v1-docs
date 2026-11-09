@@ -30,11 +30,11 @@ export async function configure(
 
 The hook is async and returns `Promise<void>`. Throw to abort: any error escaping the function exits `ream add` with code 1 (and `ream configure` with code 1). The CLI does not catch and continue — a failed configure leaves the package installed but the project unconfigured.
 
-The hook runs once per `ream add` / `ream configure` invocation. It MUST be idempotent: a user re-running `ream add` after upgrading the package SHOULD see no destructive changes. The five `Codemods` methods below are designed to be safe to re-run — `addProvider`, `addEnvVars`, `writeFile`, and `registerCommand` silently skip already-applied changes; `registerMiddleware` is per-tier idempotent and additionally rejects cross-tier collisions outright (registering the same import path in both `server` AND `router` throws). Any direct file writes you perform outside `Codemods` MUST follow the same convention.
+The hook runs once per `ream add` / `ream configure` invocation. It MUST be idempotent: a user re-running `ream add` after upgrading the package SHOULD see no destructive changes. The `Codemods` methods below are designed to be safe to re-run — `addProvider`, `addEnvVars`, `writeFile`, `registerCommand`, `defineEnvValidations` and `addPreloadFile` silently skip already-applied changes; `registerMiddleware` is per-tier idempotent and additionally rejects cross-tier collisions outright (registering the same import path in both `server` AND `router` throws). Any direct file writes you perform outside `Codemods` MUST follow the same convention.
 
 ## The `Codemods` API
 
-The `Codemods` interface is the only argument you operate on. Its methods cover the recurring patterns: register a provider, seed environment variables, scaffold config or migration files from a stub, register a CLI command, and register HTTP middleware. The live source is at `packages/ream/src/Codemods.ts:4`.
+The `Codemods` interface is the only argument you operate on. Its methods cover the recurring patterns: register a provider or a preload, seed environment variables and their validation rules, scaffold config or migration files from a stub, register a CLI command, and register HTTP middleware. The live source is at `packages/ream/src/Codemods.ts:4`.
 
 ```typescript
 interface Codemods {
@@ -49,6 +49,15 @@ interface Codemods {
   ): Promise<{ path: string; contents: string }>
   registerCommand(importPath: string): Promise<void>
   registerMiddleware(importPath: string, options?: { tier?: 'server' | 'router' }): Promise<void>
+  defineEnvValidations(definition: {
+    leadingComment?: string
+    variables: Record<string, string>
+    overwrite?: boolean
+  }): Promise<string[]>
+  addPreloadFile(
+    modulePath: string,
+    environments?: Array<'web' | 'console' | 'test' | 'repl'>,
+  ): Promise<void>
 }
 ```
 
@@ -182,6 +191,36 @@ await codemods.registerMiddleware('@community/your-plugin/middleware/headers.js'
 Idempotent **per tier** — calling `registerMiddleware` twice with the same importPath and tier produces a single entry. Cross-tier collision is rejected: registering the same importPath in both `server` AND `router` is almost always a mistake; the second call throws `[configure] middleware <importPath> is already registered in <other-tier> tier`.
 
 Unlike `registerCommand`, this method does NOT bootstrap a missing `<tier>.use([])` block. The `server.use` and `router.use` calls in `start/kernel.ts` are user-authored idiom (with their own `import server from '@c9up/ream/services/server'` boilerplate), not a config-shape contract — synthesising them is footgun-prone if the user has renamed identifiers. When the targeted block is absent, the codemod errors with `[configure] Could not find '<tier>.use([' in start/kernel.ts` and asks the user to add it manually.
+
+### `defineEnvValidations(definition)`
+
+Adds validation rules to the schema object `start/env.ts` passes to `Env.create`, so the variables your hook writes with `addEnvVars` are checked at boot like the application's own. Each key of `variables` is a variable name; each value is the rule's source code.
+
+```typescript
+const kept = await codemods.defineEnvValidations({
+  leadingComment: 'Variables for @community/your-plugin',
+  variables: {
+    YOUR_PLUGIN_HOST: "Env.schema.string({ format: 'host' })",
+    YOUR_PLUGIN_PORT: 'Env.schema.number()',
+  },
+})
+```
+
+The rules are appended at the end of the schema object, under a banner comment built from `leadingComment` (a blank line only when there is none). The banner is written only when none of the variables already existed in the file. A variable the schema already declares is left as it is, since the user may have tightened its rule: the method resolves to the names kept that way with a rule different from the one requested, so your hook can tell the user. Pass `overwrite: true` (typically your `--force` flag) to replace them instead.
+
+A variable name must match `[A-Za-z_][A-Za-z0-9_]*`, a rule must be one complete expression (balanced brackets, closed strings, no top-level comma, no `//` comment) and the comment must be one line without `*/`; anything else throws a `[configure]` error before the file is touched. A missing `start/env.ts`, a file without an `Env.create(...)` call, or a schema that is not an object literal (a variable, a spread) also throws: add the rules by hand in those cases.
+
+### `addPreloadFile(modulePath, environments?)`
+
+Registers a file in the `preloads` array of `reamrc.ts`. A package whose configure hook writes a `start/*.ts` file needs this: a preload that is not listed is never loaded.
+
+```typescript
+await codemods.makeUsingStub(stubsRoot, 'start/your-plugin.stub')
+await codemods.addPreloadFile('#start/your-plugin.js')
+await codemods.addPreloadFile('#start/your-plugin-dev.js', ['web'])
+```
+
+The entry is appended at the end of the array, which is created when absent. With `environments` listing some of `web`, `console`, `test` and `repl`, the entry is `{ file: () => import('…'), environment: [...] }`; without it, or with all four, it is a plain `() => import('…')`. A module the array already imports, in either form, is left untouched. The module path cannot contain quotes, a backslash or a line break, and an unknown environment is refused, both with a `[configure]` error. `reamrc.ts` must export a `defineConfig({ ... })` call or an object literal, and an existing `preloads` must be an array literal.
 
 ## Package shape
 

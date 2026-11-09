@@ -30,11 +30,11 @@ export async function configure(
 
 Le hook est asynchrone et retourne `Promise<void>`. Lever une exception interrompt l'opération : toute erreur qui s'échappe de la fonction sort `ream add` avec le code 1 (et `ream configure` avec le code 1). La CLI ne capture pas pour continuer — un configure raté laisse le paquet installé mais le projet non configuré.
 
-Le hook s'exécute une fois par invocation de `ream add` / `ream configure`. Il DOIT être idempotent : un utilisateur qui relance `ream add` après avoir mis à jour le paquet NE DOIT PAS voir de modifications destructrices. Les méthodes de `Codemods` ci-dessous sont conçues pour être sûres à ré-exécuter — `addProvider`, `addEnvVars`, `writeFile` et `registerCommand` ignorent silencieusement les changements déjà appliqués ; `registerMiddleware` est idempotent par tier et rejette d'emblée les collisions cross-tier (enregistrer le même chemin d'import dans `server` ET `router` lève une erreur). Toute écriture de fichier directe que vous effectuez en dehors de `Codemods` DOIT suivre la même convention.
+Le hook s'exécute une fois par invocation de `ream add` / `ream configure`. Il DOIT être idempotent : un utilisateur qui relance `ream add` après avoir mis à jour le paquet NE DOIT PAS voir de modifications destructrices. Les méthodes de `Codemods` ci-dessous sont conçues pour être sûres à ré-exécuter — `addProvider`, `addEnvVars`, `writeFile`, `registerCommand`, `defineEnvValidations` et `addPreloadFile` ignorent silencieusement les changements déjà appliqués ; `registerMiddleware` est idempotent par tier et rejette d'emblée les collisions cross-tier (enregistrer le même chemin d'import dans `server` ET `router` lève une erreur). Toute écriture de fichier directe que vous effectuez en dehors de `Codemods` DOIT suivre la même convention.
 
 ## L'API `Codemods`
 
-L'interface `Codemods` est le seul argument sur lequel vous opérez. Ses cinq méthodes couvrent les motifs récurrents : enregistrer un provider, semer des variables d'environnement, générer des fichiers de configuration ou de migration, enregistrer une commande CLI, et enregistrer un middleware HTTP. La source vivante est en `packages/ream/src/Codemods.ts:4`.
+L'interface `Codemods` est le seul argument sur lequel vous opérez. Ses méthodes couvrent les motifs récurrents : enregistrer un provider ou un preload, semer des variables d'environnement et leurs règles de validation, générer des fichiers de configuration ou de migration, enregistrer une commande CLI, et enregistrer un middleware HTTP. La source vivante est en `packages/ream/src/Codemods.ts:4`.
 
 ```typescript
 interface Codemods {
@@ -49,6 +49,15 @@ interface Codemods {
   ): Promise<{ path: string; contents: string }>
   registerCommand(importPath: string): Promise<void>
   registerMiddleware(importPath: string, options?: { tier?: 'server' | 'router' }): Promise<void>
+  defineEnvValidations(definition: {
+    leadingComment?: string
+    variables: Record<string, string>
+    overwrite?: boolean
+  }): Promise<string[]>
+  addPreloadFile(
+    modulePath: string,
+    environments?: Array<'web' | 'console' | 'test' | 'repl'>,
+  ): Promise<void>
 }
 ```
 
@@ -186,6 +195,36 @@ await codemods.registerMiddleware('@community/your-plugin/middleware/headers.js'
 Idempotent **par tier** — appeler `registerMiddleware` deux fois avec le même importPath et le même tier produit une seule entrée. La collision cross-tier est rejetée : enregistrer le même importPath dans `server` ET `router` est presque toujours une erreur ; le second appel lève `[configure] middleware <importPath> is already registered in <other-tier> tier`.
 
 Contrairement à `registerCommand`, cette méthode ne bootstrappe PAS un bloc `<tier>.use([])` manquant. Les appels `server.use` et `router.use` dans `start/kernel.ts` sont du code idiomatique écrit par l'utilisateur (avec leur propre boilerplate `import server from '@c9up/ream/services/server'`), pas un contrat de forme de config — les synthétiser serait piégeux si l'utilisateur a renommé des identifiants. Quand le bloc ciblé est absent, le codemod échoue avec `[configure] Could not find '<tier>.use([' in start/kernel.ts` et demande à l'utilisateur de l'ajouter à la main.
+
+### `defineEnvValidations(definition)`
+
+Ajoute des règles de validation à l'objet de schéma que `start/env.ts` passe à `Env.create`, pour que les variables que votre hook écrit avec `addEnvVars` soient vérifiées au démarrage comme celles de l'application. Chaque clé de `variables` est un nom de variable ; chaque valeur est le code source de la règle.
+
+```typescript
+const kept = await codemods.defineEnvValidations({
+  leadingComment: 'Variables for @community/your-plugin',
+  variables: {
+    YOUR_PLUGIN_HOST: "Env.schema.string({ format: 'host' })",
+    YOUR_PLUGIN_PORT: 'Env.schema.number()',
+  },
+})
+```
+
+Les règles sont ajoutées à la fin de l'objet de schéma, sous un commentaire bannière construit à partir de `leadingComment` (une simple ligne vide s'il n'y en a pas). La bannière n'est écrite que si aucune des variables n'existait déjà dans le fichier. Une variable que le schéma déclare déjà est laissée telle quelle, puisque l'utilisateur a pu durcir sa règle : la méthode renvoie les noms conservés ainsi avec une règle différente de celle demandée, pour que votre hook puisse le signaler. Passez `overwrite: true` (en général votre option `--force`) pour les remplacer.
+
+Un nom de variable doit correspondre à `[A-Za-z_][A-Za-z0-9_]*`, une règle doit être une expression complète (crochets équilibrés, chaînes fermées, pas de virgule de premier niveau, pas de commentaire `//`) et le commentaire doit tenir sur une ligne sans `*/` ; sinon une erreur `[configure]` est levée avant que le fichier soit touché. Un `start/env.ts` absent, un fichier sans appel `Env.create(...)` ou un schéma qui n'est pas un objet littéral (une variable, un spread) lèvent aussi une erreur : ajoutez alors les règles à la main.
+
+### `addPreloadFile(modulePath, environments?)`
+
+Enregistre un fichier dans le tableau `preloads` de `reamrc.ts`. Un paquet dont le hook de configuration écrit un fichier `start/*.ts` en a besoin : un preload qui n'est pas listé n'est jamais chargé.
+
+```typescript
+await codemods.makeUsingStub(stubsRoot, 'start/your-plugin.stub')
+await codemods.addPreloadFile('#start/your-plugin.js')
+await codemods.addPreloadFile('#start/your-plugin-dev.js', ['web'])
+```
+
+L'entrée est ajoutée à la fin du tableau, créé s'il est absent. Quand `environments` liste une partie de `web`, `console`, `test` et `repl`, l'entrée est `{ file: () => import('…'), environment: [...] }` ; sans lui, ou avec les quatre, c'est un simple `() => import('…')`. Un module que le tableau importe déjà, sous l'une ou l'autre forme, est laissé tel quel. Le chemin du module ne peut contenir ni guillemet, ni barre oblique inverse, ni saut de ligne, et un environnement inconnu est refusé, tous deux avec une erreur `[configure]`. `reamrc.ts` doit exporter un appel `defineConfig({ ... })` ou un objet littéral, et un `preloads` existant doit être un tableau littéral.
 
 ## Forme du paquet
 
