@@ -77,10 +77,12 @@ for `emails` and another for `default`, rather than one taking whatever comes.
 `concurrency` is `1` by default: safe, and a poor default for anything that
 waits on the network.
 
-A `timeout` fails the attempt; it does **not** kill the handler, because nothing
-in Node can interrupt a running promise. What it buys is that the *worker* stops
-waiting — otherwise one stuck job costs the whole worker, which never picks
-anything up again.
+A `timeout` fails the attempt and aborts `this.signal` (the second argument of a
+registered handler's `handle`). It does **not** kill the handler, because nothing
+in Node can interrupt a running promise: pass the signal to the I/O the job does
+— `fetch(url, { signal: this.signal })` — or check `this.signal.aborted` between
+steps. Until the handler returns it keeps its worker slot, so `concurrency`
+bounds what actually runs.
 
 ## Config
 

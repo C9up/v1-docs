@@ -78,10 +78,12 @@ un worker pour `emails`, un autre pour `default`, plutôt qu'un seul qui prend c
 qui vient. `concurrency` vaut `1` par défaut : sûr, et mauvais pour tout ce qui
 attend le réseau.
 
-Un `timeout` fait échouer la tentative ; il ne **tue pas** le handler, parce que
-rien dans Node n'interrompt une promesse en cours. Ce qu'il achète, c'est que le
-*worker* cesse d'attendre — sinon un seul job coincé coûte le worker entier, qui
-ne reprend plus jamais rien.
+Un `timeout` fait échouer la tentative et déclenche `this.signal` (le second
+argument du `handle` d'un handler enregistré). Il ne **tue pas** le handler, parce
+que rien dans Node n'interrompt une promesse en cours : passe le signal aux E/S du
+job — `fetch(url, { signal: this.signal })` — ou teste `this.signal.aborted` entre
+deux étapes. Tant que le handler n'a pas rendu la main, il garde sa place dans le
+worker : `concurrency` borne ce qui tourne réellement.
 
 ## Config
 
