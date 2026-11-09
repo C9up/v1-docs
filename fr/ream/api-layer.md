@@ -31,8 +31,8 @@ const rpc = await app.container.make('rpc')
 // Handler closure :
 rpc.method('task.validate', (ctx, params) => validate(params)).guard('jwt')
 
-// Ou un contrôleur entier — chaque méthode publique, résolue par DI à chaque appel :
-rpc.namespace('user', UserController) // → user.find, user.create, …
+// Ou les méthodes d'un contrôleur — listées explicitement, résolues par DI à chaque appel :
+rpc.namespace('user', UserController, ['find', 'create']) // → user.find, user.create
 
 // Guards/middleware partagés pour un groupe :
 rpc.group({ guard: 'jwt' }, (r) => {
@@ -46,7 +46,29 @@ Les clients font `POST /rpc` avec un corps JSON-RPC 2.0 (simple ou batch, max 50
 { "jsonrpc": "2.0", "method": "task.validate", "params": { "id": 1 }, "id": 1 }
 ```
 
-Config : `config.rpc.path` change le chemin de montage (défaut `/rpc`).
+Le corps doit être envoyé en `application/json` (ou `application/json-rpc`,
+`application/jsonrequest`) ; tout autre Content-Type, ou aucun, reçoit
+`415 Unsupported Media Type` avant que le corps soit lu. Un formulaire ou un
+corps `text/plain` est une requête que n'importe quelle page peut envoyer avec
+les cookies du visiteur sans preflight CORS ; un Content-Type JSON ne peut pas
+partir ainsi. Un corps qui n'est pas du JSON valide reçoit `-32700 Parse error`.
+
+`namespace()` ne publie que les méthodes qu'on lui donne. `private` et
+`protected` de TypeScript n'existent pas à l'exécution : une méthode de
+contrôleur est joignable en RPC exactement quand elle figure dans cette liste.
+Le type n'accepte que les noms des méthodes publiques du contrôleur ; un nom
+inconnu, un getter ou `constructor` lève `E_RPC_UNKNOWN_CONTROLLER_METHOD`.
+
+Les noms qui commencent par `rpc.` sont réservés au protocole par JSON-RPC 2.0 :
+en enregistrer un lève `E_RPC_RESERVED_METHOD_NAME`, et un nom vide lève
+`E_RPC_INVALID_METHOD_NAME`.
+
+En production, une panne interne (un handler ou un validateur qui lève autre
+chose qu'une erreur JSON-RPC, un validateur non enregistré) reçoit
+`-32603 Internal error` sans son message.
+
+Config : `config.rpc.path` change le chemin de montage (défaut `/rpc`) ;
+`config.rpc.contentTypes` remplace les types de média acceptés.
 
 > Le `RpcRouter` garde son DSL de routage (`method`/`group`/`namespace`/`guard`/`validate`)
 > et son pipeline (DI, middleware, auth warden), mais l'enveloppe JSON-RPC, le

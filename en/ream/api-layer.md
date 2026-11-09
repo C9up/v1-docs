@@ -29,8 +29,8 @@ const rpc = await app.container.make('rpc')
 // Closure handler:
 rpc.method('task.validate', (ctx, params) => validate(params)).guard('jwt')
 
-// Or a whole controller — every public method, DI-resolved per call:
-rpc.namespace('user', UserController) // → user.find, user.create, …
+// Or a controller's methods — listed explicitly, DI-resolved per call:
+rpc.namespace('user', UserController, ['find', 'create']) // → user.find, user.create
 
 // Shared guards/middleware for a group:
 rpc.group({ guard: 'jwt' }, (r) => {
@@ -44,7 +44,29 @@ Clients `POST /rpc` with a JSON-RPC 2.0 body (single or batch, max 50):
 { "jsonrpc": "2.0", "method": "task.validate", "params": { "id": 1 }, "id": 1 }
 ```
 
-Config: `config.rpc.path` overrides the mount path (default `/rpc`).
+The body must be sent as `application/json` (or `application/json-rpc`,
+`application/jsonrequest`); any other Content-Type, or none, is answered
+`415 Unsupported Media Type` before the body is read. A form post or a
+`text/plain` body is a request any page can send with the visitor's cookies
+without a CORS preflight; a JSON Content-Type cannot be sent that way. A body
+that is not valid JSON is answered with `-32700 Parse error`.
+
+`namespace()` publishes only the methods it is given. TypeScript `private` and
+`protected` do not exist at runtime, so a controller method is reachable over
+RPC exactly when it is in that list. The type only accepts the controller's
+public method names; an unknown name, a getter or `constructor` throws
+`E_RPC_UNKNOWN_CONTROLLER_METHOD`.
+
+Names starting with `rpc.` are reserved by JSON-RPC 2.0 for the protocol:
+registering one throws `E_RPC_RESERVED_METHOD_NAME`, and an empty name throws
+`E_RPC_INVALID_METHOD_NAME`.
+
+In production, an internal failure (a handler or a validator that throws
+something other than a JSON-RPC error, a validator that is not registered) is
+answered `-32603 Internal error` without its message.
+
+Config: `config.rpc.path` overrides the mount path (default `/rpc`);
+`config.rpc.contentTypes` replaces the accepted media types.
 
 > `RpcRouter` keeps its routing DSL (`method`/`group`/`namespace`/`guard`/`validate`)
 > and pipeline (DI, middleware, warden auth), but the JSON-RPC envelope, parsing,
