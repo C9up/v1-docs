@@ -422,6 +422,12 @@ Un message HTML seul passe moins bien les filtres anti-spam et est illisible en
 client texte. L'enveloppe est ce qu'utilisent les serveurs : un retour en erreur
 part vers l'expéditeur d'enveloppe, pas vers l'auteur visible.
 
+Le transport SMTP envoie `MAIL FROM` / `RCPT TO` d'après l'enveloppe. Une API de
+fournisseur qui ne sait pas la fixer refuse le message avec
+`E_MAIL_FIELD_UNSUPPORTED` au lieu de le livrer aux destinataires des en-têtes.
+Chaque entrée de l'enveloppe est une seule adresse, vérifiée comme un
+destinataire.
+
 ## Arrêt
 
 ```ts

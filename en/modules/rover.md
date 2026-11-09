@@ -424,6 +424,11 @@ An HTML-only message scores worse with spam filters and is unreadable in a text
 client. The envelope is what mail servers use: a bounce goes to the envelope
 sender, not to the visible author.
 
+The SMTP transport sends `MAIL FROM` / `RCPT TO` from the envelope. A provider
+API that cannot set it refuses the message with `E_MAIL_FIELD_UNSUPPORTED`
+rather than delivering to the header recipients. Each envelope entry is one
+address, checked like a recipient.
+
 ## Shutting down
 
 ```ts
