@@ -75,7 +75,7 @@ export default defineConfig({
 })
 ```
 
-Credentials go through the connector's setters, never embedded in the URL. There is no connection pool — eon holds a single long-lived connection (the connector has none); `connectRetries` covers the initial-connect race (docker/k8s cold start), not per-query reconnection.
+Put credentials in `user` / `password` / `token`: they go through the connector's setters. The connector also accepts them in the URL (`ws://user:pass@host`, `?token=`); eon masks the password and every query value of the URL in its error messages. There is no connection pool — eon holds a single long-lived connection (the connector has none); `connectRetries` covers the initial-connect race (docker/k8s cold start), not per-query reconnection.
 
 ### The `EonConnection` seam
 

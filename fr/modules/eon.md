@@ -75,7 +75,7 @@ export default defineConfig({
 })
 ```
 
-Les identifiants passent par les setters du connecteur, jamais intégrés à l'URL. Il n'y a pas de pool de connexions — eon garde une unique connexion longue durée (le connecteur n'en a pas) ; `connectRetries` couvre la course au démarrage initial (démarrage à froid docker/k8s), pas une reconnexion par requête.
+Les identifiants se mettent dans `user` / `password` / `token` : ils passent par les setters du connecteur. Le connecteur les accepte aussi dans l'URL (`ws://user:pass@host`, `?token=`) ; eon masque alors le mot de passe et chaque valeur de paramètre de l'URL dans ses messages d'erreur. Il n'y a pas de pool de connexions — eon garde une unique connexion longue durée (le connecteur n'en a pas) ; `connectRetries` couvre la course au démarrage initial (démarrage à froid docker/k8s), pas une reconnexion par requête.
 
 ### Le seam `EonConnection`
 
