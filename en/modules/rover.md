@@ -192,13 +192,16 @@ opt out, by name:
 
 ### Log (development)
 
-Prints email details to the console. No network connection is made. Useful during development and in CI environments.
+Prints the recipients and the subject of each message to the console. No network connection is made. Useful during development and in CI environments. The body is left out unless `logBody: true` is set, since a mailer left on `log` by mistake would otherwise copy reset links and one-time codes into the logs; every field is JSON-encoded, so a line break in a subject cannot forge a log line.
 
 ```typescript
 {
   transport: 'log',
+  logBody: true, // optional
 }
 ```
+
+The provider refuses to boot when no `config/mail.ts` is registered (`E_MAIL_CONFIG_MISSING`) rather than falling back to this mailer.
 
 ### Custom transports
 

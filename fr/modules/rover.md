@@ -194,13 +194,16 @@ où s'en passer, explicitement :
 
 ### Log (developpement)
 
-Affiche les details de l'email dans la console. Aucune connexion reseau n'est etablie. Utile en developpement et dans les environnements CI.
+Affiche les destinataires et le sujet de chaque message dans la console. Aucune connexion réseau n'est établie. Utile en développement et dans les environnements CI. Le corps n'est pas affiché sauf avec `logBody: true` : un mailer laissé sur `log` par erreur copierait sinon les liens de réinitialisation et les codes à usage unique dans les journaux. Chaque champ est encodé en JSON, si bien qu'un saut de ligne dans un sujet ne peut pas forger une ligne de journal.
 
 ```typescript
 {
   transport: 'log',
+  logBody: true, // facultatif
 }
 ```
+
+Le provider refuse de démarrer quand aucun `config/mail.ts` n'est enregistré (`E_MAIL_CONFIG_MISSING`) au lieu de se rabattre sur ce mailer.
 
 ### Transports personnalises
 
