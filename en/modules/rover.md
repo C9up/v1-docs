@@ -43,6 +43,11 @@ export default defineConfig({
 `default` has to name one of the `mailers`; anything else is refused when the
 application boots, rather than on the first email it tries to send.
 
+Each mailer's transport is built the first time it is used, then reused. A
+mailer the application never sends through, such as an `smtp` entry whose
+`SMTP_HOST` is still empty, does not stop the boot; its configuration error is
+raised when it is first used. `closeAll()` closes the transports built so far.
+
 In development, set `default: 'log'` to print emails to the console without sending them.
 
 ## Provider Registration

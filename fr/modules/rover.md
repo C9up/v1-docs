@@ -43,6 +43,12 @@ export default defineConfig({
 `default` doit nommer l'un des `mailers` ; toute autre valeur est refusée au
 démarrage de l'application, et non au premier email qu'elle tente d'envoyer.
 
+Le transport de chaque mailer est construit à sa première utilisation, puis
+réutilisé. Un mailer par lequel l'application n'envoie jamais, comme une entrée
+`smtp` dont `SMTP_HOST` est encore vide, n'empêche pas le démarrage ; son erreur
+de configuration est levée à sa première utilisation. `closeAll()` ferme les
+transports construits jusque-là.
+
 En developpement, utilisez `default: 'log'` pour afficher les emails dans la console sans les envoyer.
 
 ## Enregistrement du provider
