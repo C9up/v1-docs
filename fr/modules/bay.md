@@ -76,6 +76,21 @@ queue.register('mail.send', {
 await queue.dispatch('mail.send', { to: '…' }, { maxAttempts: 5 })
 ```
 
+## Priorités et jobs uniques
+
+```ts
+await queue.dispatch(SendAlert, payload, { priority: 1 })   // 1 passe en premier, 10 en dernier, 5 par défaut
+await queue.dispatch(SendInvoice, { orderId: 42 }, { dedup: { id: 'order-42' } })
+await queue.dispatch(SyncDraft, draft, { dedup: { id: 'draft-7', ttl: '2s', extend: true } })
+```
+
+Dans une même file, une `priority` plus basse passe d'abord ; les jobs d'une même
+priorité gardent leur ordre d'arrivée. `dedup` ne met le job en file que si aucun
+job du même nom ne tient cet id, et `dispatch` renvoie l'id de celui qui le tient.
+Sans `ttl`, l'id est tenu jusqu'à ce que le job se termine ou échoue
+définitivement (un job relancé le tient toujours) ; avec `ttl`, il l'est au plus
+ce temps-là, et `extend` relance la fenêtre à chaque doublon.
+
 ## Workers
 
 ```bash
@@ -214,8 +229,10 @@ qu'il ne connaît que par son nom.
 
 ## Limites actuelles (importantes)
 
-- pas de scheduler/cron natif dans Bay — un job récurrent est une tâche planifiée
-  qui en dispatche un
+- pas de planificateur dans la queue : un job récurrent est une tâche ream
+  `@Schedule` qui en dispatche un — une seule horloge et un seul verrou, pas deux
+- `dedup` n'a pas de mode `replace` : un job en attente est une seule entrée
+  sérialisée, qu'on ne peut pas réécrire sur place de façon atomique
 - en mode Memory, aucune durabilité inter-process
 
 ## Checklist prod

@@ -75,6 +75,21 @@ queue.register('mail.send', {
 await queue.dispatch('mail.send', { to: '…' }, { maxAttempts: 5 })
 ```
 
+## Priorities and unique jobs
+
+```ts
+await queue.dispatch(SendAlert, payload, { priority: 1 })   // 1 runs first, 10 last, 5 by default
+await queue.dispatch(SendInvoice, { orderId: 42 }, { dedup: { id: 'order-42' } })
+await queue.dispatch(SyncDraft, draft, { dedup: { id: 'draft-7', ttl: '2s', extend: true } })
+```
+
+Within one queue a lower `priority` runs first; jobs of one priority keep the
+order they were queued in. `dedup` queues the job only if no job of the same
+name holds that id, and `dispatch` answers the id of the one that does. Without
+`ttl` the id is held until the job completes or finally fails (a retried job
+still holds it); with `ttl` it is held that long at most, and `extend` restarts
+the window on each duplicate.
+
 ## Workers
 
 ```bash
@@ -210,8 +225,10 @@ only by name.
 
 ## Current limitations
 
-- no native scheduler/cron in Bay yet — a recurring job is a scheduled task that
-  dispatches one
+- no scheduler inside the queue: a recurring job is a ream `@Schedule` task that
+  dispatches one, so there is one clock and one lock, not two
+- `dedup` has no `replace` mode: a waiting job is one serialised entry, which
+  cannot be rewritten in place atomically
 - no cross-process durability with `MemoryDriver`
 
 ## Production checklist
