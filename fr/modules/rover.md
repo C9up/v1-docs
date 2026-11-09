@@ -145,8 +145,14 @@ const { messageId } = await mail.send((message) => {
 
 > **List-Unsubscribe et délivrabilité.** Gmail et Yahoo exigent des expéditeurs
 > en masse une désinscription en un clic. `oneClick: true` émet l'en-tête RFC
-> 8058 `List-Unsubscribe-Post` à côté de l'URL, et refuse une cible `mailto:` —
-> elle ne peut pas répondre à un POST.
+> 8058 `List-Unsubscribe-Post` à côté de l'URL, et refuse toute cible autre
+> qu'`https:` (RFC 8058) — un `mailto:` ne peut pas répondre à un POST.
+>
+> Chaque entrée `List-*` est une seule URL `https:`, `http:`, `mailto:` ou
+> `ftp:`, ou une adresse seule (envoyée en `mailto:`) ; un espace, un chevron ou
+> un saut de ligne y est refusé (`E_INVALID_LIST_HEADER`), si bien qu'aucune
+> seconde cible ne peut s'y glisser. Les commentaires sont échappés, et encodés à
+> part quand ils ne sont pas en ASCII.
 
 > **Invitations calendrier.** `icalEventFromUrl()` est réservé au SMTP :
 > nodemailer récupère l'URL, alors qu'une API HTTP de fournisseur attend les
