@@ -176,11 +176,29 @@ The class is `Job`; the record is `JobRecord`. They used to share the name.
 const failed = await queue.failedJobs()
 ```
 
+Without a backoff a retry is queued again at once. `retry.backoff` spaces the
+attempts out:
+
+```ts
+import { exponentialBackoff, fixedBackoff, linearBackoff } from '@c9up/bay'
+
+static options = {
+  maxRetries: 5,
+  retry: { backoff: exponentialBackoff({ baseDelay: '1s', maxDelay: '5m' }) },
+}
+
+await queue.dispatch('sync', payload, { retry: { backoff: fixedBackoff('30s') } })
+```
+
+`exponentialBackoff` (1s, 2s, 4s… up to 5m, with jitter), `linearBackoff` (5s,
+10s, 15s… up to 2m), `fixedBackoff` (10s) and `customBackoff`. The strategy is
+stored on the queued record, so a worker honours it even for a job it knows
+only by name.
+
 ## Current limitations
 
 - no native scheduler/cron in Bay yet — a recurring job is a scheduled task that
   dispatches one
-- no backoff between attempts: a retry is taken as soon as a worker reaches it
 - no cross-process durability with `MemoryDriver`
 
 ## Production checklist

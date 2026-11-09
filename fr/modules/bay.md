@@ -179,12 +179,29 @@ le même nom.
 const failed = await queue.failedJobs()
 ```
 
+Sans backoff, un retry est remis en file aussitôt. `retry.backoff` espace les
+tentatives :
+
+```ts
+import { exponentialBackoff, fixedBackoff, linearBackoff } from '@c9up/bay'
+
+static options = {
+  maxRetries: 5,
+  retry: { backoff: exponentialBackoff({ baseDelay: '1s', maxDelay: '5m' }) },
+}
+
+await queue.dispatch('sync', payload, { retry: { backoff: fixedBackoff('30s') } })
+```
+
+`exponentialBackoff` (1s, 2s, 4s… jusqu'à 5m, avec jitter), `linearBackoff` (5s,
+10s, 15s… jusqu'à 2m), `fixedBackoff` (10s) et `customBackoff`. La stratégie est
+stockée sur l'enregistrement mis en file : un worker la respecte même pour un job
+qu'il ne connaît que par son nom.
+
 ## Limites actuelles (importantes)
 
 - pas de scheduler/cron natif dans Bay — un job récurrent est une tâche planifiée
   qui en dispatche un
-- pas de backoff entre les tentatives : un retry est repris dès qu'un worker
-  l'atteint
 - en mode Memory, aucune durabilité inter-process
 
 ## Checklist prod
