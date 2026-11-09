@@ -201,7 +201,7 @@ A partial or component that does not exist is only an error (`E_INKER_TEMPLATE_N
 
 Inside a component:
 
-- `$props` is a chainable API — `all()`, `get(key, fallback)`, `has(key)`, `only(keys)`, `except(keys)`, `merge(defaults)` (caller props win; `class` is combined), and `toAttrs()` (serialise to an HTML attribute string).
+- `$props` is a chainable API — `all()`, `get(key, fallback)` and `has(key)` (both take dot paths such as `'user.name'`), `only(keys)`, `except(keys)`, `merge(defaults)` (caller props win; `class` is combined across its string, array and object forms), and `toAttrs()` (serialise to an HTML attribute string, every value escaped). Each prop is also readable as `$props.<name>`.
 - `$slots.main()` renders the default (body) slot; `$slots.<name>()` a named slot; `$slots.<name>` is `undefined` when absent, so `@if($slots.footer)` works.
 - A slot can take an argument: `@slot('row', item)…@endslot` binds `item` to what the component passes, so a list component renders each entry with `$slots.row(entry)`.
 

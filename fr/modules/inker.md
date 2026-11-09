@@ -201,7 +201,7 @@ Un partial ou un composant inexistant n'est une erreur (`E_INKER_TEMPLATE_NOT_FO
 
 À l'intérieur d'un composant :
 
-- `$props` est une API chaînable — `all()`, `get(key, fallback)`, `has(key)`, `only(keys)`, `except(keys)`, `merge(defaults)` (les props de l'appelant l'emportent ; `class` est combiné), et `toAttrs()` (sérialise en une chaîne d'attributs HTML).
+- `$props` est une API chaînable — `all()`, `get(key, fallback)` et `has(key)` (tous deux acceptent des chemins pointés comme `'user.name'`), `only(keys)`, `except(keys)`, `merge(defaults)` (les props de l'appelant l'emportent ; `class` est combiné sous ses formes chaîne, tableau et objet), et `toAttrs()` (sérialise en une chaîne d'attributs HTML, chaque valeur échappée). Chaque prop se lit aussi comme `$props.<name>`.
 - `$slots.main()` rend le slot par défaut (body) ; `$slots.<name>()` un slot nommé ; `$slots.<name>` vaut `undefined` s'il est absent, donc `@if($slots.footer)` fonctionne.
 - Un slot peut recevoir un argument : `@slot('row', item)…@endslot` lie `item` à ce que le composant passe, et un composant de liste rend chaque entrée avec `$slots.row(entry)`.
 
