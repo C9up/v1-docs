@@ -33,7 +33,7 @@ await cache.delete('user:1')
 await cache.clear()
 ```
 
-`clear()` vide tout le cache.
+`clear()` vide tout le cache. Sur une vue de namespace, il ne vide que ce namespace.
 
 ### `getOrSet()` (récupère-ou-calcule, single-flight)
 
@@ -44,6 +44,8 @@ const profile = await cache.getOrSet('profile:42', 60, async () => {
   return await fetchProfileFromDb(42)
 })
 ```
+
+`lockTimeout` borne l'attente d'un appelant sur la factory d'un autre appelant pour la même clé. Au-delà, la valeur périmée est renvoyée s'il y en a une (grace), et une `LockTimeoutError` (`E_ECHO_LOCK_TIMEOUT`) est levée sinon. `hardTimeout` borne la factory elle-même. Un timeout `Infinity` signifie aucun ; au-delà de 24,8 jours il est ramené à cette limite ; `NaN` ou une valeur négative est refusé.
 
 ### Namespaces
 
@@ -64,15 +66,53 @@ const cache = new CacheManager(driver, {
 })
 ```
 
-Un `ttlSeconds` `undefined`, `0` ou négatif signifie « pas d'expiration »
-— `set()` et `setWithTags()` se comportent identiquement. Une valeur
-positive stampe une deadline absolue ; les entrées passées se relisent
-`undefined` — un miss — et sont purgées par le balayeur du driver.
+Un TTL est un nombre de secondes ou une durée (`'500ms'`, `'10m'`) :
+
+| TTL | Sens |
+| --- | --- |
+| absent | le défaut du store |
+| `null`, `0`, `Infinity` | n'expire jamais |
+| positif | expire après cette durée |
+| négatif | déjà expiré : rien n'est stocké, et la valeur précédente de la clé est supprimée (avec une grace, une copie périmée est gardée le temps de la grace) |
+| `NaN` | refusé avec `E_ECHO_INVALID_DURATION` |
+
+Les entrées passées se relisent `undefined` — un miss — et sont purgées par
+le balayeur du driver.
 
 ## Drivers
 
 - `MemoryDriver`: rapide, local
 - `RedisDriver`: partage multi-instance
+
+### Driver mémoire
+
+```ts
+drivers.memory({ maxItems: 1000, maxSize: '50mb', maxEntrySize: '1mb' })
+```
+
+- **Borné par défaut** : 1000 entrées sauf `maxItems` contraire (`0` ou `Infinity` pour aucun plafond). Au-delà, l'entrée la moins récemment **utilisée** part — une lecture compte comme une utilisation.
+- `maxSize` borne la taille totale des valeurs stockées et `maxEntrySize` celle d'une seule, en octets ou sous la forme `'10mb'`. Une valeur au-delà de `maxEntrySize` n'est pas stockée, et la valeur précédente de la clé est supprimée.
+- **Les valeurs sont des copies** : elles sont stockées en JSON, comme le driver Redis les stocke, donc modifier une valeur lue ne change jamais ce que reçoit le lecteur suivant, et une valeur se relit pareil en développement et en production. `serialize: false` garde les références — plus rapide, et les instances de classe survivent, mais un lecteur qui modifie sa valeur la change pour tout le monde. Les bornes en octets exigent la sérialisation.
+
+### Driver Redis
+
+Les valeurs vivent sous `<prefix>v:<clé>`, les ensembles de tags sous `<prefix>t:<tag>` et les index de tags par clé sous `<prefix>m:<clé>` : aucune clé de cache ne peut atteindre cette comptabilité. Un `prefix` vide retombe sur le défaut `cache:`. Les TTL sont écrits en millisecondes, donc `'500ms'` fonctionne. Une valeur sous le préfixe qu'echo n'a pas écrite se lit comme un miss.
+
+### Deux couches, et une panne de L2
+
+Un store avec un L1 et un L2 continue de servir depuis le L1 et la factory quand le L2 échoue : une lecture L2 en échec est un miss, une écriture L2 en échec est sautée (et aucun pair n'est prévenu de jeter sa copie).
+
+```ts
+store({ suppressL2Errors: true, l2CircuitBreakerDuration: '10s' })
+  .useL1Layer(drivers.memory())
+  .useL2Layer(drivers.redis({ connection: 'main' }))
+```
+
+- `suppressL2Errors` (défaut `true`) : `false` remonte chaque échec du L2 en `L2CacheError` (`E_L2_CACHE_ERROR`, l'erreur d'origine en `cause`).
+- `l2CircuitBreakerDuration` : après un échec, sauter le L2 pendant cette durée au lieu d'attendre un serveur mort à chaque appel.
+- `delete`, `clear` et `deleteByTag` signalent toujours un L2 en échec, disjoncteur ouvert ou non : une suppression qui n'a pas atteint la couche partagée laisse la valeur servie à toutes les autres instances, et l'appelant doit le savoir.
+
+Les messages du bus portent le nom du store : des stores qui partagent un canal laissent le L1 des autres tranquille, et un message qui n'est pas une invalidation bien formée est ignoré.
 
 ## Tags
 
@@ -85,10 +125,48 @@ await cache.flushTags(['products'])
 
 Les deux methodes levent une erreur si le driver configure ne supporte pas l'invalidation par tags.
 
+Les tags appartiennent au namespace qui les a écrits : `tenantA.deleteByTag(['user:1'])` laisse tranquilles les entrées de `tenantB` taguées `user:1`, et un `deleteByTag` à la racine n'atteint pas les namespaces.
+
 ## Limites actuelles
 
 - `flush()` Redis parcourt un curseur `SCAN` sur le préfixe — jamais `KEYS`, qui bloque le serveur. Il touche quand même toutes les clés préfixées, donc reste une opération lourde sur un gros jeu de données ; il lève une erreur sur un client sans `scan` plutôt que de retomber sur `KEYS`
 - les capacites tags dependent du driver concret
+
+## Erreurs
+
+Chaque erreur porte un `code` :
+
+| Code | Levée quand |
+| --- | --- |
+| `E_FACTORY_ERROR` | une factory de `getOrSet` a levé (`FactoryError`, passée à `onFactoryError`) |
+| `E_FACTORY_HARD_TIMEOUT` | une factory a dépassé `hardTimeout` (`TimeoutError`) |
+| `E_UNDEFINED_VALUE` | mise en cache de `null` ou `undefined` |
+| `E_L2_CACHE_ERROR` | un échec du L2 non supprimé |
+| `E_ECHO_LOCK_TIMEOUT` | `lockTimeout` dépassé sans valeur périmée |
+| `E_ECHO_INVALID_DURATION` | une durée qui ne veut rien dire (`NaN`, `'5 fortnights'`) |
+| `E_ECHO_INVALID_CONFIG` | une option de store ou de driver qui ne peut pas fonctionner |
+| `E_ECHO_UNKNOWN_STORE` | `use()` nomme un store non configuré |
+| `E_ECHO_NOT_TAGGABLE` | des tags sur un driver qui ne les gère pas |
+| `E_ECHO_UNSERIALIZABLE_VALUE` | une valeur sans forme JSON sur un driver mémoire qui sérialise |
+| `E_ECHO_SCAN_UNSUPPORTED` | vider Redis via un client sans `SCAN` |
+| `E_ECHO_NOT_BOOTED` | `services/main` lu avant le boot du provider |
+| `E_ECHO_QUASAR_MISSING`, `E_ECHO_INCOMPLETE_CONNECTION` | une connexion Redis nommée inutilisable |
+
+`errors` associe `E_FACTORY_ERROR`, `E_FACTORY_HARD_TIMEOUT`, `E_UNDEFINED_VALUE` et `E_L2_CACHE_ERROR` à leurs classes.
+
+## Commandes
+
+`ream configure @c9up/echo` enregistre `@c9up/echo/commands` :
+
+```sh
+ream cache:clear                       # le store par défaut
+ream cache:clear redis --namespace=users
+ream cache:clear --tags=products --tags=shop
+ream cache:delete user:42 [store]
+ream cache:prune [store]
+```
+
+`--namespace` et `--tags` ne se combinent pas. En production chaque commande demande confirmation ; `cache:clear --force` saute la question.
 
 ## Checklist prod
 

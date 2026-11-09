@@ -33,7 +33,7 @@ await cache.delete('user:1')
 await cache.clear()
 ```
 
-`clear()` empties the whole cache.
+`clear()` empties the whole cache. On a namespace view it empties only that namespace.
 
 ### `getOrSet()` (fetch-or-compute, single-flight)
 
@@ -44,6 +44,8 @@ const profile = await cache.getOrSet('profile:42', 60, async () => {
   return await fetchProfileFromDb(42)
 })
 ```
+
+`lockTimeout` bounds how long a caller waits on another caller's factory for the same key. Past it, the stale value is returned when there is one (grace), and a `LockTimeoutError` (`E_ECHO_LOCK_TIMEOUT`) is thrown when there is not. `hardTimeout` bounds the factory itself. A timeout of `Infinity` means none; a longer one than 24.8 days is clamped to that; `NaN` or a negative one is refused.
 
 ### Namespaces
 
@@ -64,15 +66,53 @@ const cache = new CacheManager(driver, {
 })
 ```
 
-`ttlSeconds` of `undefined`, `0`, or any negative number means "no expiration"
-— `set()` and `setWithTags()` agree on this. Positive values stamp an
-absolute deadline; entries past it read back as `undefined` — a miss — and
-are swept by the driver's background reaper.
+A TTL is a number of seconds or a duration string (`'500ms'`, `'10m'`):
+
+| TTL | Meaning |
+| --- | --- |
+| omitted | the store's default |
+| `null`, `0`, `Infinity` | never expires |
+| positive | expires after that long |
+| negative | already expired: nothing is stored, and the key's previous value is dropped (with a grace period, a stale copy is kept for the grace window) |
+| `NaN` | refused with `E_ECHO_INVALID_DURATION` |
+
+Entries past their TTL read back as `undefined` — a miss — and are swept by
+the driver's background reaper.
 
 ## Drivers
 
 - `MemoryDriver`: fast, local
 - `RedisDriver`: shared across instances
+
+### Memory driver
+
+```ts
+drivers.memory({ maxItems: 1000, maxSize: '50mb', maxEntrySize: '1mb' })
+```
+
+- **Bounded by default**: 1000 entries unless `maxItems` says otherwise (`0` or `Infinity` for no ceiling). Past it, the least recently **used** entry goes — a read counts as a use.
+- `maxSize` bounds the total size of the stored values and `maxEntrySize` a single one, in bytes or as `'10mb'`. A value over `maxEntrySize` is not stored, and the key's previous value is dropped.
+- **Values are copies**: they are stored as JSON, the way the Redis driver stores them, so mutating a value you read never changes what the next reader gets, and a value reads back the same in development and in production. `serialize: false` keeps references instead — faster, and class instances survive, but a reader that mutates its value changes it for everyone. The byte bounds need serialization.
+
+### Redis driver
+
+Values live under `<prefix>v:<key>`, tag sets under `<prefix>t:<tag>` and per-key tag indexes under `<prefix>m:<key>`, so no cache key can reach the bookkeeping. An empty `prefix` falls back to the default `cache:`. TTLs are written in milliseconds, so `'500ms'` works. A value under the prefix that echo did not write reads as a miss.
+
+### Two layers, and an L2 outage
+
+A store with an L1 and an L2 keeps serving from L1 and the factory when the L2 fails: a failed L2 read is a miss, a failed L2 write is skipped (and no peer is told to drop its copy).
+
+```ts
+store({ suppressL2Errors: true, l2CircuitBreakerDuration: '10s' })
+  .useL1Layer(drivers.memory())
+  .useL2Layer(drivers.redis({ connection: 'main' }))
+```
+
+- `suppressL2Errors` (default `true`): `false` surfaces each L2 failure as an `L2CacheError` (`E_L2_CACHE_ERROR`, the original error as `cause`).
+- `l2CircuitBreakerDuration`: after a failure, skip the L2 for that long instead of waiting on a dead server for every call.
+- `delete`, `clear` and `deleteByTag` always report a failed L2, breaker or not: a removal that did not reach the shared layer leaves the value served to every other instance, and the caller has to know.
+
+Bus messages carry the store's name, so stores sharing a channel leave each other's L1 alone; a message that is not a well-formed invalidation is ignored.
 
 ## Tags
 
@@ -85,10 +125,48 @@ await cache.flushTags(['products'])
 
 Both methods throw if the configured driver does not implement tag-based invalidation.
 
+Tags belong to the namespace that wrote them: `tenantA.deleteByTag(['user:1'])` leaves `tenantB`'s entries tagged `user:1` alone, and a root-level `deleteByTag` does not reach into namespaces.
+
 ## Current limitations
 
 - Redis `flush()` walks a `SCAN` cursor over the prefix — never `KEYS`, which blocks the server. It still touches every prefixed key, so it stays a heavy operation on a large dataset; it throws on a client without `scan` rather than falling back to `KEYS`
 - tag behavior depends on concrete driver capabilities
+
+## Errors
+
+Every error carries a `code`:
+
+| Code | Raised when |
+| --- | --- |
+| `E_FACTORY_ERROR` | a `getOrSet` factory threw (`FactoryError`, passed to `onFactoryError`) |
+| `E_FACTORY_HARD_TIMEOUT` | a factory exceeded `hardTimeout` (`TimeoutError`) |
+| `E_UNDEFINED_VALUE` | caching `null` or `undefined` |
+| `E_L2_CACHE_ERROR` | an L2 failure that is not suppressed |
+| `E_ECHO_LOCK_TIMEOUT` | `lockTimeout` passed with no stale value |
+| `E_ECHO_INVALID_DURATION` | a duration that means nothing (`NaN`, `'5 fortnights'`) |
+| `E_ECHO_INVALID_CONFIG` | a store or driver option that cannot work |
+| `E_ECHO_UNKNOWN_STORE` | `use()` names a store that is not configured |
+| `E_ECHO_NOT_TAGGABLE` | tags on a driver without tag support |
+| `E_ECHO_UNSERIALIZABLE_VALUE` | a value with no JSON form on a serializing memory driver |
+| `E_ECHO_SCAN_UNSUPPORTED` | clearing Redis through a client without `SCAN` |
+| `E_ECHO_NOT_BOOTED` | `services/main` read before the provider booted |
+| `E_ECHO_QUASAR_MISSING`, `E_ECHO_INCOMPLETE_CONNECTION` | a named Redis connection that cannot be used |
+
+`errors` maps `E_FACTORY_ERROR`, `E_FACTORY_HARD_TIMEOUT`, `E_UNDEFINED_VALUE` and `E_L2_CACHE_ERROR` to their classes.
+
+## Commands
+
+`ream configure @c9up/echo` registers `@c9up/echo/commands`:
+
+```sh
+ream cache:clear                       # the default store
+ream cache:clear redis --namespace=users
+ream cache:clear --tags=products --tags=shop
+ream cache:delete user:42 [store]
+ream cache:prune [store]
+```
+
+`--namespace` and `--tags` cannot be combined. In production each command asks before it runs; `cache:clear --force` skips the question.
 
 ## Production checklist
 
