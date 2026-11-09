@@ -113,6 +113,14 @@ Des block tags façon Adonis. `@if` / `@elseif` / `@else` / `@endif`, sa négati
 
 Tout bloc se ferme aussi avec le `@end` générique, qui ferme le bloc le plus intérieur (`@if(x)…@end`, `@each(…)…@end`, `@component(…)…@end`, `@slot(…)…@end`, les tags de bloc personnalisés). Terminer une ligne de tag par `~` (`@if(x)~`, `@end~`) supprime le saut de ligne qui mène à la ligne suivante de la sortie : une boucle peut ainsi émettre des `<li>` sans retour à la ligne entre eux.
 
+Les sauts de ligne suivent le modèle par lignes d'Edge, si bien qu'un template rend octet pour octet ce qu'il rend dans Edge :
+
+- Un tag écrit en début de ligne (indentation permise, et supprimée) ne produit pas de saut de ligne à lui. Le saut de ligne avant une ligne de contenu est gardé ; celui avant une ligne de tag ne l'est que si la ligne précédente était aussi une ligne de tag ; une ligne de tag fermant n'en a jamais.
+- `@let`, `@assign`, `@eval`, `@inject`, `@slot`, `@pushTo`, `@pushOnceTo`, `@debugger`, `@newError` et `@layout` suppriment aussi le saut de ligne suivant, comme un tag enregistré avec `noNewLine: true`.
+- Le slot par défaut d'un composant ignore son premier saut de ligne. Une page perd un saut de ligne à son tout début et un à sa toute fin ; les partials et les composants gardent les leurs.
+- Une stack joint les contenus qu'on y pousse par un saut de ligne.
+- Un tag écrit au milieu d'une ligne est une extension d'inker (Edge le traite comme du texte) : il ne touche pas aux sauts de ligne de la ligne.
+
 `@each` itère les tableaux, les chaînes (un caractère par point de code), les objets (chaque clé propre), les `Map` et les `Set`, avec un `@else` optionnel pour le cas vide :
 
 ```inker

@@ -113,6 +113,14 @@ Adonis-style block tags. `@if` / `@elseif` / `@else` / `@endif`, its negation `@
 
 Every block also closes with the generic `@end`, which closes whatever block is innermost (`@if(x)…@end`, `@each(…)…@end`, `@component(…)…@end`, `@slot(…)…@end`, custom block tags). Ending a tag line with `~` (`@if(x)~`, `@end~`) drops the line break that leads into the next line of output, so a loop can emit `<li>`s with no newline between them.
 
+Line breaks follow Edge's line model, so a template renders byte for byte as it does in Edge:
+
+- A tag written at the start of its line (indentation allowed, and dropped) produces no line break of its own. The line break before a content line is kept; the one before a tag line is kept only when the previous line was also a tag line; a closing tag line never has one.
+- `@let`, `@assign`, `@eval`, `@inject`, `@slot`, `@pushTo`, `@pushOnceTo`, `@debugger`, `@newError` and `@layout` also drop the next line break, as does a registered tag declared with `noNewLine: true`.
+- A component's default slot ignores its first line break. A page loses one line break at its very start and one at its very end; partials and components keep theirs.
+- A stack joins the contents pushed to it with a line break.
+- A tag written in the middle of a line is an inker extension (Edge treats it as text): it leaves the line's line breaks alone.
+
 `@each` iterates arrays, strings (one character per code point), objects (every own key), `Map`s, and `Set`s, with an optional `@else` for the empty case:
 
 ```inker
