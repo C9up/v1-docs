@@ -63,17 +63,20 @@ La configuration vit sous la clé `timeseries` (repli sur `eon`), écrite avec `
 ```typescript
 // config/timeseries.ts
 import { defineConfig } from '@c9up/eon'
+import env from '#start/env'
 
 export default defineConfig({
-  url: 'ws://localhost:6041',   // port WebSocket de taosAdapter
-  user: 'root',
-  password: 'taosdata',
-  database: 'demo',             // base par défaut (optionnelle)
+  url: env.get('TDENGINE_URL'), // URL WebSocket de taosAdapter, ex. ws://localhost:6041
+  user: env.get('TDENGINE_USER'),
+  password: env.get('TDENGINE_PASSWORD'),
+  database: env.get('TDENGINE_DATABASE'), // base par défaut (optionnelle)
   timeoutMs: 30_000,
   connectRetries: 5,            // retente la connexion INITIALE (serveur froid)
   connectBackoffMs: 200,        // exponentiel, plafonné à 30s
 })
 ```
+
+`ream configure @c9up/eon` écrit ce fichier, déclare les quatre variables dans `start/env.ts` (le mot de passe est optionnel, pour l'authentification par jeton) et amorce `.env` avec `TDENGINE_PASSWORD=change-me` : un substitut qui n'authentifie nulle part. Renseignez le vrai mot de passe avant le premier lancement ; ne gardez jamais le `taosdata` d'usine, livré avec chaque image TDengine. La configuration n'a aucune valeur de repli : un déploiement auquel il manque une variable échoue au démarrage au lieu de se connecter à localhost.
 
 Les identifiants se mettent dans `user` / `password` / `token` : ils passent par les setters du connecteur. Le connecteur les accepte aussi dans l'URL (`ws://user:pass@host`, `?token=`) ; eon masque alors le mot de passe et chaque valeur de paramètre de l'URL dans ses messages d'erreur. Il n'y a pas de pool de connexions — eon garde une unique connexion longue durée (le connecteur n'en a pas) ; `connectRetries` couvre la course au démarrage initial (démarrage à froid docker/k8s), pas une reconnexion par requête.
 
