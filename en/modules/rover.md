@@ -107,6 +107,17 @@ await mail.send((message) => {
 }, 'log')
 ```
 
+`send()` and `sendCompiled()` resolve to a `MailResponse`: the `messageId` to
+match against provider webhooks, the `envelope` (`{ from, to }`) the servers
+were given, and the transport's raw result as `original`. The `mail:sent` event
+carries the same object as `response`.
+
+```typescript
+const { messageId } = await mail.send((message) => {
+  message.to('alice@example.com').subject('Welcome').text('Hi')
+})
+```
+
 ## MessageBuilder API
 
 | Method | Description |

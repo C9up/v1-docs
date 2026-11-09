@@ -107,6 +107,17 @@ await mail.send((message) => {
 }, 'log')
 ```
 
+`send()` et `sendCompiled()` renvoient une `MailResponse` : le `messageId` à
+rapprocher des webhooks du fournisseur, l'`envelope` (`{ from, to }`) transmise
+aux serveurs, et le résultat brut du transport dans `original`. L'événement
+`mail:sent` porte le même objet dans `response`.
+
+```typescript
+const { messageId } = await mail.send((message) => {
+  message.to('alice@example.com').subject('Bienvenue').text('Bonjour')
+})
+```
+
 ## API MessageBuilder
 
 | Methode | Description |
