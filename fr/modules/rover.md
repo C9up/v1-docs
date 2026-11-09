@@ -203,6 +203,11 @@ où s'en passer, explicitement :
 { transport: 'smtp', host: 'localhost', port: 1025, user: 'dev', pass: 'dev', allowInsecureAuth: true }
 ```
 
+Chaque corps texte (texte, HTML, watch, invitation calendrier) part avec des fins
+de ligne CRLF uniquement : un CR ou un LF isolé devient CRLF avant d'atteindre le
+flux DATA, si bien qu'un texte utilisateur inséré dans un mail ne peut pas
+terminer le message trop tôt et faire passer des commandes SMTP derrière.
+
 ### Log (developpement)
 
 Affiche les destinataires et le sujet de chaque message dans la console. Aucune connexion réseau n'est établie. Utile en développement et dans les environnements CI. Le corps n'est pas affiché sauf avec `logBody: true` : un mailer laissé sur `log` par erreur copierait sinon les liens de réinitialisation et les codes à usage unique dans les journaux. Chaque champ est encodé en JSON, si bien qu'un saut de ligne dans un sujet ne peut pas forger une ligne de journal.
