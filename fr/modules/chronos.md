@@ -21,8 +21,8 @@ Bornes calendaires:
 
 ```ts
 const dt = Chronos.parse('2026-01-15T10:34:55Z')
-dt.startOf('day').toISO() // 2026-01-15T00:00:00Z
-dt.endOf('day').toISO()   // 2026-01-15T23:59:59Z
+dt.startOf('day').toISO() // 2026-01-15T00:00:00.000Z
+dt.endOf('day').toISO()   // 2026-01-15T23:59:59.999Z
 ```
 
 Recurrence style RRULE:
@@ -108,6 +108,29 @@ Chronos.rangeRelation(
 
 ## Lire une date
 
+Une chaîne est lue en ISO 8601 et rien d'autre : `YYYY-MM-DD`, avec en option
+une heure (`T` ou, comme l'écrit SQL, une espace), des fractions de seconde et
+un décalage (`Z`, `+02`, `+0200`, `+02:00`). `"1"`, `"foo 2026"` ou
+`"March 7"` sont refusés au lieu d'être devinés en date.
+
+Une heure sans décalage est lue dans le fuseau donné, et en UTC sinon —
+jamais dans le fuseau de la machine qui exécute le code :
+
+```ts
+new DateTime('2026-08-10T12:00:00').toISO()                 // 2026-08-10T12:00:00.000Z
+new DateTime('2026-08-10T12:00:00', 'Europe/Paris').toISO() // 2026-08-10T12:00:00.000+02:00
+DateTime.fromISO('2026-08-10T12:00', { zone: 'America/New_York' })
+DateTime.fromObject({ year: 2026, month: 8, day: 10, hour: 9 }, { zone: 'Europe/Paris' })
+DateTime.fromSQL('2026-08-10 12:00:00+00')                  // texte timestamptz de PostgreSQL
+```
+
+Les valeurs hors des années 0000-9999 sont refusées dès leur construction, et
+`fromObject` contrôle chaque champ (`minute: 90` et `hour: 1.5` sont des
+erreurs ; l'année 50 est l'année 0050).
+
+`toISO()` écrit la valeur sur sa propre horloge — `Z` en UTC, le décalage local
+dans tout autre fuseau — comme Luxon ; `toUTC().toISO()` donne la forme UTC.
+
 Une date de calendrier qui n'existe pas est refusée, plutôt que ramenée à la
 suivante qui existe.
 
@@ -142,16 +165,23 @@ DateTime.from('2026-01-31').plus(1, 'month').toISO()  // 2026-02-28T00:00:00.000
 
 ## Mesurer entre deux instants
 
-`a.diff(b, unit)` vaut `a - b` : positif quand `a` est le plus tardif des deux,
-négatif quand il est le plus ancien. Le résultat conserve sa fraction.
+`a.diff(b, unit)` vaut `a - b`, sous forme de `Duration` : positif quand `a`
+est le plus tardif des deux, négatif quand il est le plus ancien. L'unité la
+plus basse conserve sa fraction ; `.as(unit)` la lit comme un nombre.
 
 ```ts
 const d = DateTime.from('2026-06-05T14:30:00Z')
 
-d.diff('2026-01-01T00:00:00Z', 'day')    // 155.60416666666666
-d.diff('2026-01-01T00:00:00Z', 'hour')   // 3734.5
-d.diff('2026-08-01T00:00:00Z', 'day')    // -56.395833333333336
+d.diff('2026-01-01T00:00:00Z', 'day').as('day')    // 155.60416666666666
+d.diff('2026-01-01T00:00:00Z', 'hour').as('hour')  // 3734.5
+d.diff('2026-08-01T00:00:00Z', 'day').as('day')    // -56.395833333333336
+d.diff('2026-01-01T00:00:00Z', ['months', 'days']).toObject()
+// { months: 5, days: 4.604166666666667, ... }
 ```
+
+Les jours et les semaines se comptent sur le calendrier de la valeur : à
+Europe/Paris, de midi à midi pendant la nuit du changement d'heure, il y a un
+jour, et non 23/24 de jour.
 
 Les mois et les années se comptent sur le calendrier, pas sur une longueur
 moyenne : le reste est mesuré contre le mois où il tombe réellement, donc 15
@@ -182,21 +212,51 @@ june.length('week')   // 4.285714285714286
 - `Chronos.parse(input)`
 - `Chronos.add(input, amount, unit)`
 - `Chronos.subtract(input, amount, unit)`
-- `Chronos.diff(a, b, unit)`
-- `Chronos.rrule(startIso, rrule, limit?)`
+- `Chronos.diff(a, b, unit)` — un nombre
+- `Chronos.rrule(start, rrule, limit | { limit, tzid })`
 - `Chronos.buildRRule(rule)`
 
 `DateTime`:
-- Arithmetique: `plus`, `minus`, `diff`
+- Construction: `from`, `now`, `local`, `utc`, `fromISO`, `fromObject`, `fromSQL`, `fromMillis`, `fromJSDate`, `fromRFC2822`, `fromHTTP`
+- Arithmetique: `plus`, `minus` (une quantite et une unite, ou une `Duration`), `diff` (une `Duration`), `set`
 - Bornes: `startOf`, `endOf`
-- Sorties: `format`, `toISO`, `toDate`, `toString`, `toJSON`
+- Fuseau et locale: `setZone` (avec `keepLocalTime`), `toUTC`, `setLocale`
+- Sorties: `toFormat` (jetons Luxon), `format` (jetons facon moment), `toISO`, `toISODate`, `toISOTime`, `toSQL`, `toSQLDate`, `toSQLTime`, `toLocaleString`, `toDate`, `toMillis`, `valueOf`, `toJSON`
 
 Mode natif:
 - Le binaire NAPI Rust est requis — pas de fallback JavaScript. Compilez-le avec `cd packages/chronos && pnpm build:napi`.
 
-Cles RRULE supportees actuellement par le moteur natif:
+Cles RRULE supportees par le moteur natif (toute autre cle est une erreur):
 - `FREQ`: `SECONDLY | MINUTELY | HOURLY | DAILY | WEEKLY | MONTHLY | YEARLY`
-- `INTERVAL`, `COUNT`, `UNTIL`, `WKST`
+- `INTERVAL`, `COUNT`, `WKST`
+- `UNTIL` en `YYYYMMDD` (toute la journee incluse), `YYYYMMDDTHHMMSS` (heure locale) ou `YYYYMMDDTHHMMSSZ`
 - `BYDAY` (simple + ordinal, ex: `MO`, `-1SU`, `1MO`)
 - `BYMONTHDAY`, `BYMONTH`, `BYWEEKNO`, `BYYEARDAY`, `BYSETPOS`
 - `BYHOUR`, `BYMINUTE`, `BYSECOND` (multi-valeurs)
+
+## Récurrence sur une horloge locale
+
+Avec un fuseau, une récurrence suit l'horloge de ce fuseau : une réunion
+hebdomadaire à 09:00 reste à 09:00 après le changement d'heure. Le fuseau vient
+de `tzid`, d'un `DateTime` de départ zoné, ou d'une ligne `DTSTART;TZID=…` dans
+le texte de la règle.
+
+```ts
+expandRRule('2026-03-23T08:00:00Z', 'FREQ=WEEKLY;COUNT=2', { tzid: 'Europe/Paris' })
+// ['2026-03-23T08:00:00.000Z', '2026-03-30T07:00:00.000Z']  — 09:00 locale les deux fois
+
+expandRRule('DTSTART;TZID=Europe/Paris:20260323T090000\nRRULE:FREQ=WEEKLY;COUNT=2')
+```
+
+Une heure locale qui n'existe pas (02:30 la nuit du passage à l'heure d'été)
+est lue avec le décalage en vigueur avant le saut, et tombe donc à 03:30 ; une
+heure qui existe deux fois prend la première.
+
+Ce que la règle ne précise pas vient du départ : `FREQ=MONTHLY` se répète le
+même jour du mois que le départ, `FREQ=WEEKLY` le même jour de la semaine.
+
+Une règle venue d'une saisie utilisateur ou d'un .ics importé peut être
+développée sans risque : le texte est plafonné à 8 Ko, chaque liste BY* est un
+ensemble, au plus 10 000 occurrences sont renvoyées, et l'itération s'arrête en
+l'an 9999 — une règle impossible répond `[]` en quelques millisecondes au lieu
+de bloquer le fil d'exécution.
