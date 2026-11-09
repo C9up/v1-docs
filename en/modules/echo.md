@@ -183,7 +183,7 @@ ream cache:prune [store]
 
 ## Redis through Quasar
 
-A store can name a [Quasar](/en/modules/quasar) connection instead of being handed a client — the AdonisJS shape, where the Redis module owns the socket:
+A store can name a [Quasar](/en/modules/quasar) connection instead of being handed a client. The Redis module then owns the socket:
 
 ```ts
 stores: {
