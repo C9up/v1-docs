@@ -399,6 +399,12 @@ only means something where MIME encoding happens: the SES transport emits such a
 header verbatim, and the provider REST transports, which encode nothing, flatten
 it to its string.
 
+Untouched does not mean unchecked. `header()`, `preparedHeader()` and
+`addListHeader()` refuse a name that is not printable ASCII without spaces or a
+colon, and a value holding CR, LF or NUL (`E_MAIL_HEADER_INJECTION`): a prepared
+value goes on the wire as written, so a line break in it would start a header,
+or a body, of the caller's choosing.
+
 ## Handing the mailer a queue later
 
 ```ts

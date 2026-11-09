@@ -397,6 +397,13 @@ pré-encodé — s'en trouve corrompue. Le drapeau ne veut dire quelque chose qu
 où il y a encodage MIME : le transport SES émet un tel en-tête tel quel, et les
 transports REST, qui n'encodent rien, l'aplatissent en chaîne.
 
+Intacte ne veut pas dire non vérifiée. `header()`, `preparedHeader()` et
+`addListHeader()` refusent un nom qui n'est pas de l'ASCII imprimable sans
+espace ni deux-points, et une valeur contenant CR, LF ou NUL
+(`E_MAIL_HEADER_INJECTION`) : une valeur préparée part sur le fil telle
+qu'écrite, donc un saut de ligne y ouvrirait un en-tête, ou un corps, au choix de
+l'appelant.
+
 ## Donner une file au mailer plus tard
 
 ```ts
