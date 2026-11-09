@@ -230,6 +230,17 @@ TDengine writes are **append / last-write-wins** by the caller-supplied timestam
 await repo.ingestSchemaless(points, { protocol: 'influxdb', precision: 'milliseconds', ttl: 0 })
 ```
 
+Each field carries its type suffix (`i8`/`i16`/`i32`/`i64`, `f32`/`f64`, `"…"` for VARCHAR, `L"…"` for NCHAR), so the points match the super-table the entity describes. The line protocol imposes a schema of its own: the timestamp column is `_ts`, every tag is NCHAR, and VARBINARY, JSON, DECIMAL and secondary TIMESTAMP columns have no line-protocol form. An entity outside these rules is refused up front with `E_EON_SCHEMALESS_SCHEMA`; write it with `ingestMany` or `ingestSql`.
+
+```typescript
+@SuperTable('readings')
+class Reading {
+  @Timestamp() declare _ts: bigint
+  @Column({ type: 'double' }) declare value: number
+  @Tag({ type: 'nchar', length: 32 }) declare site: string
+}
+```
+
 ### Literal SQL INSERT
 
 `ingestSql` runs one literal `INSERT … USING … TAGS … VALUES` per child table through `exec` — a convenience/fallback. Every value literal is rendered by the Rust compiler's literal mode (reusing the single `render_literal` escaping seam); eon never string-interpolates a value in TypeScript.
