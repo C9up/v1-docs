@@ -164,9 +164,6 @@ const failed = await queue.failedJobs()
   dispatches one
 - no backoff between attempts: a retry is taken as soon as a worker reaches it
 - no cross-process durability with `MemoryDriver`
-- delayed jobs on Redis need a client with sorted-set commands (ioredis has
-  them). Without `ZADD`, `push` refuses a job carrying a `delay` rather than
-  running it immediately, which is the one thing a delay exists to prevent.
 
 ## Production checklist
 
@@ -193,4 +190,4 @@ new RedisDriver(quasarConnection('jobs'), { visibilityTimeoutMs: 30_000 })
 
 The client resolves on the first command, so declaring a redis queue never dials on its own. Passing a client directly still works: `@c9up/quasar` is an **optional** peer.
 
-The LMOVE guard still applies — it warns when the server predates Redis 6.2 and `pop()` degrades from at-least-once to at-most-once delivery.
+Every move of a job — taken, completed, retried, failed, promoted from its delay, reclaimed from a dead worker — is one server-side script, so a dropped connection never leaves a job half-moved. The client must answer `eval` (Redis 2.6+; ioredis and Quasar connections do). Each pop holds a lease token of its own, and only that holder may renew or settle the job: a worker whose lease lapsed cannot touch the claim of the worker that took the job after it.

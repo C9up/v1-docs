@@ -168,10 +168,6 @@ const failed = await queue.failedJobs()
 - pas de backoff entre les tentatives : un retry est repris dès qu'un worker
   l'atteint
 - en mode Memory, aucune durabilité inter-process
-- les jobs différés sur Redis demandent un client avec les commandes de sorted
-  set (ioredis les a). Sans `ZADD`, `push` refuse un job porteur d'un `delay`
-  plutôt que de le lancer tout de suite — la seule chose qu'un délai existe pour
-  empêcher.
 
 ## Checklist prod
 
@@ -198,4 +194,4 @@ new RedisDriver(quasarConnection('jobs'), { visibilityTimeoutMs: 30_000 })
 
 Le client est résolu à la première commande : déclarer une queue redis n'ouvre donc jamais de connexion à elle seule. Passer un client directement fonctionne toujours : `@c9up/quasar` est une peer **optionnelle**.
 
-La garde LMOVE reste active — elle avertit lorsque le serveur est antérieur à Redis 6.2 et que `pop()` dégrade la livraison d'at-least-once à at-most-once.
+Chaque déplacement d'un job — pris, terminé, relancé, en échec, sorti de son délai, récupéré d'un worker mort — est un seul script côté serveur : une connexion coupée ne laisse jamais un job à moitié déplacé. Le client doit répondre à `eval` (Redis 2.6+ ; ioredis et les connexions Quasar le font). Chaque pop tient un jeton de bail qui lui est propre, et seul ce détenteur peut renouveler ou solder le job : un worker dont le bail a expiré ne peut plus toucher à la prise du worker qui a repris le job après lui.
