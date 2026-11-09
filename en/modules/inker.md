@@ -80,7 +80,7 @@ The `expr` between braces is a **full JavaScript expression**, evaluated in V8 w
 {{ customer?.address?.city ?? 'n/a' }}
 ```
 
-A value that is a `SafeString` is emitted raw (even in the escaped `{{ }}` form); `null` / `undefined` render as the empty string; any other value prints through `String(value)` (numbers without a trailing `.0`, `-0` → `0`; a `Date`, an array or an object with its own `toString()` print the way JavaScript prints them), and `{{ }}` escapes that string. An expression that references an unknown identifier (or navigates into `null`/`undefined`) throws `E_INKER_UNKNOWN_IDENTIFIER` with the source position.
+A value that is a `SafeString` is emitted raw (even in the escaped `{{ }}` form); `null` / `undefined` render as the empty string; any other value prints through `String(value)` (numbers without a trailing `.0`, `-0` → `0`; a `Date`, an array or an object with its own `toString()` print the way JavaScript prints them), and `{{ }}` escapes that string. A name the render data does not carry reads as `undefined`, so optional data is guarded with `@if(errors)` and prints as the empty string; navigating into it (`{{ missing.name }}`) throws `E_INKER_UNKNOWN_IDENTIFIER` with the source position.
 
 ### Escape characters, comments, whitespace
 
@@ -380,7 +380,7 @@ try {
 |-----------------------------------|------------------------------------------------------------------------------------------|
 | `E_INKER_TEMPLATE_NOT_FOUND`      | The `<root>/<name>.inker` file does not exist (ENOENT). Original error on `.cause`.       |
 | `E_INKER_PARSE_ERROR`             | Lexer or parser rejected the source.                                                     |
-| `E_INKER_UNKNOWN_IDENTIFIER`      | An expression referenced an unknown identifier or navigated into `null`/`undefined`.     |
+| `E_INKER_UNKNOWN_IDENTIFIER`      | An expression navigated into `null`/`undefined`.                                          |
 | `E_INKER_INVALID_EXPRESSION`      | An expression failed to compile or produced a non-interpolable value.                    |
 | `E_INKER_INVALID_ITERABLE`        | `@each` was given a value that is not an array / object / Map / Set.                      |
 | `E_INKER_UNKNOWN_HELPER`          | An unknown helper name was called in an expression.                                      |
@@ -418,7 +418,7 @@ The escape map covers the HTML-context set plus the two JS line-separator code p
 Inker shares the framework posture established by Atlas, Rune, and Warden: misconfiguration throws loud, descriptively, immediately.
 
 - Missing templates throw — they do not return `null`.
-- Unknown identifiers throw with the source position — they do not render blank.
+- Navigating into a missing value (`{{ order.customer.name }}` with no `customer`) throws with the source position — it does not render blank.
 - Invalid root paths throw at construction — they do not lazy-fail at first render.
 - Parse errors throw with line + column — they do not best-effort partial render.
 

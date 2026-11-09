@@ -80,7 +80,7 @@ L'`expr` entre accolades est une **expression JavaScript complète**, évaluée 
 {{ customer?.address?.city ?? 'n/a' }}
 ```
 
-Une valeur qui est une `SafeString` est émise brute (même dans la forme échappée `{{ }}`) ; `null` / `undefined` rendent la chaîne vide ; toute autre valeur s'affiche via `String(valeur)` (les nombres sans `.0` traînant, `-0` → `0` ; une `Date`, un tableau ou un objet doté de son propre `toString()` s'affichent comme JavaScript les affiche), et `{{ }}` échappe cette chaîne. Une expression qui référence un identifiant inconnu (ou navigue dans `null`/`undefined`) lève `E_INKER_UNKNOWN_IDENTIFIER` avec la position source.
+Une valeur qui est une `SafeString` est émise brute (même dans la forme échappée `{{ }}`) ; `null` / `undefined` rendent la chaîne vide ; toute autre valeur s'affiche via `String(valeur)` (les nombres sans `.0` traînant, `-0` → `0` ; une `Date`, un tableau ou un objet doté de son propre `toString()` s'affichent comme JavaScript les affiche), et `{{ }}` échappe cette chaîne. Un nom absent des données de rendu vaut `undefined` : une donnée optionnelle se garde avec `@if(errors)` et s'affiche comme chaîne vide ; naviguer dedans (`{{ missing.name }}`) lève `E_INKER_UNKNOWN_IDENTIFIER` avec la position source.
 
 ### Caractères d'échappement, commentaires, espaces
 
@@ -380,7 +380,7 @@ try {
 |-----------------------------------|------------------------------------------------------------------------------------------|
 | `E_INKER_TEMPLATE_NOT_FOUND`      | Le fichier `<root>/<name>.inker` n'existe pas (ENOENT). Erreur originale sur `.cause`.    |
 | `E_INKER_PARSE_ERROR`             | Le lexer ou le parser a rejeté la source.                                                |
-| `E_INKER_UNKNOWN_IDENTIFIER`      | Une expression a référencé un identifiant inconnu ou navigué dans `null`/`undefined`.    |
+| `E_INKER_UNKNOWN_IDENTIFIER`      | Une expression a navigué dans `null`/`undefined`.                                         |
 | `E_INKER_INVALID_EXPRESSION`      | Une expression n'a pas compilé ou a produit une valeur non interpolable.                 |
 | `E_INKER_INVALID_ITERABLE`        | `@each` a reçu une valeur qui n'est pas un tableau / objet / Map / Set.                   |
 | `E_INKER_UNKNOWN_HELPER`          | Un nom de helper inconnu a été appelé dans une expression.                               |
@@ -418,7 +418,7 @@ La table d'échappement couvre l'ensemble du contexte HTML plus les deux code po
 Inker partage la posture de framework établie par Atlas, Rune et Warden : une mauvaise configuration lève fort, de façon descriptive, immédiatement.
 
 - Les templates manquants lèvent — ils ne retournent pas `null`.
-- Les identifiants inconnus lèvent avec la position source — ils ne rendent pas du vide.
+- Naviguer dans une valeur absente (`{{ order.customer.name }}` sans `customer`) lève avec la position source — cela ne rend pas du vide.
 - Les chemins de root invalides lèvent à la construction — ils n'échouent pas paresseusement au premier rendu.
 - Les erreurs de parse lèvent avec ligne + colonne — elles ne font pas de rendu partiel au mieux.
 
