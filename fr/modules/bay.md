@@ -163,7 +163,11 @@ aucun est le mode de panne que rien en aval ne peut détecter.
 
 Ce qu'un driver stocke, sous le nom `JobRecord` :
 
-- `id`, `name`, `payload`
+- `id`, `payload`
+- `name` — le `static options.name` de la classe de job quand elle en déclare
+  un, son nom de classe sinon. Deux classes qui répondent au même nom sont
+  refusées à l'enregistrement : donne un `options.name` à l'une d'elles, ou quand
+  un bundler renomme les classes
 - `attempts`, `maxAttempts`
 - `status` (`pending`, `processing`, `completed`, `failed`)
 - `error?`, `createdAt`, `processedAt?`
@@ -171,6 +175,10 @@ Ce qu'un driver stocke, sous le nom `JobRecord` :
   les files nommées, et lu comme `default`
 - `runAt?` — le moment où un `delay` autorise sa prise
 - `timeout?` — le temps accordé au handler
+- `backoff?` — la stratégie de retry, sous forme de données
+- `stalledCount?`, `unknownCount?` — les reprises sur un worker mort, et les
+  passages chez des workers qui ne connaissaient pas encore le job ; ni l'un ni
+  l'autre ne compte comme une tentative
 
 La classe s'appelle `Job`, l'enregistrement `JobRecord`. Les deux partageaient
 le même nom.

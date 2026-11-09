@@ -161,7 +161,11 @@ detect.
 
 What a driver stores, as `JobRecord`:
 
-- `id`, `name`, `payload`
+- `id`, `payload`
+- `name` — the job class's `static options.name` when it declares one, its
+  class name otherwise. Two classes answering to the same name are refused at
+  registration: set `options.name` on one of them, or when a bundler renames
+  classes
 - `attempts`, `maxAttempts`
 - `status` (`pending`, `processing`, `completed`, `failed`)
 - `error?`, `createdAt`, `processedAt?`
@@ -169,6 +173,9 @@ What a driver stores, as `JobRecord`:
   named queues, and read as `default`
 - `runAt?` — the moment a `delay` allows it to be taken
 - `timeout?` — what the handler gets
+- `backoff?` — the retry strategy, as data
+- `stalledCount?`, `unknownCount?` — reclaims from a dead worker, and sightings
+  by workers that did not know the job yet; neither counts as an attempt
 
 The class is `Job`; the record is `JobRecord`. They used to share the name.
 
