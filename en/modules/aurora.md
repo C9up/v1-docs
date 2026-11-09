@@ -54,6 +54,7 @@ to disagree and each shipped a different bug.
 | `<script>`, `<style>`, `<textarea>`, `<title>`… | `E_AURORA_SLOT_IN_RAW_TEXT` | The parser does not read their content as markup. For `<textarea>` and `<title>` the content IS text, but the comments aurora anchors a slot with would be part of it — bind the property: `<textarea .value="${value}">`. For the rest, build the value outside the template. `<plaintext>` has no end tag, so every slot after it is refused. A `/` does not close an HTML element — `<script/>` opens a script like `<script>` does. |
 | `.text`, `.textContent`, `.innerText` on `<script>` or `<style>` | `E_AURORA_SLOT_IN_RAW_TEXT` | The property spelling of a slot inside the element: it writes the source the browser runs. |
 | `.innerHTML`, `.outerHTML`, `.srcdoc` | `E_AURORA_SLOT_IN_HTML_PROPERTY` | These properties parse their value as HTML, handlers and all. Put the content in a text slot, or pass a nested `html` template. |
+| A nested `` html`…` `` template (or an array holding one) as an attribute value or a `.value` | `E_AURORA_TEMPLATE_IN_ATTRIBUTE` | Markup has no meaning in an attribute. Pass a string — for a prop typed `string \| TemplateResult`, bind its string form to `title`/`aria-label`. |
 
 Inside `<svg>` and `<math>` the raw-text rules are suspended, because the parser
 never switches state in foreign content — `<svg><title>${label}</title></svg>` is

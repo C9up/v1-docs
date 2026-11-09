@@ -54,6 +54,7 @@ de rendu divergeaient et livraient chacun un bug différent.
 | `<script>`, `<style>`, `<textarea>`, `<title>`… | `E_AURORA_SLOT_IN_RAW_TEXT` | Le parseur ne lit pas leur contenu comme du markup. Pour `<textarea>` et `<title>` le contenu EST du texte, mais les commentaires avec lesquels aurora ancre un slot en feraient partie — liez la propriété : `<textarea .value="${value}">`. Pour les autres, construisez la valeur hors du template. `<plaintext>` n'a pas de balise de fin, donc tout slot placé après est refusé. Un `/` ne ferme pas un élément HTML — `<script/>` ouvre un script comme `<script>`. |
 | `.text`, `.textContent`, `.innerText` sur `<script>` ou `<style>` | `E_AURORA_SLOT_IN_RAW_TEXT` | La version propriété d'un slot à l'intérieur de l'élément : elle écrit la source que le navigateur exécute. |
 | `.innerHTML`, `.outerHTML`, `.srcdoc` | `E_AURORA_SLOT_IN_HTML_PROPERTY` | Ces propriétés parsent leur valeur comme du HTML, gestionnaires compris. Mettez le contenu dans un slot texte, ou passez un template `html` imbriqué. |
+| Un template `` html`…` `` imbriqué (ou un tableau qui en contient un) comme valeur d'attribut ou de `.value` | `E_AURORA_TEMPLATE_IN_ATTRIBUTE` | Du markup n'a pas de sens dans un attribut. Passez une chaîne — pour une prop typée `string \| TemplateResult`, liez sa forme texte à `title`/`aria-label`. |
 
 Dans `<svg>` et `<math>` les règles raw-text sont suspendues, le parseur ne
 changeant jamais d'état en contenu étranger — `<svg><title>${label}</title></svg>`
