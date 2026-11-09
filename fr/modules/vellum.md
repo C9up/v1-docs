@@ -207,6 +207,7 @@ Les échecs lèvent une `VellumError`, porteuse d'un `code` :
 | `E_VELLUM_EXTRACT_FAILED` | L'extraction de texte a échoué |
 | `E_VELLUM_MERGE_FAILED` · `E_VELLUM_SELECT_FAILED` · `E_VELLUM_SPLIT_FAILED` · `E_VELLUM_ROTATE_FAILED` | L'opération a échoué |
 | `E_VELLUM_STAMP_FAILED` · `E_VELLUM_STAMP_TEXT_FAILED` | Le tamponnage a échoué |
+| `E_VELLUM_SIGNED_DOCUMENT` | Une modification réécrirait un document signé ; voir [Signature](#signature) |
 
 Le moteur n'est **pas optionnel** : il n'existe aucun repli JavaScript, donc un
 binaire absent est un échec franc avec un message actionnable, plutôt qu'une
@@ -344,6 +345,13 @@ document assemblé, puisque l'assembler changerait ce qu'elle couvre. Le
 document est écrit avec un trou à l'emplacement de la valeur, le `/ByteRange`
 enregistre tout sauf le trou, et la valeur est déposée dans l'espace réservé
 sans déplacer un seul autre octet.
+
+Pour la même raison, une modification après la signature la casserait :
+tamponner, écrire du texte, pivoter, sélectionner, découper, fusionner, remplir
+et aplatir réécrivent tous le fichier. Un document signé est donc refusé avec
+`E_VELLUM_SIGNED_DOCUMENT`, plutôt que rendu avec bonne mine et plus signé ;
+dessinez sur un document avant de le signer. `{ discardSignatures: true }` le
+modifie quand même, pour qui le veut vraiment.
 
 C'est aussi ce qui rend interchangeables une clé que vous détenez et une clé
 détenue par un prestataire certifié — **un signataire ne voit jamais le

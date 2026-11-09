@@ -206,6 +206,7 @@ Failures raise `VellumError`, carrying a `code`:
 | `E_VELLUM_EXTRACT_FAILED` | Text extraction failed |
 | `E_VELLUM_MERGE_FAILED` · `E_VELLUM_SELECT_FAILED` · `E_VELLUM_SPLIT_FAILED` · `E_VELLUM_ROTATE_FAILED` | The operation failed |
 | `E_VELLUM_STAMP_FAILED` · `E_VELLUM_STAMP_TEXT_FAILED` | Stamping failed |
+| `E_VELLUM_SIGNED_DOCUMENT` | An edit would rewrite a signed document; see [Signing](#signing) |
 
 The engine is **not optional**: there is no JavaScript fallback, so a missing
 binary is a hard failure with an actionable message rather than a silent
@@ -332,6 +333,13 @@ rules out the usual order: the value cannot be computed and then assembled,
 because assembling it would change what it covers. The document is written with
 a hole where the value goes, `/ByteRange` records everything but the hole, and
 the value is dropped into the reserved space without moving another byte.
+
+For the same reason, an edit after signing would break the signature: stamping,
+writing text, rotating, selecting, splitting, merging, filling and flattening
+all write the file anew. A signed document is therefore refused with
+`E_VELLUM_SIGNED_DOCUMENT`, rather than handed back looking fine and no longer
+signed; draw on a document before signing it. `{ discardSignatures: true }`
+edits it anyway, for a caller who means to.
 
 That is also what makes a key you hold and a key held by a certified provider
 the same interface — **a signer never sees the document, only the digest of
