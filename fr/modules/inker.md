@@ -111,6 +111,8 @@ Des block tags façon Adonis. `@if` / `@elseif` / `@else` / `@endif`, sa négati
 @endunless
 ```
 
+Tout bloc se ferme aussi avec le `@end` générique, qui ferme le bloc le plus intérieur (`@if(x)…@end`, `@each(…)…@end`, `@component(…)…@end`, `@slot(…)…@end`, les tags de bloc personnalisés). Terminer une ligne de tag par `~` (`@if(x)~`, `@end~`) supprime le saut de ligne qui mène à la ligne suivante de la sortie : une boucle peut ainsi émettre des `<li>` sans retour à la ligne entre eux.
+
 `@each` itère les tableaux, les objets, les `Map` et les `Set`, avec un `@else` optionnel pour le cas vide :
 
 ```inker

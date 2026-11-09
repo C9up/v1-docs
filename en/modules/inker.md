@@ -111,6 +111,8 @@ Adonis-style block tags. `@if` / `@elseif` / `@else` / `@endif`, its negation `@
 @endunless
 ```
 
+Every block also closes with the generic `@end`, which closes whatever block is innermost (`@if(x)…@end`, `@each(…)…@end`, `@component(…)…@end`, `@slot(…)…@end`, custom block tags). Ending a tag line with `~` (`@if(x)~`, `@end~`) drops the line break that leads into the next line of output, so a loop can emit `<li>`s with no newline between them.
+
 `@each` iterates arrays, objects, `Map`s, and `Set`s, with an optional `@else` for the empty case:
 
 ```inker
