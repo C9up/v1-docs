@@ -340,7 +340,7 @@ await templates.render('admin::dashboard')   // <admin>/dashboard.inker
 await templates.render('home')                // <default root>/home.inker
 ```
 
-A **bare** name always resolves against the default (constructor `root`) disk; a `disk::name` name resolves against the mounted disk — exactly like Edge. References inside a template resolve the same way, so cross-disk composition is explicit:
+A **bare** name resolves against the default disk — the constructor `root`, until `templates.mount(dir)` (or `mount('default', dir)`) re-points it; `templates.mounted.default` reports the root in force. A `disk::name` name resolves against the mounted disk — exactly like Edge. An in-memory template (`registerTemplate`) answers only the name it was registered under, disk prefix included. References inside a template resolve the same way, so cross-disk composition is explicit:
 
 ```inker
 @layout('admin::layout')

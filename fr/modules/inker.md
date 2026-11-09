@@ -340,7 +340,7 @@ await templates.render('admin::dashboard')   // <admin>/dashboard.inker
 await templates.render('home')                // <root par défaut>/home.inker
 ```
 
-Un nom **nu** se résout toujours contre le disque par défaut (le `root` du constructeur) ; un nom `disk::name` se résout contre le disque monté — exactement comme Edge. Les références à l'intérieur d'un template se résolvent de la même façon, donc la composition inter-disques est explicite :
+Un nom **nu** se résout contre le disque par défaut — le `root` du constructeur, jusqu'à ce que `templates.mount(dir)` (ou `mount('default', dir)`) le redirige ; `templates.mounted.default` indique la racine en vigueur. Un nom `disk::name` se résout contre le disque monté — exactement comme Edge. Un template en mémoire (`registerTemplate`) ne répond qu'au nom sous lequel il a été enregistré, préfixe de disque compris. Les références à l'intérieur d'un template se résolvent de la même façon, donc la composition inter-disques est explicite :
 
 ```inker
 @layout('admin::layout')
