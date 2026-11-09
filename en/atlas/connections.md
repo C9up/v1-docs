@@ -92,6 +92,26 @@ const { rowsAffected } = await db.execute('DELETE FROM sessions WHERE expired = 
 - `execute(sql, params?)` runs a statement for effect and resolves
   `{ rowsAffected }`.
 
+Every raw entry point (`rawQuery`, `raw`, `whereRaw`, `havingRaw`, `orderByRaw`,
+`groupByRaw`, `joinRaw`) reads the same placeholders:
+
+- `?` binds the next value, `??` inlines the next binding as a quoted
+  identifier, and `\?` is a literal question mark — the PostgreSQL jsonb
+  operators `?`, `?|` and `?&` are written `\?`, `\?|` and `\?&`.
+- `$1`, `$2`… address the bindings by position, which is what `RawSql.sql`
+  produces. A fragment uses one notation or the other, never both.
+- `:name` and `:name:` (named bindings) are rewritten to `?` and `??`. A `:word`
+  that is not a key of the bindings object stays as written, so `'10:30:00'`
+  is left alone; `\:` escapes a colon.
+- Placeholders inside string literals, quoted identifiers and comments are text.
+- The number of bindings must match the placeholders, and an `undefined` binding
+  is refused: a missing value is an error, never a silent `NULL`.
+
+A `raw()` fragment keeps its bindings wherever it is placed: in `select()`, as a
+`where()`/`having()` value (`whereNot('role', db.raw("'admin'"))` compares with
+the expression, it does not bind it as text), in `orderBy()`, `update()` and an
+upsert `merge()`.
+
 On PostgreSQL a binding needs no `::type` cast: atlas asks Postgres which type
 it infers for each placeholder and converts the value into it, so
 `rawQuery('SELECT * FROM users WHERE company_id = ?', [uuid])` works against a

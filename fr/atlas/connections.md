@@ -96,6 +96,29 @@ const { rowsAffected } = await db.execute('DELETE FROM sessions WHERE expired = 
 - `execute(sql, params?)` exécute une instruction pour son effet et résout
   `{ rowsAffected }`.
 
+Tous les points d'entrée bruts (`rawQuery`, `raw`, `whereRaw`, `havingRaw`,
+`orderByRaw`, `groupByRaw`, `joinRaw`) lisent les mêmes paramètres :
+
+- `?` lie la valeur suivante, `??` insère la liaison suivante comme
+  identifiant échappé, et `\?` est un point d'interrogation littéral — les
+  opérateurs jsonb de PostgreSQL `?`, `?|` et `?&` s'écrivent `\?`, `\?|` et
+  `\?&`.
+- `$1`, `$2`… désignent les liaisons par leur position, ce que produit
+  `RawSql.sql`. Un fragment utilise l'une ou l'autre notation, jamais les deux.
+- `:name` et `:name:` (liaisons nommées) deviennent `?` et `??`. Un `:mot` qui
+  n'est pas une clé de l'objet de liaisons reste tel quel : `'10:30:00'` n'est
+  pas touché ; `\:` échappe un deux-points.
+- Un paramètre placé dans une chaîne littérale, un identifiant entre guillemets
+  ou un commentaire est du texte.
+- Le nombre de liaisons doit correspondre aux paramètres, et une liaison
+  `undefined` est refusée : une valeur manquante est une erreur, jamais un
+  `NULL` silencieux.
+
+Un fragment `raw()` garde ses liaisons où qu'il soit placé : dans `select()`,
+comme valeur de `where()`/`having()` (`whereNot('role', db.raw("'admin'"))`
+compare à l'expression, il ne la lie pas comme texte), dans `orderBy()`,
+`update()` et le `merge()` d'un upsert.
+
 Sur PostgreSQL, une liaison n'a besoin d'aucun transtypage `::type` : atlas
 demande à Postgres le type qu'il infère pour chaque paramètre et y convertit la
 valeur, si bien que
