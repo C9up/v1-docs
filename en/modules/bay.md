@@ -133,6 +133,12 @@ job class is registered under its own name. Without it the registration list is
 a directory kept in step by hand, and the job nobody added to it fails as "no
 handler registered".
 
+A job nothing answers to yet — dispatched by a new HTTP process before the old
+workers were replaced — is put back for 30 s rather than failed, up to
+`worker.unknownJobRetries` times (10 by default, `0` to fail it at once). Those
+sightings are not attempts: a job that waited out a deploy keeps all of its
+`maxRetries`.
+
 Discovery runs in the provider's `start()`, after the application's preloads —
 importing a job runs its module, and a job that reaches for a container service
 needs the container to be assembled first. Paths resolve against the

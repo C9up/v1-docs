@@ -135,6 +135,12 @@ son propre nom. Sans ça, la liste d'enregistrement est un répertoire tenu à j
 à la main, et le job que personne n'y a ajouté échoue en
 « no handler registered ».
 
+Un job auquel rien ne répond encore — dispatché par un nouveau process HTTP avant
+que les anciens workers soient remplacés — est remis en file pour 30 s au lieu
+d'échouer, jusqu'à `worker.unknownJobRetries` fois (10 par défaut, `0` pour le
+faire échouer tout de suite). Ces passages ne sont pas des tentatives : un job
+qui a attendu la fin d'un déploiement garde tous ses `maxRetries`.
+
 La découverte tourne dans le `start()` du provider, après les préchargements de
 l'application — importer un job exécute son module, et un job qui va chercher un
 service dans le conteneur a besoin que celui-ci soit assemblé d'abord. Les
