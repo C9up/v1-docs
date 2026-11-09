@@ -35,10 +35,33 @@ prend les quatre ci-dessus par défaut, si bien qu'un GET portant un
 content-type JSON est laissé intact. Une requête dont le `content-length` dit
 qu'il n'y a pas de corps est sautée aussi.
 
+Un corps url-encoded est parsé avec l'imbrication par crochets (`user[name]`,
+`tags[]`), et la query string lue par `request.qs()` passe par le même parseur.
+Pour les corps de formulaire, ses limites se règlent sous `form.queryString` ; `request.qs()` garde les valeurs par défaut :
+
+| Option | Défaut | Effet |
+| --- | --- | --- |
+| `depth` | `5` | Au-delà de cette profondeur, le reste devient une clé littérale. |
+| `parameterLimit` | `1000` | Les paires au-delà de ce nombre sont ignorées. |
+| `arrayLimit` | `20` | Un indice explicite égal ou supérieur devient une clé d'objet, pas une case de tableau : `ids[500]=x` donne `{ ids: { '500': 'x' } }`. Les ajouts (`tags[]`) restent des tableaux. |
+| `allowDots` | `true` | `user.name` s'imbrique comme `user[name]`. |
+
 Chaque limite **lève** `E_REQUEST_ENTITY_TOO_LARGE` (413) au lieu d'écrire sa
 propre réponse : ton gestionnaire d'exceptions négocie donc la réponse — une app
 HTML reçoit une page d'erreur plutôt qu'une enveloppe JSON qu'elle n'a jamais
 demandée, et peut surcharger le rendu.
+
+Le serveur natif applique la même `limit` de chaque section — lue dans
+`config/bodyparser.ts` — pendant qu'il lit le corps : un `content-length`
+au-delà de la limite n'est pas lu du tout, et un corps chunked cesse d'être
+gardé dès qu'il la dépasse. Dans les deux cas rien au-delà de la limite n'est
+gardé en mémoire, et la requête passe quand même par le routage, sans son
+corps. Une URL inconnue répond 404 ; sur une route trouvée, le body parser lève
+le 413 ci-dessus, rendu par ton gestionnaire d'exceptions. Une route qui ne lit
+jamais le corps n'en paie pas le prix, et une route qui le lit —
+`request.raw()`, `body()`, `all()`, `input()` — reçoit le même 413 plutôt qu'un
+corps vide pris pour le vrai. Un type de contenu qu'aucune section ne
+revendique reçoit la limite `raw`.
 
 Un parser se désactive en ne lui donnant aucun type — il n'y a pas de drapeau
 `enabled`, et en passer un échoue bruyamment plutôt que de réactiver en silence
@@ -203,7 +226,7 @@ Au-delà du plafond ils lèvent `E_RESPONSE_TOO_LARGE` au lieu de grossir jusqu'
 ce que le process meure :
 
 ```typescript
-// 100 Mo par défaut — la même limite que Rust applique à un corps ENTRANT.
+// 100 Mo par défaut.
 { maxResponseBytes: 100 * 1024 * 1024 }
 ```
 

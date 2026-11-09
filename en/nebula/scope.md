@@ -8,7 +8,8 @@ Every component in shadcn's registry has a counterpart here, and the ~40 simple 
 | [DataTable](/en/nebula/components/data-table) | TanStack Table (column grouping, virtualisation, pinning, faceted filters, server-side) | sort, filter, page, select — in memory |
 | [Sidebar](/en/nebula/components/sidebar) | ~15 parts | the parts that are not re-skinned atoms |
 | [Carousel](/en/nebula/components/carousel) | embla (loop, autoplay, N slides per view) | scroll-snap, one slide per view, no loop or autoplay |
-| [Toaster](/en/nebula/components/toaster) | Base UI's manager (display priority, anchored toasts, typed payload) — or sonner, with six positions | five variants, promise toasts, update and dedup by id, action, `onClose`, pause on hover, four corners |
+| [Sonner](/en/nebula/components/sonner) | sonner, in full | sonner's `toast` API and Toaster props, six positions, the stack that fans out on hover, rich colours, `Alt+T`; no swipe to dismiss, no `getHistory`, and `toast.promise` returns `{ id, unwrap }` |
+| [Toaster](/en/nebula/components/toaster) (deprecated) | Base UI's manager (display priority, anchored toasts, typed payload) — shadcn has deprecated it for sonner, and so has nebula | five variants, promise toasts, update and dedup by id, action, `onClose`, pause on hover, four corners |
 | [Resizable](/en/nebula/components/resizable) | arbitrary nesting, persisted layouts, collapse-to-zero | two panes, one handle |
 | [Combobox](/en/nebula/components/combobox) | single, multi-select and creatable | single-select |
 | [ScrollArea](/en/nebula/components/scroll-area) | scrollbars redrawn by Radix | native scrollbars, styled |

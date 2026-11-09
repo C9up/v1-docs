@@ -34,10 +34,32 @@ const bodyParser = new BodyParserMiddleware({
 defaults to the four above, so a GET carrying a JSON content-type is left
 untouched. A request whose `content-length` says there is no body is skipped too.
 
+A url-encoded body is parsed with bracket nesting (`user[name]`, `tags[]`), and
+the query string read by `request.qs()` goes through the same parser. Its limits
+for form bodies live under `form.queryString`; `request.qs()` uses the defaults:
+
+| Option | Default | Effect |
+| --- | --- | --- |
+| `depth` | `5` | Nesting past this depth stays a literal key. |
+| `parameterLimit` | `1000` | Pairs past this count are ignored. |
+| `arrayLimit` | `20` | An explicit index at or above it is an object key, not an array slot: `ids[500]=x` gives `{ ids: { '500': 'x' } }`. Appends (`tags[]`) stay arrays. |
+| `allowDots` | `true` | `user.name` nests like `user[name]`. |
+
 Every limit **throws** `E_REQUEST_ENTITY_TOO_LARGE` (413) rather than writing its
 own response, so your exception handler negotiates the reply: an HTML app gets an
 error page instead of a JSON envelope it never asked for, and can override the
 rendering.
+
+The native server applies the same `limit` of each section — read from
+`config/bodyparser.ts` — while it reads the body: a `content-length` over the
+limit is not read at all, and a chunked body stops being kept the moment it
+passes it. Either way nothing past the limit is held in memory, and the
+request still goes through routing without its body. An unknown URL answers
+404; on a matched route the body parser throws the 413 above, rendered by your
+exception handler. A route that never reads the body is not charged for it,
+and one that does — `request.raw()`, `body()`, `all()`, `input()` — gets the
+same 413 rather than an empty body mistaken for the real one. A content type
+no section claims gets the `raw` limit.
 
 A parser is turned off by giving it no types — there is no `enabled` flag, and
 passing one fails loudly rather than quietly re-enabling a parser you switched
@@ -231,7 +253,7 @@ Over the ceiling they throw `E_RESPONSE_TOO_LARGE` rather than growing until the
 process dies:
 
 ```typescript
-// 100MB by default — the same the Rust layer caps an INCOMING body at.
+// 100MB by default.
 { maxResponseBytes: 100 * 1024 * 1024 }
 ```
 

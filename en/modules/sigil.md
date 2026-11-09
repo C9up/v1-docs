@@ -88,29 +88,67 @@ async function register(app: AppContext) {
 
 | Driver key | Algorithm | Default? | When to choose |
 |---|---|---|---|
-| `argon2` | argon2id | yes | New applications. OWASP-recommended. Defaults to **argon2id**; `variant` selects argon2i or argon2d. |
-| `bcrypt` | bcrypt | no | Legacy interop (Rails / PHP / Java). `rounds` configurable (default 12, OWASP minimum 10). |
-| `scrypt` | scrypt | no | Memory-hardness with a different parameter space. `keyLength` and `saltLength` configurable; cost parameters use `scrypt::Params::recommended()` from the Rust `scrypt` crate. |
+| `argon2` | argon2id | yes | New applications. OWASP-recommended. Defaults to **argon2id** (version 19), 64 MiB (`memory: 65536`), 3 iterations, 4 lanes; `variant` selects argon2i or argon2d. |
+| `bcrypt` | bcrypt | no | Legacy interop (Rails / PHP / Java). `rounds` configurable (default 12, minimum 10, maximum 16). Writes the standard MCF string (`$2b$12$…`); verify also reads the PHC form `$bcrypt$v=98$r=10$<salt>$<digest>`. |
+| `scrypt` | scrypt | no | Memory-hardness with a different parameter space. `cost` (N, default 16384), `blockSize` (r, default 8), `parallelization` (p, default 1), `keyLength`, `saltSize` and `maxMemory` (default 32 MiB) are configurable. Writes the PHC form `$scrypt$n=…,r=…,p=…$<salt>$<hash>`. |
 
 All drivers run through the `sigil-engine` Rust crate (the native half of `@c9up/sigil`) — there is no JavaScript or TypeScript fallback. Password hashing must hit a vetted, constant-time native implementation.
 
 ### Honored config keys
 
-Every key below is read and passed to the Rust engine. A value the engine
-cannot honour raises at **config time** rather than on a user's first login:
+Every value is validated when the driver is built — at boot, when `new Hash(...)`
+or the provider constructs it. A value out of range, or of the wrong type
+(`rounds: '12'` read from an environment variable), throws a `TypeError` there
+rather than on a user's first login, and is never quietly replaced by a default:
 
-- `argon2` — `variant` (`'d'` | `'i'` | `'id'`, default `id`), `memory` (KiB),
-  `iterations`, `parallelism`, `hashLength` (bytes, default 32), `saltSize`
-  (bytes, 8–48, default 16), `secret` (pepper — not stored in the hash, and
-  required identically at verify).
-- `bcrypt` — `rounds` (default 12, OWASP minimum 10), `version` (char code:
-  `97` = `$2a$`, `98` = `$2b$` default, `120` = `$2x$`, `121` = `$2y$`),
-  `saltSize` (must be 16 — bcrypt fixes it, and any other value would produce
-  a hash no implementation can read).
-- `scrypt` — `cost`, `blockSize`, `parallelization`, `keyLength`, `saltSize`.
+- `argon2` — `variant` (`'d'` | `'i'` | `'id'`, default `id`), `memory` (KiB,
+  alias `memoryKib`, default 65536, at least 8 × `parallelism`), `iterations`
+  (default 3, at least 2), `parallelism` (default 4), `hashLength` (bytes, 10–64,
+  default 32), `saltSize` (bytes, 8–48, default 16), `secret` (pepper — not
+  stored in the hash, and required identically at verify).
+- `bcrypt` — `rounds` (10–16, default 12), `version` (char code: `97` = `$2a$`,
+  `98` = `$2b$` default, `121` = `$2y$`), `saltSize` (must be 16 — bcrypt fixes
+  it, and any other value would produce a hash no implementation can read).
+- `scrypt` — `cost` (N, a power of two, default 16384), `blockSize` (r, default
+  8), `parallelization` (p, default 1), `keyLength` (64–128, default 64),
+  `saltSize` (alias `saltLength`, 8–1024, default 16), `maxMemory` (bytes,
+  default 32 MiB, at least the working set `128 × r × (N + p + 2)`).
+
+`secret` takes a string or a `Secret` wrapping one — what an environment schema
+returns — so `drivers.argon2({ secret: env.get('APP_KEY') })` works as is.
 
 `verify()` reads the variant and the parameters back out of the hash string, so
 a password hashed with `argon2i` verifies whatever the current config says.
+
+### Hashing off the event loop
+
+`make` and `verify` return Promises, and the key derivation runs on the libuv
+thread pool, never on the event loop: a burst of concurrent logins slows those
+logins down, not every other request the process is serving. Concurrent
+derivations share the pool's threads (4 by default; `UV_THREADPOOL_SIZE`
+changes it).
+
+### Verify cost limits
+
+A hash carries its own cost, so whoever can write a stored hash decides how much
+work verifying it takes. `verify` refuses — returns `false` without deriving
+anything — a stored hash that costs far more than any real configuration:
+
+| Driver | Refused when |
+|---|---|
+| `argon2` | `m × t` (KiB × iterations) exceeds 2^20, about five times the defaults |
+| `bcrypt` | the cost exceeds 16 |
+| `scrypt` | `N × r × p` exceeds 2^22, or the working set `128 × r × (N + p + 2)` exceeds the configured `maxMemory` |
+
+The same limits apply to the configuration: a driver configured above them
+throws when it is built, since its hashes would never verify.
+
+### bcrypt hashes in PHC form
+
+Besides the MCF string it writes (`$2b$12$…`), the bcrypt driver verifies the PHC
+form `$bcrypt$v=98$r=10$<b64 salt>$<b64 digest>` that other Node.js hashing
+libraries store. `needsReHash` answers `true` for such a hash, so the re-hash on
+login (above) rewrites it as MCF the next time its user signs in.
 
 ## NAPI requirement
 
@@ -135,7 +173,7 @@ The three packages own distinct concerns:
 |---|---|---|
 | Hash a password / verify a password | **`@c9up/sigil`** (`new Hash(...)` then `make` / `verify`) | Canonical hashing authority. Single implementation, multi-driver, NAPI-backed. |
 | HMAC, random bytes, constant-time string compare | **`@c9up/ream`** (root: `hmacSign`, `hmacVerify`, `randomHex`, `randomBytesBase64`, `constantTimeEq`) | Low-level NAPI-or-stdlib crypto helpers. No password hashing here — that lives in Sigil. |
-| Auth strategy (session, JWT, OAuth, API key) | **`@c9up/warden`** | Auth orchestration. Password verification is the caller's responsibility — typically via Sigil's `Hash.verify`. |
+| Auth strategy (session, JWT, OAuth, access tokens) | **`@c9up/warden`** | Auth orchestration. Password verification is the caller's responsibility — typically via Sigil's `Hash.verify`. |
 
 When in doubt: passwords → Sigil, tokens/HMAC → ream root, login flows → Warden.
 

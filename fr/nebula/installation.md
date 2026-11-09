@@ -50,7 +50,7 @@ shadcn s'appuie sur Radix, `clsx`, `tailwind-merge`, `class-variance-authority`,
 | `@floating-ui/dom` | `primitives/floating.ts` — décalage, retournement, glissement, flèche, hauteur disponible |
 | `lucide-react` | `lib/icons.ts` — les glyphes dont le jeu a besoin, en ligne |
 | `cmdk` | `organisms/Command.ts` |
-| `sonner` | `organisms/Toaster.ts` |
+| `sonner` | `organisms/Sonner.ts` |
 | `react-day-picker` + `date-fns` | `organisms/Calendar.ts` — `Date` et `Intl` |
 | `@tanstack/react-table` | `organisms/DataTable.ts` — tri, filtre, pagination, sélection |
 | `recharts` | `organisms/Chart.ts` — courbe, aire et barres, en SVG en ligne |

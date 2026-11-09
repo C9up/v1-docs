@@ -120,6 +120,38 @@ await db.close()  // ferme le pool de la connexion liée
 `db.dialect` expose le dialecte de la connexion liée (`'sqlite'` | `'postgres'`
 | `'mysql'`).
 
+## LISTEN / NOTIFY (PostgreSQL)
+
+```ts
+const stop = await db.listen('jobs', (payload, notification) => {
+  wake(payload)   // notification : { channel, payload, processId }
+}, {
+  onReconnect: () => catchUp(),         // les notifications envoyées pendant la coupure sont perdues
+  onError: (error) => log.warn(error),  // par défaut : un avertissement du processus
+})
+
+await db.execute("SELECT pg_notify('jobs', ?)", [jobId])
+await stop()
+```
+
+`listen()` se résout une fois que le serveur a confirmé le `LISTEN` : un
+`NOTIFY` envoyé ensuite est bien livré. `NOTIFY` lui-même passe par `execute`
+comme n'importe quelle instruction.
+
+Tous les abonnements d'une connexion partagent **une seule** connexion dédiée,
+ouverte hors du pool au premier `listen()` (avec les options de connexion du
+pool, TLS compris) et fermée quand le dernier abonnement s'arrête ou que la
+connexion se ferme — un processus à l'écoute ne monopolise aucune connexion du
+pool et ne reste pas en vie une fois qu'il a cessé d'écouter. Quand cette
+connexion tombe, atlas la rétablit et se réabonne à chaque canal, en
+réessayant avec un délai croissant (jusqu'à 30 secondes) ; `onError` signale
+chaque tentative échouée, et `onReconnect` se déclenche une fois la connexion
+revenue. Un handler qui lève une erreur est lui aussi signalé via `onError`.
+
+Un nom de canal fait de 1 à 63 octets, sans NUL — le serveur tronquerait un nom
+plus long, et deux noms deviendraient un seul canal. `listen()` est rejeté avec
+`E_ATLAS_LISTEN_UNSUPPORTED` sur SQLite et MySQL.
+
 ## Troncature
 
 ```ts

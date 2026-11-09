@@ -50,7 +50,7 @@ shadcn stands on Radix, `clsx`, `tailwind-merge`, `class-variance-authority`, `l
 | `@floating-ui/dom` | `primitives/floating.ts` — offset, flip, shift, arrow, available height |
 | `lucide-react` | `lib/icons.ts` — the glyphs the set needs, inlined |
 | `cmdk` | `organisms/Command.ts` |
-| `sonner` | `organisms/Toaster.ts` |
+| `sonner` | `organisms/Sonner.ts` |
 | `react-day-picker` + `date-fns` | `organisms/Calendar.ts` — `Date` and `Intl` |
 | `@tanstack/react-table` | `organisms/DataTable.ts` — sort, filter, page, select |
 | `recharts` | `organisms/Chart.ts` — line, area and bar, as inline SVG |

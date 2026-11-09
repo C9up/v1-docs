@@ -488,6 +488,16 @@ Chaque paquet résolu obtient `<assetsPrefix>/<nom>/dist/*`, une route `wasm/*`
 s'il en a une, et une entrée d'importmap. Un paquet non installé est ignoré en
 silence.
 
+L'entrée d'importmap est lue dans les `exports` du paquet (son entrée `"."`),
+en préférant la condition `browser`, puis `import`, puis `default`, quel que
+soit leur ordre : une page n'est lue que par un navigateur, et un paquet qui
+livre une build navigateur séparée a une entrée `import` qui va chercher
+`node:fs`. Une cible TypeScript (un paquet de workspace qui exporte
+`./src/index.ts`) est ignorée. Sans `exports` exploitable, l'entrée est
+`dist/index.js`. Une entrée déclarée hors de `dist/` — le seul répertoire servi —
+est refusée par une erreur qui la nomme : déclare alors ce paquet
+toi-même avec `importmap` dans `config/aurora.ts`.
+
 Le montage se fait sur deux racines étroites, jamais sur la racine du paquet :
 un paquet adossé à du wasm importe `../wasm/…` — un frère de son `dist` — et le
 glue bindgen va ensuite chercher le binaire à côté de lui. L'importmap pointe

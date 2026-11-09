@@ -53,8 +53,8 @@ middleware sets, such as the authenticated user. Registered alone, the
 router-tier middleware runs every check, as before.
 
 Hono has no runtime-neutral client address: pass `clientIp` (the default reads
-the socket of `@hono/node-server`). The scheme compared with the Origin is the
-request URL's; behind a proxy, pass `protocol`.
+the socket of `@hono/node-server`). The scheme and host compared with the Origin
+are the request URL's; behind a proxy, pass `protocol` and `host`.
 
 ## Architecture
 
@@ -83,12 +83,86 @@ export default defineConfig({
   rateLimit: { max: 100, windowSeconds: 60 }, // omit to disable
   pathTraversal: true,                        // reject `..` / `%2e%2e` (default: true)
   paramPollution: true,                       // reject duplicate query keys (default: true)
-  securityHeaders: { csp: "default-src 'self'" }, // Helmet-style; `false` to disable
+  xFrame: { enabled: true, action: 'DENY' }, // protective headers: one key each, on by default
+  csp: { enabled: true, directives: { scriptSrc: ["'self'", '@nonce'] } },
   cors: { origin: ['https://app.test'], credentials: true }, // omit to leave CORS unmanaged
 })
 ```
 
-With defaults, XSS sanitization and CSRF validation are on; rate limiting and CORS are off until configured.
+With defaults, XSS sanitization, CSRF validation and every protective header
+are on; rate limiting and CORS are off until configured. The config
+`ream configure` writes has `csrf: true`.
+
+## Security headers
+
+Each protective header has its own top-level key, `{ enabled, ... }`, and is
+**on with a hardened default when the key is omitted** — turn one off with
+`{ enabled: false }`. An object given without `enabled` is on.
+
+| Key | Header | Default |
+| --- | --- | --- |
+| `xFrame` (`action`: `DENY` / `SAMEORIGIN` / `ALLOW-FROM`, `domain`) | `X-Frame-Options` | `SAMEORIGIN` |
+| `hsts` (`maxAge`, `includeSubDomains`, `preload`) | `Strict-Transport-Security` | 180 days, subdomains included |
+| `contentTypeSniffing` | `X-Content-Type-Options: nosniff` | on |
+| `csp` (`directives`, `useDefaults`, `policy`, `reportOnly`) | `Content-Security-Policy` | see below |
+| `referrerPolicy` (`policy`) | `Referrer-Policy` | `strict-origin-when-cross-origin` |
+| `permissionsPolicy` (`policy`) | `Permissions-Policy` | camera, microphone, geolocation denied |
+
+```ts
+export default defineConfig({
+  hsts: { enabled: true, maxAge: '180 days', includeSubDomains: true }, // seconds, or a duration
+  csp: {
+    enabled: true,
+    directives: {
+      scriptSrc: ["'self'", '@nonce', 'https://cdn.example'], // camelCase or 'script-src'
+      imgSrc: ["'self'", 'data:'],
+    },
+    reportOnly: false,
+  },
+  referrerPolicy: { enabled: true, policy: 'no-referrer' },
+})
+```
+
+- Without `directives` or `policy`, the CSP is
+  `default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; script-src 'self' @nonce`.
+- `directives` merge a hardened baseline under yours (`useDefaults: false` to
+  start from nothing; `getDefaultDirectives()` returns it, to extend a
+  directive rather than replace it). The baseline's `scriptSrc` has no
+  `@nonce`: name it again when you set `scriptSrc`.
+- `policy` takes the whole header as a string instead of `directives`.
+- Both are validated when the filter is created: an unquoted keyword (`self`,
+  `none`, `nonce-…`, `sha256-…`…) or a directive given twice throws; with
+  `directives`, so do a `;` or `,` inside a source and a policy without
+  `default-src`. A directive set to `null` is dropped; `default-src` only
+  through `dangerouslyDisableDefaultSrc`.
+- `@nonce` is replaced per request with `'nonce-…'`; the raw value is
+  `response.nonce`.
+- `hsts.maxAge: 0` is valid: it tells browsers to drop the policy.
+
+The headers are set before the handler runs and added afterwards only where
+missing: a route that sets its own `X-Frame-Options` or CSP keeps it. An
+unknown key inside one of these objects throws, and so does a
+`securityHeaders` key — the headers are configured by the keys above.
+
+## CORS
+
+```ts
+cors: {
+  origin: ['https://app.test'],  // true reflects any origin, '*' is the literal wildcard,
+                                 // a comma-separated string, or (origin, ctx) => boolean | string | string[]
+  methods: ['GET', 'POST'],
+  headers: true,                 // false, a list, a string, or (headers, ctx) => …
+  exposeHeaders: ['X-Total'],    // `exposedHeaders` is accepted too
+  credentials: true,
+  maxAge: 90,
+  enabled: true,                 // or (ctx) => boolean
+}
+```
+
+`origin: true` or `'*'` combined with `credentials: true` is refused at boot —
+it would hand every site the user's cookies. An unknown option throws, so a
+misspelt key cannot drop its setting without a word. A preflight asking for a
+method or a header outside the allowed ones gets no CORS headers.
 
 ## XSS Sanitization
 
@@ -97,6 +171,7 @@ Outgoing **response** bodies are sanitized with [ammonia](https://crates.io/crat
 - `text/html` fragments are parsed and rebuilt from an allow-list: dangerous nodes are removed (`<script>`, `on*` handlers, `javascript:` URIs), and any tag outside the list — custom elements and web components included — is unwrapped, its content kept. Existing entities are never double-encoded.
 - Every other content type (`text/plain`, JSON, CSV…) is sent unchanged: with `X-Content-Type-Options: nosniff` (a default header) the browser never reads it as markup, and escaping it would only corrupt it.
 - A server-rendered **full document** (opening with `<!doctype>` or `<html>`) is left intact — ammonia is for fragments, and treating a whole document as one would strip its wrappers.
+- Fragments lose `id`, `is`, `slot`, `part` and `data-*`: `<a id="config">` shadows `window.config` (DOM clobbering), `is` builds a customized element, client-side frameworks read bindings from `data-*`, and `slot`/`part` reach into shadow DOM. Opt back in only when nothing reads them from untrusted markup: `xss: { allowAttributes: ['id', 'data-*'] }`.
 
 Request query strings and bodies are **not** mutated; user input is neutralized where it is rendered (the response), not silently rewritten on the way in.
 
@@ -105,6 +180,13 @@ Request query strings and bodies are **not** mutated; user input is neutralized 
 Stateless **signed double-submit cookie** validation (HMAC-SHA256), with an AdonisJS-compatible API. The `XSRF-TOKEN` cookie carries `<random>.<HMAC(secret, random)>`. A state-changing request (`POST`, `PUT`, `PATCH`, `DELETE`) must echo that exact token **and** the token must carry a valid signature. There is no server-side token store, so it scales horizontally — every instance only needs the same `secret`.
 
 Signing is what makes this *signed* double-submit (the OWASP-recommended shape): a naive double-submit accepts any self-consistent pair, so an attacker who can plant an `XSRF-TOKEN` cookie (a sibling subdomain, a MITM on an HTTP sibling) could forge one. A signed token can't be forged without the secret.
+
+**Bound to the session.** Under the Ream middleware, when the request has a
+session, the signature also covers a per-session secret (`csrf-secret`, kept in
+the session): a token issued to one session is refused for any other, and dies
+with its session. The session middleware must run before blackhole's router
+middleware. The standalone adapters have no session; there, the token is signed
+but bound to nothing, and the Origin check below is what stops a replayed one.
 
 ::: warning Requires a secret (breaking)
 When CSRF is enabled, a `secret` is **required**. `createBlackhole({ csrf: true })` without a secret **throws** — there is no silent fallback to an unsigned token. Pass `secret: env.get('APP_KEY')` in `config/blackhole.ts` (the provider also falls back to `process.env.APP_KEY`). The secret must be a stable, high-entropy value (use your `APP_KEY`) and **shared across instances** — tokens signed by one instance must verify on another.
@@ -137,9 +219,13 @@ it is what a MITM controls, so it is refused with
 `403 E_BLACKHOLE_CSRF_ORIGIN_MISMATCH` even with a valid token. The scheme is
 the one the host framework resolved (Ream's `request.protocol()`, Express's
 `req.protocol`, Fastify's `request.protocol`, each behind its trusted-proxy
-setting). A trusted origin written with a scheme matches that scheme only;
-without one, any. A request with neither header — a non-browser client — goes
-on to the token check.
+setting), and so is the host (Ream's `request.host()`, Express's
+`req.hostname`, Fastify's `request.host`; Hono's `host` option) — behind a
+proxy that rewrites `Host`, the forwarded host is compared, not the upstream
+name. A trusted origin written with a scheme matches that scheme only; without
+one, any. An empty `Origin` counts as absent, and the `Referer` is checked. A
+request with neither header — a non-browser client — goes on to the token
+check. Both checks belong to the `csrf` switch.
 
 ### Configuration
 
@@ -151,7 +237,7 @@ import { defineConfig } from '@c9up/blackhole'
 export default defineConfig({
   secret: env.get('APP_KEY'),                   // HMAC key — REQUIRED when csrf is on
   csrf: {
-    exceptRoutes: ['/api/webhooks/*'],          // skip CSRF (exact or trailing-* prefix)
+    exceptRoutes: ['/webhooks/:provider', '/api/hooks/*'], // route patterns, or paths
     methods: ['POST', 'PUT', 'PATCH', 'DELETE'], // guarded verbs (default shown)
     cookie: { sameSite: 'lax' },                 // XSRF-TOKEN cookie attributes
   },
@@ -188,7 +274,11 @@ if (ctx.request.csrfProtected !== true) {
 
 ## Rate Limiting
 
-Tracks requests per client IP within a sliding time window.
+Tracks requests per client within a sliding time window. The in-process counter
+keeps two counters per key — the current window and the previous one, weighted
+by how much of it still overlaps — so its memory does not grow with `max`. The
+default key is the client IP; an IPv6 client counts under its /64, since one
+host holds the whole /64. `keyFor(ctx)` picks another key.
 
 ```ts
 rateLimit: { max: 100, windowSeconds: 60 } // 100 requests / 60s
@@ -205,8 +295,72 @@ HTTP status: `429 Too Many Requests`
 The rate limiter:
 - Buckets per resolved client IP — a request with **no** resolvable IP is rejected (`400 E_BLACKHOLE_MISSING_IP`) rather than sharing a global bucket (which would let one client DoS everyone). IP resolution (trusted proxies) is the host framework's job.
 - Requires `max` and `windowSeconds` to be positive whole numbers: `createBlackhole` throws otherwise, rather than run a limit of 0 or a window of 0 that would let every request through
-- Resets the counter when the time window expires
-- Periodically evicts stale entries to prevent unbounded memory growth
+- Admits a request when the sliding count is below `max` (no burst of twice the limit across a window boundary)
+- Periodically evicts stale entries, and caps the number of keys held
+
+## Per-route limits
+
+A limit defined once by name, attached to the routes it belongs to:
+
+```ts
+// start/limiter.ts
+import limiter from '@c9up/blackhole/services/limiter'
+
+export const throttle = limiter.define('api', (ctx) =>
+  limiter.allowRequests(60).every('1 minute').usingKey(ctx.auth?.user?.id),
+)
+
+export const loginThrottle = limiter.define('login', () =>
+  limiter.allowRequests(5).every('1 minute').blockFor('20 mins'),
+)
+
+// start/routes.ts
+router.post('/login', [AuthController, 'login']).use(loginThrottle)
+```
+
+The key is `<name>_<usingKey>`, or `<name>_ip_<client IP>` (IPv6 by /64). Over
+the limit the middleware throws `ThrottleException` (`E_TOO_MANY_REQUESTS`,
+`429`), rendered with `X-RateLimit-*` and `Retry-After` as text, JSON or
+JSON:API depending on `Accept`, its message translated under
+`errors.E_TOO_MANY_REQUESTS` when the context has an `i18n`.
+`limitExceeded((error) => error.setMessage(…))` adjusts it first; a builder
+returning `limiter.noLimit()` lets the request through uncounted. A passing
+response carries `X-RateLimit-Limit` and `X-RateLimit-Remaining`.
+
+By hand:
+
+```ts
+const login = limiter.use({ requests: 5, duration: '1 minute', blockDuration: '20 mins' })
+
+// Count failures only: a wrong password costs an attempt, a right one clears them.
+const [error, user] = await login.penalize(`login_${email}`, () => verify(email, password))
+
+await login.attempt(key, () => sendResetMail()) // runs only while there is budget
+await login.consume(key)                        // throws once over
+```
+
+`Limiter` also has `increment`, `decrement`, `get`, `set`, `block`, `delete`,
+`remaining`, `availableIn`, `isBlocked` and `clear`. Counting is a fixed window
+per key, opened by its first request.
+
+The stores live under `limiter` in `config/blackhole.ts` (default: one memory
+store):
+
+```ts
+import { defineConfig, limiterStores } from '@c9up/blackhole'
+
+export default defineConfig({
+  limiter: {
+    default: env.get('LIMITER_STORE', 'memory'),
+    stores: {
+      memory: limiterStores.memory(),
+      redis: limiterStores.redis({ connection: 'main' }),
+    },
+  },
+})
+```
+
+The Redis store's `clear()` deletes its own keys (by prefix), not the database.
 
 ## Filter Results
 
@@ -232,7 +386,7 @@ error page built after a throw has them too.
 csrf: {
   enabled: true,
   enableXsrfCookie: true,                                    // default
-  exceptRoutes: (req) => req.path.startsWith('/webhooks/'),  // or a pattern list
+  exceptRoutes: (ctx) => ctx.request.url().startsWith('/webhooks/'), // or a list
   cookieOptions: { sameSite: 'lax' },                        // `cookie` also works
 }
 ```
@@ -240,7 +394,19 @@ csrf: {
 - **`enableXsrfCookie`** gates the readable `XSRF-TOKEN` cookie. An all-SSR app
   sends the token in the `_csrf` field and has no use for it — and a cookie not
   set is one less thing to leak. The token stays available for the form field.
-- **`exceptRoutes`** takes patterns or a predicate. The array form is evaluated
-  in Rust with the rest of the check; a **predicate runs in JS before it**, since
-  a function cannot cross the NAPI boundary.
+- **`exceptRoutes`** takes a list or a predicate. An entry matches the pattern
+  of the route the request matched (`'/webhooks/:provider'`) on Ream and
+  Fastify, and the request path — exactly, or by prefix with a trailing `*` —
+  on every adapter (Express and Hono have no matched route at that point). The
+  predicate receives the request context: the HTTP context itself on Ream; on
+  the standalone adapters, `{ request: { method(), url(), header() }, route }`.
 - **`cookieOptions`** is the AdonisJS key; `cookie` is ours. Both work.
+
+### Rejection
+
+A rejected token answers `403 E_BAD_CSRF_TOKEN`. On Ream, a browser form
+(`Accept: text/html`) is redirected back with the form fields (minus `_csrf`,
+`_method` and passwords) and the message flashed; an Inertia visit
+(`X-Inertia`) gets the same redirect without the form fields re-flashed; a JSON
+client gets the JSON body. When the context has an `i18n`, the message is
+translated under `errors.E_BAD_CSRF_TOKEN`.

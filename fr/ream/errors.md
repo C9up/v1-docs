@@ -69,6 +69,7 @@ Quand une exception ne définit PAS `handle`, `ExceptionHandler.handle()` (le ha
 1. Détermine la forme de réponse voulue par content negotiation (`Accept: application/json` → JSON, sinon page HTML minimale).
 2. Récupère `status` + `code` depuis l'instance `Exception` (ou défaut `500` / `E_UNKNOWN`).
 3. Inclut une stack trace dans le body JSON si `debug: true`.
+4. Hors mode debug, n'affiche le message de l'erreur que s'il est écrit pour le client : une `Exception` (quel que soit son statut), toute erreur de statut inférieur à 500, ou une erreur portant `expose: true`. Tout le reste — erreur de driver, erreur système Node comme `ECONNREFUSED`, `Error` simple — répond `An internal error occurred`, même avec un `code`. L'erreur levée garde son message pour `report()`.
 
 ## Reporting
 

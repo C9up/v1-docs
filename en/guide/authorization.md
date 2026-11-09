@@ -202,6 +202,14 @@ the same `RightsResolver.resolve(user, scope)` set instead of their own logic.
 - **What changed** — the helpers are now **async** (resolution may hit a DB).
   A token-carried `user.permissions` claim is **no longer** an authorization
   input; seed permissions in the rights store instead.
+- **Tokens narrow, never widen** — on a request authenticated with an access
+  token or an OAuth token (`user.currentAccessToken`), `@Permission` and
+  `hasPermission` also require the token to allow the permission. A token's
+  abilities are not permissions: they restrict what the user may do through
+  that token, and grant nothing the user lacks.
+- **Authorization implies authentication** — `@Role`, `@Permission` or
+  `@RequireMfa` without `@Guard` authenticate with the default guard, and the
+  decorators are inherited by subclassed controllers.
 
 ### Station — `defineResource({ policies })` callbacks
 

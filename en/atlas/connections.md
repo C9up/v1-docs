@@ -114,6 +114,37 @@ await db.close()  // close the bound connection's pool
 `db.dialect` exposes the bound connection's dialect (`'sqlite'` | `'postgres'`
 | `'mysql'`).
 
+## LISTEN / NOTIFY (PostgreSQL)
+
+```ts
+const stop = await db.listen('jobs', (payload, notification) => {
+  wake(payload)   // notification: { channel, payload, processId }
+}, {
+  onReconnect: () => catchUp(),         // notifications sent while it was down are lost
+  onError: (error) => log.warn(error),  // default: a process warning
+})
+
+await db.execute("SELECT pg_notify('jobs', ?)", [jobId])
+await stop()
+```
+
+`listen()` resolves once the server has acknowledged the `LISTEN`, so a
+`NOTIFY` sent afterwards is delivered. `NOTIFY` itself goes through `execute`
+like any statement.
+
+Every subscription of a connection shares **one** dedicated connection, opened
+outside the pool on the first `listen()` (with the pool's connect options, TLS
+included) and closed when the last subscription stops or the connection closes —
+a listening process holds none of the pool's connections and does not stay
+alive once it stops listening. When that connection drops, atlas re-establishes
+it and subscribes to every channel again, retrying with a growing delay (up to
+30 seconds); `onError` reports each failed attempt, and `onReconnect` fires once
+it is back. A handler that throws is reported through `onError` too.
+
+A channel name is 1 to 63 bytes without NUL — the server would truncate a longer
+one, making two names one channel. `listen()` rejects with
+`E_ATLAS_LISTEN_UNSUPPORTED` on SQLite and MySQL.
+
 ## Truncation
 
 ```ts

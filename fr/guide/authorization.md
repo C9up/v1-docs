@@ -208,6 +208,15 @@ leur propre logique.
 - **Ce qui change** — les helpers sont maintenant **async** (la résolution peut
   toucher une base). Un claim `user.permissions` porté par le token n'est **plus**
   une entrée d'autorisation ; seedez plutôt les permissions dans le rights store.
+- **Les jetons restreignent, jamais n'élargissent** — sur une requête
+  authentifiée par un jeton d'accès ou un jeton OAuth (`user.currentAccessToken`),
+  `@Permission` et `hasPermission` exigent aussi que le jeton autorise la
+  permission. Les capacités d'un jeton ne sont pas des permissions : elles
+  limitent ce que l'utilisateur peut faire à travers ce jeton, et n'accordent
+  rien qu'il n'a pas.
+- **L'autorisation implique l'authentification** — `@Role`, `@Permission` ou
+  `@RequireMfa` sans `@Guard` authentifient avec le garde par défaut, et les
+  décorateurs sont hérités par les contrôleurs dérivés.
 
 ### Station — callbacks `defineResource({ policies })`
 

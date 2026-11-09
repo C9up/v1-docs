@@ -12,12 +12,32 @@ pnpm add -D @c9up/helix-plugin-ream @c9up/helix
 
 ## Inject a test client
 
+The bootstrap module **exports** `plugins`, `runnerHooks` and `configureSuite`;
+it never calls `configure()` itself. helix imports it and configures each run
+with those exports and the name of the suite being run — a `configure()` called
+inside the file would run at import time, before any suite exists, so the suite
+hook would never see `functional`. `ream new` writes this file:
+
 ```ts
 // tests/bootstrap.ts
-import { configure } from '@c9up/helix'
+import type { ConfigureOptions, Plugin, RunnerHook } from '@c9up/helix'
 import { apiClient } from '@c9up/helix-plugin-ream'
+import { createTestUtils } from '@c9up/ream/testing/utils'
 
-await configure({ plugins: [apiClient({ boot: () => bootApp() })] })
+export const testUtils = createTestUtils((port) => bootApp(port))
+
+export const plugins: Plugin[] = [apiClient({ testUtils })]
+
+export const runnerHooks: { setup: RunnerHook[]; teardown: RunnerHook[] } = {
+  setup: [],
+  teardown: [],
+}
+
+export const configureSuite: ConfigureOptions['configureSuite'] = (suite) => {
+  if (suite.name === 'functional') {
+    return suite.setup(() => testUtils.httpServer().start())
+  }
+}
 ```
 
 ```ts
@@ -26,20 +46,23 @@ test('health', async ({ client }) => {
 })
 ```
 
-The server boots once at `configure()` time, is shared across the run, and closes through `api.cleanup` when the run ends.
+With `testUtils`, the suite hook owns the server: the plugin reads the client of
+the server that hook started, so both point at one server, and a unit suite that
+declares no hook starts no server and pays nothing. The hook's own teardown
+closes it.
 
-### Let a suite hook own the server
+### Let the client boot the app
 
-A unit suite that declares no hook starts no server and pays nothing:
+For a project whose suites are not split yet, `boot` lets the client own its
+server instead:
 
 ```ts
-import { createTestUtils } from '@c9up/ream/testing/utils'
-
-const testUtils = createTestUtils(boot)
-await configure({ plugins: [apiClient({ testUtils })] })
+export const plugins: Plugin[] = [apiClient({ boot: (port) => bootApp(port) })]
 ```
 
-The plugin then reads the client of the server that hook started, so both point at one server.
+The server starts on the client's **first request**, so a test file that issues
+none pays nothing, and it closes through `api.cleanup` when the run ends.
+Prefer `testUtils`.
 
 ## Run the suites declared in the rc file
 

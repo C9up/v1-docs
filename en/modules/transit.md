@@ -236,7 +236,7 @@ before a user is returned:
 | Signature | Against the provider's published key, fetched from its JWKS. |
 | Algorithm | Chosen from what the provider **declared it signs with** — never read from the token. |
 | Key | Must be the kind the algorithm is defined over, and on the right curve. |
-| `iss` | The issuer that was configured, matched against the discovery document. |
+| `iss` | Identical, byte for byte, to the issuer that was configured — which the discovery document's `issuer` must match too. |
 | `aud` | Must name this client. With several audiences, `azp` must name it too. |
 | `exp` / `iat` | Not expired, not issued in the future. |
 | `nonce` | The one this sign-in sent. |
@@ -252,6 +252,12 @@ session; it travels in `secret`, which is why `begin()` asks you to keep it.
 Only asymmetric signatures are accepted. The `HS*` family signs with the client
 secret, so every copy of the config — and every log line that ever leaked it —
 could mint a token for any user.
+
+The issuer is kept exactly as written: no trailing slash is added or removed
+before it is compared with the discovery document's `issuer` and with each
+token's `iss`. Write it the way the provider does — Auth0's ends with a slash
+(`https://tenant.auth0.com/`), and dropping it makes every sign-in fail. Only
+the well-known URL is built without the slash.
 
 ### Keys, and when they are fetched
 
@@ -269,7 +275,7 @@ the issuer:
 | Provider | Issuer |
 | --- | --- |
 | Keycloak | `https://<host>/realms/<realm>` |
-| Auth0 | `https://<tenant>.auth0.com` |
+| Auth0 | `https://<tenant>.auth0.com/` (with the slash) |
 | Okta | `https://<tenant>.okta.com` |
 | Microsoft Entra ID | `https://login.microsoftonline.com/<tenant>/v2.0` |
 | Authentik | `https://<host>/application/o/<slug>` |
@@ -388,7 +394,7 @@ a replay or a misdirected sign-in looks like.
 | Recipient | The URL this application answers at. |
 | `InResponseTo` | The request this sign-in made. |
 | Windows | The assertion's and the bearer confirmation's, with a minute of drift. |
-| Replay | The assertion id, remembered until it expires. |
+| Replay | The assertion id, remembered for as long as the assertion could still be accepted. |
 
 Absences are refused as firmly as mismatches: an assertion that restricts no
 audience does not say who it is for, one with no expiry never stops being
@@ -402,9 +408,36 @@ the other is executable.
 ### Replay, and a second replica
 
 An assertion is a bearer token: captured once and posted twice it is valid both
-times, and no condition on it changes that. The default store remembers in this
-process's memory, which accepts the same assertion **once per replica**. Pass
-`replayStores.redis({ connection })` as soon as there are two.
+times, and no condition on it changes that. Its id is therefore remembered
+until the assertion stops being accepted: its later expiry — the assertion's
+`NotOnOrAfter` or the bearer confirmation's, whichever ends last — plus
+`clockSkewSeconds` (default 60), since that drift is what it was accepted with.
+A validated assertion carries that instant as `rememberUntil`, and it is what a
+replay store is asked to remember the id until. The Redis store keeps the key a
+minute longer still, for the clock difference between the replica that stored it
+and the one a replay lands on.
+
+The default store remembers in this process's memory, which accepts the same
+assertion **once per replica**. Pass `replayStores.redis({ connection })` as
+soon as there are two.
+
+### The asserted email
+
+Whoever administers a SAML provider can assert any address for any user. So an
+address read from an assertion is reported `unsupported` by default, and only
+the config can say that the provider is authoritative for it:
+
+```ts
+saml({ ...config, trustEmail: true })                     // your own provider: every address is verified
+saml({ ...config, trustedEmailDomains: ['acme.test'] })   // a customer's: acme.test addresses are verified, others unverified
+```
+
+`trustedEmailDomains` is compared without case against what follows the
+address's last `@`, exactly — a subdomain is listed on its own. Setting both
+options, or listing something that is not a domain (`ada@acme.test`, an empty
+string), is refused when the driver is built. `trustEmail` belongs only to a
+provider that answers for every address it can assert: with a customer's
+provider, it hands that customer every account your application links by email.
 
 ### Attributes
 
@@ -478,6 +511,12 @@ whatever may search, and one to bind **as** that person — which is what
 verifies the password. The second is closed immediately, because a connection
 carries the identity of whatever last bound on it.
 
+The search ignores continuation references — the pointers to other servers
+that Active Directory returns for any search from a domain root. They are not
+counted as entries, and they are never followed: chasing one would send the
+next bind wherever the reply pointed. Any other reply the search cannot read
+fails the sign-in.
+
 ### What a directory returns
 
 `user.id` is the DN, the only value a directory guarantees to be unique and
@@ -485,6 +524,11 @@ stable. The address, name and nickname are read from the attributes directories
 usually use; `claims` names them when yours does not, and
 `user.raw.attributes` carries everything — group memberships included, with
 every value kept.
+
+An address read from the directory is reported `verified`: the directory is the
+one you configured and run. When it belongs to someone else — a customer's
+directory — its addresses are that customer's say-so, and linking accounts by
+email across tenants on that basis is not safe.
 
 ## Testing a sign-in
 

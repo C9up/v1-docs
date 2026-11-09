@@ -18,6 +18,23 @@ Atlas applique déjà plusieurs garde-fous:
 - `havingRaw(sql, bindings)`
 - sélection/tri de colonnes pilotés par entrées HTTP
 
+`select()` et `having()` acceptent des expressions en plus des colonnes —
+`count(*)`, `coalesce(sum(total), 0)` — et les valident avant de les compiler.
+En plus des sous-requêtes et des mots-clés d'instruction, elles refusent :
+
+- une barre oblique inverse dans un littéral de chaîne : MySQL et les chaînes
+  `E'…'` de Postgres lisent `\'` comme une apostrophe échappée, le standard SQL
+  comme une barre oblique inverse suivie de l'apostrophe fermante. Là où les deux
+  ne s'accordent pas sur la fin d'un littéral, ce que la vérification a sauté
+  comme « dans la chaîne » s'exécuterait comme du SQL. Aucun agrégat n'en a
+  besoin.
+- tout `#`, y compris dans un littéral : il ouvre un commentaire sur MySQL.
+  Aucune colonne, aucun alias ni aucun agrégat accepté par ces méthodes n'en a
+  besoin.
+
+Une apostrophe doublée dans un littéral (`'it''s'`) reste acceptée. Ce que ces
+vérifications refusent relève d'une surface brute avec bindings.
+
 Le mode strict (`setAtlasStrictMode(true)` / `ATLAS_STRICT=1`) désactive toutes les
 surfaces SQL brut de la couche typée — `whereRaw`, `joinRaw`, `havingRaw` et le
 `raw()` du repository. Le break-glass reste `db.query()` / `db.execute()` au niveau

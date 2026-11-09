@@ -1,5 +1,9 @@
 # Toaster
 
+::: warning Déprécié
+shadcn a déprécié son propre toast au profit de sonner, et nebula aussi : le nouveau code utilise [Sonner](/fr/nebula/components/sonner). Toaster reste en place le temps que les applications migrent.
+:::
+
 Des notifications passagères : une région montée une fois près de la racine de l'application, et un objet `toast` appelable de n'importe où — un gestionnaire d'événement, la branche d'erreur d'un formulaire, un service — sans poignée à faire descendre jusqu'à lui. La file vit dans l'état du module et la région s'y abonne ; tout le design tient dans ce découplage.
 
 Les règles d'accessibilité sont plus strictes qu'il n'y paraît, et la région est statique pour pouvoir les tenir. Une région live insérée avec son contenu déjà dedans n'est pas annoncée par la plupart des lecteurs d'écran : la région est donc montée vide, et elle reste. Il y en a deux : les erreurs vont dans une région assertive qui interrompt, tout le reste dans une région polie qui attend — tout faire interrompre est le plus sûr moyen de rendre un lecteur d'écran inutilisable. Survoler la région suspend tous les comptes à rebours, parce qu'une notification qui disparaît pendant qu'on la lit est le reproche le plus courant fait à ce motif.

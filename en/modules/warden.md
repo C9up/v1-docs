@@ -1,6 +1,6 @@
 # Warden — Authentication
 
-Warden manages authentication strategies and role-based access control (RBAC). The core is the `AuthManager` class, which delegates authentication and token verification to registered strategies. The built-in `JwtStrategy` covers the common JWT use case. You can register additional strategies (session, API key, HTTP Basic) at any time. Signing someone in through an outside provider is [Transit](/en/modules/transit).
+Warden manages authentication strategies and role-based access control (RBAC). The core is the `AuthManager` class, which delegates authentication and token verification to registered strategies. The built-in `JwtStrategy` covers the common JWT use case. You can register additional strategies (session, access tokens, HTTP Basic) at any time. Signing someone in through an outside provider is [Transit](/en/modules/transit).
 
 ## Installation
 
@@ -178,8 +178,11 @@ await auth.hasPermission(user, 'posts.publish', { tenant: 'acme' })
 ```
 
 `hasPermission` / `hasAllPermissions` reflect the **resolved set** (role-derived ∪
-direct grants); permissions carried in the JWT/api-key token (`user.permissions`)
-are **not** an authorization input. `hasRole` reflects payload roles ∪ store roles,
+direct grants); permissions carried in a JWT payload (`user.permissions`) are
+**not** an authorization input. When the request was authenticated with a token
+(`user.currentAccessToken`, set by the [access-tokens guard](#access-tokens) or
+an OAuth guard), the token must also allow the permission: the check is the
+user's permission **and** the token's ability, never one or the other. `hasRole` reflects payload roles ∪ store roles,
 so a token-carried role still satisfies it with no store config. When no `rights`
 resolver is supplied, `AuthManager` defaults to an empty in-memory store — roles
 still fold in from the payload, permissions resolve empty.
@@ -188,8 +191,7 @@ still fold in from the payload, permissions resolve empty.
 > straight off the token payload. They are now `async` and resolver-backed.
 > Permissions you previously stuffed into the JWT/api-key token are no longer
 > honoured by coarse `@Permission` checks — seed them as roles or direct grants
-> in the rights store instead. The api-key scope → grant path is completed in a
-> later story.
+> in the rights store instead.
 
 ---
 
@@ -549,7 +551,10 @@ router.use([initializeBouncer])
 It builds `ctx.bouncer` from three things, all registered by `WardenProvider`
 from your `config/auth.ts`:
 
-- the authenticated user — `ctx.auth?.user`, or `null` for a guest;
+- the authenticated user — `ctx.auth?.user`, or `null` for a guest. It is read
+  when the first check runs, not when the middleware runs, so a handler that
+  calls `await ctx.auth.authenticate()` and then authorizes is judged as the
+  user it just signed in;
 - the shared `RightsResolver` (Layer 1), so `this.permissions` inside a policy
   resolves against the rights store;
 - the `bouncer:registry` — the `abilities` / `policies` tables and the optional
@@ -850,6 +855,12 @@ What makes this safe, and why each part matters:
   identifier and an expired token are indistinguishable from the outside — a
   distinguishable "unknown identifier" would let an attacker enumerate them.
 - **One token per login**, so signing out on one device leaves the others alone.
+- **Logging out ends it.** `ctx.auth.use('web').logout()` clears the cookie and
+  deletes the stored token the cookie names, whatever its secret — a cookie
+  whose secret no longer matches is one a stolen copy already recycled. The
+  cookie is cleared first, so a store that fails to delete the row never leaves
+  the browser holding the credential; that failure is still thrown, once the
+  session has ended.
 
 `MemoryRememberMeTokenDriver` is for tests and single-process apps; a cluster
 needs a shared store implementing `RememberMeTokenDriver` (`create` / `find` /
@@ -964,6 +975,110 @@ difference is measurable.
 
 ---
 
+## Access tokens
+
+Opaque bearer tokens for APIs, command-line tools and mobile apps. A token value
+looks like `oat_<identifier>.<secret>`. Only `sha256(secret)` is stored, the
+comparison is constant-time, and the secret ends with a CRC-32 checksum so a
+secret scanner can recognise a leaked token.
+
+```ts
+import { AccessTokensProvider, MemoryAccessTokenStore } from '@c9up/warden'
+import { apiKeyGuard, defineConfig } from '@c9up/warden/config'
+
+// Implement AccessTokenStore over your own table in production.
+const tokens = new AccessTokensProvider({
+  store: new MemoryAccessTokenStore(),
+  expiresIn: '30 days',               // default lifetime; absent, tokens never expire
+})
+
+export default defineConfig({
+  default: 'api',
+  guards: { api: apiKeyGuard({ tokens, findUser: (id) => User.find(id) }) },
+})
+```
+
+Minting returns the only object that ever carries the value — hand it to the
+client right away, nothing stored can rebuild it:
+
+```ts
+const token = await tokens.create(user, ['orders:read'], { name: 'CI', expiresIn: '7 days' })
+token.value.release()   // "oat_…"
+token.toJSON()          // { type: 'bearer', name, token, abilities, lastUsedAt, expiresAt }
+```
+
+`abilities` defaults to `['*']`, every ability. `AccessTokensProvider` takes
+`store`, `prefix` (default `oat_`; non-empty, no `.`), `type` (default
+`auth_token`, so one table can hold several kinds of token),
+`tokenSecretLength` (default 40, at least 32: a shorter secret is guessable) and
+`expiresIn` (seconds or a duration string). A value that does not fit is refused
+at construction. The identifier is 128 random bits rather than a row id, so a
+token cannot be aimed at by enumerating rows.
+
+### The guard
+
+`apiKeyGuard({ tokens, findUser })` builds an `ApiKeyStrategy`, registered as
+the `access_tokens` driver. It reads `Authorization: Bearer <token>` or the
+`x-api-key` header (`headerName` changes it), and verifies the value through the
+provider: a value that is not one of ours, an unknown identifier, a token of
+another type, a wrong secret and an expired token are all the same refusal.
+Only a verified token has its `lastUsedAt` recorded. The user is then reloaded
+through `findUser` on **every** request, so a token whose account was deleted or
+disabled stops working the moment `findUser` answers `null`.
+
+A config that still passes `findByKey` instead of `tokens` is refused when the
+guard is built, not at the first request.
+
+### Abilities are not permissions
+
+The authenticated user carries the token as `user.currentAccessToken`:
+
+```ts
+const token = ctx.auth.user.currentAccessToken
+token.abilities               // ['orders:read']
+token.allows('orders:read')   // true — '*' allows everything
+token.denies('orders:write')  // true
+token.authorize('orders:write') // throws E_UNAUTHORIZED_ACCESS
+token.isExpired()
+token.lastUsedAt
+```
+
+A token's abilities are **never** merged into `user.permissions`, which holds
+the user's own permissions. What a request made with a token may do is what the
+user may do **and** what the token allows: an ability that shares a
+permission's name grants nothing the user lacks, and a token restricted to a few
+abilities does not carry every permission of its user. `@Permission(...)`,
+`hasPermission` and `hasAllPermissions` enforce exactly that intersection;
+`tokenAllows(user, permission)` is the token half on its own. A user signed in
+through a session or a JWT has no `currentAccessToken` and is checked against
+their own permissions only.
+
+### Managing a user's tokens
+
+```ts
+await tokens.all(user)                 // most recently used first, never-used last
+await tokens.find(user, identifier)    // null unless it is this user's
+await tokens.delete(user, identifier)  // 0 or 1
+await tokens.deleteAll(user)
+await tokens.invalidate(new Secret(presentedValue)) // revoke from the value itself
+guard.invalidateToken(presentedValue)                // the same, from the guard
+```
+
+`find` and `delete` only touch a token that belongs to the user named.
+`invalidate` revokes only when the secret matches: an identifier alone — read
+in a log line or a token listing — is not enough to revoke someone else's
+token.
+
+`AccessTokenStore` is the table: `create`, `find(identifier)`,
+`touch(identifier, lastUsedAt)`, `delete(identifier)` (answers whether a row
+went) and `listForUser(userId)`. Timestamps are epoch milliseconds and
+`expiresAt` is `null` for a token that never expires. `MemoryAccessTokenStore`
+is for tests and single-process tools. An application with its own token scheme
+implements `AccessTokensProviderContract` (`create`, `verify`, `invalidate`)
+instead of using `AccessTokensProvider`.
+
+---
+
 ## Throttling sign-in — AuthRateLimiter
 
 Count a sign-in attempt **before** checking the password, under the client's IP
@@ -987,9 +1102,18 @@ if (user) await limiter.clear(...keys)
 
 Counting first is what holds against a burst: each attempt is one atomic
 increment, so twenty concurrent guesses cannot all read "not blocked yet". The
-identifier is normalized (case, surrounding spaces), `maxAttempts` and
-`windowSeconds` must be positive whole numbers, and the memory store is bounded.
-`MfaManager` uses the same limiter for its lockout.
+identifier is normalized (case, surrounding spaces), and `maxAttempts` and
+`windowSeconds` must be positive whole numbers. `MfaManager` uses the same
+limiter for its lockout.
+
+The default `MemoryAttemptStore` counts per process and is bounded (100 000
+keys). When it is full and every window is still live, a **new** key is refused
+— its attempt is reported over the limit — rather than a live counter dropped to
+make room: the keys are chosen by whoever is guessing, and evicting the oldest
+would let a flood of invented identifiers erase a victim's lockout. During such
+a flood, first attempts under new keys wait until windows expire. In
+production, use `RedisAttemptStore`: it is shared by every instance and has no
+such bound.
 
 ---
 
@@ -1001,7 +1125,7 @@ be that user (AdonisJS's test seam). The test client's `loginAs()` applies it:
 ```ts
 await client.get('/dashboard').loginAs(sessionGuard, user)
 await client.get('/api/me').loginAs(jwtGuard, user)
-await client.get('/keys').loginAs(apiKeyGuard, seededKey)
+await client.get('/keys').loginAs(apiKeyGuard, user, ['orders:read'])
 await client.get('/admin').loginAs(basicGuard, 'ada', 'secret')
 ```
 
@@ -1013,7 +1137,7 @@ production. A test that forges its own header proves only that the forgery works
 |---|---|---|
 | jwt | `authorization: Bearer <signed>` | the user |
 | session | a session entry under the guard's key | the user |
-| api-key | `authorization` + the key header | the **key** (issued out of band) |
+| access_tokens | `authorization: Bearer oat_…` — a real token minted through the provider | the user, then optional abilities and token options |
 | basic | `authorization: Basic <base64>` | uid + password |
 
 A session guard returns session **values**, which only something holding the
@@ -1104,7 +1228,7 @@ const mfa = new MfaManager({
 // 1. Enroll — render `uri` as a QR code (with @c9up/prism: `await qrcode.toString(uri)`)
 const { factorId, uri } = await mfa.enrollTotp({ id: user.id, name: user.email })
 // 2. Confirm with a first code from the authenticator app
-await mfa.confirmTotp(factorId, code)              // → true once confirmed
+await mfa.confirmTotp(user.id, factorId, code)     // → true once confirmed
 // 3. Recovery codes — display ONCE
 const codes = await mfa.createBackupCodes(user.id)
 
@@ -1117,7 +1241,15 @@ if (await mfa.verify(user.id, submitted)) {
 }
 ```
 
-Status helpers: `isEnabled(userId)`, `listFactors(userId)` (never leaks secret material), `disableFactor(factorId)`, `await isLocked(userId)`.
+Status helpers: `isEnabled(userId)`, `listFactors(userId)` (never leaks secret material), `disableFactor(userId, factorId)`, `await isLocked(userId)`.
+
+Factor operations name the owner beside the factor id and refuse a factor that
+belongs to someone else: a factor id travels through requests, and one leaked
+through a log or a support tool must not let another account act on it.
+`disableFactor` answers `true` when it removed the factor, `false` for an
+unknown id or another user's factor, which is left in place. `confirmTotp`
+answers `false` in the same case, and its attempts count against the same
+lockout as `verify()`, so a first code cannot be guessed without limit.
 
 Each code works once, even when two requests present it at the same instant:
 the TOTP replay guard claims a code atomically (`claim(key, ttlMs)`, set-if-absent),
@@ -1315,7 +1447,7 @@ router.group(() => {
 
 1. If the route has any guard, role, or permission and `ctx.auth.authenticated` is `false` — sends `401 { error: { code: 'E_WARDEN_UNAUTHORIZED', message: ... } }` and returns.
 2. If the route requires roles and `ctx.auth.roles` does not contain any of them — sends `403 { error: { code: 'E_WARDEN_FORBIDDEN', message: 'Missing roles: ...' } }` and returns.
-3. If the route requires permissions and `ctx.auth.permissions` does not contain all of them — sends `403 { error: { code: 'E_WARDEN_FORBIDDEN', message: 'Missing permissions: ...' } }` and returns.
+3. If the route requires permissions and the user does not hold all of them — or the request came with a token (`user.currentAccessToken`) that does not allow one of them — sends `403 { error: { code: 'E_WARDEN_FORBIDDEN', message: 'Missing permissions: ...' } }` and returns.
 
 Guards are enforced by the middleware pipeline, not by Warden directly. `ctx.auth` must be populated before the guard check runs — that is the auth middleware's job.
 
@@ -1364,6 +1496,20 @@ getGuardMetadata(PostsController.prototype, 'store')       // ['jwt']
 getPermissionMetadata(PostsController.prototype, 'store')  // ['posts.create']
 getRoleMetadata(PostsController.prototype, 'store')        // ['admin']
 ```
+
+When the auth middleware (`@c9up/warden/middleware`) reads them:
+
+- **Authorization implies authentication.** An action carrying `@Role`,
+  `@Permission` or `@RequireMfa` without `@Guard` is authenticated with the
+  default guard, and an anonymous request gets a 401. A route declaring
+  `@Role('admin')` alone is never public.
+- **Decorators are inherited.** They are read through the prototype chain, so an
+  action a controller inherits keeps the guard and the authorization its parent
+  declared — `class UsersController extends AdminController {}` routes
+  `[UsersController, 'index']` with `AdminController`'s decorators. An override
+  that declares nothing inherits them too, so redefining a method never drops a
+  guard by accident; an override that declares its own decorator replaces the
+  parent's for that decorator.
 
 ---
 
@@ -1438,8 +1584,16 @@ interface AuthResult {
 interface UserPayload {
   id: string
   roles?: string[]
-  permissions?: string[]
+  permissions?: string[]                    // the user's own, never widened by a token
+  currentAccessToken?: CurrentAccessToken   // set by a token guard
   [key: string]: unknown
+}
+
+interface CurrentAccessToken {
+  readonly abilities: readonly string[]
+  allows(ability: string): boolean
+  denies(ability: string): boolean
+  authorize(ability: string): void
 }
 
 interface AuthConfig {
@@ -1537,3 +1691,29 @@ new RedisBlacklistDriver(quasarConnection())
 ```
 
 The connection resolves on the first revocation check, so an app whose blacklist is never consulted opens no socket for it. Passing a client directly still works: `@c9up/quasar` is an **optional** peer.
+
+### Surviving a Redis outage — `ResilientBlacklistDriver`
+
+```ts
+import { MemoryBlacklistDriver, RedisBlacklistDriver, ResilientBlacklistDriver, TokenBlacklist } from '@c9up/warden'
+
+new TokenBlacklist(new ResilientBlacklistDriver(
+  new RedisBlacklistDriver(quasarConnection()),
+  new MemoryBlacklistDriver(),          // the default
+  { onDegrade: (event) => log.warn(event) },
+))
+```
+
+A revocation is written to both stores, always, so this instance knows what it
+revoked without a round trip. A check asks the local record first, then Redis.
+When Redis cannot answer and the local record does not know the credential, the
+check **fails closed**: the error is thrown, and the guard treats it as a crashed
+strategy — a 500, or a guest under silent auth — never as "not revoked". The
+same blacklist backs session logouts and JWTs issued for days, so answering
+"not revoked" during an outage would accept every sign-in revoked elsewhere.
+
+`{ failOpen: true }` lets such credentials through instead. It suits a
+deployment whose only consumer is a JWT guard with a short `expiresIn`, where
+staying available through an outage is worth more than a revocation missed for
+at most one token lifetime. `onDegrade` is called on every fallback; the default
+reports the first failure of an operation, then a periodic count.

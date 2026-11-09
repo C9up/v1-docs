@@ -74,13 +74,34 @@ pnpm add -D @c9up/helix-plugin-ream
 
 ```ts
 // tests/bootstrap.ts
-import { configure } from '@c9up/helix'
+import type { ConfigureOptions, Plugin, RunnerHook } from '@c9up/helix'
 import { apiClient } from '@c9up/helix-plugin-ream'
+import { createTestUtils } from '@c9up/ream/testing/utils'
 
-await configure({ plugins: [apiClient({ boot: () => bootApp() })] })
+export const testUtils = createTestUtils((port) => bootApp(port))
+
+export const plugins: Plugin[] = [apiClient({ testUtils })]
+
+export const runnerHooks: { setup: RunnerHook[]; teardown: RunnerHook[] } = {
+  setup: [],
+  teardown: [],
+}
+
+export const configureSuite: ConfigureOptions['configureSuite'] = (suite) => {
+  if (suite.name === 'functional') {
+    return suite.setup(() => testUtils.httpServer().start())
+  }
+}
 ```
 
-The app boots once for the run and `ctx.client` carries a booted `TestClient`:
+The bootstrap module **exports** `plugins`, `runnerHooks` and `configureSuite`;
+it never calls `configure()` itself. helix imports it and configures each run
+with those exports and the name of the suite being run — a `configure()` called
+inside the file would run at import time, before any suite exists, so
+`functional` would never start its server. `ream new` writes this file.
+
+Only the `functional` suite starts a server, and `ctx.client` carries a
+`TestClient` pointed at it:
 
 ```ts
 test('health', async ({ client }) => {

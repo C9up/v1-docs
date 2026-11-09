@@ -479,6 +479,15 @@ Each resolved package gets `<assetsPrefix>/<name>/dist/*`, a `wasm/*` route when
 it has one, and an importmap entry. A package that is not installed is skipped
 in silence.
 
+The importmap entry is read from the package's `exports` (its `"."` entry),
+preferring the `browser` condition, then `import`, then `default`, wherever each
+is listed: a page is read by a browser only, and a package that ships a separate
+browser build has an `import` entry that reaches for `node:fs`. A TypeScript
+target (a workspace package exporting `./src/index.ts`) is passed over. Without
+a usable `exports`, the entry is `dist/index.js`. A declared entry that sits
+outside `dist/` — the only directory served — is refused with an error naming
+it: map that package yourself with `importmap` in `config/aurora.ts`.
+
 The mount is two narrow roots, never the package root: a wasm-backed package
 imports `../wasm/…` — a sibling of its dist — and the bindgen glue then fetches
 the binary beside itself, so the importmap points INTO `dist/` for that relative

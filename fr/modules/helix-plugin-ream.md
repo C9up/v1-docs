@@ -12,12 +12,33 @@ pnpm add -D @c9up/helix-plugin-ream @c9up/helix
 
 ## Injecter un client de test
 
+Le module de bootstrap **exporte** `plugins`, `runnerHooks` et
+`configureSuite` ; il n'appelle jamais `configure()` lui-même. helix l'importe
+et configure chaque campagne avec ces exports et le nom de la suite lancée — un
+`configure()` appelé dans le fichier s'exécuterait à l'import, avant qu'aucune
+suite n'existe, et le hook de suite ne verrait jamais `functional`. `ream new`
+écrit ce fichier :
+
 ```ts
 // tests/bootstrap.ts
-import { configure } from '@c9up/helix'
+import type { ConfigureOptions, Plugin, RunnerHook } from '@c9up/helix'
 import { apiClient } from '@c9up/helix-plugin-ream'
+import { createTestUtils } from '@c9up/ream/testing/utils'
 
-await configure({ plugins: [apiClient({ boot: () => bootApp() })] })
+export const testUtils = createTestUtils((port) => bootApp(port))
+
+export const plugins: Plugin[] = [apiClient({ testUtils })]
+
+export const runnerHooks: { setup: RunnerHook[]; teardown: RunnerHook[] } = {
+  setup: [],
+  teardown: [],
+}
+
+export const configureSuite: ConfigureOptions['configureSuite'] = (suite) => {
+  if (suite.name === 'functional') {
+    return suite.setup(() => testUtils.httpServer().start())
+  }
+}
 ```
 
 ```ts
@@ -26,20 +47,23 @@ test('health', async ({ client }) => {
 })
 ```
 
-Le serveur démarre une fois au moment du `configure()`, est partagé sur toute la campagne, et se ferme par `api.cleanup` quand elle se termine.
+Avec `testUtils`, c'est le hook de suite qui possède le serveur : le plugin lit
+le client du serveur que ce hook a démarré, si bien que les deux pointent le
+même, et une suite unitaire qui ne déclare aucun hook ne démarre aucun serveur
+et ne paie rien. Le teardown du hook le ferme.
 
-### Laisser un hook de suite posséder le serveur
+### Laisser le client démarrer l'application
 
-Une suite unitaire qui ne déclare aucun hook ne démarre aucun serveur et ne paie rien :
+Pour un projet dont les suites ne sont pas encore séparées, `boot` laisse le
+client posséder son propre serveur :
 
 ```ts
-import { createTestUtils } from '@c9up/ream/testing/utils'
-
-const testUtils = createTestUtils(boot)
-await configure({ plugins: [apiClient({ testUtils })] })
+export const plugins: Plugin[] = [apiClient({ boot: (port) => bootApp(port) })]
 ```
 
-Le plugin lit alors le client du serveur que le hook a démarré, si bien que les deux pointent le même.
+Le serveur démarre à la **première requête** du client, si bien qu'un fichier de
+test qui n'en émet aucune ne paie rien, et il se ferme par `api.cleanup` à la fin
+de la campagne. Préférez `testUtils`.
 
 ## Lancer les suites déclarées dans le fichier rc
 

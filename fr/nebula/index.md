@@ -2,7 +2,7 @@
 
 `@c9up/nebula` porte l'ensemble shadcn/ui sur [Aurora](/fr/modules/aurora), rangé en design atomique : même balisage, mêmes classes, même comportement, écrits pour un runtime sans étape de build.
 
-Une nébuleuse est la matière d'où naissent les étoiles — celle-ci est la matière d'où naissent les interfaces. Soixante-quinze composants sur quatre couches, plus la couche de comportement sans habillage que Radix fournirait ailleurs.
+Une nébuleuse est la matière d'où naissent les étoiles — celle-ci est la matière d'où naissent les interfaces. Soixante-seize composants sur quatre couches, plus la couche de comportement sans habillage que Radix fournirait ailleurs.
 
 ::: warning Ne pas confondre
 Le paquet cache s'est un temps appelé Nebula avant de devenir [Echo](/fr/modules/echo). Ce nom-là désigne aujourd'hui ce paquet-ci, et rien d'autre.
@@ -99,7 +99,7 @@ La règle est la composition, pas la complexité. Slider est un atome bien qu'in
 [Toolbar](/fr/nebula/components/toolbar) ·
 [Typography](/fr/nebula/components/typography)
 
-### Organismes (26)
+### Organismes (27)
 
 [AlertDialog](/fr/nebula/components/alert-dialog) ·
 [Calendar](/fr/nebula/components/calendar) ·
@@ -125,6 +125,7 @@ La règle est la composition, pas la complexité. Slider est un atome bien qu'in
 [Select](/fr/nebula/components/select) ·
 [Sheet](/fr/nebula/components/sheet) ·
 [Sidebar](/fr/nebula/components/sidebar) ·
+[Sonner](/fr/nebula/components/sonner) ·
 [Toaster](/fr/nebula/components/toaster) ·
 [Tooltip](/fr/nebula/components/tooltip)
 

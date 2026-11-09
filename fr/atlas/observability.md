@@ -66,6 +66,13 @@ L'événement se déclenche même en cas d'échec : quand une instruction lève 
 exception, `error` est renseigné et l'événement est tout de même émis, de sorte que
 les requêtes lentes-et-échouées apparaissent dans tes journaux.
 
+Les instructions exécutées dans une transaction interactive (`db.transaction(...)`)
+sont rapportées comme les autres, avec `inTransaction: true` — y compris le
+`SAVEPOINT` et le `RELEASE SAVEPOINT` d'une transaction imbriquée. `BEGIN`,
+`COMMIT` et `ROLLBACK` sont des appels du driver, pas des instructions, et ne sont
+pas rapportés : les événements `commit` / `rollback` du client de transaction
+les couvrent.
+
 ## Impression lisible
 
 `prettyPrintQuery(event)` rend un événement sous forme d'une seule ligne de journal

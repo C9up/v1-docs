@@ -51,6 +51,31 @@ export default {
 }
 ```
 
+### config/app.ts — the HTTP server
+
+The native server guards every connection before a request reaches your code.
+Its bounds live in the `http` block of `config/app.ts`:
+
+```typescript
+export const http = {
+  headersTimeout: 60_000,    // ms to receive a request's headers
+  requestTimeout: 300_000,   // ms to receive its body once the headers are in → 408
+  keepAliveTimeout: 5_000,   // ms an idle keep-alive connection stays open
+  maxConnections: 10_000,    // concurrent connections; extra clients wait in the backlog
+}
+```
+
+The values above are the defaults. `0` turns a bound off (`maxConnections: 0`
+means unbounded). A client that connects and never finishes its headers is
+closed after `headersTimeout`; a body that trickles in slower than
+`requestTimeout` is answered `408 E_HTTP_REQUEST_TIMEOUT`.
+
+Request bodies are also limited at the socket, with the limits of
+`config/bodyparser.ts` (see [File uploads](/en/guide/file-uploads)): nothing
+past its content type's limit is held in memory. The request still goes
+through routing without its body, and reading that body answers
+`413 E_REQUEST_ENTITY_TOO_LARGE` through your exception handler.
+
 ## Environment variables
 
 Define and **validate** your environment in `start/env.ts` with `Env.create`, then read variables anywhere through the typed `env.get()`. This mirrors AdonisJS: the schema loads the `.env*` files at import time and refuses to boot if a required variable is missing or malformed, so a typo surfaces immediately instead of as a runtime `undefined`.

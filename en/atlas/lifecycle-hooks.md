@@ -83,6 +83,10 @@ Pagination composes the fetch hooks: `beforePaginate` fires first (with the tupl
 then `beforeFetch` on the data query; after the page is built, `afterPaginate`
 fires with the paginator, then `afterFetch` with the items.
 
+A preload is a fetch of the related model: its `beforeFetch` receives the preload
+query and its `afterFetch` the related rows, for every relation kind and for
+`load()` (see [Relations](./relations.md#fetch-hooks-on-preloaded-rows)).
+
 ### Inheritance
 
 Hooks are inherited through the prototype chain: a hook declared on a base entity

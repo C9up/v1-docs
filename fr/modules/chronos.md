@@ -116,6 +116,15 @@ DateTime.from('2026-02-30')
 // Invalid date '2026-02-30': February 2026 has 28 days, so there is no day 30.
 ```
 
+Il en va de même d'un fuseau que la base tz ne connaît pas — à chaque point
+d'entrée qui en prend un, `DateTime.now(zone)`, `new DateTime(input, zone)`
+comme `setZone(zone)` :
+
+```ts
+DateTime.now('Mars/Olympus')
+// Unknown IANA timezone: 'Mars/Olympus'. Check https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+```
+
 Seule la date *écrite* est contrôlée, jamais l'instant vers lequel elle se
 résout : un décalage qui déplace légitimement le jour UTC n'est pas concerné.
 

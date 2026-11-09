@@ -324,6 +324,12 @@ router
   .where('id', router.matchers.uuid())
 ```
 
+`.permission()` checks the authenticated user's own permissions. When the
+request was authenticated with a token (`ctx.auth.user.currentAccessToken`), the
+token must also allow each permission: a token scope never grants a permission
+the user lacks, and a narrow token does not carry every permission of its user.
+RPC methods and GraphQL resolvers apply the same rule.
+
 ### Inline Middleware
 
 Attach a one-off middleware function directly to a route with `.use()`:
@@ -406,6 +412,26 @@ request.ip()
 request.is(['json'])        // Content-type check
 request.accepts(['json'])   // Accept header negotiation
 ```
+
+#### Behind a reverse proxy
+
+`request.ip()`, `request.ips()`, `request.protocol()` / `request.secure()` and
+`request.host()` believe `X-Forwarded-For`, `X-Forwarded-Proto` and
+`X-Forwarded-Host` only when the connection comes from a proxy listed with
+`server.trustedProxies()`. The list is empty by default, so the headers are
+ignored and a client reaching the app port directly cannot choose them.
+
+```typescript
+// start/kernel.ts
+server.trustedProxies(['10.0.0.0/8'])   // or 'loopback', 'uniquelocal', '*'
+```
+
+`request.ips()` is the trusted chain, closest hop first: the proxy that
+connected, then each forwarded address a trusted proxy vouched for. Its last
+entry is `request.ip()`. A TLS connection is always `https`. What counts is
+the peer that connected: a trusted proxy's `X-Forwarded-Proto` and
+`X-Forwarded-Host` are honoured whether or not it also sends
+`X-Forwarded-For`.
 
 ### Response API
 

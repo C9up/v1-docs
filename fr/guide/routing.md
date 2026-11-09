@@ -325,6 +325,13 @@ router
   .where('id', router.matchers.uuid())
 ```
 
+`.permission()` vérifie les permissions propres à l'utilisateur authentifié.
+Quand la requête s'est authentifiée avec un jeton
+(`ctx.auth.user.currentAccessToken`), le jeton doit aussi autoriser chaque
+permission : un scope de jeton n'accorde jamais une permission que l'utilisateur
+n'a pas, et un jeton restreint ne porte pas toutes les permissions de son
+utilisateur. Les méthodes RPC et les resolvers GraphQL appliquent la même règle.
+
 ### Middleware inline
 
 Attachez une fonction middleware ponctuelle directement à une route avec `.use()` :
@@ -407,6 +414,27 @@ request.ip()
 request.is(['json'])        // Vérification du Content-type
 request.accepts(['json'])   // Négociation de l'en-tête Accept
 ```
+
+#### Derrière un reverse proxy
+
+`request.ip()`, `request.ips()`, `request.protocol()` / `request.secure()` et
+`request.host()` ne croient `X-Forwarded-For`, `X-Forwarded-Proto` et
+`X-Forwarded-Host` que si la connexion vient d'un proxy déclaré avec
+`server.trustedProxies()`. La liste est vide par défaut : les en-têtes sont
+ignorés, et un client qui atteint directement le port de l'app ne peut pas les
+choisir.
+
+```typescript
+// start/kernel.ts
+server.trustedProxies(['10.0.0.0/8'])   // ou 'loopback', 'uniquelocal', '*'
+```
+
+`request.ips()` est la chaîne de confiance, du saut le plus proche au plus
+lointain : le proxy qui s'est connecté, puis chaque adresse transmise dont un
+proxy de confiance s'est porté garant. Sa dernière entrée est `request.ip()`.
+Une connexion TLS est toujours `https`. Ce qui compte, c'est le pair qui s'est
+connecté : le `X-Forwarded-Proto` et le `X-Forwarded-Host` d'un proxy de
+confiance sont pris en compte, qu'il envoie aussi `X-Forwarded-For` ou non.
 
 ### API Response
 

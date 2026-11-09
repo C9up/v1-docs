@@ -198,7 +198,10 @@ const reset = su.make('/auth/reset', { expiresIn: '30m', purpose: 'pwd-reset' })
 if (!su.verify(reset, 'pwd-reset')) return /* 403 */
 ```
 
-A token issued for one purpose can't be replayed against another.
+A token issued for one purpose can't be replayed against another, and the
+match is exact both ways: a purposed URL fails a `verify()` (or
+`request.hasValidSignature()`) that names no purpose, and a purpose-less URL
+fails one that names a purpose.
 
 ### What each module auto-loads
 
@@ -228,6 +231,55 @@ imports it; a hand-written preload does the same job by hand.
 An entry that matches nothing in **any** module is reported at boot. A single
 module without `routes.ts` is normal and stays silent; a name that exists
 nowhere is a typo whose only other symptom is a task that never runs.
+
+## Outbound HTTP
+
+`@c9up/ream/http-client` calls URLs the server does not fully control — a
+customer's domain, a webhook target — without letting them point the server at
+its own network.
+
+```ts
+import { HttpClient } from '@c9up/ream/http-client'
+
+const http = new HttpClient({ userAgent: 'my-app/1.0', timeout: 5000 })
+const response = await http.get(`https://${site.domain}/api/posts`)
+if (response.ok) render(response.json())
+```
+
+Only public addresses are reached. The check runs when the socket connects,
+inside the client's own DNS lookup, so a name that resolves to `10.0.0.5`,
+`127.0.0.1` or `169.254.169.254` — or one whose DNS answer changes after a
+first check — is refused. An address written in the URL is checked on every
+redirect hop.
+
+| Option | Default | |
+| --- | --- | --- |
+| `timeout` | `10000` | One deadline in ms for the whole exchange, redirects included. |
+| `maxResponseBytes` | 5 MiB | A larger body fails, declared or streamed. |
+| `maxRedirects` | `3` | `0` returns the 3xx itself. |
+| `crossHostRedirects` | `false` | Follow a redirect to another host; credentials are dropped on the way. |
+| `userAgent` | `@c9up/ream` | |
+| `headers` | none | Sent with every request. |
+| `allowHosts` | none | `host` or `host:port` exempt from the address rule, e.g. `localhost:4399` in development. |
+
+A redirect from https to http is refused. Every failure is an `HttpClientError`
+(a `ReamError`) with a `reason` and a code: `invalidUrl`
+(`E_HTTP_CLIENT_INVALID_URL`), `privateAddress` (`E_HTTP_CLIENT_PRIVATE_ADDRESS`),
+`unreachable` (`E_HTTP_CLIENT_UNREACHABLE`), `timedOut`
+(`E_HTTP_CLIENT_TIMED_OUT`), `tooLarge` (`E_HTTP_CLIENT_TOO_LARGE`) and `redirect`
+(`E_HTTP_CLIENT_REDIRECT_REFUSED`). A non-2xx status is a response, not an error.
+
+In tests, `fakeHttp()` returns a client whose transport is replaced by canned
+responses; the URL, address, size and redirect rules still apply.
+
+```ts
+import { fakeHttp } from '@c9up/ream/http-client'
+
+const http = fakeHttp()
+http.on('GET', 'https://cms.example.com/api/posts', { json: [{ id: 1 }] })
+await new CmsReader(http).posts()
+expect(http.requests).toHaveLength(1)
+```
 
 ## Static files
 
@@ -284,7 +336,8 @@ checks — a symlink swapped in after the check fails the open instead of
 redirecting the read.
 
 Dotfiles are ignored by default, so an `.env` that ends up in the served
-directory is not published by accident. A file without a leading dot is: the
+directory is not published by accident. The rule applies to the decoded path,
+so `/%2eenv` is the same dotfile as `/.env`. A file without a leading dot is: the
 directory is the public one.
 
 ## Module integration

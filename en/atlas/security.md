@@ -18,6 +18,20 @@ Atlas already enforces several guardrails:
 - `havingRaw(sql, bindings)`
 - dynamic column selection/order from HTTP inputs
 
+`select()` and `having()` accept expressions as well as columns —
+`count(*)`, `coalesce(sum(total), 0)` — and validate them before they are
+compiled. Besides refusing sub-selects and statement keywords, they refuse:
+
+- a backslash inside a string literal: MySQL and Postgres `E'…'` strings read
+  `\'` as an escaped quote, the SQL standard as a backslash followed by the
+  closing quote. Where the two disagree on where a literal ends, what the check
+  skipped as "inside the string" would run as SQL. No aggregate needs one.
+- any `#`, inside a literal included: it opens a comment on MySQL. No column,
+  alias or aggregate these methods accept needs it.
+
+A quote doubled inside a literal (`'it''s'`) stays accepted. Anything these
+checks refuse belongs in a raw surface with bindings.
+
 Strict mode (`setAtlasStrictMode(true)` / `ATLAS_STRICT=1`) disables every raw
 surface of the typed layer — `whereRaw`, `joinRaw`, `havingRaw` and the
 repository's `raw()`. The connection-level `db.query()` / `db.execute()` remain

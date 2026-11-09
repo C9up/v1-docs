@@ -52,6 +52,48 @@ const users = repo.query()
 
 `preload` issues batched subqueries (`IN (...)`) to prevent N+1 patterns.
 
+## Relation keys: property or column
+
+A relation key — `foreignKey`, `localKey`, `ownerKey` on a `@BelongsTo`, and
+`firstKey` / `secondKey` / `secondLocalKey` on a through relation — may be written as the property (`folderId`) or as the column
+(`folder_id`). Both name the same column: a declared
+`@Column({ columnName })` wins, and a key no `@Column` declares is snake-cased.
+The query that finds the related rows and the lookup that attaches them to their
+parents resolve the key the same way, for preloads, `whereHas` / `withCount`,
+and `load()` / `related()`.
+
+```ts
+@HasMany(() => Document, { foreignKey: 'folderId' })   // same as 'folder_id'
+declare documents: Document[]
+```
+
+The pivot columns of a `@ManyToMany` (`foreignKey`, `otherKey` there) belong to a
+table with no entity, so they are written as columns.
+
+`ownerKey` on a `@BelongsTo` is the owner's key the foreign key holds (default:
+the owner's primary key). The preload queries and matches the owner rows by it,
+and `associate()` copies it from the owner. `localKey` on a `@BelongsTo` means
+the same thing.
+
+```ts
+@BelongsTo(() => Country, { foreignKey: 'countryCode', ownerKey: 'code' })
+declare country: Country | null
+```
+
+## Fetch hooks on preloaded rows
+
+A preload is a fetch of the related model, so it runs that model's fetch hooks:
+`beforeFetch` receives the preload query after your own constraints (the
+`preload` callback, the relation's `onQuery`), and `afterFetch` receives the
+related rows once their own nested preloads are in place. This holds for every
+relation kind — `hasMany`, `hasOne`, `belongsTo`, many-to-many, through — and for
+`load()`. A filter a hook adds (a tenant, a visibility rule) therefore reaches the
+preloaded rows too.
+
+With `groupLimit`, the hook constrains the ranked inner query, so the limit only
+counts rows the hook lets through. A relation for which no query ran (no parent
+had a key) fires no hook.
+
 ## Typed pivot extras
 
 Pivot tables can carry extra columns beyond the two foreign keys (e.g., an `amount` Decimal on a `users_orders` join). Declare a per-extra-column adapter in `pivotColumnAdapters` to route the value through `prepare` on `attach()` / `sync()` — same `{ prepare?, consume? }` shape as `@Column()`. Without an adapter, raw values are bound as-is (postgres' `pg` driver coerces unknown objects via `.toString()`, often yielding `[object Object]` for plain objects; mysql2 may reject the bind).

@@ -238,7 +238,7 @@ est exigé avant qu'un utilisateur soit rendu :
 | Signature | Contre la clé publiée par le fournisseur, lue sur son JWKS. |
 | Algorithme | Choisi parmi ce que le fournisseur **a déclaré signer** — jamais lu dans le token. |
 | Clé | Doit être du type sur lequel l'algorithme est défini, et sur la bonne courbe. |
-| `iss` | L'issuer configuré, confronté au document de découverte. |
+| `iss` | Identique, octet pour octet, à l'issuer configuré — auquel le champ `issuer` du document de découverte doit lui aussi correspondre. |
 | `aud` | Doit nommer ce client. Avec plusieurs audiences, `azp` doit le nommer aussi. |
 | `exp` / `iat` | Non expiré, non émis dans le futur. |
 | `nonce` | Celui que cette connexion a envoyé. |
@@ -255,6 +255,13 @@ d'où la demande de `begin()` de le conserver.
 Seules les signatures asymétriques sont acceptées. La famille `HS*` signe avec
 le secret client : toute copie de la config — et toute ligne de log qui l'a
 laissé fuiter — pourrait forger un token pour n'importe quel utilisateur.
+
+L'issuer est gardé exactement tel qu'il est écrit : aucune barre oblique finale
+n'est ajoutée ni retirée avant de le comparer au champ `issuer` du document de
+découverte et au `iss` de chaque token. Écrivez-le comme le fournisseur l'écrit
+— celui d'Auth0 se termine par une barre oblique (`https://tenant.auth0.com/`),
+et l'omettre fait échouer toutes les connexions. Seule l'URL well-known est
+construite sans elle.
 
 ### Les clés, et quand elles sont relues
 
@@ -273,7 +280,7 @@ l'issuer à `oidc()` :
 | Fournisseur | Issuer |
 | --- | --- |
 | Keycloak | `https://<hôte>/realms/<realm>` |
-| Auth0 | `https://<tenant>.auth0.com` |
+| Auth0 | `https://<tenant>.auth0.com/` (avec la barre oblique) |
 | Okta | `https://<tenant>.okta.com` |
 | Microsoft Entra ID | `https://login.microsoftonline.com/<tenant>/v2.0` |
 | Authentik | `https://<hôte>/application/o/<slug>` |
@@ -393,7 +400,7 @@ détournée.
 | Recipient | L'URL à laquelle cette application répond. |
 | `InResponseTo` | La requête que cette connexion a émise. |
 | Fenêtres | Celle de l'assertion et celle de la confirmation bearer, à une minute de dérive près. |
-| Rejeu | L'identifiant d'assertion, mémorisé jusqu'à son expiration. |
+| Rejeu | L'identifiant d'assertion, mémorisé tant que l'assertion pourrait encore être acceptée. |
 
 Les absences sont refusées aussi fermement que les écarts : une assertion qui
 ne restreint aucune audience ne dit pas à qui elle s'adresse, une sans expiration
@@ -407,10 +414,39 @@ l'empreinte couvre, l'autre est exécutable.
 ### Le rejeu, et une deuxième réplique
 
 Une assertion est un jeton porteur : capturée une fois et repostée, elle est
-valide les deux fois, et aucune condition ne l'en empêche. Le store par défaut
-mémorise dans la mémoire du processus, ce qui accepte la même assertion **une
-fois par réplique**. Passez `replayStores.redis({ connection })` dès qu'il y en
-a deux.
+valide les deux fois, et aucune condition ne l'en empêche. Son identifiant est
+donc mémorisé jusqu'à ce que l'assertion cesse d'être acceptée : sa dernière
+échéance — le `NotOnOrAfter` de l'assertion ou celui de la confirmation bearer,
+le plus tardif des deux — plus `clockSkewSeconds` (60 par défaut), puisque c'est
+avec cette dérive qu'elle a été acceptée. Une assertion validée porte cet
+instant dans `rememberUntil`, et c'est jusqu'à lui qu'un store d'anti-rejeu doit
+retenir l'identifiant. Le store Redis garde la clé une minute de plus encore,
+pour l'écart d'horloge entre la réplique qui l'a stockée et celle où arrive le
+rejeu.
+
+Le store par défaut mémorise dans la mémoire du processus, ce qui accepte la
+même assertion **une fois par réplique**. Passez
+`replayStores.redis({ connection })` dès qu'il y en a deux.
+
+### L'email affirmé
+
+Qui administre un fournisseur SAML peut affirmer n'importe quelle adresse pour
+n'importe quel utilisateur. Une adresse lue dans une assertion est donc
+rapportée `unsupported` par défaut, et seule la config peut dire que le
+fournisseur fait autorité sur elle :
+
+```ts
+saml({ ...config, trustEmail: true })                     // votre propre fournisseur : toute adresse est vérifiée
+saml({ ...config, trustedEmailDomains: ['acme.test'] })   // celui d'un client : les adresses acme.test sont vérifiées, les autres non
+```
+
+`trustedEmailDomains` se compare sans tenir compte de la casse à ce qui suit le
+dernier `@` de l'adresse, exactement — un sous-domaine se liste à part. Poser
+les deux options, ou lister autre chose qu'un domaine (`ada@acme.test`, une
+chaîne vide), est refusé à la construction du driver. `trustEmail` ne convient
+qu'à un fournisseur qui répond de toutes les adresses qu'il peut affirmer :
+avec le fournisseur d'un client, il livre à ce client chaque compte que votre
+application rattache par email.
 
 ### Les attributs
 
@@ -488,6 +524,12 @@ tant que** cette personne — c'est cela qui vérifie le mot de passe. La second
 est fermée immédiatement, car une connexion porte l'identité de ce qui s'y est
 lié en dernier.
 
+La recherche ignore les références de continuation — les renvois vers d'autres
+serveurs qu'Active Directory renvoie pour toute recherche depuis la racine d'un
+domaine. Elles ne comptent pas comme des entrées et ne sont jamais suivies :
+en suivre une enverrait le bind suivant là où pointait la réponse. Toute autre
+réponse que la recherche ne sait pas lire fait échouer la connexion.
+
 ### Ce qu'un annuaire rend
 
 `user.id` est le DN, la seule valeur qu'un annuaire garantit unique et stable.
@@ -495,6 +537,12 @@ L'adresse, le nom et le pseudo sont lus depuis les attributs que les annuaires
 emploient d'habitude ; `claims` les nomme quand le vôtre fait autrement, et
 `user.raw.attributes` porte tout — appartenances de groupe comprises, toutes
 leurs valeurs conservées.
+
+Une adresse lue dans l'annuaire est rapportée `verified` : l'annuaire est celui
+que vous avez configuré et que vous exploitez. Quand il appartient à quelqu'un
+d'autre — l'annuaire d'un client —, ses adresses n'engagent que ce client, et
+rattacher des comptes par email d'un tenant à l'autre sur cette base n'est pas
+sûr.
 
 ## Tester une connexion
 

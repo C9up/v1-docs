@@ -61,6 +61,12 @@ saw alongside its escaped, safe values.
 The event fires even on failure: when a statement throws, `error` is set and the
 event is still emitted, so slow-and-failed queries show up in your logs.
 
+Statements run inside an interactive transaction (`db.transaction(...)`) are
+reported like any other, with `inTransaction: true` — the `SAVEPOINT` and
+`RELEASE SAVEPOINT` of a nested transaction included. `BEGIN`, `COMMIT` and
+`ROLLBACK` are driver calls rather than statements and are not reported: the
+transaction client's `commit` / `rollback` events cover them.
+
 ## Pretty-printing
 
 `prettyPrintQuery(event)` renders an event as a single log line (Lucid's

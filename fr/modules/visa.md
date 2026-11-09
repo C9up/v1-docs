@@ -57,13 +57,38 @@ serait fausse d'une manière difficile à voir — un serveur qui n'affiche aucu
   révoquée et les deux sont déconnectés.
 - **Un code d'autorisation rejoué révoque ce qu'il a acheté.** L'échange
   légitime a déjà eu lieu : les jetons en vol sont ceux de l'attaquant.
+- **Les paramètres dans le corps uniquement.** `/oauth/token`,
+  `/oauth/introspect`, `/oauth/revoke` et `/oauth/register` ne lisent que le
+  corps de la requête, et répondent `invalid_request` à une requête qui place
+  un paramètre OAuth (`client_secret`, `code`, `token`, `refresh_token`, les
+  métadonnées d'enregistrement sur `/oauth/register`…) dans la query string :
+  un secret, un code ou un jeton dans une URL finit dans les logs d'accès, les
+  proxys et les traces. Les autres paramètres de query sont ignorés.
+- **Un scope n'est pas une permission.** Voir
+  [Protéger une ressource](#proteger-une-ressource).
 - **Une seule phrase par échec.** « code inconnu », « expiré », « déjà
   utilisé » et « mauvais client » donnent tous `invalid_grant: The code is not
   valid.` — les distinguer, c'est ainsi qu'on sonde un espace de codes.
 
 ## Câbler `/authorize`
 
-La décision est celle de visa ; la page est la tienne.
+La décision est celle de visa ; la page est la tienne. La page de consentement
+est le seul endroit où un utilisateur confie ses données à une application :
+trois choses n'y sont pas optionnelles.
+
+- **Le POST de consentement est protégé contre le CSRF.** Sans cela, une page
+  d'un autre site soumet le formulaire toute seule — son propre client, son
+  propre challenge PKCE, `approve=1` — et un utilisateur connecté autorise
+  l'application de l'attaquant sans rien voir. Active le CSRF de blackhole
+  (`csrf: true` dans `config/blackhole.ts`) et place `{{ csrfField() }}` dans le
+  formulaire.
+- **La page de consentement ne peut pas être encadrée.** Une page dans une
+  iframe permet à un autre site de poser son propre bouton sur « Autoriser ».
+  Envoie `X-Frame-Options: DENY` depuis cette page, et `frame-ancestors 'none'`
+  si tu construis toi-même sa `Content-Security-Policy`.
+- **Le POST accorde ce que la page a montré, pas ce que dit le POST.** La
+  requête validée reste sur le serveur, dans un ticket à usage unique lié à la
+  session et à l'utilisateur. Le formulaire ne porte que l'id du ticket.
 
 ```ts
 // start/routes.ts
@@ -80,21 +105,63 @@ router.get('/oauth/authorize', async (ctx) => {
   if (!ctx.auth.user) {
     return ctx.response.redirect(`/login?next=${encodeURIComponent(ctx.request.url(true))}`)
   }
+
+  // Gardé côté serveur : le POST ci-dessous accorde ceci, quoi qu'on lui envoie.
+  const ticket = visa.consentTicket(outcome.request, ctx.auth.user.id)
+  ctx.session.put('visa.consent', ticket)
+
+  ctx.response.header('x-frame-options', 'DENY')
   return ctx.view.render('oauth/consent', {
     client: outcome.request.client,
     scopes: outcome.request.scopes,
+    ticket: ticket.id,
   })
 })
 
+// Protégé contre le CSRF par blackhole, comme tout autre POST de formulaire.
 router.post('/oauth/consent', async (ctx) => {
-  const outcome = await visa.authorize(ctx.request.all(), ctx.auth.user.id)
-  if (outcome.type !== 'consent') return ctx.response.redirect('/')
-  const url = ctx.request.input('approve')
-    ? await visa.grant(outcome.request, ctx.auth.user.id)
-    : visa.deny(outcome.request)
+  const user = ctx.auth.getUserOrFail()
+  // Retiré, pas lu : un second POST du même formulaire ne trouve rien.
+  const validated = await visa.redeemConsentTicket(
+    ctx.session.pull('visa.consent'),
+    ctx.request.input('ticket'),
+    user.id,
+  )
+  if (validated === null) {
+    // Pas de ticket, le ticket d'une autre page, un autre utilisateur, expiré,
+    // ou un client qui a changé depuis l'affichage de la page : on recommence.
+    return ctx.view.render('oauth/error', { error: { error: 'invalid_request' } })
+  }
+
+  const url = ctx.request.input('approve') === '1'
+    ? await visa.grant(validated, user.id)
+    : visa.deny(validated)
   return ctx.response.redirect(url)
 })
 ```
+
+```html
+<!-- resources/views/oauth/consent.inker -->
+<form method="POST" action="/oauth/consent">
+  {{ csrfField() }}
+  <input type="hidden" name="ticket" value="{{ ticket }}">
+  <button name="approve" value="1">Autoriser</button>
+  <button name="approve" value="0">Refuser</button>
+</form>
+```
+
+`consentTicket(request, userId)` renvoie des valeurs simples — un `id` aléatoire
+de 256 bits, le `userId`, un `expiresAt` et la requête d'autorisation telle
+qu'elle a été validée (la liste de scopes que l'utilisateur a vue, pas la fiche
+du client) — si bien que n'importe quel store de session peut le garder.
+`redeemConsentTicket(ticket, presentedId, userId)` répond `null` quand il n'y a
+pas de ticket, que le formulaire désigne un autre ticket (un formulaire resté
+ouvert dans un onglet ne peut pas approuver ce qu'un autre onglet a mis depuis
+dans la session), que l'utilisateur diffère, que le ticket a expiré, ou que la
+requête ne se valide plus — le client a pu perdre un scope ou une redirect URI
+entre-temps, ou enregistrer plus de scopes que la page n'en listait. Elle ne
+frappe rien : le code n'existe qu'une fois `grant` exécuté. Un ticket dure dix
+minutes ; `consentTicketTtlSeconds` dans la config change cette durée.
 
 ## Les clients
 
@@ -150,6 +217,15 @@ token.authorize('invoices.write')   // lève E_UNAUTHORIZED_ACCESS
 token.isExpired()
 token.lastUsedAt
 ```
+
+**Un scope n'est pas une permission.** Le garde place les scopes du jeton sur
+`currentAccessToken` et laisse `user.permissions` tel que `findUser` l'a
+renvoyé. Un scope est choisi par le client et accordé par consentement, et le
+consentement ne vérifie jamais les droits propres de l'utilisateur — une route
+qui a besoin des deux vérifie donc les deux. C'est ce que font `@Permission` et
+`hasPermission` de Warden : sur une requête faite avec un jeton, ils exigent la
+permission de l'utilisateur **et** le scope du jeton (voir
+[Warden — les capacités ne sont pas des permissions](/fr/modules/warden#les-capacites-ne-sont-pas-des-permissions)).
 
 `findUser` est appelé à **chaque** requête, délibérément : un jeton émis pour
 un compte désactivé depuis cesse de fonctionner ici, une fois pour toutes, au
@@ -249,8 +325,10 @@ ream configure @c9up/visa
 
 Quatre choses : `VISA_ISSUER` dans `.env`, le provider dans `reamrc.ts`,
 `config/visa.ts` avec un `MemoryStore` et un commentaire qui dit de le
-remplacer, et la migration des cinq tables que lit le store atlas. La commande
-échoue avant de toucher au projet si cette migration est illisible — un
+remplacer, et les migrations des cinq tables que lit le store atlas —
+`9000_create_visa_tables` et `9001_add_visa_client_secret_expiry`. Une
+migration déjà présente dans le projet est laissée telle quelle. La commande
+échoue avant de toucher au projet si ces migrations sont illisibles — un
 provider enregistré et une config écrite sans tables dessous, c'est pire que
 s'arrêter.
 
@@ -320,6 +398,23 @@ problème d'atlas, et il prend le service `db` par une tranche structurelle de
 ce qu'il appelle — visa lui-même n'importe rien.
 
 Tout le reste implémente `VisaStore`.
+
+`saveClient` est optionnelle, pour des clients qui vivent dans une table qui ne
+t'appartient pas. Sans elle, `registerClient` lève une erreur, et un serveur
+avec `registration.enabled` refuse de démarrer plutôt que de répondre 500 à
+chaque enregistrement.
+
+### Mettre à jour une table `visa_clients`
+
+Le secret d'un client peut expirer — un `client_secret_expires_at` répondu à
+l'enregistrement — et cette expiration est appliquée à chaque authentification
+du client, d'après la colonne `secret_expires_at` (`null` : le secret n'expire
+pas). `AtlasStore` écrit cette colonne pour chaque client, et une table
+`visa_clients` créée par visa 0.1.3 ou antérieur ne l'a pas. Relance
+`ream configure @c9up/visa` avant de mettre à jour : ta migration
+`9000_create_visa_tables` existante est laissée telle quelle,
+`9001_add_visa_client_secret_expiry` arrive à côté, et `migration:run` ajoute la
+colonne.
 
 Deux de ses méthodes, `consumeAuthorizationCode` et `consumeRefreshToken`,
 **doivent être atomiques** : deux requêtes en course avec le même code ne

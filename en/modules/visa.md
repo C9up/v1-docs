@@ -53,13 +53,35 @@ hard to notice — a server showing no consent screen grants silently.
   from the victim, the whole family is revoked and both are signed out.
 - **A replayed authorization code revokes what it bought.** The legitimate
   exchange already happened, so the tokens in flight are the attacker's.
+- **Parameters in the body only.** `/oauth/token`, `/oauth/introspect`,
+  `/oauth/revoke` and `/oauth/register` read the request body only, and answer
+  `invalid_request` to a request that puts an OAuth parameter
+  (`client_secret`, `code`, `token`, `refresh_token`, registration metadata on
+  `/oauth/register`…) in the query string: a secret, a code or a token in a URL
+  ends up in access logs, proxies and traces. Other query parameters are
+  ignored.
+- **A scope is not a permission.** See
+  [Protecting a resource](#protecting-a-resource).
 - **One sentence per failure.** "No such code", "expired", "already used" and
   "wrong client" all read `invalid_grant: The code is not valid.` — telling
   them apart is how a code space gets probed.
 
 ## Wiring `/authorize`
 
-The decision is visa's; the page is yours.
+The decision is visa's; the page is yours. The consent page is the one place a
+user hands an application their data, so three things are not optional:
+
+- **The consent POST is CSRF-protected.** Without it, a page on another site
+  auto-submits the form — its own client, its own PKCE challenge, `approve=1` —
+  and a signed-in user grants the attacker's application without seeing
+  anything. Turn on blackhole's CSRF (`csrf: true` in `config/blackhole.ts`) and
+  put `{{ csrfField() }}` in the form.
+- **The consent page cannot be framed.** A framed page lets another site lay its
+  own button over "Allow". Send `X-Frame-Options: DENY` from this page, and
+  `frame-ancestors 'none'` if you build its `Content-Security-Policy` yourself.
+- **The POST grants what the page showed, not what the POST says.** The
+  validated request stays on the server, in a single-use ticket bound to the
+  session and the user. The form carries only the ticket's id.
 
 ```ts
 // start/routes.ts
@@ -76,21 +98,61 @@ router.get('/oauth/authorize', async (ctx) => {
   if (!ctx.auth.user) {
     return ctx.response.redirect(`/login?next=${encodeURIComponent(ctx.request.url(true))}`)
   }
+
+  // Kept server-side: the POST below grants this, whatever it is sent.
+  const ticket = visa.consentTicket(outcome.request, ctx.auth.user.id)
+  ctx.session.put('visa.consent', ticket)
+
+  ctx.response.header('x-frame-options', 'DENY')
   return ctx.view.render('oauth/consent', {
     client: outcome.request.client,
     scopes: outcome.request.scopes,
+    ticket: ticket.id,
   })
 })
 
+// CSRF-protected by blackhole, like every other form POST.
 router.post('/oauth/consent', async (ctx) => {
-  const outcome = await visa.authorize(ctx.request.all(), ctx.auth.user.id)
-  if (outcome.type !== 'consent') return ctx.response.redirect('/')
-  const url = ctx.request.input('approve')
-    ? await visa.grant(outcome.request, ctx.auth.user.id)
-    : visa.deny(outcome.request)
+  const user = ctx.auth.getUserOrFail()
+  // Pulled, not read: a second POST of the same form finds nothing.
+  const validated = await visa.redeemConsentTicket(
+    ctx.session.pull('visa.consent'),
+    ctx.request.input('ticket'),
+    user.id,
+  )
+  if (validated === null) {
+    // No ticket, another page's ticket, another user, expired, or a client
+    // that changed since the page was shown: start again.
+    return ctx.view.render('oauth/error', { error: { error: 'invalid_request' } })
+  }
+
+  const url = ctx.request.input('approve') === '1'
+    ? await visa.grant(validated, user.id)
+    : visa.deny(validated)
   return ctx.response.redirect(url)
 })
 ```
+
+```html
+<!-- resources/views/oauth/consent.inker -->
+<form method="POST" action="/oauth/consent">
+  {{ csrfField() }}
+  <input type="hidden" name="ticket" value="{{ ticket }}">
+  <button name="approve" value="1">Allow</button>
+  <button name="approve" value="0">Deny</button>
+</form>
+```
+
+`consentTicket(request, userId)` returns plain values — a random 256-bit `id`,
+the `userId`, an `expiresAt`, and the authorization request as it was validated
+(the scope list the user saw, not the client record) — so any session store can
+hold it. `redeemConsentTicket(ticket, presentedId, userId)` answers `null` when
+there is no ticket, the form names another ticket (a form left open in one tab
+cannot approve what another tab put in the session since), the user differs,
+the ticket expired, or the request no longer validates — the client may have
+lost a scope or a redirect URI meanwhile, or registered more scopes than the
+page listed. It mints nothing: the code exists only once `grant` runs. A ticket
+lasts ten minutes; `consentTicketTtlSeconds` in the config changes it.
 
 ## Clients
 
@@ -147,6 +209,14 @@ token.authorize('invoices.write')   // throws E_UNAUTHORIZED_ACCESS
 token.isExpired()
 token.lastUsedAt
 ```
+
+**A scope is not a permission.** The guard puts the token's scopes on
+`currentAccessToken` and leaves `user.permissions` as `findUser` returned it. A
+scope is chosen by the client and granted by consent, and consent never checks
+the user's own rights — so a route that needs both checks both. Warden's
+`@Permission` and `hasPermission` do: on a request made with a token they
+require the user's permission **and** the token's scope (see
+[Warden — abilities are not permissions](/en/modules/warden#abilities-are-not-permissions)).
 
 `findUser` runs on **every** request, deliberately: a token issued to an
 account that has since been disabled stops working here, once, instead of
@@ -245,9 +315,11 @@ ream configure @c9up/visa
 
 Four things: `VISA_ISSUER` in `.env`, the provider in `reamrc.ts`,
 `config/visa.ts` with a `MemoryStore` and a comment saying to replace it, and
-the migration for the five tables the atlas store reads. It fails before
-touching the project if that migration cannot be read — a provider registered
-and a config written with no tables underneath is worse than stopping.
+the migrations for the five tables the atlas store reads —
+`9000_create_visa_tables` and `9001_add_visa_client_secret_expiry`. A migration
+already in the project is left alone. It fails before touching the project if
+those migrations cannot be read — a provider registered and a config written
+with no tables underneath is worse than stopping.
 
 The store and the `/authorize` route stay yours — both are
 decisions rather than boilerplate, and a generated guess at either is wrong in
@@ -311,6 +383,21 @@ problem, and it takes the `db` service through a structural slice of what it
 calls — visa itself imports nothing.
 
 Anything else implements `VisaStore`.
+
+`saveClient` is optional, for clients that live in a table you do not own.
+Without it `registerClient` throws, and a server with `registration.enabled`
+refuses to boot rather than answering 500 to every registration.
+
+### Upgrading a `visa_clients` table
+
+A client's secret can expire — a `client_secret_expires_at` answered at
+registration — and that expiry is enforced at every client authentication from
+the `secret_expires_at` column (`null`: the secret does not expire).
+`AtlasStore` writes that column on every client, and a `visa_clients` table
+created by visa 0.1.3 or earlier does not have it. Run `ream configure
+@c9up/visa` again before upgrading: your existing `9000_create_visa_tables` is
+left alone, `9001_add_visa_client_secret_expiry` lands beside it, and
+`migration:run` adds the column.
 
 Two of its methods, `consumeAuthorizationCode` and `consumeRefreshToken`,
 **must be atomic**: two requests racing with the same code must not both

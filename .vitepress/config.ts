@@ -5,7 +5,7 @@ import { defineConfig } from 'vitepress'
 const nebulaLayers = {
   atoms: ['AccessibleIcon', 'AspectRatio', 'Avatar', 'Badge', 'Button', 'Checkbox', 'Image', 'Input', 'Kbd', 'Label', 'Marker', 'NativeSelect', 'Progress', 'ScrollArea', 'Separator', 'Skeleton', 'Slider', 'Spinner', 'Switch', 'Textarea', 'Toggle', 'VisuallyHidden'],
   molecules: ['Accordion', 'Alert', 'Attachment', 'Breadcrumb', 'Bubble', 'ButtonGroup', 'Card', 'Collapsible', 'Empty', 'Field', 'InputGroup', 'InputOTP', 'Item', 'Message', 'Pagination', 'Picture', 'PieceMap', 'RadioGroup', 'Resizable', 'Table', 'Tabs', 'ToggleGroup', 'Toolbar', 'Typography'],
-  organisms: ['AlertDialog', 'Calendar', 'Carousel', 'Chart', 'Combobox', 'Command', 'CommandDialog', 'ContextMenu', 'DataTable', 'DatePicker', 'DateRangePicker', 'Dialog', 'Drawer', 'DropdownMenu', 'Form', 'HoverCard', 'Menubar', 'MessageScroller', 'NavigationMenu', 'Popover', 'Questionnaire', 'Select', 'Sheet', 'Sidebar', 'Toaster', 'Tooltip'],
+  organisms: ['AlertDialog', 'Calendar', 'Carousel', 'Chart', 'Combobox', 'Command', 'CommandDialog', 'ContextMenu', 'DataTable', 'DatePicker', 'DateRangePicker', 'Dialog', 'Drawer', 'DropdownMenu', 'Form', 'HoverCard', 'Menubar', 'MessageScroller', 'NavigationMenu', 'Popover', 'Questionnaire', 'Select', 'Sheet', 'Sidebar', 'Sonner', 'Toaster', 'Tooltip'],
   templates: ['AppShell', 'AuthLayout', 'SettingsLayout'],
 } as const
 

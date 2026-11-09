@@ -69,6 +69,7 @@ When an exception does NOT define `handle`, `ExceptionHandler.handle()` (the glo
 1. Detects the wanted response shape via content negotiation (`Accept: application/json` → JSON, else a minimal HTML page).
 2. Picks `status` + `code` from the `Exception` instance (or defaults `500` / `E_UNKNOWN`).
 3. Includes a stack trace in the JSON body when `debug: true`.
+4. Outside debug mode, shows the error's message only when it was written for clients: an `Exception` (any status), any error with a status below 500, or an error carrying `expose: true`. Everything else — a driver error, a Node system error such as `ECONNREFUSED`, a plain `Error` — answers `An internal error occurred`, even when it carries a `code`. The thrown error keeps its message for `report()`.
 
 ## Reporting
 

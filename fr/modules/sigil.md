@@ -88,30 +88,73 @@ async function register(app: AppContext) {
 
 | Clé driver | Algorithme | Par défaut ? | Quand l'utiliser |
 |---|---|---|---|
-| `argon2` | argon2id | oui | Nouvelles applications. Recommandé par l'OWASP. Par défaut **argon2id** ; `variant` sélectionne argon2i ou argon2d. |
-| `bcrypt` | bcrypt | non | Interopérabilité legacy (Rails / PHP / Java). `rounds` configurable (défaut 12, minimum OWASP 10). |
-| `scrypt` | scrypt | non | Memory-hardness avec un espace de paramètres différent. `keyLength` et `saltLength` configurables ; les paramètres de coût utilisent `scrypt::Params::recommended()` du crate Rust `scrypt`. |
+| `argon2` | argon2id | oui | Nouvelles applications. Recommandé par l'OWASP. Par défaut **argon2id** (version 19), 64 Mio (`memory: 65536`), 3 itérations, 4 voies ; `variant` sélectionne argon2i ou argon2d. |
+| `bcrypt` | bcrypt | non | Interopérabilité legacy (Rails / PHP / Java). `rounds` configurable (défaut 12, minimum 10, maximum 16). Écrit la chaîne MCF standard (`$2b$12$…`) ; la vérification lit aussi la forme PHC `$bcrypt$v=98$r=10$<sel>$<empreinte>`. |
+| `scrypt` | scrypt | non | Memory-hardness avec un espace de paramètres différent. `cost` (N, défaut 16384), `blockSize` (r, défaut 8), `parallelization` (p, défaut 1), `keyLength`, `saltSize` et `maxMemory` (défaut 32 Mio) sont configurables. Écrit la forme PHC `$scrypt$n=…,r=…,p=…$<sel>$<hash>`. |
 
 Tous les drivers passent par le crate Rust `sigil-engine` (la moitié native de `@c9up/sigil`) — il n'y a **aucun fallback** JavaScript ou TypeScript. Le hachage de mots de passe doit toucher une implémentation native auditée et à temps constant.
 
 ### Clés de configuration honorées
 
-Chaque clé ci-dessous est lue et transmise au moteur Rust. Une valeur que le
-moteur ne peut pas honorer lève à la **construction de la config**, et non à la
-première connexion d'un utilisateur :
+Chaque valeur est validée à la construction du driver — au démarrage, quand
+`new Hash(...)` ou le provider le construit. Une valeur hors limites, ou du
+mauvais type (`rounds: '12'` lu depuis une variable d'environnement), lève une
+`TypeError` à ce moment-là plutôt qu'à la première connexion d'un utilisateur,
+et n'est jamais remplacée en silence par une valeur par défaut :
 
-- `argon2` — `variant` (`'d'` | `'i'` | `'id'`, défaut `id`), `memory` (KiB),
-  `iterations`, `parallelism`, `hashLength` (octets, défaut 32), `saltSize`
-  (octets, 8–48, défaut 16), `secret` (poivre — non stocké dans le hash, et
-  exigé à l'identique à la vérification).
-- `bcrypt` — `rounds` (défaut 12, minimum OWASP 10), `version` (code de
-  caractère : `97` = `$2a$`, `98` = `$2b$` par défaut, `120` = `$2x$`,
-  `121` = `$2y$`), `saltSize` (doit valoir 16 — bcrypt le fixe, et toute autre
-  valeur produirait un hash qu'aucune implémentation ne sait relire).
-- `scrypt` — `cost`, `blockSize`, `parallelization`, `keyLength`, `saltSize`.
+- `argon2` — `variant` (`'d'` | `'i'` | `'id'`, défaut `id`), `memory` (KiB,
+  alias `memoryKib`, défaut 65536, au moins 8 × `parallelism`), `iterations`
+  (défaut 3, au moins 2), `parallelism` (défaut 4), `hashLength` (octets, 10–64,
+  défaut 32), `saltSize` (octets, 8–48, défaut 16), `secret` (poivre — non
+  stocké dans le hash, et exigé à l'identique à la vérification).
+- `bcrypt` — `rounds` (10–16, défaut 12), `version` (code de caractère :
+  `97` = `$2a$`, `98` = `$2b$` par défaut, `121` = `$2y$`), `saltSize` (doit
+  valoir 16 — bcrypt le fixe, et toute autre valeur produirait un hash
+  qu'aucune implémentation ne sait relire).
+- `scrypt` — `cost` (N, une puissance de deux, défaut 16384), `blockSize` (r,
+  défaut 8), `parallelization` (p, défaut 1), `keyLength` (64–128, défaut 64),
+  `saltSize` (alias `saltLength`, 8–1024, défaut 16), `maxMemory` (octets,
+  défaut 32 Mio, au moins l'espace de travail `128 × r × (N + p + 2)`).
+
+`secret` accepte une chaîne ou un `Secret` qui en enveloppe une — ce que renvoie
+un schéma d'environnement — si bien que
+`drivers.argon2({ secret: env.get('APP_KEY') })` fonctionne tel quel.
 
 `verify()` relit la variante et les paramètres depuis la chaîne du hash : un mot
 de passe haché en `argon2i` se vérifie quelle que soit la config courante.
+
+### Hacher hors de la boucle d'événements
+
+`make` et `verify` renvoient des Promises, et la dérivation de clé s'exécute sur
+le pool de threads de libuv, jamais sur la boucle d'événements : une rafale de
+connexions simultanées ralentit ces connexions-là, pas toutes les autres
+requêtes que sert le processus. Les dérivations simultanées se partagent les
+threads du pool (4 par défaut ; `UV_THREADPOOL_SIZE` le change).
+
+### Plafonds de coût à la vérification
+
+Un hash porte son propre coût : quiconque peut écrire un hash stocké décide du
+travail qu'exige sa vérification. `verify` refuse — renvoie `false` sans rien
+dériver — un hash stocké qui coûte bien plus que n'importe quelle configuration
+réelle :
+
+| Driver | Refusé quand |
+|---|---|
+| `argon2` | `m × t` (KiB × itérations) dépasse 2^20, environ cinq fois les valeurs par défaut |
+| `bcrypt` | le coût dépasse 16 |
+| `scrypt` | `N × r × p` dépasse 2^22, ou l'espace de travail `128 × r × (N + p + 2)` dépasse le `maxMemory` configuré |
+
+Les mêmes plafonds s'appliquent à la configuration : un driver configuré
+au-delà lève une erreur à sa construction, puisque ses hashs ne se
+vérifieraient jamais.
+
+### Hashs bcrypt au format PHC
+
+En plus de la chaîne MCF qu'il écrit (`$2b$12$…`), le driver bcrypt vérifie la
+forme PHC `$bcrypt$v=98$r=10$<sel b64>$<empreinte b64>` que stockent d'autres
+bibliothèques de hachage Node.js. `needsReHash` répond `true` pour un tel hash :
+le re-hachage à la connexion (plus haut) le réécrit en MCF la prochaine fois que
+son utilisateur se connecte.
 
 ## Exigence NAPI
 
@@ -136,7 +179,7 @@ Les trois packages couvrent des responsabilités distinctes :
 |---|---|---|
 | Hacher / vérifier un mot de passe | **`@c9up/sigil`** (`new Hash(...)` puis `make` / `verify`) | Autorité canonique de hachage. Implémentation unique, multi-driver, NAPI. |
 | HMAC, octets aléatoires, comparaison à temps constant | **`@c9up/ream`** (racine : `hmacSign`, `hmacVerify`, `randomHex`, `randomBytesBase64`, `constantTimeEq`) | Helpers crypto bas niveau NAPI-ou-stdlib. Pas de hachage de mot de passe ici — c'est dans Sigil. |
-| Stratégie d'authentification (session, JWT, OAuth, clé d'API) | **`@c9up/warden`** | Orchestration auth. La vérification du mot de passe est à la charge de l'appelant — typiquement via `Hash.verify` de Sigil. |
+| Stratégie d'authentification (session, JWT, OAuth, jetons d'accès) | **`@c9up/warden`** | Orchestration auth. La vérification du mot de passe est à la charge de l'appelant — typiquement via `Hash.verify` de Sigil. |
 
 En cas de doute : mots de passe → Sigil, tokens/HMAC → ream racine, flux de login → Warden.
 

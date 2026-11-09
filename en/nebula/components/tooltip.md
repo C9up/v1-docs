@@ -56,7 +56,7 @@ Without a provider, every tooltip on the page shares one default group.
 
 ### Placement
 
-`TooltipContent` sits above the trigger by default and flips when there is no room. Its arrow is kept centred on the trigger, even when the tooltip slides along its edge to stay on screen:
+`TooltipContent` sits above the trigger by default and flips when there is no room, turning its arrow around with it. The arrow is kept centred on the trigger, even when the tooltip slides along its edge to stay on screen. The tooltip stands an arrow's length away from the trigger, so `sideOffset` is the gap past the arrow:
 
 ```ts
 TooltipContent({ side: 'right', sideOffset: 4, children: 'Pinned to the sidebar' })
@@ -148,7 +148,7 @@ The label, with its arrow. Registers what to render and returns nothing in place
 | `children` | `Child` | — | The text. A value; put what changes in an accessor inside a template. |
 | `side` | `Side` | `'top'` | `'top' \| 'right' \| 'bottom' \| 'left'`. Flips when there is no room. |
 | `align` | `Align` | `'center'` | `'start' \| 'center' \| 'end'` along that side. |
-| `sideOffset` | `number` | `0` | The gap between the trigger and the tooltip, in px. |
+| `sideOffset` | `number` | `0` | The gap past the arrow, in px: the arrow's own length is always added. |
 | `class` | `Reactive<string>` | — | Merged into the tooltip's classes. Read each time it opens. |
 
 ## Accessibility

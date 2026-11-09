@@ -56,7 +56,7 @@ Sans fournisseur, toutes les infobulles de la page partagent un même groupe par
 
 ### Placement
 
-`TooltipContent` se place au-dessus du déclencheur par défaut et bascule quand la place manque. Sa flèche reste centrée sur le déclencheur, même quand l'infobulle glisse le long de son bord pour rester à l'écran :
+`TooltipContent` se place au-dessus du déclencheur par défaut et bascule quand la place manque, en retournant sa flèche avec lui. La flèche reste centrée sur le déclencheur, même quand l'infobulle glisse le long de son bord pour rester à l'écran. L'infobulle se tient à une longueur de flèche du déclencheur : `sideOffset` est donc l'écart au-delà de la flèche :
 
 ```ts
 TooltipContent({ side: 'right', sideOffset: 4, children: 'Épinglé à la barre latérale' })
@@ -148,7 +148,7 @@ L'étiquette, avec sa flèche. Enregistre ce qu'il faut rendre et ne rend rien s
 | `children` | `Child` | — | Le texte. Une valeur ; mettez ce qui change dans un accesseur à l'intérieur d'un template. |
 | `side` | `Side` | `'top'` | `'top' \| 'right' \| 'bottom' \| 'left'`. Bascule quand la place manque. |
 | `align` | `Align` | `'center'` | `'start' \| 'center' \| 'end'` le long de ce côté. |
-| `sideOffset` | `number` | `0` | L'écart entre le déclencheur et l'infobulle, en px. |
+| `sideOffset` | `number` | `0` | L'écart au-delà de la flèche, en px : la longueur de la flèche s'y ajoute toujours. |
 | `class` | `Reactive<string>` | — | Fusionnée dans les classes de l'infobulle. Lue à chaque ouverture. |
 
 ## Accessibilité

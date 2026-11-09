@@ -52,6 +52,51 @@ const users = repo.query()
 
 `preload` déclenche des requêtes batchées (`IN (...)`) pour éviter le N+1.
 
+## Clés de relation : propriété ou colonne
+
+Une clé de relation — `foreignKey`, `localKey`, `ownerKey` sur un `@BelongsTo`,
+et `firstKey` / `secondKey` / `secondLocalKey` sur une relation « through » —
+peut s'écrire sous la forme de la propriété
+(`folderId`) ou de la colonne (`folder_id`). Les deux désignent la même colonne :
+un `@Column({ columnName })` déclaré l'emporte, et une clé qu'aucun `@Column` ne
+déclare est convertie en snake_case. La requête qui trouve les lignes liées et
+la recherche qui les rattache à leurs parents résolvent la clé de la même
+façon, pour les preloads, `whereHas` / `withCount` et `load()` / `related()`.
+
+```ts
+@HasMany(() => Document, { foreignKey: 'folderId' })   // identique à 'folder_id'
+declare documents: Document[]
+```
+
+Les colonnes du pivot d'un `@ManyToMany` (`foreignKey`, `otherKey` dans ce cas)
+appartiennent à une table sans entité : elles s'écrivent donc sous forme de
+colonnes.
+
+L'`ownerKey` d'un `@BelongsTo` est la clé du propriétaire que contient la clé
+étrangère (par défaut, sa clé primaire). Le preload cherche et rattache les
+lignes du propriétaire par cette clé, et `associate()` la copie depuis le
+propriétaire. Sur un `@BelongsTo`, `localKey` désigne la même chose.
+
+```ts
+@BelongsTo(() => Country, { foreignKey: 'countryCode', ownerKey: 'code' })
+declare country: Country | null
+```
+
+## Hooks de fetch sur les lignes préchargées
+
+Un preload est un fetch du modèle lié : il exécute donc les hooks de fetch de ce
+modèle. `beforeFetch` reçoit la requête du preload après vos propres contraintes
+(le callback de `preload`, le `onQuery` de la relation), et `afterFetch` reçoit
+les lignes liées une fois leurs propres preloads imbriqués en place. C'est vrai
+pour tous les types de relation — `hasMany`, `hasOne`, `belongsTo`,
+many-to-many, through — et pour `load()`. Un filtre qu'ajoute un hook (un
+tenant, une règle de visibilité) atteint donc aussi les lignes préchargées.
+
+Avec `groupLimit`, le hook contraint la requête interne classée : la limite ne
+compte que les lignes que le hook laisse passer. Une relation pour laquelle
+aucune requête n'a été faite (aucun parent n'avait de clé) ne déclenche aucun
+hook.
+
 ## Extras typés sur table pivot
 
 Les tables pivot peuvent porter des colonnes au-delà des deux clés étrangères (par ex. un `amount` Decimal sur une jointure `users_orders`). Déclarer un adapter par colonne dans `pivotColumnAdapters` route la valeur via `prepare` sur `attach()` / `sync()` — même forme `{ prepare?, consume? }` que `@Column()`. Sans adapter, les valeurs brutes sont bindées telles quelles (le pilote `pg` Postgres coerce les objets inconnus via `.toString()`, ce qui donne souvent `[object Object]` pour les objets plats ; mysql2 peut rejeter le bind).

@@ -96,6 +96,31 @@ export default {
 }
 ```
 
+### config/app.ts — le serveur HTTP
+
+Le serveur natif garde chaque connexion avant qu'une requête atteigne ton code.
+Ses bornes vivent dans le bloc `http` de `config/app.ts` :
+
+```typescript
+export const http = {
+  headersTimeout: 60_000,    // ms pour recevoir les en-têtes d'une requête
+  requestTimeout: 300_000,   // ms pour recevoir son corps une fois les en-têtes arrivés → 408
+  keepAliveTimeout: 5_000,   // ms pendant lesquelles une connexion keep-alive inactive reste ouverte
+  maxConnections: 10_000,    // connexions simultanées ; les clients en trop attendent dans la file
+}
+```
+
+Ces valeurs sont les défauts. `0` désactive une borne (`maxConnections: 0`
+veut dire sans limite). Un client qui se connecte sans jamais finir ses
+en-têtes est fermé au bout de `headersTimeout` ; un corps qui arrive plus
+lentement que `requestTimeout` reçoit `408 E_HTTP_REQUEST_TIMEOUT`.
+
+Les corps de requête sont aussi limités au niveau du socket, avec les limites de
+`config/bodyparser.ts` (voir [Envoi de fichiers](/fr/guide/file-uploads)) : rien
+au-delà de la limite de son type de contenu n'est gardé en mémoire. La requête
+passe quand même par le routage, sans son corps, et lire ce corps répond
+`413 E_REQUEST_ENTITY_TOO_LARGE` via ton gestionnaire d'exceptions.
+
 ## Variables d'environnement
 
 Définissez et **validez** votre environnement dans `start/env.ts` avec `Env.create`, puis lisez les variables n'importe où via le `env.get()` typé. Cela reflète AdonisJS : le schéma charge les fichiers `.env*` au moment de l'import et refuse de démarrer si une variable requise est absente ou mal formée, de sorte qu'une faute de frappe apparaît immédiatement plutôt que sous la forme d'un `undefined` à l'exécution.

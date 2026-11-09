@@ -2,7 +2,7 @@
 
 `@c9up/nebula` ports the shadcn/ui set onto [Aurora](/en/modules/aurora), organised as atomic design: the same markup, the same classes, the same behaviour, written for a runtime with no build step.
 
-A nebula is the matter stars are born from — this one is the matter interfaces are born from. Seventy-five components across four layers, plus the headless behaviour layer Radix would otherwise provide.
+A nebula is the matter stars are born from — this one is the matter interfaces are born from. Seventy-six components across four layers, plus the headless behaviour layer Radix would otherwise provide.
 
 ::: warning Not to be confused
 The cache package was called Nebula for a while before it became [Echo](/en/modules/echo). That name now means this package, and nothing else.
@@ -99,7 +99,7 @@ The rule is composition, not complexity. Slider is an atom though it is interact
 [Toolbar](/en/nebula/components/toolbar) ·
 [Typography](/en/nebula/components/typography)
 
-### Organisms (26)
+### Organisms (27)
 
 [AlertDialog](/en/nebula/components/alert-dialog) ·
 [Calendar](/en/nebula/components/calendar) ·
@@ -125,6 +125,7 @@ The rule is composition, not complexity. Slider is an atom though it is interact
 [Select](/en/nebula/components/select) ·
 [Sheet](/en/nebula/components/sheet) ·
 [Sidebar](/en/nebula/components/sidebar) ·
+[Sonner](/en/nebula/components/sonner) ·
 [Toaster](/en/nebula/components/toaster) ·
 [Tooltip](/en/nebula/components/tooltip)
 

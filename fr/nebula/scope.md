@@ -8,7 +8,8 @@ Chaque composant du registre de shadcn a une contrepartie ici, et la quarantaine
 | [DataTable](/fr/nebula/components/data-table) | TanStack Table (groupes de colonnes, virtualisation, épinglage, filtres à facettes, côté serveur) | tri, filtre, pagination, sélection — en mémoire |
 | [Sidebar](/fr/nebula/components/sidebar) | ~15 parties | les parties qui ne sont pas des atomes re-habillés |
 | [Carousel](/fr/nebula/components/carousel) | embla (boucle, défilement auto, N vues) | scroll-snap, une vue, ni boucle ni défilement auto |
-| [Toaster](/fr/nebula/components/toaster) | le manager de Base UI (priorité d'affichage, toasts ancrés, payload typée) — ou sonner, avec six positions | cinq variantes, toasts sur promesse, update et dédup par id, action, `onClose`, pause au survol, quatre coins |
+| [Sonner](/fr/nebula/components/sonner) | sonner, en entier | l'API `toast` et les props du Toaster de sonner, six positions, la pile qui se déploie au survol, les couleurs riches, `Alt+T` ; pas de balayage pour fermer, pas de `getHistory`, et `toast.promise` renvoie `{ id, unwrap }` |
+| [Toaster](/fr/nebula/components/toaster) (déprécié) | le manager de Base UI (priorité d'affichage, toasts ancrés, payload typée) — shadcn l'a déprécié au profit de sonner, et nebula aussi | cinq variantes, toasts sur promesse, update et dédup par id, action, `onClose`, pause au survol, quatre coins |
 | [Resizable](/fr/nebula/components/resizable) | imbrication libre, dispositions persistées, repli à zéro | deux volets, une poignée |
 | [Combobox](/fr/nebula/components/combobox) | simple, multi-sélection et création | sélection simple |
 | [ScrollArea](/fr/nebula/components/scroll-area) | barres redessinées par Radix | barres natives, stylées |

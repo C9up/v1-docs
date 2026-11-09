@@ -74,14 +74,35 @@ pnpm add -D @c9up/helix-plugin-ream
 
 ```ts
 // tests/bootstrap.ts
-import { configure } from '@c9up/helix'
+import type { ConfigureOptions, Plugin, RunnerHook } from '@c9up/helix'
 import { apiClient } from '@c9up/helix-plugin-ream'
+import { createTestUtils } from '@c9up/ream/testing/utils'
 
-await configure({ plugins: [apiClient({ boot: () => bootApp() })] })
+export const testUtils = createTestUtils((port) => bootApp(port))
+
+export const plugins: Plugin[] = [apiClient({ testUtils })]
+
+export const runnerHooks: { setup: RunnerHook[]; teardown: RunnerHook[] } = {
+  setup: [],
+  teardown: [],
+}
+
+export const configureSuite: ConfigureOptions['configureSuite'] = (suite) => {
+  if (suite.name === 'functional') {
+    return suite.setup(() => testUtils.httpServer().start())
+  }
+}
 ```
 
-L'application démarre une fois pour toute la série, et `ctx.client` porte un
-`TestClient` déjà démarré :
+Le module de bootstrap **exporte** `plugins`, `runnerHooks` et
+`configureSuite` ; il n'appelle jamais `configure()` lui-même. helix l'importe
+et configure chaque campagne avec ces exports et le nom de la suite lancée — un
+`configure()` appelé dans le fichier s'exécuterait à l'import, avant qu'aucune
+suite n'existe, et `functional` ne démarrerait jamais son serveur. `ream new`
+écrit ce fichier.
+
+Seule la suite `functional` démarre un serveur, et `ctx.client` porte un
+`TestClient` qui pointe vers lui :
 
 ```ts
 test('health', async ({ client }) => {

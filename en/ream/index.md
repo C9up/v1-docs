@@ -227,7 +227,7 @@ Five drivers ship with ream:
 | driver | where the session lives | notes |
 |---|---|---|
 | `cookie` | in the signed cookie itself | no server state; a payload over ~4KB does not fit |
-| `memory` | in the process | fine for one instance, lost on restart; capped at 10 000 live sessions |
+| `memory` | in the process | fine for one instance, lost on restart; capped at 10 000 live sessions, the least recently used dropped first |
 | `file` | one file per session on disk | survives a restart without a Redis; one machine only |
 | `database` | a `sessions` table | shared across instances when they share a database |
 | `redis` | on a Redis server | shared across instances, survives restarts |
@@ -266,6 +266,30 @@ export default defineConfig({
 `age` accepts seconds or a duration string (`30m`, `2h`, `7d`). A value it
 cannot read throws at construction rather than becoming `NaN` — which would
 expire every session at once.
+
+A store has to be chosen, in every environment: with neither `store` nor
+`driver` set, `defineConfig` and `SessionMiddleware` throw
+`E_SESSION_STORE_NOT_CONFIGURED` instead of falling back to the memory store,
+which a restart, a second instance or enough anonymous traffic empties.
+`store: 'memory'` is accepted when it is written out — in tests, or for a single
+development instance.
+
+`cookie` sets the session cookie's attributes, for every store:
+
+```ts
+export default defineConfig({
+  store: 'redis',
+  cookie: {
+    sameSite: 'strict',      // default 'lax'
+    domain: 'example.com',   // default: none (host-only)
+    path: '/',               // default '/'
+    secure: true,            // default: on when NODE_ENV is production
+  },
+})
+```
+
+The cookie's lifetime still comes from `age` and `clearWithBrowser`. The cookie
+is always `HttpOnly`: `httpOnly: false` throws `E_SESSION_COOKIE_NOT_HTTP_ONLY`.
 
 ### Flash messages
 

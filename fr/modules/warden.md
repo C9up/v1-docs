@@ -1,6 +1,6 @@
 # Warden — Authentification
 
-Warden gère les stratégies d'authentification et le contrôle d'accès basé sur les rôles (RBAC). Le coeur est la classe `AuthManager`, qui délègue l'authentification et la vérification des tokens aux stratégies enregistrées. La `JwtStrategy` intégrée couvre le cas d'usage JWT courant. Vous pouvez enregistrer des stratégies supplémentaires (session, clé API, HTTP Basic) à tout moment. Connecter quelqu'un via un fournisseur extérieur, c'est [Transit](/fr/modules/transit).
+Warden gère les stratégies d'authentification et le contrôle d'accès basé sur les rôles (RBAC). Le coeur est la classe `AuthManager`, qui délègue l'authentification et la vérification des tokens aux stratégies enregistrées. La `JwtStrategy` intégrée couvre le cas d'usage JWT courant. Vous pouvez enregistrer des stratégies supplémentaires (session, jetons d'accès, HTTP Basic) à tout moment. Connecter quelqu'un via un fournisseur extérieur, c'est [Transit](/fr/modules/transit).
 
 ## Installation
 
@@ -181,8 +181,12 @@ await auth.hasPermission(user, 'posts.publish', { tenant: 'acme' })
 ```
 
 `hasPermission` / `hasAllPermissions` reflètent l'**ensemble résolu** (dérivé des
-rôles ∪ grants directs) ; les permissions portées par le token JWT/api-key
-(`user.permissions`) ne sont **pas** une entrée d'autorisation. `hasRole` reflète
+rôles ∪ grants directs) ; les permissions portées par un payload JWT
+(`user.permissions`) ne sont **pas** une entrée d'autorisation. Quand la requête
+a été authentifiée avec un jeton (`user.currentAccessToken`, posé par le
+[garde à jetons d'accès](#jetons-d-acces) ou par un garde OAuth), le jeton doit
+aussi autoriser la permission : la vérification exige la permission de
+l'utilisateur **et** la capacité du jeton, jamais l'une ou l'autre. `hasRole` reflète
 les rôles du payload ∪ les rôles du store, donc un rôle porté par le token le
 satisfait toujours sans configuration de store. Sans resolver `rights` fourni,
 `AuthManager` retombe sur un store en mémoire vide — les rôles du payload comptent
@@ -192,8 +196,7 @@ toujours, les permissions se résolvent à vide.
 > **synchrone** directement sur le payload du token. Ils sont désormais `async` et
 > adossés au resolver. Les permissions que vous mettiez auparavant dans le token
 > JWT/api-key ne sont plus honorées par les vérifications grossières `@Permission` —
-> seedez-les plutôt comme rôles ou grants directs dans le rights store. Le chemin
-> scope api-key → grant est complété dans une story ultérieure.
+> seedez-les plutôt comme rôles ou grants directs dans le rights store.
 
 ---
 
@@ -566,7 +569,10 @@ router.use([initializeBouncer])
 Il construit `ctx.bouncer` à partir de trois choses, toutes enregistrées par
 `WardenProvider` depuis votre `config/auth.ts` :
 
-- l'utilisateur authentifié — `ctx.auth?.user`, ou `null` pour un invité ;
+- l'utilisateur authentifié — `ctx.auth?.user`, ou `null` pour un invité. Il est
+  lu au moment de la première vérification, pas au passage du middleware : un
+  handler qui appelle `await ctx.auth.authenticate()` puis autorise est jugé en
+  tant que l'utilisateur qu'il vient de connecter ;
 - le `RightsResolver` partagé (Layer 1), pour que `this.permissions` dans une
   policy se résolve sur le rights store ;
 - le `bouncer:registry` — les tables `abilities` / `policies` et le hook optionnel
@@ -877,6 +883,12 @@ Ce qui rend le mécanisme sûr, et pourquoi chaque point compte :
   un « identifiant inconnu » distinguable permettrait de les énumérer.
 - **Un token par connexion**, pour qu'une déconnexion sur un appareil laisse les
   autres tranquilles.
+- **La déconnexion y met fin.** `ctx.auth.use('web').logout()` efface le cookie
+  et supprime le token stocké que le cookie désigne, quel que soit son secret —
+  un cookie dont le secret ne correspond plus est un cookie qu'une copie volée a
+  déjà recyclé. Le cookie est effacé en premier : un stockage qui échoue à
+  supprimer la ligne ne laisse jamais le navigateur en possession du
+  credential ; cet échec est tout de même levé, une fois la session terminée.
 
 `MemoryRememberMeTokenDriver` convient aux tests et aux applications
 mono-process ; un cluster a besoin d'un stockage partagé implémentant
@@ -995,6 +1007,115 @@ divergence précoce, et cet écart est mesurable.
 
 ---
 
+## Jetons d'accès
+
+Des jetons porteurs opaques pour les API, les outils en ligne de commande et les
+applications mobiles. Une valeur de jeton a la forme `oat_<identifiant>.<secret>`.
+Seul `sha256(secret)` est stocké, la comparaison se fait en temps constant, et le
+secret se termine par une somme de contrôle CRC-32 pour qu'un scanner de secrets
+reconnaisse un jeton qui a fuité.
+
+```ts
+import { AccessTokensProvider, MemoryAccessTokenStore } from '@c9up/warden'
+import { apiKeyGuard, defineConfig } from '@c9up/warden/config'
+
+// En production, implémentez AccessTokenStore sur votre propre table.
+const tokens = new AccessTokensProvider({
+  store: new MemoryAccessTokenStore(),
+  expiresIn: '30 days',               // durée de vie par défaut ; absente, les jetons n'expirent pas
+})
+
+export default defineConfig({
+  default: 'api',
+  guards: { api: apiKeyGuard({ tokens, findUser: (id) => User.find(id) }) },
+})
+```
+
+L'émission renvoie le seul objet qui porte jamais la valeur — remettez-la au
+client tout de suite, rien de ce qui est stocké ne permet de la reconstruire :
+
+```ts
+const token = await tokens.create(user, ['orders:read'], { name: 'CI', expiresIn: '7 days' })
+token.value.release()   // "oat_…"
+token.toJSON()          // { type: 'bearer', name, token, abilities, lastUsedAt, expiresAt }
+```
+
+`abilities` vaut `['*']` par défaut, c'est-à-dire toutes les capacités.
+`AccessTokensProvider` prend `store`, `prefix` (`oat_` par défaut ; non vide,
+sans `.`), `type` (`auth_token` par défaut, pour qu'une même table contienne
+plusieurs sortes de jetons), `tokenSecretLength` (40 par défaut, au moins 32 :
+un secret plus court se devine) et `expiresIn` (en secondes ou sous forme de
+durée). Une valeur qui ne convient pas est refusée à la construction.
+L'identifiant est fait de 128 bits aléatoires plutôt que d'un id de ligne : on ne
+peut pas viser un jeton en énumérant les lignes.
+
+### Le garde
+
+`apiKeyGuard({ tokens, findUser })` construit une `ApiKeyStrategy`, enregistrée
+comme driver `access_tokens`. Elle lit `Authorization: Bearer <jeton>` ou
+l'en-tête `x-api-key` (`headerName` le change), et vérifie la valeur auprès du
+provider : une valeur qui n'est pas l'un de nos jetons, un identifiant inconnu,
+un jeton d'un autre type, un mauvais secret et un jeton expiré donnent tous le
+même refus. Seul un jeton vérifié voit son `lastUsedAt` mis à jour.
+L'utilisateur est ensuite rechargé via `findUser` à **chaque** requête : un jeton
+dont le compte a été supprimé ou désactivé cesse de fonctionner dès que
+`findUser` répond `null`.
+
+Une config qui passe encore `findByKey` au lieu de `tokens` est refusée à la
+construction du garde, pas à la première requête.
+
+### Les capacités ne sont pas des permissions
+
+L'utilisateur authentifié porte le jeton dans `user.currentAccessToken` :
+
+```ts
+const token = ctx.auth.user.currentAccessToken
+token.abilities               // ['orders:read']
+token.allows('orders:read')   // true — '*' autorise tout
+token.denies('orders:write')  // true
+token.authorize('orders:write') // lève E_UNAUTHORIZED_ACCESS
+token.isExpired()
+token.lastUsedAt
+```
+
+Les capacités d'un jeton ne sont **jamais** fusionnées dans `user.permissions`,
+qui contient les permissions propres de l'utilisateur. Ce qu'une requête faite
+avec un jeton peut faire, c'est ce que l'utilisateur peut faire **et** ce que le
+jeton autorise : une capacité qui porte le nom d'une permission n'accorde rien
+que l'utilisateur n'a pas, et un jeton limité à quelques capacités ne porte pas
+toutes les permissions de son utilisateur. `@Permission(...)`, `hasPermission`
+et `hasAllPermissions` appliquent exactement cette intersection ;
+`tokenAllows(user, permission)` en est la moitié « jeton », seule. Un
+utilisateur connecté par session ou par JWT n'a pas de `currentAccessToken` et
+n'est vérifié que sur ses propres permissions.
+
+### Gérer les jetons d'un utilisateur
+
+```ts
+await tokens.all(user)                 // les plus récemment utilisés d'abord, jamais utilisés à la fin
+await tokens.find(user, identifier)    // null s'il n'est pas à cet utilisateur
+await tokens.delete(user, identifier)  // 0 ou 1
+await tokens.deleteAll(user)
+await tokens.invalidate(new Secret(presentedValue)) // révoque depuis la valeur elle-même
+guard.invalidateToken(presentedValue)                // la même chose, depuis le garde
+```
+
+`find` et `delete` ne touchent qu'un jeton appartenant à l'utilisateur nommé.
+`invalidate` ne révoque que si le secret correspond : un identifiant seul — lu
+dans une ligne de log ou une liste de jetons — ne suffit pas à révoquer le jeton
+de quelqu'un d'autre.
+
+`AccessTokenStore` est la table : `create`, `find(identifier)`,
+`touch(identifier, lastUsedAt)`, `delete(identifier)` (indique si une ligne est
+partie) et `listForUser(userId)`. Les horodatages sont en millisecondes depuis
+l'epoch et `expiresAt` vaut `null` pour un jeton qui n'expire jamais.
+`MemoryAccessTokenStore` sert aux tests et aux outils mono-processus. Une
+application qui a son propre schéma de jetons implémente
+`AccessTokensProviderContract` (`create`, `verify`, `invalidate`) au lieu
+d'utiliser `AccessTokensProvider`.
+
+---
+
 ## Limiter les connexions — AuthRateLimiter
 
 Comptez une tentative de connexion **avant** de vérifier le mot de passe, sous
@@ -1018,9 +1139,20 @@ if (user) await limiter.clear(...keys)
 
 Compter d'abord est ce qui tient face à une rafale : chaque tentative est un
 incrément atomique, si bien que vingt essais simultanés ne peuvent pas tous lire
-« pas encore bloqué ». L'identifiant est normalisé (casse, espaces autour),
-`maxAttempts` et `windowSeconds` doivent être des entiers positifs, et le store
-mémoire est borné. `MfaManager` utilise le même limiteur pour son verrouillage.
+« pas encore bloqué ». L'identifiant est normalisé (casse, espaces autour), et
+`maxAttempts` et `windowSeconds` doivent être des entiers positifs.
+`MfaManager` utilise le même limiteur pour son verrouillage.
+
+Le `MemoryAttemptStore` par défaut compte par processus et il est borné
+(100 000 clés). Quand il est plein et que toutes les fenêtres sont encore
+actives, une **nouvelle** clé est refusée — sa tentative est comptée au-delà de
+la limite — plutôt que d'abandonner un compteur actif pour faire de la place :
+les clés sont choisies par celui qui devine, et évincer les plus anciennes
+laisserait un déluge d'identifiants inventés effacer le verrouillage d'une
+victime. Pendant un tel déluge, les premières tentatives sous de nouvelles clés
+attendent que des fenêtres expirent. En production, utilisez
+`RedisAttemptStore` : il est partagé par toutes les instances et n'a pas cette
+borne.
 
 ---
 
@@ -1033,7 +1165,7 @@ du client de test l'applique :
 ```ts
 await client.get('/dashboard').loginAs(sessionGuard, user)
 await client.get('/api/me').loginAs(jwtGuard, user)
-await client.get('/keys').loginAs(apiKeyGuard, seededKey)
+await client.get('/keys').loginAs(apiKeyGuard, user, ['orders:read'])
 await client.get('/admin').loginAs(basicGuard, 'ada', 'secret')
 ```
 
@@ -1046,7 +1178,7 @@ fonctionnement de la forge.
 |---|---|---|
 | jwt | `authorization: Bearer <signé>` | l'utilisateur |
 | session | une entrée de session sous la clé du guard | l'utilisateur |
-| api-key | `authorization` + l'en-tête de clé | la **clé** (émise hors bande) |
+| access_tokens | `authorization: Bearer oat_…` — un vrai jeton émis par le provider | l'utilisateur, puis des capacités et des options de jeton facultatives |
 | basic | `authorization: Basic <base64>` | uid + mot de passe |
 
 Un guard session renvoie des **valeurs** de session, que seul quelque chose
@@ -1137,7 +1269,7 @@ const mfa = new MfaManager({
 // 1. Enrôlement — affichez `uri` sous forme de QR code (avec @c9up/prism : `await qrcode.toString(uri)`)
 const { factorId, uri } = await mfa.enrollTotp({ id: user.id, name: user.email })
 // 2. Confirmation avec un premier code de l'application d'authentification
-await mfa.confirmTotp(factorId, code)              // → true une fois confirmé
+await mfa.confirmTotp(user.id, factorId, code)     // → true une fois confirmé
 // 3. Codes de secours — à afficher UNE SEULE fois
 const codes = await mfa.createBackupCodes(user.id)
 
@@ -1150,7 +1282,16 @@ if (await mfa.verify(user.id, submitted)) {
 }
 ```
 
-Helpers de statut : `isEnabled(userId)`, `listFactors(userId)` (ne divulgue jamais de secret), `disableFactor(factorId)`, `await isLocked(userId)`.
+Helpers de statut : `isEnabled(userId)`, `listFactors(userId)` (ne divulgue jamais de secret), `disableFactor(userId, factorId)`, `await isLocked(userId)`.
+
+Les opérations sur un facteur nomment son propriétaire à côté de l'id du facteur
+et refusent un facteur qui appartient à quelqu'un d'autre : un id de facteur
+transite par les requêtes, et un id qui a fuité par un log ou un outil de
+support ne doit pas permettre à un autre compte d'agir dessus. `disableFactor`
+répond `true` quand il a supprimé le facteur, `false` pour un id inconnu ou le
+facteur d'un autre utilisateur, qui reste en place. `confirmTotp` répond `false`
+dans le même cas, et ses tentatives comptent dans le même verrouillage que
+`verify()` : un premier code ne peut pas être deviné sans limite.
 
 Chaque code ne sert qu'une fois, même quand deux requêtes le présentent au même
 instant : le garde anti-rejeu TOTP réserve un code atomiquement
@@ -1351,7 +1492,7 @@ router.group(() => {
 
 1. Si la route possède un guard, un rôle ou une permission quelconque et que `ctx.auth.authenticated` est `false` — lève `E_WARDEN_UNAUTHORIZED`.
 2. Si la route exige des rôles et que `ctx.auth.roles` n'en contient aucun — lève `E_WARDEN_FORBIDDEN`.
-3. Si la route exige des permissions et que `ctx.auth.permissions` ne les contient pas toutes — lève `E_WARDEN_FORBIDDEN`.
+3. Si la route exige des permissions et que l'utilisateur ne les détient pas toutes — ou que la requête est venue avec un jeton (`user.currentAccessToken`) qui n'en autorise pas une — lève `E_WARDEN_FORBIDDEN`.
 
 Les guards sont appliqués par le pipeline de middlewares, pas par Warden directement. `ctx.auth` doit être peuplé avant l'exécution de la vérification du guard — c'est le rôle du middleware d'authentification.
 
@@ -1400,6 +1541,21 @@ getGuardMetadata(PostsController.prototype, 'store')       // ['jwt']
 getPermissionMetadata(PostsController.prototype, 'store')  // ['posts.create']
 getRoleMetadata(PostsController.prototype, 'store')        // ['admin']
 ```
+
+Quand le middleware d'authentification (`@c9up/warden/middleware`) les lit :
+
+- **L'autorisation implique l'authentification.** Une action portant `@Role`,
+  `@Permission` ou `@RequireMfa` sans `@Guard` est authentifiée avec le garde
+  par défaut, et une requête anonyme reçoit un 401. Une route qui ne déclare que
+  `@Role('admin')` n'est jamais publique.
+- **Les décorateurs s'héritent.** Ils sont lus à travers la chaîne de
+  prototypes : une action qu'un contrôleur hérite garde le garde et
+  l'autorisation que son parent a déclarés — `class UsersController extends
+  AdminController {}` route `[UsersController, 'index']` avec les décorateurs
+  d'`AdminController`. Une surcharge qui ne déclare rien en hérite aussi, si
+  bien que redéfinir une méthode ne fait jamais tomber un garde par accident ;
+  une surcharge qui déclare son propre décorateur remplace celui du parent pour
+  ce décorateur-là.
 
 ---
 
@@ -1474,8 +1630,16 @@ interface AuthResult {
 interface UserPayload {
   id: string
   roles?: string[]
-  permissions?: string[]
+  permissions?: string[]                    // celles de l'utilisateur, jamais élargies par un jeton
+  currentAccessToken?: CurrentAccessToken   // posé par un garde à jetons
   [key: string]: unknown
+}
+
+interface CurrentAccessToken {
+  readonly abilities: readonly string[]
+  allows(ability: string): boolean
+  denies(ability: string): boolean
+  authorize(ability: string): void
 }
 
 interface AuthConfig {
@@ -1576,3 +1740,32 @@ new RedisBlacklistDriver(quasarConnection())
 ```
 
 La connexion est résolue au premier contrôle de révocation : une application dont la blacklist n'est jamais consultée n'ouvre donc aucun socket pour elle. Passer un client directement fonctionne toujours : `@c9up/quasar` est une peer **optionnelle**.
+
+### Survivre à une panne Redis — `ResilientBlacklistDriver`
+
+```ts
+import { MemoryBlacklistDriver, RedisBlacklistDriver, ResilientBlacklistDriver, TokenBlacklist } from '@c9up/warden'
+
+new TokenBlacklist(new ResilientBlacklistDriver(
+  new RedisBlacklistDriver(quasarConnection()),
+  new MemoryBlacklistDriver(),          // la valeur par défaut
+  { onDegrade: (event) => log.warn(event) },
+))
+```
+
+Une révocation est écrite dans les deux stockages, toujours : cette instance
+sait ce qu'elle a révoqué sans aller-retour. Une vérification interroge d'abord
+l'enregistrement local, puis Redis. Quand Redis ne peut pas répondre et que
+l'enregistrement local ne connaît pas le credential, la vérification **échoue
+fermée** : l'erreur est levée, et le garde la traite comme une stratégie en
+échec — un 500, ou un invité sous l'authentification silencieuse —, jamais comme
+« non révoqué ». La même blacklist sert aux déconnexions de session et à des JWT
+émis pour plusieurs jours : répondre « non révoqué » pendant une panne
+accepterait toutes les connexions révoquées ailleurs.
+
+`{ failOpen: true }` laisse au contraire passer ces credentials. Cela convient à
+un déploiement dont le seul consommateur est un garde JWT à `expiresIn` court,
+où rester disponible pendant une panne vaut plus qu'une révocation manquée
+pendant au plus la durée de vie d'un jeton. `onDegrade` est appelé à chaque
+repli ; par défaut, il signale le premier échec d'une opération, puis un
+décompte périodique.

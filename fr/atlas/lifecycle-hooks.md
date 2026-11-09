@@ -87,6 +87,10 @@ premier (avec le tuple), puis `beforeFetch` sur la requête de données ; une fo
 la page construite, `afterPaginate` se déclenche avec le paginateur, puis
 `afterFetch` avec les éléments.
 
+Un preload est un fetch du modèle lié : son `beforeFetch` reçoit la requête du
+preload et son `afterFetch` les lignes liées, pour tous les types de relation et
+pour `load()` (voir [Relations](./relations.md#hooks-de-fetch-sur-les-lignes-prechargees)).
+
 ### Héritage
 
 Les hooks sont hérités via la chaîne de prototypes : un hook déclaré sur une

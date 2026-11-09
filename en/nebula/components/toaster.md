@@ -1,5 +1,9 @@
 # Toaster
 
+::: warning Deprecated
+shadcn has deprecated its own toast for sonner, and so has nebula: new code uses [Sonner](/en/nebula/components/sonner). Toaster stays until apps have moved.
+:::
+
 Transient notifications: one region mounted once near the root of the app, and a `toast` object callable from anywhere — an event handler, a form's error branch, a service — with no handle threaded down to it. The queue lives in module state and the region subscribes to it; that decoupling is the whole design.
 
 The accessibility rules are stricter than they look, and the region is static so they can be met. A live region inserted with content already in it is not announced by most screen readers, so the region mounts empty and stays. There are two of them: errors go to an assertive one that interrupts, everything else to a polite one that waits — everything interrupting is the fastest way to make a screen reader unusable. Hovering the region pauses every countdown, because a toast that vanishes while being read is the most common complaint about the pattern.
