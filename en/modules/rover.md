@@ -339,6 +339,12 @@ MessageBuilder.templateEngine = {
 <img src="{{ embedImageData(chartPng) }}">
 ```
 
+When the application uses inker, `RoverProvider` registers it at boot, so mail
+views are inker templates with nothing to configure; a `@c9up/inker` that
+cannot render this way stops the boot with `E_MAIL_TEMPLATE_ENGINE` rather than
+falling back to the built-in engine. Rendering before inker's provider has
+started rejects with inker's `E_INKER_ENGINE_MISSING`.
+
 With no engine registered, rover's built-in engine renders `.html` files under
 `viewsRoot`. It is deliberately small: `{{ value }}` (escaped), `{{{ raw }}}`,
 `{{#if}}` and `{{> partial}}` — no loops, expressions or helpers, so no
