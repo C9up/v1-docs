@@ -465,7 +465,9 @@ doc.end()
   acceptées.
 - **Chiffrement** : `userPassword` (pour l'ouvrir), `ownerPassword` (pour
   changer ce qui est permis) et `permissions`. Le document est chiffré en
-  AES-256 (PDF 2.0) ; ce que `permissions` n'autorise pas est refusé.
+  AES-256 (PDF 2.0) ; ce que `permissions` n'autorise pas est refusé. Avec un
+  `ownerPassword` seul, tout le monde ouvre le document et les permissions
+  tiennent ; avec un `userPassword` seul, il garde les deux.
 
 ## SVG
 

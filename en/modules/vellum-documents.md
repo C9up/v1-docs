@@ -449,7 +449,9 @@ doc.end()
   field's actions (`AA`) are not taken.
 - **Encryption**: `userPassword` (to open it), `ownerPassword` (to change
   what is allowed) and `permissions`. The document is encrypted with AES-256
-  (PDF 2.0); what `permissions` does not allow is denied.
+  (PDF 2.0); what `permissions` does not allow is denied. With only an
+  `ownerPassword`, anyone opens the document and the permissions hold; with
+  only a `userPassword`, it guards both.
 
 ## SVG
 
