@@ -711,7 +711,7 @@ api.setHeader('Accept-Language', 'fr')            // gestion des headers par dé
 
 - Méthodes : `get` / `post` / `put` / `patch` / `delete`, plus `raw(method, url, body?)` pour la `Response` brute.
 - Une réponse non-2xx lève `HttpError` (`status`, `response`, `data` parsé). `isHttpError(e)` est un type-guard pour un `catch` propre.
-- `extend(options)` dérive un client enfant avec les défauts fusionnés, réglages XSRF compris.
+- `extend(options)` dérive un client enfant avec les défauts fusionnés, réglages XSRF compris. Quand son `baseURL` est sur une autre origine, les identifiants hérités — le token, un en-tête `Authorization` ou XSRF — restent en arrière : passez-les dans `options`, ou réglez `allowCrossOriginAuth: true`, pour les y envoyer délibérément. `token: null` signifie aucun token.
 - Passe une option `parse` pour un résultat validé au runtime et entièrement typé ; sans elle, le type générique est une assertion non vérifiée de la forme de la réponse (la frontière HTTP habituelle).
 - Une instance `http` same-origin par défaut est exportée pour les appels rapides.
 
