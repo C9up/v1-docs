@@ -25,6 +25,19 @@ export default defineConfig({
 });
 ```
 
+| Option             | Default            | Effect                                                                                       |
+| ------------------ | ------------------ | -------------------------------------------------------------------------------------------- |
+| `requireAuth`      | on when Warden is bound | `false` mounts the admin without authentication (see [No authentication](#no-authentication)). |
+| `requireRole`      | none               | A role every request must hold, on top of `accessPermission`.                                |
+| `permissionPrefix` | `"station"`        | Namespace of the admin permissions (`station.users.edit`).                                   |
+| `accessPermission` | `"station.access"` | Permission needed to enter `/admin/*`; `false` removes this gate.                            |
+| `loginPath`        | `"/admin/login"`   | Where an unauthenticated browser is sent.                                                    |
+| `cookieName`       | `"station_auth"`   | Name of the auth cookie.                                                                     |
+| `cookieSecure`     | see [Session cookie](#session-cookie-and-logout) | Forces the cookie's `Secure` flag on or off.                    |
+| `loginRateLimit`   | 5 attempts / 15 min | Sign-in throttle; `{ maxAttempts, windowSeconds }`, `{ limiter }` or `false`.               |
+| `middleware`       | none               | Named router middleware attached to every admin route.                                       |
+| `audit`            | none               | Sink for sign-in, logout and refusal events (see [Audit trail](#audit-trail)).               |
+
 ## Views (Inker)
 
 Station renders its admin pages through [`@c9up/inker`](./inker) templates that
@@ -84,29 +97,73 @@ Two thin policy wrappers stay on top:
   first over-cap request).
 - **Redirect-to-last-page.** Requesting a page past the end (`page > meta.lastPage`
   while `meta.total > 0`) 302-redirects to `/admin/<name>?page=<lastPage>&perPage=<perPage>`
-  so the caller never lands on an empty page.
+  so the caller never lands on an empty page. A page so large that its offset
+  would exceed `Number.MAX_SAFE_INTEGER` is redirected the same way (to page 1
+  when the table is empty) without reaching the database.
+
+## Columns: what each view shows and what a write may set
+
+A column holding a secret is kept out of the admin unless the resource names
+it. Secrets are columns declared `@Column({ serializeAs: null })` and columns
+whose name contains `password`, `passwd`, `secret`, `token` or `apikey`.
+
+- **List and show** render every column except secrets. `list.columns` and
+  `show.columns` replace that with an explicit list, in the given order.
+- **Create and edit** accept the **editable** columns only, which are also the
+  form's fields. By default: every column except the primary key, managed
+  timestamps, the soft-delete column, relations, secrets and the fields
+  `formFields` marks `hidden`. `editable` replaces that with an explicit list.
+
+```ts
+defineResource({
+  entity: User,
+  list: { columns: ["id", "email", "isAdmin"] },
+  show: { columns: ["id", "email", "isAdmin", "createdAt"] },
+  editable: ["email", "password"],
+});
+```
+
+A field hidden with `formFields: { isAdmin: { hidden: true } }` is not writable
+either: a body carrying it is ignored, and a hidden boolean keeps its stored
+value on every edit. Naming an unknown column, a framework-managed column or a
+hidden field in one of these lists fails at boot.
+
+A secret listed in `editable` is **write-only**: the form renders it empty, and
+on an edit an empty submission keeps the stored value. A `password` input is
+never pre-filled, whatever the column.
 
 ## Authorization
 
 Station authorizes every admin action exclusively through Warden's unified
-authorization layer. There is no Station-local RBAC: the gate's only decision
-is `auth.hasPermission(user, "<resource>.<action>", "global")`, resolved by the
+authorization layer. There is no Station-local RBAC: the gate's decisions are
+`auth.hasPermission(user, "station.access", "global")` to enter the admin, then
+`auth.hasPermission(user, "station.<resource>.<action>", "global")` per action,
+resolved by the
 same `RightsResolver` that answers a coarse `auth.hasPermission` call and a
 Warden Bouncer policy (the single resolution point).
 
 ### Per-action permission convention
 
-Each action is gated behind a permission named `<resource>.<action>`, where
-`<resource>` is the resource slug (lowercase, kebab-case) and `<action>` is one
-of the five CRUD actions:
+Each action is gated behind a permission named
+`<prefix>.<resource>.<action>`, where `<prefix>` is `station.permissionPrefix`
+(`"station"` by default), `<resource>` is the resource slug (lowercase,
+kebab-case) and `<action>` is one of the five CRUD actions:
 
-| Action    | Permission      |
-| --------- | --------------- |
-| `list`    | `users.list`    |
-| `show`    | `users.show`    |
-| `create`  | `users.create`  |
-| `edit`    | `users.edit`    |
-| `destroy` | `users.destroy` |
+| Action    | Permission              |
+| --------- | ----------------------- |
+| `list`    | `station.users.list`    |
+| `show`    | `station.users.show`    |
+| `create`  | `station.users.create`  |
+| `edit`    | `station.users.edit`    |
+| `destroy` | `station.users.destroy` |
+
+The namespace keeps admin rights apart from the application's own: a role
+granted `users.edit` for a feature of the public application does not open the
+admin.
+
+Before any action, a request must also hold the **access permission**
+(`station.access`, or `<prefix>.access`). Set `station.accessPermission` to
+another name, or to `false` to rely on the per-action permissions alone.
 
 The gate is fail-closed: an authenticated user without the required permission
 gets `403`; a request with no authenticated user is denied before the action
@@ -131,15 +188,17 @@ import { MemoryRightsStore } from "@c9up/warden";
 
 const store = new MemoryRightsStore();
 store.defineRole("admin", [
-  "users.list",
-  "users.show",
-  "users.create",
-  "users.edit",
-  "users.destroy",
+  "station.access",
+  "station.users.list",
+  "station.users.show",
+  "station.users.create",
+  "station.users.edit",
+  "station.users.destroy",
 ]);
 store.assignRole(adminUserId, "admin");
-// optional one-off grant, no role needed:
-store.grant(editorUserId, "users.edit");
+// optional one-off grants, no role needed:
+store.grant(editorUserId, "station.access");
+store.grant(editorUserId, "station.users.edit");
 
 // wire the seeded store via config/auth.ts -> rights: { store }
 ```
@@ -151,16 +210,95 @@ wired.
 ### The `requireRole` blanket gate
 
 Setting `station.requireRole` adds a coarse gate in front of every `/admin/*`
-route, resolved through `auth.hasRole(user, role, "global")`. An authenticated
+route, on top of the access permission, resolved through
+`auth.hasRole(user, role, "global")`. An authenticated
 user without that role gets `403` (not a redirect); a request with no valid
 token gets `401` (JSON) or a redirect to the login page (HTML).
 
-### Dev-preview (no auth)
+### No authentication
 
-When `@c9up/warden` is not wired (or `station.requireAuth: false`), the gate
-runs in dev-preview open mode: every action is allowed and Station emits a loud
-boot warning that the admin is mounted without auth. This mode is for local
-development only — never production.
+When `@c9up/warden` is not wired, the admin can only mount open in a process
+whose `NODE_ENV` is `development` or `test`: every action is allowed and Station
+emits a loud boot warning. In any other environment — `production`, `prod`,
+`staging`, an unset `NODE_ENV` — Station refuses to start, because an open admin
+is full create, update and delete for anyone who can reach it. Set
+`station.requireAuth: false` to state that an unauthenticated admin is intended;
+the warning then names the environment it runs in.
+
+## Sign-in, session cookie and logout
+
+### Brute-force protection
+
+`POST /admin/login` counts every attempt under the client IP and under the
+submitted email (lower-cased) **before** checking the password. The sixth
+attempt in 15 minutes on either key is refused with `429` and a `Retry-After`
+header, without reaching the credential check; a successful sign-in clears both
+counters. A limiter that fails (a store outage) refuses the attempt with `503`.
+
+The counters live in the process's memory by default. In a cluster, pass a
+shared limiter — Warden's `AuthRateLimiter` over a `RedisAttemptStore` has the
+expected shape and uses the same keys:
+
+```ts
+import { AuthRateLimiter, RedisAttemptStore } from "@c9up/warden";
+
+export default defineConfig({
+  loginRateLimit: {
+    limiter: new AuthRateLimiter({ store: new RedisAttemptStore(redis) }),
+  },
+  // or tune the in-memory one: { maxAttempts: 10, windowSeconds: 600 }
+});
+```
+
+`station.middleware` attaches named router middleware to every admin route,
+for an application that applies its own throttling or headers.
+
+### Session cookie and logout
+
+The auth cookie is `HttpOnly`, `SameSite=Lax`, scoped to `/admin` (the token
+is never sent to the rest of the application) and lives as long as the browser
+session. It is `Secure` everywhere except a `development`/`test` process served
+over plain HTTP; `station.cookieSecure` forces the flag either way.
+
+Logout revokes the token it carried through the auth guard's `revoke(token)`
+before clearing the cookie, so a copy taken earlier is refused afterwards.
+With Warden's JWT guard this needs a `blacklist`; without one, Station warns
+once that logged-out tokens stay valid until they expire.
+
+The sign-in page only displays messages Station produced; it never reads an
+error message from the query string.
+
+## Audit trail
+
+Each resource's `audit` sink receives an event after every successful write:
+`action`, `resource`, `recordId`, `userId`, the `before`/`after` images, the
+client `ip`, `userAgent` and `requestId`, and `at`.
+
+Secret column values (as defined in [Columns](#columns-what-each-view-shows-and-what-a-write-may-set))
+are replaced with `"[redacted]"` in `before` and `after`. An edit that changes
+one still says so: `redactedChanges` lists the secret columns whose value
+changed. `defineResource({ auditSecrets: true })` hands the raw values to the
+sink instead.
+
+`station.audit` receives the security events of the admin surface:
+
+| `action`          | When                                                  |
+| ----------------- | ----------------------------------------------------- |
+| `login`           | A successful sign-in (`userId`, `identifier`).        |
+| `login_failed`    | Wrong credentials (`identifier`).                     |
+| `login_throttled` | A sign-in refused by the rate limit (`identifier`).   |
+| `logout`          | A logout (`userId`).                                  |
+| `denied`          | A missing role or permission (`permission`, and `resource` / `resourceAction` for an action). |
+| `csrf_denied`     | A write refused because CSRF was not verified.        |
+
+Each carries `path`, `ip`, `userAgent`, `requestId` and `at`. A sink that throws
+is logged and never changes the response.
+
+```ts
+export default defineConfig({
+  audit: (event) => logger.info({ event }, "admin security event"),
+});
+```
 
 ## CSRF enforcement (fail-closed)
 
@@ -184,18 +322,22 @@ return `403` and Station logs one diagnostic pointing at the misconfiguration.
 
 Station validates every admin **create**/**update** body against a
 [`@c9up/rune`](./rune) schema it derives — once, at mount — from the resource
-entity's atlas `@Column` metadata. Writable columns only: the primary key,
-framework-managed timestamps (`created_at` / `updated_at` / `deleted_at` and any
-`autoCreate`/`autoUpdate` column), the soft-delete column, and relations are all
-excluded. Because the schema contains only declared columns, **mass-assignment
-protection is inherent** — a body carrying `role`, `passwordHash`, the PK, or a
-timestamp has those keys dropped automatically; they never reach the repository.
+entity's atlas `@Column` metadata, restricted to the
+[editable columns](#columns-what-each-view-shows-and-what-a-write-may-set): the
+primary key, framework-managed timestamps (`created_at` / `updated_at` /
+`deleted_at` and any `autoCreate`/`autoUpdate` column), the soft-delete column,
+relations, secrets and hidden fields are excluded unless `editable` says
+otherwise. Because the schema contains only those columns, **mass-assignment
+protection is inherent** — a body carrying an unknown key, a hidden or secret
+column, the PK, or a timestamp has those keys dropped automatically; they never
+reach the repository.
 
 Form posts arrive as strings, and rune does **not** coerce, so the derivation
 adds the coercion the wire shape needs: `number`/`integer` columns accept a
 numeric string (`"42"` → `42`; a non-numeric value fails), and boolean columns
 are read as checkboxes (a checked box → `true`, an **absent** box → `false`, so
-an unchecked box clears the column on edit). Other columns validate as strings.
+an unchecked box clears the column on edit). Only editable booleans are read
+this way: a boolean that is not on the form keeps its value. Other columns validate as strings.
 A column is required when the model declares neither nullability nor a default.
 
 Invalid input **fail-closes before any database write** — no row is created, no
@@ -226,7 +368,12 @@ there is no fallback to unchecked mass-assignment.
 
 The `defineResource({ policies })` callback table — the per-action
 `(ctx) => boolean` `PolicyFn` API and its fail-closed inline admin default —
-has been removed. Express authorization as Warden roles, permissions, and
+has been removed.
+
+The per-action permissions were renamed from `<resource>.<action>` to
+`station.<resource>.<action>`, and entering the admin now requires
+`station.access`: re-seed the roles accordingly, or set `permissionPrefix` /
+`accessPermission` to match an existing scheme. Express authorization as Warden roles, permissions, and
 grants instead (see the seeding example above).
 
 Per-row ownership checks (for example `user.id === row.ownerId`) are no longer
