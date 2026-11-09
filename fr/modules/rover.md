@@ -160,7 +160,11 @@ await mail.send((message) => {
 
 ### SMTP
 
-Envoi via une connexion SMTP brute avec TLS et AUTH LOGIN optionnels.
+Envoi par le client SMTP de nodemailer. Chaque option SMTP de nodemailer est
+transmise telle quelle (`tls`, `pool`, `maxConnections`, délais, `dkim`, un
+objet `auth` OAuth2, `service`, `name`, `proxy`, `logger`) ; `user`/`pass` est
+un raccourci pour `auth: { user, pass }`, et `port` accepte une chaîne
+numérique, comme une variable d'environnement.
 
 ```typescript
 {
@@ -171,6 +175,21 @@ Envoi via une connexion SMTP brute avec TLS et AUTH LOGIN optionnels.
   user: 'user@example.com',
   pass: 'secret',
 }
+```
+
+Les identifiants ne partent jamais avant que TLS soit établi. Sur le port 465
+(`secure: true`, ou `secure` omis) la connexion est chiffrée dès le premier
+octet. Sur 587 le transport exige STARTTLS : si le serveur ne le propose pas, ce
+qu'un intermédiaire malveillant obtient en le retirant de la réponse EHLO,
+l'envoi échoue au lieu de continuer en clair et d'envoyer `AUTH`.
+`requireTLS: false`, `ignoreTLS` et `opportunisticTLS` sont refusés avec des
+identifiants.
+
+Un serveur de développement local sans TLS (Mailpit, MailHog) est le seul cas
+où s'en passer, explicitement :
+
+```typescript
+{ transport: 'smtp', host: 'localhost', port: 1025, user: 'dev', pass: 'dev', allowInsecureAuth: true }
 ```
 
 ### Log (developpement)

@@ -159,7 +159,11 @@ await mail.send((message) => {
 
 ### SMTP
 
-Sends via a raw SMTP connection with TLS and AUTH LOGIN support. Credentials **require** `secure: true` (SMTPS on 465) — the transport refuses to send `AUTH LOGIN` over plaintext.
+Sends through nodemailer's SMTP client. Every nodemailer SMTP option is passed
+through as written (`tls`, `pool`, `maxConnections`, timeouts, `dkim`, an OAuth2
+`auth` object, `service`, `name`, `proxy`, `logger`); `user`/`pass` is a
+shorthand for `auth: { user, pass }`, and `port` may be a numeric string, as an
+environment value is.
 
 ```typescript
 {
@@ -172,7 +176,19 @@ Sends via a raw SMTP connection with TLS and AUTH LOGIN support. Credentials **r
 }
 ```
 
-For servers that only accept port 587 with STARTTLS, negotiate TLS before passing credentials or use a transport that handles STARTTLS natively.
+Credentials never travel before TLS is up. On port 465 (`secure: true`, or
+`secure` left out) the connection is TLS from the first byte. On 587 the
+transport requires STARTTLS: when the server does not offer it, which is all a
+man in the middle has to strip from the greeting, the send fails instead of
+carrying on in plaintext and sending `AUTH`. `requireTLS: false`, `ignoreTLS`
+and `opportunisticTLS` are refused alongside credentials.
+
+A local development server without TLS (Mailpit, MailHog) is the one place to
+opt out, by name:
+
+```typescript
+{ transport: 'smtp', host: 'localhost', port: 1025, user: 'dev', pass: 'dev', allowInsecureAuth: true }
+```
 
 ### Log (development)
 
