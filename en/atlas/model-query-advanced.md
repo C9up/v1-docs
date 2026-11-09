@@ -570,6 +570,10 @@ page.serialize({ fields: ['id', 'name'] })
 page.toJSON()                  // { data, meta }
 ```
 
+`serialize` takes the same options as a model's `serialize` (`fields` and
+`relations`) and runs each row through its model's serializer, so hidden and
+renamed columns behave as they do on a single model.
+
 `getUrl` returns `''` until a `baseUrl` is set. `serialize` / `toJSON` emit
 `{ data, meta }`; the `meta` keys are remapped through the naming strategy's
 `paginationMetaKeys` (snake_case by default) and include the page URLs once a

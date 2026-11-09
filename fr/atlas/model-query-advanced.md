@@ -587,6 +587,10 @@ page.serialize({ fields: ['id', 'name'] })
 page.toJSON()                  // { data, meta }
 ```
 
+`serialize` prend les mêmes options que le `serialize` d'un modèle (`fields` et
+`relations`) et fait passer chaque ligne par le sérialiseur de son modèle : les
+colonnes masquées ou renommées se comportent comme sur un modèle seul.
+
 `getUrl` renvoie `''` tant qu'aucun `baseUrl` n'est défini. `serialize` / `toJSON`
 émettent `{ data, meta }` ; les clés de `meta` sont remappées via les
 `paginationMetaKeys` de la naming strategy (snake_case par défaut) et incluent les

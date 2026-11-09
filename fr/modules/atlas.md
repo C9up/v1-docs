@@ -297,6 +297,11 @@ post.serialize({
 `pick` l'emporte sur `omit` quand les deux sont donnés — l'expression d'intention
 la plus étroite.
 
+`fields` réduit les colonnes et les valeurs calculées. Chaque relation est
+sérialisée par son propre modèle avec les options données sous `relations` : une
+colonne que ce modèle masque avec `serializeAs: null` ne peut pas être récupérée
+en la nommant, et omettre un champ n'en expose jamais.
+
 ### Clés pivot du many-to-many
 
 Les deux orthographes sont acceptées, donc une déclaration de relation AdonisJS

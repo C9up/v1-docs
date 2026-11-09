@@ -293,6 +293,11 @@ post.serialize({
 
 `pick` wins over `omit` when both are given — the narrower statement of intent.
 
+`fields` trims the columns and computed values. Each relation is serialized by
+its own model with the options given under `relations`, so a column that model
+hides with `serializeAs: null` cannot be picked back by name, and omitting a
+field never exposes one.
+
 ### Many-to-many pivot keys
 
 Both spellings are accepted, so an AdonisJS relation declaration ports as-is:
