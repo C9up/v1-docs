@@ -267,6 +267,22 @@ async boot() {
 `usingInker` is set by `InkerProvider`'s constructor, which runs before any
 provider boots.
 
+### Rendering outside a request
+
+A package that renders templates with no HTTP request around — a mailer — goes
+through the same default export. `share(state)` binds values that every
+partial and component of the render sees, and `render(template, data)` renders
+with the engine `InkerProvider` built:
+
+```ts
+if (this.app.usingInker === true) {
+  const inker = await import('@c9up/inker')
+  const html = await inker.default.share(sharedState).render('emails/welcome', data)
+}
+```
+
+Rendering before `InkerProvider` has started throws `E_INKER_ENGINE_MISSING`.
+
 ## Custom tags — `registerTag`
 
 Register a custom `@`-tag (AdonisJS/Edge `edge.registerTag` parity). The definition is an object — `{ tagName, block, seekable, compile(parser, buffer, token) }` — and it makes the parser recognise `@<tagName>(jsArg)` in every template:
@@ -399,6 +415,7 @@ try {
 | `E_INKER_INVALID_EXPRESSION`      | An expression failed to compile or produced a non-interpolable value.                    |
 | `E_INKER_INVALID_ITERABLE`        | `@each` was given a value that is not an array / object / Map / Set.                      |
 | `E_INKER_RENDER_DEPTH`            | Partials/components nested more than 100 deep, or a helper overflowed the stack.          |
+| `E_INKER_ENGINE_MISSING`          | `inker.share().render()` ran before `InkerProvider` built an engine.                      |
 | `E_INKER_UNKNOWN_TAG`             | A `@tag` was parsed as a custom tag but no handler is registered.                         |
 | `E_INKER_DISK_REQUIRED`          | A disk-backed directive (`@layout`/`@include`/`@component`) was used from `renderString`. |
 | `E_INKER_INVALID_PATH`            | Invalid constructor `root`, disk name, or `registerTag` definition.                      |

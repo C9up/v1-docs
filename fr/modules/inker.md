@@ -267,6 +267,22 @@ async boot() {
 `usingInker` est posé par le constructeur d'`InkerProvider`, qui tourne avant
 le boot de n'importe quel provider.
 
+### Rendre hors d'une requête
+
+Un paquet qui rend des templates sans requête HTTP autour — un mailer — passe
+par le même export par défaut. `share(state)` lie des valeurs que voient tous
+les partials et composants du rendu, et `render(template, data)` rend avec le
+moteur qu'`InkerProvider` a construit :
+
+```ts
+if (this.app.usingInker === true) {
+  const inker = await import('@c9up/inker')
+  const html = await inker.default.share(sharedState).render('emails/welcome', data)
+}
+```
+
+Rendre avant le démarrage d'`InkerProvider` lève `E_INKER_ENGINE_MISSING`.
+
 ## Tags personnalisés — `registerTag`
 
 Enregistrez un `@`-tag personnalisé (parité `edge.registerTag` d'AdonisJS/Edge). La définition est un objet — `{ tagName, block, seekable, compile(parser, buffer, token) }` — et elle fait reconnaître par le parser `@<tagName>(jsArg)` dans chaque template :
@@ -399,6 +415,7 @@ try {
 | `E_INKER_INVALID_EXPRESSION`      | Une expression n'a pas compilé ou a produit une valeur non interpolable.                 |
 | `E_INKER_INVALID_ITERABLE`        | `@each` a reçu une valeur qui n'est pas un tableau / objet / Map / Set.                   |
 | `E_INKER_RENDER_DEPTH`            | Plus de 100 niveaux de partials/composants imbriqués, ou un helper a débordé la pile.     |
+| `E_INKER_ENGINE_MISSING`          | `inker.share().render()` a tourné avant qu'`InkerProvider` ait construit un moteur.       |
 | `E_INKER_UNKNOWN_TAG`             | Un `@tag` a été parsé comme tag personnalisé mais aucun handler n'est enregistré.        |
 | `E_INKER_DISK_REQUIRED`          | Une directive disque (`@layout`/`@include`/`@component`) a été utilisée depuis `renderString`. |
 | `E_INKER_INVALID_PATH`            | `root`, nom de disque, ou définition `registerTag` invalide.                             |
