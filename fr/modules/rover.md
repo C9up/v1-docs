@@ -214,6 +214,26 @@ de ligne CRLF uniquement : un CR ou un LF isolé devient CRLF avant d'atteindre 
 flux DATA, si bien qu'un texte utilisateur inséré dans un mail ne peut pas
 terminer le message trop tôt et faire passer des commandes SMTP derrière.
 
+### API des fournisseurs
+
+Mailgun, SparkPost et SES reçoivent le message tel que nodemailer le compose
+pour le SMTP (Mailgun `messages.mime`, SparkPost `email_rfc822`, SES
+`SendRawEmail`) : noms d'affichage encodés à part, corps encodés pour le
+transfert, en-têtes de fil, priorité, `List-*`, images `cid:` en ligne et corps
+watch arrivent comme en SMTP, et les destinataires en copie cachée sont servis
+sans en-tête `Bcc`.
+
+Resend, SendGrid et Brevo prennent du JSON. Rover leur transmet `Message-ID`,
+`In-Reply-To`, `References`, les en-têtes de priorité et `List-*` en en-têtes
+personnalisés, et les adresses en `{ email, name }`. Une image `embed()` part en
+ligne (`content_id`) chez Resend et SendGrid ; Brevo n'a pas de parties en ligne
+et la reçoit en pièce jointe ordinaire. Ces trois API n'ont pas de corps watch.
+
+L'enveloppe : SES la transmet en `Source` et `Destinations`, SparkPost en
+`return_path` et liste de destinataires, Mailgun accepte les destinataires
+d'enveloppe mais pas l'expéditeur d'enveloppe, et les API JSON la refusent
+(`E_MAIL_FIELD_UNSUPPORTED`).
+
 ### Log (developpement)
 
 Affiche les destinataires et le sujet de chaque message dans la console. Aucune connexion réseau n'est établie. Utile en développement et dans les environnements CI. Le corps n'est pas affiché sauf avec `logBody: true` : un mailer laissé sur `log` par erreur copierait sinon les liens de réinitialisation et les codes à usage unique dans les journaux. Chaque champ est encodé en JSON, si bien qu'un saut de ligne dans un sujet ne peut pas forger une ligne de journal.

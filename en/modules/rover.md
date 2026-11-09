@@ -211,6 +211,24 @@ ends only: a lone CR or LF is turned into CRLF before it reaches the DATA stream
 so user text interpolated into a mail cannot end the message early and smuggle
 SMTP commands after it.
 
+### Provider APIs
+
+Mailgun, SparkPost and SES receive the message as nodemailer composes it for
+SMTP (Mailgun `messages.mime`, SparkPost `email_rfc822`, SES `SendRawEmail`):
+display names encoded on their own, bodies transfer-encoded, threading headers,
+priority, `List-*`, inline `cid:` images and the watch body arrive exactly as
+they would over SMTP, and bcc recipients are delivered without a `Bcc` header.
+
+Resend, SendGrid and Brevo take JSON. Rover hands them `Message-ID`,
+`In-Reply-To`, `References`, the priority headers and `List-*` as custom
+headers, and addresses as `{ email, name }`. An `embed()` image goes inline
+(`content_id`) on Resend and SendGrid; Brevo has no inline parts and receives
+it as a regular attachment. These three APIs have no watch body.
+
+The envelope: SES sends it as `Source` and `Destinations`, SparkPost as
+`return_path` and the recipient list, Mailgun accepts envelope recipients but
+not an envelope sender, and the JSON APIs refuse it (`E_MAIL_FIELD_UNSUPPORTED`).
+
 ### Log (development)
 
 Prints the recipients and the subject of each message to the console. No network connection is made. Useful during development and in CI environments. The body is left out unless `logBody: true` is set, since a mailer left on `log` by mistake would otherwise copy reset links and one-time codes into the logs; every field is JSON-encoded, so a line break in a subject cannot forge a log line.
