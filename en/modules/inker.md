@@ -383,7 +383,6 @@ try {
 | `E_INKER_UNKNOWN_IDENTIFIER`      | An expression navigated into `null`/`undefined`.                                          |
 | `E_INKER_INVALID_EXPRESSION`      | An expression failed to compile or produced a non-interpolable value.                    |
 | `E_INKER_INVALID_ITERABLE`        | `@each` was given a value that is not an array / object / Map / Set.                      |
-| `E_INKER_UNKNOWN_HELPER`          | An unknown helper name was called in an expression.                                      |
 | `E_INKER_UNKNOWN_TAG`             | A `@tag` was parsed as a custom tag but no handler is registered.                         |
 | `E_INKER_DISK_REQUIRED`          | A disk-backed directive (`@layout`/`@include`/`@component`) was used from `renderString`. |
 | `E_INKER_INVALID_PATH`            | Invalid constructor `root`, disk name, or `registerTag` definition.                      |
