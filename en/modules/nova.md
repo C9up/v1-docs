@@ -68,6 +68,41 @@ The provider also respects a pre-existing container binding for `'SubscriptionSt
 
 Only `guard` decides whether `POST /api/nova/subscribe` is authenticated. Dropping it is not the same as leaving it out — omitting the key keeps the `'jwt'` default, `guard: null` removes the check entirely and is for tests.
 
+`DELETE /api/nova/subscribe` with `{ endpoint }` is registered beside it, under the same guard: it removes that endpoint from the signed-in user only — another user's endpoint answers `404`, like one that does not exist. The authenticated user's id may be a string, a number or a bigint (an auto-increment key); it is stored as its decimal text, and `pushToUser(42)` finds it.
+
+### Limits and delivery
+
+The subscription endpoint is a URL the browser hands over, which means every account chooses where the server sends a request on each notification. These keys bound that:
+
+```ts
+import { DEFAULT_PUSH_SERVICES, defineConfig } from '@c9up/nova'
+import { throttle } from '#start/limiter' // limiter.define(...) from @c9up/blackhole/limiter
+
+export default defineConfig({
+  // ...
+  maxSubscriptionsPerUser: 20,   // past it, the user's oldest subscription is dropped
+  middleware: [throttle],        // run on both subscribe routes
+  delivery: {
+    timeout: 10_000,             // ms for one push request, connection to answer
+    concurrency: 10,             // requests pushToUser keeps in flight at once
+    pushServices: [...DEFAULT_PUSH_SERVICES, 'push.example.net'],
+    allowHosts: ['localhost:4399'], // development only
+  },
+})
+```
+
+| Key | Default | What it does |
+|---|---|---|
+| `maxSubscriptionsPerUser` | `20` | Subscriptions one user keeps. A new one past the cap drops that user's oldest. |
+| `middleware` | `[]` | Middleware put on `POST` and `DELETE {routePrefix}/subscribe` — a rate limit, so one account cannot write subscriptions as fast as it can post. |
+| `delivery.timeout` | `10000` | Deadline in ms for one push request. An endpoint that does not answer in time gets `reason: 'server-error'`, `status: 0`. |
+| `delivery.concurrency` | `10` | Requests `pushToUser` keeps in flight at once; every subscription is still pushed to. |
+| `delivery.pushServices` | `DEFAULT_PUSH_SERVICES` | Hosts an endpoint may point at, each with its subdomains: `fcm.googleapis.com`, `push.services.mozilla.com`, `notify.windows.com`, `push.apple.com`. Replaces the list. |
+| `delivery.allowHosts` | `[]` | Exact `host` or `host:port` a push may go to although it is not public — a push service running on the developer's machine. Keep it out of production. |
+| `delivery.http` | the guarded client | The client pushes go through — `fakeHttp()` from `@c9up/ream/http-client` in tests. |
+
+The subscribe route answers `400 E_NOVA_INVALID_SUBSCRIPTION` to an endpoint outside `pushServices`, an IP address, or one carrying credentials. Requests leave through `HttpClient` from `@c9up/ream/http-client`: an address that is not public is refused when the socket connects (so a DNS answer cannot change between the check and the connection), redirects are not followed, and at most 16 KiB of the answer is read.
+
 ## Client subscription
 
 ```ts
@@ -80,16 +115,25 @@ console.log('subscribed:', pushSubscription.endpoint)
 
 `subscribe()` waits for the active Service Worker, calls `pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })`, then POSTs the result to `/api/nova/subscribe` with `credentials: 'include'` so the JWT cookie/header is carried automatically.
 
+On logout, call `unsubscribe()` (it takes the same options) before the session ends. It sends `DELETE /api/nova/subscribe` with the browser's endpoint, then calls `PushSubscription.unsubscribe()` — even when the server refused, since a dead endpoint is answered `410` and its row deleted at the next push. It resolves `false` when the browser held no subscription.
+
+```ts
+import { unsubscribe } from '@c9up/nova/client'
+
+await unsubscribe()
+await logout()
+```
+
 The `@c9up/nova/client` sub-path is browser-only — its source has zero `node:` imports — so it bundles cleanly with Vite/Rollup without polyfills.
 
 ## Service Worker
 
 `ream configure @c9up/nova` writes `public/sw.js` alongside `config/nova.ts` and the migration template. The scaffold is the working push handler the maintainer would otherwise write by hand; `registerServiceWorker('/sw.js')` then resolves against a real file from the very first run.
 
-The shipped template is byte-for-byte equivalent to the inlined `SW_TEMPLATE` constant in `packages/nova/src/configure.ts`:
+It is written from the stub the package ships, `stubs/public/sw.stub`:
 
 ```js
-// Service Worker scaffolded by `ream configure @c9up/nova`.
+// Service Worker scaffolded by `ream configure @c9up/nova` (story 48.4).
 //
 // Lifecycle: `skipWaiting` + `clients.claim` so the first push that arrives
 // after subscription is delivered through this SW (not dropped in the
@@ -104,29 +148,37 @@ The shipped template is byte-for-byte equivalent to the inlined `SW_TEMPLATE` co
 //
 // Notificationclick: close the notification, then focus an existing tab
 // whose URL matches `data.url` (preferring visible/focused tabs), falling
-// back to opening a new window. URL comparison normalises the inbound
-// path against the SW origin.
+// back to opening a new window. Only a URL on this origin is followed: the
+// notification is shown under the app's name, so a click must not lead to
+// another site (phishing, open redirect) or run a `javascript:`/`data:` URL.
+// To link elsewhere on purpose, list the origins in ALLOWED_ORIGINS below.
 //
 // Registered from the app via `registerServiceWorker('/sw.js')` from
 // `@c9up/nova/client`. Edit freely — re-running `ream configure @c9up/nova`
 // will NOT overwrite this file.
 
+// Origins besides this one a notification click may open, e.g. 'https://docs.example.com'.
+const ALLOWED_ORIGINS = []
+
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))
 
 self.addEventListener('push', (event) => {
-  if (!event.data) return
+  // userVisibleOnly: show a notification on EVERY push — a data-less push must
+  // still surface a generic one, or the browser revokes the subscription.
   let payload = {}
-  try {
-    const parsed = event.data.json()
-    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      payload = parsed
-    }
-  } catch {
+  if (event.data) {
     try {
-      payload = { title: event.data.text() }
+      const parsed = event.data.json()
+      if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        payload = parsed
+      }
     } catch {
-      payload = {}
+      try {
+        payload = { title: event.data.text() }
+      } catch {
+        payload = {}
+      }
     }
   }
   const { title = 'Notification', body, icon, url, tag, data } = payload
@@ -143,8 +195,18 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const target = event.notification.data?.url
-  if (!target) return
-  const targetURL = new URL(target, self.location.origin).href
+  if (typeof target !== 'string' || target === '') return
+  let resolved
+  try {
+    resolved = new URL(target, self.location.origin)
+  } catch {
+    return
+  }
+  // An opaque origin (javascript:, data:, blob:) never matches.
+  if (resolved.origin !== self.location.origin && !ALLOWED_ORIGINS.includes(resolved.origin)) {
+    return
+  }
+  const targetURL = resolved.href
   event.waitUntil(
     self.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
@@ -192,7 +254,7 @@ The codemods context has no signal about app scope, so the scaffold writes the d
 
 ### `notificationclick` URL convention
 
-The SW reads `event.notification.data.url`. Whatever `url` field you pass to `nova.push(sub, { url: '/inbox/42' })` is what the SW opens on click — focus an existing tab matching that URL, else open a new window. Apps with a different routing convention (e.g. a `data.deeplink` field, or `actions[0].action`) edit the SW template directly.
+The SW reads `event.notification.data.url`. Whatever `url` field you pass to `nova.push(sub, { url: '/inbox/42' })` is what the SW opens on click — focus an existing tab matching that URL, else open a new window. Only a URL on the application's own origin is followed: the notification is shown under the application's name, and `url` often comes from content (a comment link, a redirect target), so a click must not lead to another site or run a `javascript:` or `data:` URL. Origins a click may open besides the application's go in the SW's `ALLOWED_ORIGINS`. Apps with a different routing convention (e.g. a `data.deeplink` field, or `actions[0].action`) edit the SW directly.
 
 ### Why `'Notification'` as a default title
 
@@ -200,7 +262,7 @@ The SW reads `event.notification.data.url`. Whatever `url` field you pass to `no
 
 ## Service Worker hardening checklist
 
-The default `SW_TEMPLATE` in `packages/nova/src/configure.ts` ships with eight hardening invariants. Plugin authors customising the SW (or shipping their own template) MUST preserve all eight — every one of them maps to a real production-bug class caught during the Epic 48 code review. A thrown error inside a push listener tells the browser to revoke the subscription as a "broken endpoint", so the bar for defensiveness is unusually high.
+The scaffolded SW (`stubs/public/sw.stub`) ships with nine hardening invariants. Plugin authors customising the SW (or shipping their own template) MUST preserve all nine — every one of them maps to a real production-bug class caught during the Epic 48 code review. A thrown error inside a push listener tells the browser to revoke the subscription as a "broken endpoint", so the bar for defensiveness is unusually high.
 
 1. **`event.data.json()` result guarded as `typeof === 'object' && !Array.isArray(...)`.** A `null`/array/scalar payload would crash destructuring; the guard falls back to an empty object.
 2. **`event.data.text()` wrapped in `try/catch` with a default fallback string.** Non-JSON pushes (or malformed buffers) still surface a notification instead of revoking the subscription.
@@ -210,8 +272,9 @@ The default `SW_TEMPLATE` in `packages/nova/src/configure.ts` ships with eight h
 6. **`activate` listener calls `clients.claim()`.** Pairs with `skipWaiting()` to give the SW immediate control of in-flight clients.
 7. **`showNotification`'s title has a fallback (`'Notification'`).** A malformed payload still satisfies `userVisibleOnly: true` instead of triggering revocation.
 8. **`notificationclick` handler wraps `clients.openWindow(url)` and `client.focus()` in `.catch(() => {})`.** Both can reject (popup-blocked, closed window) and you don't want that to bubble out of the listener.
+9. **`notificationclick` follows only a URL on the SW's origin (or one listed in `ALLOWED_ORIGINS`).** The URL comes from the payload; an opaque origin (`javascript:`, `data:`) never matches.
 
-The reference template lives in `packages/nova/src/configure.ts::SW_TEMPLATE`. Byte-for-byte parity tests keep this checklist and the live template in sync.
+The reference is `stubs/public/sw.stub`; the package's tests run it against a stand-in worker scope.
 
 ## Sending a push
 
@@ -268,12 +331,25 @@ type PushResult =
       ok: false
       status: number
       endpoint: string
-      reason: 'gone' | 'rate-limited' | 'too-large' | 'rejected' | 'server-error'
-      cleaned: boolean // true iff the store was called (404/410 only)
+      reason: 'refused' | 'gone' | 'rate-limited' | 'too-large' | 'rejected' | 'server-error'
+      cleaned: boolean // true iff the subscription was deleted from the store
+      retryAfter?: number // seconds, from Retry-After on a 429 or 503 (capped at a day)
     }
 ```
 
-`nova.push()` never throws on a per-push HTTP failure — it returns `ok: false` so callers can handle each subscription independently. It DOES throw `NovaError('E_NOVA_VAPID_NOT_CONFIGURED', ...)` if the VAPID config is missing or malformed on the first call (lazy validation), and re-throws anything outside the Web Push protocol surface — a network failure, an invalid `ttl` or `topic`, a payload that will not serialise.
+| `reason` | `status` | When |
+|---|---|---|
+| `refused` | `0` | Not sent: the endpoint is not one of `delivery.pushServices`, or resolves to an address that is not public. |
+| `gone` | `404` / `410` | The push service dropped the subscription; it is deleted from the store. |
+| `gone` | `0` | Not sent: the stored keys are not a P-256 point and a 16-byte secret, so nothing can ever be encrypted for them; it is deleted from the store. |
+| `too-large` | `413` / `0` | The push service refused the size, or the payload's JSON exceeds 3993 bytes and was not sent. |
+| `rate-limited` | `429` | Wait `retryAfter` seconds, when present, before pushing to this endpoint again. |
+| `rejected` | `400` / `401` / `403` | The push service refused the request (often a VAPID key mismatch). |
+| `server-error` | `5xx`, other, or `0` | The push service failed, or did not answer in time, or answered with more than 16 KiB. |
+
+A payload is encrypted as a single record (RFC 8291 §4), which holds at most 3993 bytes of plaintext: keep its JSON under that, and send an identifier the service worker can fetch the rest with.
+
+`nova.push()` never throws on what the endpoint does — an HTTP status, no answer in time, a connection that fails — it returns `ok: false` so callers can handle each subscription independently. It DOES throw `NovaError('E_NOVA_VAPID_NOT_CONFIGURED', ...)` if the VAPID config is missing or malformed on the first call (lazy validation), and throws on misuse: an invalid `ttl` or `topic`, a payload that will not serialise. `pushToUser()` turns a throw on one subscription into a `server-error` result, so one device cannot stop the others.
 
 ### Auto-cleanup on 404 / 410
 
@@ -283,7 +359,7 @@ RFC 8030 §7.3 mandates that endpoints returning 404 or 410 are gone. Nova remov
 
 `stores.memory()` forgets everything on restart and partitions by node — it is what tests and local work use. The other three are durable and take the same interface, so moving between them is an environment variable.
 
-Whichever one is selected, a subscription is checked against the same rules on the way in and on the way out: an `https` endpoint within the 768-character storage cap, an `expirationTime` that is `null` or a number, and `p256dh` / `auth` that are base64url of the lengths a browser produces. A store never writes a record it would later refuse to read, and never hands the push layer one that would fail at encryption time — where the failure names neither the record nor the endpoint.
+Whichever one is selected, a subscription is checked against the same rules on the way in and on the way out: an `https` endpoint within the 768-character storage cap, an `expirationTime` that is `null` or a number, a `p256dh` that is a point on P-256 (65 bytes) and an `auth` that is a 16-byte secret, both base64url. A store never writes a record it would later refuse to read, and never hands the push layer one that would fail at encryption time — where the failure names neither the record nor the endpoint.
 
 ### `stores.file({ path })`
 
@@ -309,7 +385,7 @@ Durability is the server's, not the store's: a Redis with no persistence loses e
 
 ### Writing your own
 
-`SubscriptionStore` is three methods. Endpoint URLs are globally unique per push service, so `delete(endpoint)` removes the subscription whoever owns it, and `save()` re-owns an endpoint rather than leaving it attached to two accounts — a browser reused across a logout/login pair would otherwise keep delivering the old account's notifications to the new user.
+`SubscriptionStore` is three methods. Endpoint URLs are globally unique per push service, so `delete(endpoint)` removes the subscription whoever owns it, and `save()` re-owns an endpoint rather than leaving it attached to two accounts — a browser reused across a logout/login pair would otherwise keep delivering the old account's notifications to the new user. It re-owns it only when the new owner posts the same `p256dh` and `auth` as the stored ones: the browser holding the subscription does, anyone who merely learned the endpoint does not. Otherwise `save()` throws `NovaError('E_NOVA_SUBSCRIPTION_CONFLICT')`, which the subscribe route answers with `409`. `listByUser()` lists oldest first: the per-user cap drops from the front.
 
 ```ts
 import type { PushSubscription, SubscriptionStore } from '@c9up/nova'

@@ -68,6 +68,41 @@ Le provider respecte aussi une liaison `'SubscriptionStore'` préexistante dans 
 
 Seul `guard` décide si `POST /api/nova/subscribe` est authentifié. L'enlever n'est pas la même chose que ne pas l'écrire : omettre la clé garde le défaut `'jwt'`, `guard: null` retire le contrôle et sert aux tests.
 
+`DELETE /api/nova/subscribe` avec `{ endpoint }` est enregistrée à côté, sous la même garde : elle retire cet endpoint à l'utilisateur connecté seulement — l'endpoint d'un autre utilisateur répond `404`, comme un endpoint qui n'existe pas. L'id de l'utilisateur authentifié peut être une chaîne, un nombre ou un bigint (une clé auto-incrémentée) ; il est stocké sous sa forme décimale, et `pushToUser(42)` le retrouve.
+
+### Limites et envoi
+
+L'endpoint d'abonnement est une URL que le navigateur fournit : chaque compte choisit donc où le serveur envoie une requête à chaque notification. Ces clés bornent cela :
+
+```ts
+import { DEFAULT_PUSH_SERVICES, defineConfig } from '@c9up/nova'
+import { throttle } from '#start/limiter' // limiter.define(...) de @c9up/blackhole/limiter
+
+export default defineConfig({
+  // ...
+  maxSubscriptionsPerUser: 20,   // au-delà, l'abonnement le plus ancien de l'utilisateur part
+  middleware: [throttle],        // posé sur les deux routes d'abonnement
+  delivery: {
+    timeout: 10_000,             // ms pour une requête push, de la connexion à la réponse
+    concurrency: 10,             // requêtes que pushToUser garde en vol à la fois
+    pushServices: [...DEFAULT_PUSH_SERVICES, 'push.example.net'],
+    allowHosts: ['localhost:4399'], // développement uniquement
+  },
+})
+```
+
+| Clé | Défaut | Ce qu'elle fait |
+|---|---|---|
+| `maxSubscriptionsPerUser` | `20` | Abonnements qu'un utilisateur garde. Un nouveau au-delà du plafond retire le plus ancien de cet utilisateur. |
+| `middleware` | `[]` | Middleware posés sur `POST` et `DELETE {routePrefix}/subscribe` — une limite de débit, pour qu'un compte ne puisse pas écrire des abonnements aussi vite qu'il poste. |
+| `delivery.timeout` | `10000` | Délai en ms pour une requête push. Un endpoint qui ne répond pas à temps donne `reason: 'server-error'`, `status: 0`. |
+| `delivery.concurrency` | `10` | Requêtes que `pushToUser` garde en vol à la fois ; chaque abonnement reçoit quand même son push. |
+| `delivery.pushServices` | `DEFAULT_PUSH_SERVICES` | Hôtes vers lesquels un endpoint peut pointer, chacun avec ses sous-domaines : `fcm.googleapis.com`, `push.services.mozilla.com`, `notify.windows.com`, `push.apple.com`. Remplace la liste. |
+| `delivery.allowHosts` | `[]` | `host` ou `host:port` exacts vers lesquels un push peut partir bien qu'ils ne soient pas publics — un service push qui tourne sur la machine de développement. À garder hors de la production. |
+| `delivery.http` | le client gardé | Le client par lequel passent les pushs — `fakeHttp()` de `@c9up/ream/http-client` dans les tests. |
+
+La route d'abonnement répond `400 E_NOVA_INVALID_SUBSCRIPTION` à un endpoint hors de `pushServices`, à une adresse IP, ou à un endpoint qui porte des identifiants. Les requêtes sortent par `HttpClient` de `@c9up/ream/http-client` : une adresse non publique est refusée au moment où la socket se connecte (une réponse DNS ne peut donc pas changer entre la vérification et la connexion), les redirections ne sont pas suivies, et au plus 16 Kio de la réponse sont lus.
+
 ## Abonnement côté client
 
 ```ts
@@ -80,16 +115,25 @@ console.log('abonné :', pushSubscription.endpoint)
 
 `subscribe()` attend le Service Worker actif, appelle `pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })`, puis POST le résultat sur `/api/nova/subscribe` avec `credentials: 'include'` pour transporter automatiquement le cookie/JWT.
 
+À la déconnexion, appelle `unsubscribe()` (mêmes options) avant que la session se termine. Elle envoie `DELETE /api/nova/subscribe` avec l'endpoint du navigateur, puis appelle `PushSubscription.unsubscribe()` — même si le serveur a refusé, car un endpoint mort reçoit `410` et sa ligne est supprimée au push suivant. Elle renvoie `false` quand le navigateur ne détenait aucun abonnement.
+
+```ts
+import { unsubscribe } from '@c9up/nova/client'
+
+await unsubscribe()
+await logout()
+```
+
 Le sous-chemin `@c9up/nova/client` est strictement navigateur — sa source ne contient aucun import `node:` — il s'empaquette donc proprement via Vite/Rollup, sans polyfill.
 
 ## Service Worker
 
 `ream configure @c9up/nova` écrit `public/sw.js` à côté de `config/nova.ts` et du template de migration. Le scaffold est le handler de push opérationnel que la mainteneuse devrait sinon écrire à la main ; `registerServiceWorker('/sw.js')` se résout alors contre un fichier réel dès la première exécution.
 
-Le template livré est byte-for-byte équivalent à la constante `SW_TEMPLATE` inlinée dans `packages/nova/src/configure.ts` :
+Il est écrit depuis le stub que le paquet livre, `stubs/public/sw.stub` :
 
 ```js
-// Service Worker scaffolded by `ream configure @c9up/nova`.
+// Service Worker scaffolded by `ream configure @c9up/nova` (story 48.4).
 //
 // Lifecycle: `skipWaiting` + `clients.claim` so the first push that arrives
 // after subscription is delivered through this SW (not dropped in the
@@ -104,29 +148,37 @@ Le template livré est byte-for-byte équivalent à la constante `SW_TEMPLATE` i
 //
 // Notificationclick: close the notification, then focus an existing tab
 // whose URL matches `data.url` (preferring visible/focused tabs), falling
-// back to opening a new window. URL comparison normalises the inbound
-// path against the SW origin.
+// back to opening a new window. Only a URL on this origin is followed: the
+// notification is shown under the app's name, so a click must not lead to
+// another site (phishing, open redirect) or run a `javascript:`/`data:` URL.
+// To link elsewhere on purpose, list the origins in ALLOWED_ORIGINS below.
 //
 // Registered from the app via `registerServiceWorker('/sw.js')` from
 // `@c9up/nova/client`. Edit freely — re-running `ream configure @c9up/nova`
 // will NOT overwrite this file.
 
+// Origins besides this one a notification click may open, e.g. 'https://docs.example.com'.
+const ALLOWED_ORIGINS = []
+
 self.addEventListener('install', () => self.skipWaiting())
 self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()))
 
 self.addEventListener('push', (event) => {
-  if (!event.data) return
+  // userVisibleOnly: show a notification on EVERY push — a data-less push must
+  // still surface a generic one, or the browser revokes the subscription.
   let payload = {}
-  try {
-    const parsed = event.data.json()
-    if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      payload = parsed
-    }
-  } catch {
+  if (event.data) {
     try {
-      payload = { title: event.data.text() }
+      const parsed = event.data.json()
+      if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        payload = parsed
+      }
     } catch {
-      payload = {}
+      try {
+        payload = { title: event.data.text() }
+      } catch {
+        payload = {}
+      }
     }
   }
   const { title = 'Notification', body, icon, url, tag, data } = payload
@@ -143,8 +195,18 @@ self.addEventListener('push', (event) => {
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
   const target = event.notification.data?.url
-  if (!target) return
-  const targetURL = new URL(target, self.location.origin).href
+  if (typeof target !== 'string' || target === '') return
+  let resolved
+  try {
+    resolved = new URL(target, self.location.origin)
+  } catch {
+    return
+  }
+  // An opaque origin (javascript:, data:, blob:) never matches.
+  if (resolved.origin !== self.location.origin && !ALLOWED_ORIGINS.includes(resolved.origin)) {
+    return
+  }
+  const targetURL = resolved.href
   event.waitUntil(
     self.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
@@ -192,7 +254,7 @@ Le contexte des codemods n'expose aucun signal sur le scope de l'app, donc le sc
 
 ### Convention d'URL au `notificationclick`
 
-Le SW lit `event.notification.data.url`. Le champ `url` que tu passes à `nova.push(sub, { url: '/inbox/42' })` est ce que le SW ouvre au clic — focus sur un onglet existant qui matche cette URL, sinon ouverture d'une nouvelle fenêtre. Les apps avec une autre convention de routing (ex. un champ `data.deeplink` ou `actions[0].action`) éditent directement le template SW.
+Le SW lit `event.notification.data.url`. Le champ `url` que tu passes à `nova.push(sub, { url: '/inbox/42' })` est ce que le SW ouvre au clic — focus sur un onglet existant qui matche cette URL, sinon ouverture d'une nouvelle fenêtre. Seule une URL de l'origine de l'application est suivie : la notification s'affiche au nom de l'application, et `url` vient souvent d'un contenu (un lien de commentaire, une cible de redirection), donc un clic ne doit ni mener vers un autre site ni exécuter une URL `javascript:` ou `data:`. Les origines qu'un clic peut ouvrir en plus de celle de l'application vont dans `ALLOWED_ORIGINS`, dans le SW. Les apps avec une autre convention de routing (ex. un champ `data.deeplink` ou `actions[0].action`) éditent directement le SW.
 
 ### Pourquoi `'Notification'` comme titre par défaut
 
@@ -200,7 +262,7 @@ Le SW lit `event.notification.data.url`. Le champ `url` que tu passes à `nova.p
 
 ## Liste de durcissement Service Worker
 
-Le `SW_TEMPLATE` par défaut dans `packages/nova/src/configure.ts` livre avec huit invariants de durcissement. Les auteurs de plugins qui personnalisent le SW (ou qui livrent leur propre template) DOIVENT préserver les huit — chacun correspond à une vraie classe de bugs en production attrapée lors de la code review de l'Epic 48. Une exception levée à l'intérieur d'un listener push dit au navigateur de révoquer l'abonnement comme « endpoint cassé », donc la barre de défensivité est inhabituellement haute.
+Le SW scaffoldé (`stubs/public/sw.stub`) livre avec neuf invariants de durcissement. Les auteurs de plugins qui personnalisent le SW (ou qui livrent leur propre template) DOIVENT préserver les neuf — chacun correspond à une vraie classe de bugs en production attrapée lors de la code review de l'Epic 48. Une exception levée à l'intérieur d'un listener push dit au navigateur de révoquer l'abonnement comme « endpoint cassé », donc la barre de défensivité est inhabituellement haute.
 
 1. **Le résultat de `event.data.json()` est gardé via `typeof === 'object' && !Array.isArray(...)`.** Un payload `null`/tableau/scalaire ferait crasher la déstructuration ; la garde retombe sur un objet vide.
 2. **`event.data.text()` est enrobé dans `try/catch` avec un fallback de chaîne par défaut.** Les pushs non-JSON (ou les buffers malformés) produisent quand même une notification au lieu de révoquer l'abonnement.
@@ -210,8 +272,9 @@ Le `SW_TEMPLATE` par défaut dans `packages/nova/src/configure.ts` livre avec hu
 6. **Le listener `activate` appelle `clients.claim()`.** Va de pair avec `skipWaiting()` pour donner au SW le contrôle immédiat des clients en cours.
 7. **Le titre de `showNotification` a un fallback (`'Notification'`).** Un payload malformé satisfait quand même `userVisibleOnly: true` au lieu de déclencher la révocation.
 8. **Le handler `notificationclick` enrobe `clients.openWindow(url)` et `client.focus()` dans `.catch(() => {})`.** Les deux peuvent rejeter (popup bloquée, fenêtre fermée) et tu ne veux pas que ça remonte hors du listener.
+9. **`notificationclick` ne suit qu'une URL de l'origine du SW (ou listée dans `ALLOWED_ORIGINS`).** L'URL vient du payload ; une origine opaque (`javascript:`, `data:`) ne correspond jamais.
 
-Le template de référence vit dans `packages/nova/src/configure.ts::SW_TEMPLATE`. Des tests de parité byte-pour-byte gardent cette liste et le template en synchro.
+La référence est `stubs/public/sw.stub` ; les tests du paquet l'exécutent contre une portée de worker simulée.
 
 ## Envoyer un push
 
@@ -268,12 +331,25 @@ type PushResult =
       ok: false
       status: number
       endpoint: string
-      reason: 'gone' | 'rate-limited' | 'too-large' | 'rejected' | 'server-error'
-      cleaned: boolean // true uniquement si le store a été appelé (404/410)
+      reason: 'refused' | 'gone' | 'rate-limited' | 'too-large' | 'rejected' | 'server-error'
+      cleaned: boolean // true si l'abonnement a été supprimé du store
+      retryAfter?: number // secondes, depuis Retry-After sur un 429 ou un 503 (plafonné à un jour)
     }
 ```
 
-`nova.push()` ne lance jamais d'exception sur un échec HTTP par-push — il renvoie `ok: false` pour que les callers traitent chaque abonnement indépendamment. Il LANCE bien `NovaError('E_NOVA_VAPID_NOT_CONFIGURED', ...)` si la config VAPID est absente ou malformée au premier appel (validation paresseuse), et re-lance tout ce qui sort de la surface du protocole Web Push — une panne réseau, un `ttl` ou un `topic` invalide, un payload qui ne se sérialise pas.
+| `reason` | `status` | Quand |
+|---|---|---|
+| `refused` | `0` | Pas envoyé : l'endpoint n'est pas dans `delivery.pushServices`, ou se résout vers une adresse non publique. |
+| `gone` | `404` / `410` | Le service push a abandonné l'abonnement ; il est supprimé du store. |
+| `gone` | `0` | Pas envoyé : les clés stockées ne sont pas un point P-256 et un secret de 16 octets, rien ne pourra jamais être chiffré pour elles ; l'abonnement est supprimé du store. |
+| `too-large` | `413` / `0` | Le service push a refusé la taille, ou le JSON du payload dépasse 3993 octets et n'a pas été envoyé. |
+| `rate-limited` | `429` | Attends `retryAfter` secondes, s'il est présent, avant de repousser vers cet endpoint. |
+| `rejected` | `400` / `401` / `403` | Le service push a refusé la requête (souvent une clé VAPID qui ne correspond pas). |
+| `server-error` | `5xx`, autre, ou `0` | Le service push a échoué, n'a pas répondu à temps, ou a répondu avec plus de 16 Kio. |
+
+Un payload est chiffré en un seul enregistrement (RFC 8291 §4), qui contient au plus 3993 octets en clair : garde son JSON en dessous, et envoie un identifiant avec lequel le service worker récupère le reste.
+
+`nova.push()` ne lance jamais d'exception sur ce que fait l'endpoint — un statut HTTP, pas de réponse à temps, une connexion qui échoue — il renvoie `ok: false` pour que les callers traitent chaque abonnement indépendamment. Il LANCE bien `NovaError('E_NOVA_VAPID_NOT_CONFIGURED', ...)` si la config VAPID est absente ou malformée au premier appel (validation paresseuse), et lance sur un mauvais usage : un `ttl` ou un `topic` invalide, un payload qui ne se sérialise pas. `pushToUser()` transforme une exception sur un abonnement en résultat `server-error`, pour qu'un appareil n'arrête pas les autres.
 
 ### Auto-nettoyage sur 404 / 410
 
@@ -283,7 +359,7 @@ La RFC 8030 §7.3 stipule qu'un endpoint qui renvoie 404 ou 410 est mort. Nova l
 
 `stores.memory()` oublie tout au redémarrage et partitionne par nœud — c'est celui des tests et du travail local. Les trois autres sont durables et prennent la même interface, donc passer de l'un à l'autre est une variable d'environnement.
 
-Quel que soit celui qui est sélectionné, un abonnement est vérifié contre les mêmes règles à l'aller et au retour : un endpoint `https` sous le plafond de stockage de 768 caractères, un `expirationTime` qui vaut `null` ou un nombre, et des `p256dh` / `auth` en base64url aux longueurs qu'un navigateur produit. Un store n'écrit jamais un enregistrement qu'il refuserait de relire, et n'en remet jamais un à la couche push qui échouerait au chiffrement — là où le message ne nomme ni l'enregistrement ni l'endpoint.
+Quel que soit celui qui est sélectionné, un abonnement est vérifié contre les mêmes règles à l'aller et au retour : un endpoint `https` sous le plafond de stockage de 768 caractères, un `expirationTime` qui vaut `null` ou un nombre, un `p256dh` qui est un point de P-256 (65 octets) et un `auth` qui est un secret de 16 octets, tous deux en base64url. Un store n'écrit jamais un enregistrement qu'il refuserait de relire, et n'en remet jamais un à la couche push qui échouerait au chiffrement — là où le message ne nomme ni l'enregistrement ni l'endpoint.
 
 ### `stores.file({ path })`
 
@@ -309,7 +385,7 @@ La durabilité est celle du serveur, pas celle du store : un Redis sans persista
 
 ### Écrire le tien
 
-`SubscriptionStore`, c'est trois méthodes. Les URL d'endpoint sont globalement uniques par service push, donc `delete(endpoint)` retire l'abonnement quel qu'en soit le propriétaire, et `save()` réattribue un endpoint plutôt que de le laisser attaché à deux comptes — un navigateur réutilisé au fil d'une déconnexion/reconnexion continuerait sinon à livrer les notifications de l'ancien compte au nouvel utilisateur.
+`SubscriptionStore`, c'est trois méthodes. Les URL d'endpoint sont globalement uniques par service push, donc `delete(endpoint)` retire l'abonnement quel qu'en soit le propriétaire, et `save()` réattribue un endpoint plutôt que de le laisser attaché à deux comptes — un navigateur réutilisé au fil d'une déconnexion/reconnexion continuerait sinon à livrer les notifications de l'ancien compte au nouvel utilisateur. Il ne le réattribue que si le nouveau propriétaire poste les mêmes `p256dh` et `auth` que ceux stockés : le navigateur qui détient l'abonnement le fait, quelqu'un qui a seulement appris l'endpoint non. Sinon `save()` lance `NovaError('E_NOVA_SUBSCRIPTION_CONFLICT')`, que la route d'abonnement traduit en `409`. `listByUser()` liste du plus ancien au plus récent : le plafond par utilisateur retire par le début.
 
 ```ts
 import type { PushSubscription, SubscriptionStore } from '@c9up/nova'
