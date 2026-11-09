@@ -80,7 +80,7 @@ L'`expr` entre accolades est une **expression JavaScript complète**, évaluée 
 {{ customer?.address?.city ?? 'n/a' }}
 ```
 
-Une valeur qui est une `SafeString` est émise brute (même dans la forme échappée `{{ }}`) ; `null` / `undefined` rendent la chaîne vide ; les scalaires sont convertis (les nombres sans `.0` traînant, `-0` → `0`). Une expression qui référence un identifiant inconnu (ou navigue dans `null`/`undefined`) lève `E_INKER_UNKNOWN_IDENTIFIER` avec la position source.
+Une valeur qui est une `SafeString` est émise brute (même dans la forme échappée `{{ }}`) ; `null` / `undefined` rendent la chaîne vide ; toute autre valeur s'affiche via `String(valeur)` (les nombres sans `.0` traînant, `-0` → `0` ; une `Date`, un tableau ou un objet doté de son propre `toString()` s'affichent comme JavaScript les affiche), et `{{ }}` échappe cette chaîne. Une expression qui référence un identifiant inconnu (ou navigue dans `null`/`undefined`) lève `E_INKER_UNKNOWN_IDENTIFIER` avec la position source.
 
 ### Caractères d'échappement, commentaires, espaces
 

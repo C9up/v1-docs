@@ -80,7 +80,7 @@ The `expr` between braces is a **full JavaScript expression**, evaluated in V8 w
 {{ customer?.address?.city ?? 'n/a' }}
 ```
 
-A value that is a `SafeString` is emitted raw (even in the escaped `{{ }}` form); `null` / `undefined` render as the empty string; scalars stringify (numbers without a trailing `.0`, `-0` → `0`). An expression that references an unknown identifier (or navigates into `null`/`undefined`) throws `E_INKER_UNKNOWN_IDENTIFIER` with the source position.
+A value that is a `SafeString` is emitted raw (even in the escaped `{{ }}` form); `null` / `undefined` render as the empty string; any other value prints through `String(value)` (numbers without a trailing `.0`, `-0` → `0`; a `Date`, an array or an object with its own `toString()` print the way JavaScript prints them), and `{{ }}` escapes that string. An expression that references an unknown identifier (or navigates into `null`/`undefined`) throws `E_INKER_UNKNOWN_IDENTIFIER` with the source position.
 
 ### Escape characters, comments, whitespace
 
