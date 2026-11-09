@@ -50,6 +50,22 @@ await queue.dispatch(SendEmail, { to: '…' }, { queue: 'critical' })  // surcha
 paramètre de la classe — un champ que le handler lit ne peut donc pas être un
 champ que l'appelant n'a jamais envoyé.
 
+Le job est construit par le conteneur : il reçoit ses dépendances dans son
+constructeur, comme un contrôleur :
+
+```ts
+@inject()
+export default class SendInvoice extends Job<{ id: number }> {
+  constructor(private mailer: Mailer, private invoices: InvoiceRepository) {
+    super()
+  }
+}
+```
+
+`jobFactory` dans `config/queue.ts` remplace le conteneur quand un job doit être
+construit autrement. Une fabrique qui lève une erreur compte comme une tentative
+échouée, relancée comme les autres.
+
 L'enregistrement par nom fonctionne toujours, et c'est ce qu'il faut à un job
 dont le nom est calculé à l'exécution :
 
