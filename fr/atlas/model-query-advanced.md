@@ -29,7 +29,9 @@ setAtlasStrictMode(true)
 
 En mode strict, `whereRaw()`, `joinRaw()`, `havingRaw()` **et** le `raw()` du
 repository lèvent une erreur — ils durcissent toutes les surfaces SQL brut de la
-couche typée. Le break-glass reste `db.query()` / `db.execute()` au niveau de la
+couche typée. Un fragment `db.raw()` passé à `select()`, `orderBy()`, `update()`
+ou comme valeur de `where()` est refusé de la même façon ; `db.ref()`, une
+référence de colonne validée et échappée, reste permis. Le break-glass reste `db.query()` / `db.execute()` au niveau de la
 connexion (toujours paramétré) : un chemin explicite et greppable, jamais un
 contournement silencieux du mode strict.
 
