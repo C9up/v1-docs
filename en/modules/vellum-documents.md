@@ -464,12 +464,14 @@ doc.svg(
 )
 ```
 
-`svg(src, x?, y?, options?)` draws an SVG as vectors: its markup, a path, a
-`data:` URL or its bytes, sized with `width`, `height`, or `fit` placed by
-`align` and `valign`. Its
-text is drawn with the fonts the document loaded. An SVG is often someone
-else's file: it reads no file and no network, whatever it names, a nested SVG
-is not followed, and an image inlined in it is bounded as a page image is.
+`svg(src, x?, y?, options?)` draws an SVG as vectors: its markup or a `data:`
+URL as a string, a file as a `URL`, or its bytes, sized with `width`,
+`height`, or `fit` placed by `align` and `valign`. Its text is drawn with the
+fonts the document loaded. An SVG is often someone else's file: it reads no
+file and no network, whatever it names, a nested SVG is not followed, and an
+image inlined in it is bounded as a page image is. A string is never read as a
+path, since markup often comes from a user: pass a file as
+`new URL('file:///…')` or as its bytes.
 
 ## Writing it out
 

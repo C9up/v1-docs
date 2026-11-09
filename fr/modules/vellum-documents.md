@@ -480,12 +480,15 @@ doc.svg(
 )
 ```
 
-`svg(source, x?, y?, options?)` dessine un SVG en vectoriel : son balisage, un
-chemin, une URL `data:` ou ses octets, dimensionné par `width`, `height`, ou
-`fit` placé par `align` et `valign`. Son texte est dessiné avec les polices
-chargées par le document. Un SVG est souvent le fichier de quelqu'un d'autre :
-il ne lit aucun fichier ni le réseau, quoi qu'il nomme, un SVG imbriqué n'est
-pas suivi, et une image incorporée est bornée comme une image de page.
+`svg(source, x?, y?, options?)` dessine un SVG en vectoriel : son balisage ou
+une URL `data:` en chaîne, un fichier en `URL`, ou ses octets, dimensionné par
+`width`, `height`, ou `fit` placé par `align` et `valign`. Son texte est dessiné
+avec les polices chargées par le document. Un SVG est souvent le fichier de
+quelqu'un d'autre : il ne lit aucun fichier ni le réseau, quoi qu'il nomme, un
+SVG imbriqué n'est pas suivi, et une image incorporée est bornée comme une image
+de page. Une chaîne n'est jamais lue comme un chemin, car le balisage vient
+souvent d'un utilisateur : un fichier se passe en `new URL('file:///…')` ou en
+octets.
 
 ## L'écrire
 
