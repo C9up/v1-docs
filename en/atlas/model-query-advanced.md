@@ -28,8 +28,9 @@ setAtlasStrictMode(true)
 
 In strict mode, `whereRaw()`, `joinRaw()`, `havingRaw()` **and** the repository's
 `raw()` throw — hardening every raw-SQL surface of the typed layer. A `db.raw()`
-fragment passed to `select()`, `orderBy()`, `update()` or as a `where()` value is
-refused the same way; `db.ref()`, a validated and quoted column reference, stays
+fragment passed to `select()`, `orderBy()`, `update()`, as a `where()` value or
+as a value a model writes (`create()`, `createMany()`, `save()`) is refused the
+same way; `db.ref()`, a validated and quoted column reference, stays
 allowed. The
 connection-level `db.query()` / `db.execute()` stay available as the explicit,
 always-parameterised break-glass — a greppable escape hatch, never a silent

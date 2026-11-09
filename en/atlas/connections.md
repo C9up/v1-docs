@@ -109,8 +109,14 @@ Every raw entry point (`rawQuery`, `raw`, `whereRaw`, `havingRaw`, `orderByRaw`,
 
 A `raw()` fragment keeps its bindings wherever it is placed: in `select()`, as a
 `where()`/`having()` value (`whereNot('role', db.raw("'admin'"))` compares with
-the expression, it does not bind it as text), in `orderBy()`, `update()` and an
-upsert `merge()`.
+the expression, it does not bind it as text), in `orderBy()`, and as a written
+value: `insert()`, `multiInsert()`, `update()`, an upsert `merge()`, and a model's
+`create()`, `createMany()` and `save()`:
+
+```ts
+await db.table('users').insert({ id: 1, email: db.raw('lower(?)', [input]) })
+await User.create({ id: 2, createdAt: db.raw('CURRENT_TIMESTAMP') })
+```
 
 On PostgreSQL a binding needs no `::type` cast: atlas asks Postgres which type
 it infers for each placeholder and converts the value into it, so

@@ -116,8 +116,14 @@ Tous les points d'entrée bruts (`rawQuery`, `raw`, `whereRaw`, `havingRaw`,
 
 Un fragment `raw()` garde ses liaisons où qu'il soit placé : dans `select()`,
 comme valeur de `where()`/`having()` (`whereNot('role', db.raw("'admin'"))`
-compare à l'expression, il ne la lie pas comme texte), dans `orderBy()`,
-`update()` et le `merge()` d'un upsert.
+compare à l'expression, il ne la lie pas comme texte), dans `orderBy()`, et comme
+valeur écrite : `insert()`, `multiInsert()`, `update()`, le `merge()` d'un upsert,
+et `create()`, `createMany()` et `save()` d'un modèle :
+
+```ts
+await db.table('users').insert({ id: 1, email: db.raw('lower(?)', [input]) })
+await User.create({ id: 2, createdAt: db.raw('CURRENT_TIMESTAMP') })
+```
 
 Sur PostgreSQL, une liaison n'a besoin d'aucun transtypage `::type` : atlas
 demande à Postgres le type qu'il infère pour chaque paramètre et y convertit la
