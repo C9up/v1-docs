@@ -22,14 +22,18 @@ The signature is **message-first**: the message string comes first, the structur
 
 ### Error Serialization
 
-An `Error` placed under `err` (or `error`) in the data object is serialized automatically to `{ name, message, stack }`:
+An `Error` passed as the first argument, or placed under `err` (or `error`) in
+the data object, is serialized automatically: its constructor name as `type`,
+`message`, `stack`, every property it carries (`code`, …), its `cause` and the
+errors of an `AggregateError`. A reference back to an error already being
+written is cut as `"[Circular]"`:
 
 ```typescript
 try {
   await order.save()
 } catch (err) {
-  logger.error('save failed', { err })
-  // data.err → { name: 'Error', message: '...', stack: '...' }
+  logger.error(err, 'save failed')
+  // err → { type: 'Error', message: '...', stack: '...', code: '...', cause: {...} }
 }
 ```
 
@@ -72,10 +76,64 @@ new ConsoleChannel('pretty')
 
 // JSON format — for production log aggregators
 new ConsoleChannel('json')
-// Output: {"timestamp":"...","level":"info","module":"app","message":"Server started","data":{"port":3000}}
+// Output: {"level":30,"time":1731000000000,"pid":4242,"hostname":"web-1","module":"app","port":3000,"msg":"Server started"}
 ```
 
-`error` and `fatal` entries write to `stderr`. All other levels write to `stdout`.
+`error` and `fatal` entries write to `stderr`, all other levels to `stdout` —
+unless the channel is given one stream for every level:
+`new ConsoleChannel('json', { stream: 'stdout' })`.
+
+The pretty format escapes every control character a terminal acts on (CR/LF,
+backspace, ESC, the 8-bit C1 controls, U+2028/U+2029) in the message, the
+module, the correlation id and the data, so a value from a request cannot forge
+a line or drive the terminal.
+
+### JSON lines
+
+A JSON line carries a numeric `level`, `time` in epoch milliseconds, `pid` and
+`hostname`, the bindings and merged fields at the root, and the message under
+`msg`. Each part can be changed on the logger:
+
+```typescript
+new Logger({
+  messageKey: 'message',              // default 'msg'
+  timestamp: 'iso',                   // 'epoch' (default), 'iso', 'unix', false, or a function
+  base: { service: 'api' },           // default { pid, hostname }; null for none
+  formatters: {
+    level: (label) => ({ level: label }),         // {"level":"info"} instead of 30
+    log: (fields) => ({ ...fields, region: 'eu' }),
+  },
+})
+```
+
+A payload JSON cannot write — a circular reference, a BigInt — never costs the
+line: the field is written again with cycles as `"[Circular]"`, BigInts as
+numbers, anything deeper than `depthLimit` (5) as `"[Object]"` and no more than
+`edgeLimit` (100) entries per object or array. A merged field named like the
+level, the time or the message key is left out, so a payload cannot forge them.
+
+### FileChannel
+
+```typescript
+import { FileChannel } from '@c9up/spectrum'
+
+new FileChannel({
+  path: './storage/logs/app.log',
+  maxSizeBytes: 10 * 1024 * 1024, // rotate before the file grows past this
+  maxFiles: 5,                    // files kept, the live one included
+  maxBufferBytes: 16 * 1024 * 1024,
+  append: true,                   // false starts the file over
+})
+```
+
+`write()` never waits on the disk: lines are queued and written in order by one
+asynchronous writer. Lines still queued when the process exits — a `fatal()`
+right before `process.exit()` — are written synchronously on `exit`. If the
+destination stops keeping up, the queue stops at `maxBufferBytes`: further lines
+are dropped and counted, and a `FileChannel dropped N line(s)` line is written
+once it drains. `{ fd }` instead of `path` writes to an open file descriptor,
+never rotated and left open on close. Invalid sizes throw
+`E_SPECTRUM_INVALID_FILE_OPTIONS`.
 
 ### Custom Channels
 
@@ -179,7 +237,7 @@ export default defineConfig({
       enabled: true,
       name: 'app',
       // LOG_LEVEL comes from outside the program, so it is checked rather than
-      // asserted: anything that is not a level reads as 'info'.
+      // asserted: unset reads as 'info', and a value that is no level throws.
       level: logLevel(process.env.LOG_LEVEL),
       modules: {
         db: 'debug',
@@ -198,6 +256,10 @@ export default defineConfig({
 `defineConfig` also accepts a single flat logger (`{ level, channels, modules }`),
 which it wraps under the name `app`.
 
+A level that is not one of the six (or `silent`) — `ERROR`, `warning`,
+`verbose` — throws `E_SPECTRUM_UNKNOWN_LEVEL`, in the config, in a `modules`
+entry and in the `level` setter alike.
+
 Once registered, resolve the logger from the container:
 
 ```typescript
@@ -207,17 +269,16 @@ logger.info('App booted')
 
 ## Rust Log Bridge
 
-The Rust log bridge forwards structured log records emitted by Ream's native crates into the Spectrum pipeline. This means Rust-side events (query compilation, bus operations, security filters) appear in the same log stream as your application code.
+The Rust log bridge forwards log lines emitted by Ream's native crates on
+stderr into the Spectrum pipeline, so Rust-side events appear in the same log
+stream as your application code.
 
 ```typescript
 import { ConsoleChannel, createRustLogBridge, Logger, parseRustLog } from '@c9up/spectrum'
 
-// The bridge writes to CHANNELS, not to a Logger — pass it the same array the
-// logger was built with, since a Logger's config is private.
-const channels = [new ConsoleChannel('pretty')]
-const logger = new Logger({ level: 'info', channels })
+const logger = new Logger({ level: 'info', channels: [new ConsoleChannel('pretty')] })
 
-const bridge = createRustLogBridge(channels)
+const bridge = createRustLogBridge(logger)
 bridge.start()
 // ... the native crates emit to stderr
 bridge.stop()
@@ -227,9 +288,14 @@ const entry = parseRustLog('[INFO ream_query] compiled query in 0.3ms')
 // { level: 'info', module: 'ream-query', message: 'compiled query in 0.3ms' }
 ```
 
-The line has to be in the `[LEVEL module] message` shape; anything else is
-passed through to stderr untouched. The bridge replaces `process.stderr.write`
-for the whole process and only one can be active at a time, so it is started
+A line is claimed only when it has the `[LEVEL module] message` shape AND its
+module (with `_` read as `-`) matches the allow-list — `/^ream-/` by default,
+widened with `createRustLogBridge(logger, { modules: /^(ream|atlas)-/ })`. It
+is then written through the logger, so its level, `enabled` flag and redaction
+apply, and it carries `source: 'rust'`. Anything else — including a
+`[FATAL auth] …` line some other code echoed to stderr — passes through as
+text, in its original order. The bridge replaces `process.stderr.write` for the
+whole process and only one can be active at a time, so it is started
 explicitly — `SpectrumProvider` does not attach it.
 
 ## Types Reference
@@ -256,10 +322,23 @@ interface LogConfig {
   name?: string              // emitted on every entry
   level?: LogLevel | 'silent'
   channels?: LogChannel[]
-  transport?: { targets?: TransportTargetOptions[] }
+  destination?: string | number | { write(line: string): unknown }
+  transport?: { targets?: TransportTargetOptions[] } | TransportTargetOptions
   modules?: Record<string, LogLevel | 'silent'>
-  redact?: string[] | { paths: string[]; censor?: string }
+  redact?: string[] | { paths: string[]; censor?: string | ((value, path) => unknown); remove?: boolean }
   serializers?: Record<string, (value: unknown) => unknown>
+  messageKey?: string        // default 'msg'
+  errorKey?: string          // default 'err'
+  timestamp?: 'epoch' | 'iso' | 'unix' | boolean | (() => string)
+  base?: Record<string, unknown> | null
+  formatters?: { level?: (label, number) => object; log?: (fields) => object }
+  msgPrefix?: string
+  mixin?: (mergeObject, level, logger) => Record<string, unknown>
+  mixinMergeStrategy?: (mergeObject, mixinObject) => Record<string, unknown>
+  hooks?: { logMethod?: (args, method, level) => void }
+  onChild?: (child) => void
+  depthLimit?: number        // default 5
+  edgeLimit?: number         // default 100
 }
 
 interface LoggerManagerConfig {
@@ -291,12 +370,18 @@ const logger = new Logger({
 ```
 
 A path that names nothing leaves the entry exactly as it was, and nothing is
-mutated: the objects along a censored path are copied, the ones the caller
-passed in are not.
+mutated: the objects along a censored path are copied — keeping their
+prototype, so a model's `toJSON` still decides what it shows — and the ones
+the caller passed in are not. A path runs through getters too.
+
+`censor` may be a function, called with the value and the path it was found at
+(`['users', '0', 'card']`); `remove: true` drops matched keys instead. A
+malformed path (`'password,token'`, `''`, `'a..b'`, unbalanced brackets) throws
+`E_SPECTRUM_INVALID_REDACT_PATH` when the logger is built.
 
 ## Transport targets
 
-A migrated `config/logger.ts` declares its output the AdonisJS way:
+A `config/logger.ts` can declare its output as transport targets:
 
 ```ts
 transport: {
@@ -307,12 +392,22 @@ transport: {
 }
 ```
 
-Named deviation: upstream targets name pino transports running in worker
-threads. Spectrum writes through its own `LogChannel`s, so a target is a
-**description** that is realised at construction — `pino-pretty` becomes the
-human console, `pino/file` with a path becomes a file, and with a descriptor
-(`destination: 1`) becomes JSON on the process output, which is what a
-containerised app ships to its collector. An explicit `channels` list still wins.
+A target is a **description** realised as a channel at construction:
+
+- `pino-pretty` is the human console (`destination: 1` or `2` sends every level
+  to that stream);
+- `pino/file` with a path is a `FileChannel` (`append`, `maxSizeBytes`,
+  `maxFiles`, `maxBufferBytes`); with a file descriptor it is JSON to that
+  descriptor at every level — `destination: 1` is stdout, what a containerised
+  app ships to its collector, and no destination means 1;
+- a `LogChannel` as the `target` plugs in any other destination, with the
+  target's own level.
+
+Any other target name throws `E_SPECTRUM_UNSUPPORTED_TARGET` rather than
+silently writing somewhere else. The single `transport: { target, options }`
+form is accepted too, and `destination` on the logger (a path, a descriptor or
+anything with a `write(line)` method) wins over `transport`. An explicit
+`channels` list wins over both.
 
 ## Observing every line
 
@@ -340,6 +435,32 @@ emitter.on('log:line', (entry) => { /* … */ })
 That is what feeds the log panel of the framework's debug toolbar, and it is
 the same arrangement atlas uses for `db:query` — a package that cannot import
 the framework's emitter owns a small registry, and the provider bridges it.
+
+## More options
+
+```ts
+const logger = new Logger({
+  level: 'info',
+  mixin: () => ({ requestId: als.getStore()?.id }),  // fields on every line
+  msgPrefix: '[api] ',
+  errorKey: 'error',
+  serializers: { req: stdSerializers.req, res: stdSerializers.res },
+  hooks: {
+    logMethod(args, method, level) {
+      method(...args)  // inspect or rewrite the call's arguments
+    },
+  },
+})
+
+// A child with its own level, redaction, serializers and prefix
+const audit = logger.child({ module: 'audit' }, { level: 'warn', msgPrefix: '[audit] ' })
+```
+
+`stdSerializers` (`err`, `req`, `res`) and `stdTimeFunctions` (`epochTime`,
+`isoTime`, `unixTime`, `nullTime`, for `timestamp`) are exported. Options that
+cannot be honoured — `customLevels`, `useOnlyCustomLevels`, `levelComparison`,
+`nestedKey`, `crlf`, `hooks.streamWrite`, `transport.pipeline` — throw instead
+of being ignored.
 
 ## Next Steps
 
