@@ -25,6 +25,8 @@ chacun avec sa raison.
 | pdfkit | Pourquoi |
 | --- | --- |
 | `pattern()` | Il prend une chaîne d'opérateurs PDF bruts, qui serait écrite dans la page sans contrôle |
+| `addNamedJavaScript()` | Un script que le document exécute à l'ouverture ; le seul JavaScript que vellum écrit, ce sont les appels de format Acrobat qu'il construit à partir des paramètres vérifiés d'un champ |
+| `ref()` | Un objet brut écrit tel quel, hors de l'échappement et des contrôles PDF/A et PDF/UA |
 | `Symbol` et `ZapfDingbats` | Aucune police libre ne porte leurs glyphes à leurs codes ; une police qui a les caractères les dessine |
 | `pdfVersion: '1.3'`, `'1.7ext3'` | Le moteur écrit de 1.4 à 2.0 ; la version par défaut est 1.7 |
 | Chiffrement RC4 et AES-128 | Seul AES-256 est proposé (PDF 2.0) : RC4 est cassé, et PDF 2.0 déprécie les deux |

@@ -24,6 +24,8 @@ with its reason.
 | pdfkit | Why |
 | --- | --- |
 | `pattern()` | It takes a string of raw PDF operators, which would be written into the page unchecked |
+| `addNamedJavaScript()` | A script the document runs when it opens; the only JavaScript vellum writes is the Acrobat format calls it builds from a field's checked parameters |
+| `ref()` | A raw object written as given, past the escaping and the PDF/A and PDF/UA checks |
 | `Symbol` and `ZapfDingbats` | No free font carries their glyphs at their code points; a font that has the characters draws them |
 | `pdfVersion: '1.3'`, `'1.7ext3'` | The engine writes 1.4 to 2.0; the default is 1.7 |
 | RC4 and AES-128 encryption | Only AES-256 is offered (PDF 2.0): RC4 is broken, and PDF 2.0 deprecates both |
