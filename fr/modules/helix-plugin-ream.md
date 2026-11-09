@@ -52,6 +52,12 @@ le client du serveur que ce hook a démarré, si bien que les deux pointent le
 même, et une suite unitaire qui ne déclare aucun hook ne démarre aucun serveur
 et ne paie rien. Le teardown du hook le ferme.
 
+Chaque test reçoit son propre `ctx.client` sur ce serveur unique : un en-tête
+qu'un test pose avec `withHeader()` — un `authorization` avec lequel il se
+connecte — s'arrête avec le test et n'atteint jamais le suivant. `testClient()`
+renvoie le client du test en cours, et hors d'un test le client du serveur
+lui-même, pour une fixture ou un hook de runner.
+
 ### Laisser le client démarrer l'application
 
 Pour un projet dont les suites ne sont pas encore séparées, `boot` laisse le
@@ -74,8 +80,15 @@ import { runTestsFromRcFile } from '@c9up/helix-plugin-ream/runner'
 C'est ce que `ream test` appelle.
 
 Les options écrasent ce que dit le fichier rc : `suites`, `threads`, `reporters`,
-`bail`, et `coverage` — cette dernière passée telle quelle à Helix, la
-couverture appartenant au runner.
+`bail`, `passWithNoTests`, et `coverage` — cette dernière passée telle quelle à
+Helix, la couverture appartenant au runner.
+
+`NODE_ENV=test` est fixé et les fichiers `.env` chargés (`.env.test` avant
+`.env`) avant l'import du fichier rc. Un run qui ne trouve aucun fichier de test
+sort en 1, tout comme une suite nommée dans `suites` qui ne désigne rien, sauf
+si `passWithNoTests` est posé. Le `tests.timeout` du fichier rc est la valeur
+par défaut qu'un `configure({ timeout })` de plugin peut remplacer ; le
+`timeout` propre d'une suite l'emporte sur les deux.
 
 ```ts
 await runTestsFromRcFile('./reamrc.ts', {
