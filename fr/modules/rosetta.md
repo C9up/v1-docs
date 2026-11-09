@@ -119,6 +119,10 @@ i18n.t('auth.login.success', { name: 'Kaen' })
 // Welcome Kaen
 ```
 
+Les tableaux sont aplatis par index, dans les messages en ligne comme dans les
+catalogues JSON : `{ steps: ['Sign up', 'Confirm'] }` donne `steps.0` et
+`steps.1`.
+
 Rosetta supporte:
 
 - placeholders simples: `{name}`

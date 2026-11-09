@@ -119,6 +119,9 @@ i18n.t('auth.login.success', { name: 'Kaen' })
 // Welcome Kaen
 ```
 
+Arrays flatten by index, in inline messages and in JSON catalogs alike:
+`{ steps: ['Sign up', 'Confirm'] }` gives `steps.0` and `steps.1`.
+
 Rosetta supports:
 
 - simple placeholders: `{name}`
