@@ -1089,25 +1089,51 @@ registry.define('Counter', () => {
 ### Wiring (provider/app)
 
 ```typescript
-import { createLiveRouter, wireLiveEvents } from '@c9up/aurora'
+import { authorizeLiveChannel, createLiveRouter, wireLiveEvents } from '@c9up/aurora'
 // HTTP router + relay resolved from the container (agnostic idiom)
 const live = createLiveRouter(registry, relay)
 
-// POST /__live/event. The guard is required, and it decides per request:
-// return false and the event is rejected with 403. A guard that throws also
-// rejects.
-wireLiveEvents(httpRouter, live, (ctx, body) => ownsSession(ctx, body.id))
+// Who is asking: the same principal the page mounts the session for — the user
+// id, the session id. undefined (or a throw) means nobody, and is a 403.
+const identify = (ctx) => ctx.auth?.user?.id
 
-// rendering a page: const { id, channel, html } = live.mount('Counter', uid)
-// on relay disconnect: live.disconnect(uid)
+// POST /__live/event — only the session's owner reaches it.
+wireLiveEvents(httpRouter, live, identify)
+// Its channel — only the session's owner subscribes.
+relay.authorize('live/:id', authorizeLiveChannel(live, identify))
+
+// rendering a page: const { id, channel, html } = live.mount('Counter', userId)
+// on logout: live.disconnect(userId)
 ```
 
-> **The guard is not optional.** A session id is a `randomUUID`, so a caller
-> needs it to drive anything — but an unguessable identifier is a secret, and a
-> secret is not an authorisation check: it leaks through a referrer, a log line,
-> a shared screenshot. Apply the same auth / CSRF / ownership policy as the page
-> that mounted the session. If the route is already closed by host middleware,
-> return `true` and say so in the code.
+**A session belongs to the principal it was mounted for.** A session id is a
+`randomUUID`, but an unguessable identifier is a secret, not an authorisation
+check: it leaks through a referrer, a log line, a shared screenshot. So the
+event route and the channel compare the caller `identify` returns with the
+session's owner, and answer 403 to anyone else — the app does not write that
+check. The route answers 404 for an unknown session, 400 for an event the
+component has no handler of its own for (`constructor`, `toString` and the rest
+of the prototype are not handlers), and 500 without details when a handler
+throws.
+
+**Sessions are bounded.** `mount` runs while the page renders, before the
+client has opened anything, so a client that never comes back — curl, a crawler,
+a tab closed early — must not keep its session forever:
+
+```typescript
+const registry = createLiveRegistry({
+  claimTimeoutMs: 60_000,   // unclaimed (no subscription, no event) → disposed
+  idleTimeoutMs: undefined, // claimed and silent → kept (default); set it if
+                            // relay's disconnect is not wired to live.disconnect
+  maxPerOwner: 32,          // past it, the owner's oldest session is disposed
+  maxSessions: 10_000,      // past it, mount throws E_AURORA_LIVE_SESSION_LIMIT
+})
+```
+
+The values shown are the defaults. A session is claimed by its owner
+subscribing to its channel or sending it an event. Answer
+`E_AURORA_LIVE_SESSION_LIMIT` with a 503: evicting another visitor's session to
+make room would hand the limit to whoever mounts fastest.
 
 ### Client side
 

@@ -1113,26 +1113,53 @@ registry.define('Counter', () => {
 ### Câblage (provider/app)
 
 ```typescript
-import { createLiveRouter, wireLiveEvents } from '@c9up/aurora'
+import { authorizeLiveChannel, createLiveRouter, wireLiveEvents } from '@c9up/aurora'
 // router HTTP + relay résolus du conteneur (idiome agnostique)
 const live = createLiveRouter(registry, relay)
 
-// POST /__live/event. Le garde-fou est obligatoire et décide par requête :
-// renvoyer false rejette l'événement en 403. Un garde-fou qui lève rejette
-// aussi.
-wireLiveEvents(httpRouter, live, (ctx, body) => ownsSession(ctx, body.id))
+// Qui demande : le même principal que celui pour lequel la page monte la
+// session — l'id utilisateur, l'id de session. undefined (ou une exception)
+// signifie personne, et vaut un 403.
+const identify = (ctx) => ctx.auth?.user?.id
 
-// au rendu d'une page : const { id, channel, html } = live.mount('Counter', uid)
-// à la déconnexion relay : live.disconnect(uid)
+// POST /__live/event — seul le propriétaire de la session l'atteint.
+wireLiveEvents(httpRouter, live, identify)
+// Son canal — seul le propriétaire de la session s'y abonne.
+relay.authorize('live/:id', authorizeLiveChannel(live, identify))
+
+// au rendu d'une page : const { id, channel, html } = live.mount('Counter', userId)
+// à la déconnexion : live.disconnect(userId)
 ```
 
-> **Le garde-fou n'est pas facultatif.** Un id de session est un `randomUUID`,
-> donc il faut le connaître pour piloter quoi que ce soit — mais un identifiant
-> imprévisible est un secret, et un secret n'est pas un contrôle d'autorisation :
-> il fuit par un référent, une ligne de log, une capture d'écran partagée.
-> Appliquez la même politique d'auth / CSRF / propriété que la page qui a monté
-> la session. Si la route est déjà fermée par un middleware hôte, renvoyez `true`
-> et dites-le dans le code.
+**Une session appartient au principal pour lequel elle a été montée.** Un id de
+session est un `randomUUID`, mais un identifiant imprévisible est un secret, pas
+un contrôle d'autorisation : il fuit par un référent, une ligne de log, une
+capture d'écran partagée. La route d'événements et le canal comparent donc
+l'appelant que renvoie `identify` au propriétaire de la session, et répondent
+403 à tout autre — l'application n'écrit pas ce contrôle. La route répond 404
+pour une session inconnue, 400 pour un événement dont le composant n'a pas de
+gestionnaire propre (`constructor`, `toString` et le reste du prototype n'en
+sont pas), et 500 sans détail quand un gestionnaire lève.
+
+**Les sessions sont bornées.** `mount` s'exécute pendant le rendu de la page,
+avant que le client ait ouvert quoi que ce soit ; un client qui ne revient
+jamais — curl, un robot, un onglet fermé trop tôt — ne doit pas garder sa
+session indéfiniment :
+
+```typescript
+const registry = createLiveRegistry({
+  claimTimeoutMs: 60_000,   // non réclamée (ni abonnement ni événement) → libérée
+  idleTimeoutMs: undefined, // réclamée et silencieuse → gardée (défaut) ; à régler
+                            // si la déconnexion relay n'appelle pas live.disconnect
+  maxPerOwner: 32,          // au-delà, la plus ancienne session du propriétaire part
+  maxSessions: 10_000,      // au-delà, mount lève E_AURORA_LIVE_SESSION_LIMIT
+})
+```
+
+Les valeurs montrées sont les valeurs par défaut. Une session est réclamée quand
+son propriétaire s'abonne à son canal ou lui envoie un événement. Répondez à
+`E_AURORA_LIVE_SESSION_LIMIT` par un 503 : évincer la session d'un autre
+visiteur pour faire de la place donnerait la limite à qui monte le plus vite.
 
 ### Côté client
 
