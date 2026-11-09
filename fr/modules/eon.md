@@ -303,6 +303,8 @@ const rows = await repo
 
 Le builder est **thenable** (`await query` ≡ `await query.exec()`, parité Lucid/atlas), avec aussi `.exec()` / `.all()` / `.first()` (row-ou-null, `LIMIT 1` implicite) et `.toSQL()` (`{ sql, params }` pour le debug). `.exec()` est mémoïsé : plusieurs `await` partagent un seul aller-retour.
 
+Un callback regroupe des prédicats entre parenthèses, si bien qu'un `orWhere` ne peut pas s'échapper des filtres qui l'entourent : `.where('tenant_id', 42).where((q) => q.where('level', 'alarm').orWhere('sensor', 7))` compile en `` `tenant_id` = 42 AND (`level` = 'alarm' OR `sensor` = 7) ``. `andWhere` / `orWhere` acceptent aussi un callback, les groupes s'imbriquent, et un groupe vide est refusé (`E_EON_EMPTY_WHERE_GROUP`).
+
 ### La lecture est littérale — jamais paramétrée (le nœud sécurité)
 
 `EonConnection.query(sql)` ne prend que du **SQL littéral** : le transport ws ne bind les `?` que via le chemin STMT (écritures / ingestion). Le builder compile donc chaque SELECT en mode **littéral** — les valeurs de `WHERE`, les listes `IN (…)` et les constantes `FILL(VALUE, …)` sont rendues en littéraux SQL **côté Rust**, par l'unique seam d'échappement `render_literal` (guillemets/backslash échappés, octet NUL rejeté). eon n'interpole **jamais** une valeur en chaîne côté TypeScript. `params` revient donc vide ; un `params` non vide est traité comme une régression du mode littéral et rejeté avant que le SQL n'atteigne la connexion. C'est la déviation nommée vis-à-vis d'Atlas (`db.query(sql, params)`), imposée par la contrainte lecture-littérale du transport ws.

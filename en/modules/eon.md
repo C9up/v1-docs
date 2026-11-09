@@ -301,7 +301,7 @@ const rows = await repo.query()
   .limit(100)
 ```
 
-- **Filters** — `where(col, value)` / `where(col, op, value)`, `andWhere` / `orWhere`, `whereNull` / `whereNotNull`, `whereBetween(col, [lo, hi])` (the idiomatic time-range helper). `where(col, null)` folds to `IS NULL` (Knex/Lucid parity).
+- **Filters** — `where(col, value)` / `where(col, op, value)`, `andWhere` / `orWhere`, `whereNull` / `whereNotNull`, `whereBetween(col, [lo, hi])` (the idiomatic time-range helper). `where(col, null)` folds to `IS NULL` (Knex/Lucid parity). A callback groups predicates in parentheses, so an `orWhere` cannot escape the filters around it: `.where('tenant_id', 42).where((q) => q.where('level', 'alarm').orWhere('sensor', 7))` compiles to `` `tenant_id` = 42 AND (`level` = 'alarm' OR `sensor` = 7) ``. `andWhere` / `orWhere` take a callback too, groups nest, and an empty group is refused (`E_EON_EMPTY_WHERE_GROUP`).
 - **Projection** — bare columns (`'ts'`), aggregate/selector functions (`{ function, column, alias? }` — `avg` / `last` / `last_row` / `first` / `count` / `min` / `max` / `sum` / `spread` / `twa`), and window pseudo-columns (`{ pseudo: '_wstart' }`). Every name is allowlisted and quoted in Rust — no raw passthrough.
 - **Window** — `interval(val, offset?)`, `sliding(val)`, `fill(mode, ...values)`, `partitionBy(...cols)`. TDengine's canonical clause order (`WHERE` → `PARTITION BY` → `INTERVAL(SLIDING)(FILL)` → `ORDER BY` → `LIMIT/OFFSET`) is emitted verbatim; `sliding` / `fill` without `interval`, or `offset` without `limit`, are typed errors.
 - **Terminals** — `exec()` / `all()` (all rows, memoised), `first()` (row-or-null), `toSQL()` (`{ sql, params }`); the builder is **thenable**, so `await query` runs `exec()`.
