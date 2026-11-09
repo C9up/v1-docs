@@ -511,6 +511,25 @@ Une réponse n'est lue que si l'émetteur, ou quelqu'un qu'il a habilité, l'a
 signée. Et un certificat retiré **après** la signature du document ne l'entache
 pas — c'est à cela que sert un instant de signature, et mieux, un horodatage.
 
+L'adresse du répondeur sort du certificat, c'est-à-dire de qui a envoyé le
+document. Seules les adresses publiques sont interrogées, jugées sur l'adresse à
+laquelle la connexion aboutit plutôt que sur l'écriture de l'URL : un nom qui se
+résout vers votre propre réseau est refusé lui aussi. Une redirection n'est pas
+suivie, et une réponse est lue jusqu'à 64 Kio. La requête passe par
+`HttpClient` de `@c9up/ream/http-client` ; passez `httpClient` pour en utiliser
+un autre, ou son faux de test.
+
+Une autorité sur votre propre réseau se nomme dans `allowedResponders`, par un
+hôte (`ocsp.internal`, sur les ports par défaut) ou une origine
+(`https://ocsp.internal:8443`) :
+
+```ts
+// config/vellum.ts
+export default defineConfig({
+  allowedResponders: ['https://ocsp.internal:8443'],
+})
+```
+
 ## Pas encore
 
 Un adapter pour un **prestataire certifié** — une courte fonction qui retourne

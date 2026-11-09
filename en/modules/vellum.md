@@ -493,6 +493,25 @@ An answer is read only if the issuer, or somebody the issuer authorised, signed
 it. And a certificate withdrawn **after** the document was signed does not
 taint it — that is what a signing time, and better a timestamp, is for.
 
+The responder's address comes out of the certificate, which is to say from
+whoever sent the document. Only public addresses are asked, judged on the
+address the connection goes to rather than on how the URL is spelled, so a
+name that resolves to your own network is refused as well. A redirect is not
+followed, and an answer is read up to 64 KiB. The request goes through
+`HttpClient` from `@c9up/ream/http-client`; pass `httpClient` to use another,
+or its test fake.
+
+An authority on your own network is named in `allowedResponders`, as a host
+(`ocsp.internal`, on the default ports) or an origin
+(`https://ocsp.internal:8443`):
+
+```ts
+// config/vellum.ts
+export default defineConfig({
+  allowedResponders: ['https://ocsp.internal:8443'],
+})
+```
+
 ## Not yet
 
 An adapter for a **certified provider** — a short function returning a
