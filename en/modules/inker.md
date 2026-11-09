@@ -177,6 +177,8 @@ In a layout a `@section('name')…@endsection` is a **yield** with default conte
 @includeIf(user.isAdmin, 'partials/admin-bar')
 ```
 
+A partial or component that does not exist is only an error (`E_INKER_TEMPLATE_NOT_FOUND`) when it actually renders, so one behind a false condition costs nothing. A partial or component may include itself — a tree or a comment thread renders one level per child — and the recursion ends on the data; nesting more than 100 partials/components deep throws `E_INKER_RENDER_DEPTH`.
+
 ## Components
 
 `@component('name', { props })` renders a component template with its **own** scope built from the passed props (it does not inherit the caller's data). Engine globals (`engine.global(…)`) and the values a renderer `share()`s — the request, `app`, `qs` — are visible in every component, under its props. Block body content and `@slot('name')…@endslot` blocks render in the **caller's** scope and are injected at the component's slot outlets:
@@ -385,6 +387,7 @@ try {
 | `E_INKER_UNKNOWN_IDENTIFIER`      | An expression navigated into `null`/`undefined`.                                          |
 | `E_INKER_INVALID_EXPRESSION`      | An expression failed to compile or produced a non-interpolable value.                    |
 | `E_INKER_INVALID_ITERABLE`        | `@each` was given a value that is not an array / object / Map / Set.                      |
+| `E_INKER_RENDER_DEPTH`            | Partials/components nested more than 100 deep, or a helper overflowed the stack.          |
 | `E_INKER_UNKNOWN_TAG`             | A `@tag` was parsed as a custom tag but no handler is registered.                         |
 | `E_INKER_DISK_REQUIRED`          | A disk-backed directive (`@layout`/`@include`/`@component`) was used from `renderString`. |
 | `E_INKER_INVALID_PATH`            | Invalid constructor `root`, disk name, or `registerTag` definition.                      |

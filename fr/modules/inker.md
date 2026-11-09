@@ -177,6 +177,8 @@ Dans un layout, un `@section('name')…@endsection` est un **yield** avec un con
 @includeIf(user.isAdmin, 'partials/admin-bar')
 ```
 
+Un partial ou un composant inexistant n'est une erreur (`E_INKER_TEMPLATE_NOT_FOUND`) que lorsqu'il est réellement rendu : derrière une condition fausse, il ne coûte rien. Un partial ou un composant peut s'inclure lui-même — un arbre ou un fil de commentaires rend un niveau par enfant — et la récursion s'arrête sur les données ; plus de 100 niveaux de partials/composants imbriqués lèvent `E_INKER_RENDER_DEPTH`.
+
 ## Composants
 
 `@component('name', { props })` rend un template de composant avec son **propre** scope construit à partir des props passées (il n'hérite pas des données de l'appelant). Les globales du moteur (`engine.global(…)`) et les valeurs qu'un renderer `share()` — la requête, `app`, `qs` — sont visibles dans chaque composant, sous ses props. Le contenu du corps de bloc et les blocs `@slot('name')…@endslot` rendent dans le scope de **l'appelant** et sont injectés aux sorties de slot du composant :
@@ -385,6 +387,7 @@ try {
 | `E_INKER_UNKNOWN_IDENTIFIER`      | Une expression a navigué dans `null`/`undefined`.                                         |
 | `E_INKER_INVALID_EXPRESSION`      | Une expression n'a pas compilé ou a produit une valeur non interpolable.                 |
 | `E_INKER_INVALID_ITERABLE`        | `@each` a reçu une valeur qui n'est pas un tableau / objet / Map / Set.                   |
+| `E_INKER_RENDER_DEPTH`            | Plus de 100 niveaux de partials/composants imbriqués, ou un helper a débordé la pile.     |
 | `E_INKER_UNKNOWN_TAG`             | Un `@tag` a été parsé comme tag personnalisé mais aucun handler n'est enregistré.        |
 | `E_INKER_DISK_REQUIRED`          | Une directive disque (`@layout`/`@include`/`@component`) a été utilisée depuis `renderString`. |
 | `E_INKER_INVALID_PATH`            | `root`, nom de disque, ou définition `registerTag` invalide.                             |
