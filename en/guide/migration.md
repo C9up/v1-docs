@@ -137,7 +137,7 @@ Modifiers apply to the column defined by the most recent column call.
 
 ### Column defaults
 
-`defaultTo()` follows Lucid/Knex semantics: a JavaScript **literal** is quoted/escaped for you, and a SQL **expression** comes from `this.now()` (timestamps) or `db.raw(...)` — the same raw builder AdonisJS uses (`Database.raw` / `db.raw`).
+`defaultTo()` distinguishes literals from expressions: a JavaScript **literal** is quoted/escaped for you, and a SQL **expression** comes from `this.now()` (timestamps) or `db.raw(...)` (`Database.raw` / `db.raw`).
 
 ```typescript
 import db from '@c9up/atlas/services/db'
