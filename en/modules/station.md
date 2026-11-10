@@ -13,8 +13,7 @@ peer degrades gracefully rather than failing to load.
 
 ## Config
 
-Author the admin config with the `defineConfig` helper in `config/station.ts`
-(AdonisJS config-helper parity):
+Author the admin config with the `defineConfig` helper in `config/station.ts`:
 
 ```ts
 import { defineConfig } from "@c9up/station";
@@ -47,8 +46,7 @@ shell, and per-page templates such as `templates/errors/404.inker`), resolved
 from the module URL so the same path holds whether Station runs from source or
 from its published build.
 
-This follows the **AdonisJS package-views pattern** (Edge `edge.mount(name, dir)`
-+ `namespace::template`). Station does not construct its own view engine: it
+Package views use a named disk and `namespace::template`. Station does not construct its own view engine: it
 resolves the host's **shared** inker renderer from the container under the
 `"inker"` alias (the one `InkerProvider` binds), mounts its package `templates/`
 directory as a named **disk** (`renderer.mount("station", …)`), and renders
@@ -341,11 +339,11 @@ this way: a boolean that is not on the form keeps its value. Other columns valid
 A column is required when the model declares neither nullability nor a default.
 
 Invalid input **fail-closes before any database write** — no row is created, no
-entity mutated, no audit event emitted. The response follows the AdonisJS
-content-negotiation idiom:
+entity mutated, no audit event emitted. The response depends on content
+negotiation:
 
 - **JSON / XHR** → `422` with `{ errors: [{ field, rule, message }] }` (the
-  AdonisJS shape, matching ream's own `E_VALIDATION_ERROR` handler).
+  shape of ream's own `E_VALIDATION_ERROR` handler).
 - **Browser (with a session)** → the PRG pattern: the submitted input and
   per-field errors are flashed to `ctx.session`, then `redirect().back()` to the
   form, which re-reads the flash and re-renders with the values + errors. No body

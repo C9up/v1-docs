@@ -16,7 +16,7 @@ chargement.
 ## Config
 
 Déclarez la config d'admin avec le helper `defineConfig` dans
-`config/station.ts` (parité avec le config-helper AdonisJS) :
+`config/station.ts` :
 
 ```ts
 import { defineConfig } from "@c9up/station";
@@ -50,8 +50,8 @@ Les templates vivent dans la racine `templates/` du package
 chemin soit valide que Station tourne depuis les sources ou depuis son build
 publié.
 
-Cela suit le **pattern des vues de package AdonisJS** (Edge `edge.mount(name,
-dir)` + `namespace::template`). Station ne construit pas son propre moteur de
+Les vues de package passent par un disque nommé et `namespace::template`.
+Station ne construit pas son propre moteur de
 vues : il résout le renderer inker **partagé** de l'hôte depuis le conteneur
 sous l'alias `"inker"` (celui que `InkerProvider` enregistre), monte son
 dossier `templates/` comme un **disque** nommé (`renderer.mount("station", …)`),
@@ -367,10 +367,10 @@ défaut.
 
 Une entrée invalide **échoue en fermeture stricte avant toute écriture en base**
 — aucune ligne créée, aucune entité mutée, aucun événement d'audit émis. La
-réponse suit l'idiome de négociation de contenu d'AdonisJS :
+réponse dépend de la négociation de contenu :
 
 - **JSON / XHR** → `422` avec `{ errors: [{ field, rule, message }] }` (la forme
-  AdonisJS, identique à celle du handler `E_VALIDATION_ERROR` de ream).
+  du handler `E_VALIDATION_ERROR` de ream).
 - **Navigateur (avec session)** → le pattern PRG : l'entrée soumise et les
   erreurs par champ sont flashées dans `ctx.session`, puis `redirect().back()`
   vers le formulaire, qui relit le flash et re-rend avec les valeurs + erreurs.
