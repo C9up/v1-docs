@@ -15,7 +15,7 @@ This section documents `@c9up/ream` as a practical reference.
 
 - Ream orchestrates agnostic modules.
 - The core defines framework conventions (providers, lifecycle, middleware).
-- Surface is still evolving toward an Adonis/Laravel-like DX.
+- Surface is still evolving toward a batteries-included, convention-first DX.
 
 ## HTTP Context
 
@@ -36,7 +36,7 @@ router.get('/orders/:id', async (ctx) => {
 
 `HttpContext` exposes the current request context through `AsyncLocalStorage`, so
 any code anywhere in the call stack can reach it without threading `ctx` through
-every function (AdonisJS parity).
+every function.
 
 ```ts
 import { HttpContext } from '@c9up/ream'
@@ -45,9 +45,8 @@ const ctx = HttpContext.get()        // current context, or null outside a reque
 const ctx2 = HttpContext.getOrFail() // throws if called outside a request
 ```
 
-`get()` returns `null` outside a request — upstream's contract is
-`HttpContext | null`, so a migrated `=== null` check keeps working. `getOrFail()`
-throws instead; use it when a request context is required.
+`get()` returns `null` outside a request, so test it with `=== null`.
+`getOrFail()` throws instead; use it when a request context is required.
 
 `runOutsideContext()` runs a callback with the ambient context cleared, so
 background work does not inherit and pin the request's context.
@@ -62,18 +61,17 @@ HttpContext.usingAsyncLocalStorage      // true
 HttpContext.useAsyncLocalStorage(false) // get() now always answers null
 ```
 
-::: tip Named deviation
-Tracking is **on by default**, where AdonisJS makes it opt-in through
-`useAsyncLocalStorage` in `config/app.ts`. Ream's own middleware and service
-accessors read the ambient context, so defaulting it off would break the
-framework's own wiring rather than just an app's. The switch is there for a
+::: tip On by default
+Tracking is **on by default**. Ream's own middleware and service accessors read
+the ambient context, so defaulting it off would break the framework's own wiring
+rather than just an app's. The switch is there for a
 benchmark or a worker process that wants the cost back.
 :::
 
 ### Request session — `ctx.session`
 
 When `SessionMiddleware` is registered, the request session is exposed as a
-top-level `ctx.session` (AdonisJS parity) — `ctx.session.get()` / `.put()` /
+top-level `ctx.session` — `ctx.session.get()` / `.put()` /
 `.forget()` / `.regenerate()`. It's top-level so consumers and Warden's session
 guard read `ctx.session` directly rather than fishing it out of `ctx.store`. It's
 `undefined` when no session middleware ran.
@@ -81,7 +79,7 @@ guard read `ctx.session` directly rather than fishing it out of `ctx.store`. It'
 ### Cleaning up expired sessions
 
 The **database** store sweeps expired rows on a fraction of its writes
-(`gcProbability`, a percentage, default `2` — the AdonisJS default). Nothing
+(`gcProbability`, a percentage, default `2`). Nothing
 else collects them: a `read()` drops only the row it happens to look at, so a
 session whose owner never returns would sit in the table forever.
 
@@ -96,7 +94,7 @@ prefer to control when the delete runs.
 
 ### Session lifecycle
 
-`SessionMiddleware` drives it, and the two methods are the AdonisJS ones:
+`SessionMiddleware` drives it through two methods:
 `session.initiate()` loads the session from its store (idempotent — calling it
 twice is a no-op), and `session.commit()` persists it. `commit()` writes a
 modified session, touches an untouched pre-existing one to slide its expiry,
@@ -138,8 +136,7 @@ an application on the cookie store sign in again once, after the upgrade.
 ### Writing a session store
 
 A store implements `read` / `write` / `update` / `destroy` / `touch`. `read()` answers
-`null` when it holds nothing for that id, and the record when it does —
-AdonisJS's `SessionStoreContract`:
+`null` when it holds nothing for that id, and the record when it does:
 
 ```typescript
 class MyStore implements SessionDriver {
@@ -199,8 +196,8 @@ does; calling `tag()` on a store that cannot throws rather than doing nothing,
 because a login that believes it tagged the session would leave the feature
 silently logging nobody out.
 
-The database store uses a nullable `user_id` column on the sessions table, as
-AdonisJS does. The redis store keeps a set per user and prunes members whose
+The database store uses a nullable `user_id` column on the sessions table.
+The redis store keeps a set per user and prunes members whose
 session key has expired, since Redis cannot expire set members individually.
 
 ### Session state
@@ -208,7 +205,7 @@ session key has expired, since Redis cannot expire set members individually.
 ```ts
 ctx.session.fresh                  // no stored row when it was read
 ctx.session.isEmpty                // nothing stored, flash data included
-ctx.session.hasBeenModified        // the AdonisJS spelling of isDirty()
+ctx.session.hasBeenModified        // same as isDirty()
 ctx.session.hasRegeneratedSession  // regenerate() ran this request
 ctx.session.readonly               // always false — ream has no read-only mode
 ctx.session.flashKey               // where the flash bag lives inside the payload
@@ -253,13 +250,13 @@ The `database` table is `id` (varchar, primary key), `data` (text) and
 
 ### Session config
 
-Both spellings are accepted, so an AdonisJS `config/session.ts` runs unchanged:
+Both spellings are accepted:
 
 ```ts
 export default defineConfig({
-  store: 'redis',                          // AdonisJS; `driver` also works
+  store: 'redis',                          // `driver` also works
   stores: { redis: { driver: 'redis' } },  // the named store supplies the driver
-  age: '2h',                               // AdonisJS; `maxAge: 7200` also works
+  age: '2h',                               // `maxAge: 7200` also works
 })
 ```
 
@@ -340,7 +337,7 @@ Nothing is dialled while the config is read: the connection resolves on the firs
 
 ## The request
 
-Beyond `input()` / `all()` / `qs()`, the request carries what AdonisJS's does:
+Beyond `input()` / `all()` / `qs()`, the request carries:
 
 ```ts
 ctx.request.id()            // the x-request-id the proxy set, or undefined
@@ -356,7 +353,7 @@ ctx.request.serialize()     // a JSON-safe view, for logs
 ```
 
 `body()` returns the request body; `all()` returns the body **merged with the
-query string** — two different things, as upstream.
+query string** — two different things.
 
 `id()` does not invent a UUID when the header is absent: a correlation id nobody
 else knows correlates nothing.
@@ -400,8 +397,8 @@ ctx.response.cookie('prefs', { theme: 'dark' }, { maxAge: '2h' })
 
 `stream()` pushes chunks to the socket as they are read — see
 [file uploads](/en/guide/file-uploads#sending-files) for the whole story,
-including when a body is buffered instead and what bounds it. One named
-deviation remains: the response crosses a NAPI boundary, so no Node
+including when a body is buffered instead and what bounds it. The response
+crosses a NAPI boundary, so no Node
 `ServerResponse` reaches an `onFinish` callback.
 
 ### Asking the response what state it is in
@@ -421,11 +418,10 @@ await ctx.response.finish()  // the terminal step — seal the response
 headers and body cross the NAPI boundary together in one step, so they leave
 together.
 
-`finish()` is the terminal step, the same role it has in AdonisJS: it is
+`finish()` is the terminal step: it is
 idempotent, it stamps the request id, and after it nothing more goes into the
 response. **The kernel calls it on every response**, error responses included,
-so a handler almost never needs to. One named deviation: it returns a promise
-where upstream returns void, and it writes nothing. Ream never owns the socket
+so a handler almost never needs to. It returns a promise, and it writes nothing. Ream never owns the socket
 — the whole response crosses the NAPI boundary and Rust writes it — so *finish*
 here means sealed and ready to hand over rather than flushed. The await is for
 a body still being produced by `download()` or a buffered `stream()`; a
@@ -481,13 +477,9 @@ previous.unsign(cookieStillInTheWild)
 `child()` is what key rotation is built on: keep the old secret's signer to read
 what is already in users' browsers while the new one writes.
 
-> **Named deviation.** Ream encrypts with **aes-256-gcm**, where authentication
-> is part of the cipher. AdonisJS uses `aes-256-cbc` plus a hand-assembled HMAC —
-> encrypt-then-MAC done by hand is a known source of subtle breaks, and there is
-> no reason to reproduce it. The consequence, plainly: a cookie encrypted by an
-> AdonisJS app **cannot be decrypted here**. Migrating invalidates the encrypted
-> cookies already in users' browsers — they are signed out once, at deploy.
-> Everything the app *calls* behaves the same.
+> **Cipher.** Ream encrypts with **aes-256-gcm**, where authentication is part
+> of the cipher, rather than a CBC cipher plus a hand-assembled HMAC —
+> encrypt-then-MAC done by hand is a known source of subtle breaks.
 
 ## Application mode
 
@@ -549,11 +541,8 @@ class DatabaseCheck extends BaseCheck {
 every second. Each run is published on the `ream.health.check` diagnostics
 channel, so an APM can time checks without the app wiring anything.
 
-Two named deviations from AdonisJS. `DiskSpaceCheck` reads Node's `fs.statfs`
-where upstream depends on `check-disk-space`, which shells out to `df` — no
-dependency, no subprocess, the same two numbers. And the diagnostics channel is
-`ream.health.check`: a channel name is product identity, and a subscriber
-watching a process that runs both frameworks has to tell them apart.
+`DiskSpaceCheck` reads Node's `fs.statfs` directly — no dependency, no
+subprocess.
 
 ::: warning `HealthCheck` (singular) is the older, separate API
 `HealthCheck` on the root export predates this module and covers the same

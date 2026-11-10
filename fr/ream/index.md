@@ -15,7 +15,7 @@ Cette section documente le noyau `@c9up/ream` en mode reference pratique.
 
 - Ream orchestre les modules agnostiques.
 - Le core fixe les conventions framework (providers, lifecycle, middleware).
-- La surface reste en evolution, avec convergence vers une DX type Adonis/Laravel.
+- La surface reste en évolution, vers une DX « batteries incluses », guidée par les conventions.
 
 ## Contexte HTTP
 
@@ -37,7 +37,7 @@ router.get('/orders/:id', async (ctx) => {
 
 `HttpContext` expose le contexte de requête courant via `AsyncLocalStorage`, si bien
 que n'importe quel code, n'importe où dans la pile d'appels, peut l'atteindre sans
-faire transiter `ctx` à travers chaque fonction (parité AdonisJS).
+faire transiter `ctx` à travers chaque fonction.
 
 ```ts
 import { HttpContext } from '@c9up/ream'
@@ -46,8 +46,7 @@ const ctx = HttpContext.get()        // contexte courant, ou null hors requête
 const ctx2 = HttpContext.getOrFail() // lève si appelé hors d'une requête
 ```
 
-`get()` retourne `null` hors d'une requête — le contrat amont est
-`HttpContext | null`, donc un `=== null` migré continue de marcher.
+`get()` retourne `null` hors d'une requête : testez-le avec `=== null`.
 `getOrFail()` lève à la place ; à utiliser quand un contexte de requête est
 requis.
 
@@ -65,10 +64,8 @@ HttpContext.usingAsyncLocalStorage      // true
 HttpContext.useAsyncLocalStorage(false) // get() répond désormais toujours null
 ```
 
-::: tip Écart nommé
-Le suivi est **actif par défaut**, là où AdonisJS le rend opt-in via
-`useAsyncLocalStorage` dans `config/app.ts`. Nos propres middlewares et
-accesseurs de services lisent le contexte ambiant : le couper par défaut
+::: tip Actif par défaut
+Le suivi est **actif par défaut**. Nos propres middlewares et accesseurs de services lisent le contexte ambiant : le couper par défaut
 casserait le câblage du framework lui-même, pas seulement celui d'une app.
 L'interrupteur existe pour un benchmark ou un process worker qui veut récupérer
 le coût.
@@ -77,7 +74,7 @@ le coût.
 ### Session de requête — `ctx.session`
 
 Quand `SessionMiddleware` est enregistré, la session de requête est exposée en
-propriété top-level `ctx.session` (parité AdonisJS) — `ctx.session.get()` /
+propriété top-level `ctx.session` — `ctx.session.get()` /
 `.put()` / `.forget()` / `.regenerate()`. Elle est top-level pour que les
 consommateurs et la session guard de Warden lisent `ctx.session` directement
 plutôt que de la pêcher dans `ctx.store`. Vaut `undefined` si aucun middleware de
@@ -86,7 +83,7 @@ session n'a tourné.
 ### Nettoyage des sessions expirées
 
 Le store **database** balaie les lignes expirées sur une fraction de ses
-écritures (`gcProbability`, un pourcentage, défaut `2` — celui d'AdonisJS).
+écritures (`gcProbability`, un pourcentage, défaut `2`).
 Rien d'autre ne les ramasse : un `read()` ne supprime que la ligne qu'il
 regarde, donc une session dont le propriétaire ne revient jamais resterait
 indéfiniment en table.
@@ -102,7 +99,7 @@ depuis une tâche planifiée si tu préfères contrôler le moment du DELETE.
 
 ### Cycle de vie de la session
 
-`SessionMiddleware` le pilote, et les deux méthodes sont celles d'AdonisJS :
+`SessionMiddleware` le pilote par deux méthodes :
 `session.initiate()` charge la session depuis son store (idempotent — un second
 appel ne fait rien), `session.commit()` la persiste. `commit()` écrit une
 session modifiée, touche une session existante non modifiée pour faire glisser
@@ -148,7 +145,7 @@ fois, après la mise à jour.
 
 Un stockage implémente `read` / `write` / `update` / `destroy` / `touch`. `read()` répond
 `null` quand il ne détient rien pour cet identifiant, et l'enregistrement quand
-il détient quelque chose — c'est le `SessionStoreContract` d'AdonisJS :
+il détient quelque chose :
 
 ```typescript
 class MyStore implements SessionDriver {
@@ -214,7 +211,7 @@ lève une erreur au lieu de ne rien faire — une connexion qui croit avoir asso
 la session laisserait la fonctionnalité ne déconnecter personne, en silence.
 
 Le store database utilise une colonne `user_id` nullable sur la table des
-sessions, comme AdonisJS. Le store redis tient un set par utilisateur et élague
+sessions. Le store redis tient un set par utilisateur et élague
 les membres dont la clé de session a expiré, Redis ne sachant pas faire expirer
 les membres d'un set individuellement.
 
@@ -223,7 +220,7 @@ les membres d'un set individuellement.
 ```ts
 ctx.session.fresh                  // aucune ligne stockée à la lecture
 ctx.session.isEmpty                // rien de stocké, données flash comprises
-ctx.session.hasBeenModified        // l'écriture AdonisJS de isDirty()
+ctx.session.hasBeenModified        // équivaut à isDirty()
 ctx.session.hasRegeneratedSession  // regenerate() a tourné sur cette requête
 ctx.session.readonly               // toujours false — pas de mode lecture seule
 ctx.session.flashKey               // où vit le sac flash dans la charge utile
@@ -269,14 +266,13 @@ La table `database` est `id` (varchar, clé primaire), `data` (text) et
 
 ### Configuration de session
 
-Les deux orthographes sont acceptées, donc un `config/session.ts` AdonisJS tourne
-sans modification :
+Les deux orthographes sont acceptées :
 
 ```ts
 export default defineConfig({
-  store: 'redis',                          // AdonisJS ; `driver` marche aussi
+  store: 'redis',                          // `driver` marche aussi
   stores: { redis: { driver: 'redis' } },  // le magasin nommé fournit le driver
-  age: '2h',                               // AdonisJS ; `maxAge: 7200` marche aussi
+  age: '2h',                               // `maxAge: 7200` marche aussi
 })
 ```
 
@@ -358,8 +354,7 @@ Rien n'est ouvert pendant la lecture de la config : la connexion est résolue à
 
 ## La requête
 
-Au-delà de `input()` / `all()` / `qs()`, la requête porte ce que porte celle
-d'AdonisJS :
+Au-delà de `input()` / `all()` / `qs()`, la requête porte :
 
 ```ts
 ctx.request.id()            // le x-request-id posé par le proxy, ou undefined
@@ -375,7 +370,7 @@ ctx.request.serialize()     // une vue JSON, pour les logs
 ```
 
 `body()` renvoie le corps de la requête ; `all()` renvoie le corps **fusionné
-avec la query string** — deux choses distinctes, comme en amont.
+avec la query string** — deux choses distinctes.
 
 `id()` ne fabrique pas d'UUID quand l'en-tête est absent : un identifiant de
 corrélation que personne d'autre ne connaît ne corrèle rien.
@@ -420,8 +415,8 @@ ctx.response.cookie('prefs', { theme: 'dark' }, { maxAge: '2h' })
 
 `stream()` pousse les morceaux sur la socket à mesure qu'ils sont lus — voir
 [l'envoi de fichiers](/fr/guide/file-uploads#servir-des-fichiers) pour le
-détail, y compris les cas où un corps est bufferisé et ce qui le borne. Une
-déviation nommée subsiste : la réponse traverse une frontière NAPI, donc aucun
+détail, y compris les cas où un corps est bufferisé et ce qui le borne. La réponse
+traverse une frontière NAPI, donc aucun
 `ServerResponse` Node n'atteint un rappel `onFinish`.
 
 ### Demander à la réponse dans quel état elle est
@@ -441,12 +436,11 @@ await ctx.response.finish()  // l'étape terminale — scelle la réponse
 drapeau séparé : en-têtes et corps traversent la frontière NAPI ensemble, en une
 étape, donc ils partent ensemble.
 
-`finish()` est l'étape terminale, avec le même rôle que chez AdonisJS :
+`finish()` est l'étape terminale :
 idempotente, elle pose l'identifiant de requête, et après elle plus rien n'entre
 dans la réponse. **Le noyau l'appelle sur chaque réponse**, y compris les
-réponses d'erreur, donc un handler n'a presque jamais à le faire. Une déviation,
-nommée : elle renvoie une promesse là où l'amont renvoie void, et elle n'écrit
-rien. Ream ne possède jamais la socket — la réponse entière traverse la
+réponses d'erreur, donc un handler n'a presque jamais à le faire. Elle renvoie une
+promesse, et elle n'écrit rien. Ream ne possède jamais la socket — la réponse entière traverse la
 frontière NAPI et c'est Rust qui l'écrit — donc *finish* signifie ici scellée et
 prête à être transmise, pas vidée sur le fil. L'attente concerne un corps encore
 en cours de production par `download()` ou un `stream()` bufferisé ; un corps
@@ -505,14 +499,9 @@ previous.unsign(cookieEncoreEnCirculation)
 l'ancien secret pour lire ce qui est déjà dans les navigateurs pendant que le
 nouveau écrit.
 
-> **Déviation nommée.** Ream chiffre en **aes-256-gcm**, où l'authentification
-> fait partie du chiffre. AdonisJS utilise `aes-256-cbc` plus un HMAC assemblé à
-> la main — un encrypt-then-MAC monté à la main est une source connue de failles
-> subtiles, et rien ne justifie de le reproduire. La conséquence, dite
-> franchement : un cookie chiffré par une app AdonisJS **ne peut pas être
-> déchiffré ici**. Migrer invalide les cookies chiffrés déjà présents dans les
-> navigateurs — les utilisateurs sont déconnectés une fois, au déploiement. Tout
-> ce que l'app *appelle* se comporte pareil.
+> **Chiffre.** Ream chiffre en **aes-256-gcm**, où l'authentification fait
+> partie du chiffre, plutôt qu'en CBC plus un HMAC assemblé à la main — un
+> encrypt-then-MAC monté à la main est une source connue de failles subtiles.
 
 ## Mode de l'application
 
@@ -577,12 +566,8 @@ doit pas ouvrir une connexion à la base toutes les secondes. Chaque exécution
 est publiée sur le canal de diagnostic `ream.health.check`, de sorte qu'un APM
 peut chronométrer les sondes sans que l'application ne câble quoi que ce soit.
 
-Deux déviations nommées par rapport à AdonisJS. `DiskSpaceCheck` lit le
-`fs.statfs` de Node là où l'amont dépend de `check-disk-space`, qui appelle
-`df` en sous-processus — pas de dépendance, pas de sous-processus, les deux
-mêmes nombres. Et le canal de diagnostic s'appelle `ream.health.check` : un nom
-de canal est une identité produit, et un abonné qui observe un processus faisant
-tourner les deux frameworks doit pouvoir les distinguer.
+`DiskSpaceCheck` lit directement le `fs.statfs` de Node — pas de dépendance,
+pas de sous-processus.
 
 ::: warning `HealthCheck` (au singulier) est l'ancienne API, distincte
 `HealthCheck`, exporté à la racine, précède ce module et couvre le même terrain
