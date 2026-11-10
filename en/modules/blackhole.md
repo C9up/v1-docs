@@ -189,7 +189,7 @@ middleware. The standalone adapters have no session; there, the token is signed
 but bound to nothing, and the Origin check below is what stops a replayed one.
 
 ::: warning Requires a secret (breaking)
-When CSRF is enabled, a `secret` is **required**. `createBlackhole({ csrf: true })` without a secret **throws** — there is no silent fallback to an unsigned token. Pass `secret: env.get('APP_KEY').release()` in `config/blackhole.ts` (the provider also falls back to `process.env.APP_KEY`). The secret must be a stable, high-entropy value (use your `APP_KEY`) and **shared across instances** — tokens signed by one instance must verify on another.
+When CSRF is enabled, a `secret` is **required**. `createBlackhole({ csrf: true })` without a secret **throws** — there is no silent fallback to an unsigned token. Pass `secret: env.get('APP_KEY')` in `config/blackhole.ts` (the provider also falls back to `process.env.APP_KEY`). `secret` takes a string or a `Secret`, such as the one `Env.schema.secret()` returns: it is released once, when the filter is built, so the config keeps it wrapped. The secret must be a stable, high-entropy value (use your `APP_KEY`) and **shared across instances** — tokens signed by one instance must verify on another.
 :::
 
 ### How it works
@@ -235,7 +235,7 @@ import env from '#start/env'
 import { defineConfig } from '@c9up/blackhole'
 
 export default defineConfig({
-  secret: env.get('APP_KEY').release(),         // HMAC key — REQUIRED when csrf is on
+  secret: env.get('APP_KEY'),                   // HMAC key (string or Secret) — REQUIRED when csrf is on
   csrf: {
     exceptRoutes: ['/webhooks/:provider', '/api/hooks/*'], // route patterns, or paths
     methods: ['POST', 'PUT', 'PATCH', 'DELETE'], // guarded verbs (default shown)
