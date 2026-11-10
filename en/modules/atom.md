@@ -110,8 +110,10 @@ units, CLDR gives it none. `format()` passes the scale to `Intl` explicitly, so
 the value keeps the fils ISO says it has.
 
 `times` and `div` round the result back to the currency's scale on their own —
-a multiplied amount of money is still money. They take one option, the rounding
-mode:
+a multiplied amount of money is still money. `div` rounds once, from the exact
+quotient, so the cents never depend on the context's precision. They take one
+option, the rounding mode (the context's `quantizeMode`, `half-up`, by
+default):
 
 ```ts
 money('10.00', 'USD').times('1.075').toString()                    // "10.75 USD"
@@ -124,16 +126,46 @@ type any more — `MoneyRoundingOptions` is what these two take.
 
 ## Context Defaults
 
-Atom has process-local defaults for precision and rounding. Explicit per-call
-options always win.
+Atom has process-local defaults for precision, rounding and size. Explicit
+per-call options always win.
 
 ```ts
 configureAtomContext({ precision: 8, roundMode: 'trunc', quantizeMode: 'half-up' })
 
 decimal('1').div('3').toString() // "0.33333333"
 
-withAtomContext({ precision: 2 }, () => decimal('1').div('8').toString()) // "0.12"
+withAtomContext({ precision: 2 }, () => decimal('1').div('8').toString()) // "0.13"
 ```
+
+| Setting | Default | Used by |
+| --- | --- | --- |
+| `precision` | `18` | `div`, `sqrt`, a negative `pow`, `avg`, `median`, `stddev` |
+| `roundMode` | `'half-up'` | the same, plus `toFixed`, `round` and `toScale` |
+| `quantizeMode` | `'half-up'` | `quantize` and `Money` |
+| `maxDigits` | `20000` | every value read or produced |
+
+A quotient, a root and a negative power are rounded once, from the exact value,
+in `roundMode`; each also takes `{ mode }` per call. `toFixed(2)` rounds the
+same way, so `1.999` prints `2.00`.
+
+```ts
+decimal('2').div('3', { precision: 2 }).toString() // "0.67"
+decimal('2').div('3', { precision: 2, mode: 'trunc' }).toString() // "0.66"
+```
+
+`withAtomContext` follows the call it was opened for. On Node an async callback
+keeps its options across every `await`, and two concurrent scopes — two
+requests — never see each other's. In a browser the scope holds for a
+synchronous callback only. `configureAtomContext` inside a scope changes that
+scope's options, which end with it. An unknown rounding mode is refused when it
+is set.
+
+`maxDigits` bounds the significant digits of any value, as input and as a
+result, and refuses a power whose size is predictably past it before computing
+it. Every operation re-reads its operands, so a megabyte of digits from a
+request would otherwise cost seconds of CPU per call. Lower it where amounts
+come from users; raise it (up to a million) for very long exact computations.
+More than `10000` fractional digits are refused whatever the bound.
 
 ## Locale
 
@@ -154,6 +186,11 @@ Malformed grouping is rejected instead of being stripped silently, against the
 grouping of the locale being read — `1,234,567` is well-formed in `en-US` and
 malformed in `hi-IN`.
 
+Whitespace is held to the same rule. A locale that groups with a space takes any
+of the three a keyboard or `Intl` writes (U+0020, U+00A0, U+202F) and checks the
+group sizes, so `1 23,45` is refused in `fr-FR`; in any other locale a space
+inside the number is refused. Only the ends are trimmed.
+
 Atom never imports `@c9up/rosetta`: the integration is structural, so anything
 exposing `getNumberFormatData()` and `formatNumberString()` works.
 
@@ -172,6 +209,9 @@ class Invoice {
   total!: Decimal
 }
 ```
+
+`decimalColumn` hands `@Column` the `type` (`'decimal'`, or `'numeric'` with
+`{ columnType }`) and the `nullable` it reads, beside `prepare` and `consume`.
 
 For low-level use, `decimalAtlasAdapter` remains available.
 
@@ -294,7 +334,11 @@ enough for everything.
 
 Every step is checked. A value too wide to lay out, or an overflow part way
 through a run, makes the same plan run again on the BigInt executor, which has
-no ceiling — the same graph, evaluated with the same helpers `Decimal` uses. The
+no ceiling — the same graph, evaluated with the same helpers `Decimal` uses.
+
+Precisions, rounding modes and exponents are checked when the plan is written,
+against the same bounds as `Decimal`, and a division or a root rounds in the
+same `mode`. The
 fast path is allowed to be too narrow. It is never allowed to be wrong, and the
 test suite runs every case on both executors and compares.
 

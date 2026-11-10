@@ -111,7 +111,10 @@ l'IQD, CLDR n'en donne aucune. `format()` passe l'échelle à `Intl`
 explicitement, donc la valeur garde les fils qu'ISO lui reconnaît.
 
 `times` et `div` arrondissent d'eux-mêmes à l'échelle de la devise — un montant
-multiplié reste de l'argent. Ils prennent une seule option, le mode d'arrondi :
+multiplié reste de l'argent. `div` arrondit une seule fois, depuis le quotient
+exact, donc les centimes ne dépendent jamais de la précision du contexte. Ils
+prennent une seule option, le mode d'arrondi (le `quantizeMode` du contexte,
+`half-up`, par défaut) :
 
 ```ts
 money('10.00', 'USD').times('1.075').toString()                    // "10.75 USD"
@@ -124,16 +127,47 @@ n'est plus dans le type — ces deux méthodes prennent `MoneyRoundingOptions`.
 
 ## Valeurs par défaut du contexte
 
-Atom expose des valeurs par défaut process-local pour la précision et
-l'arrondi. Les options explicites par appel gagnent toujours.
+Atom expose des valeurs par défaut process-local pour la précision, l'arrondi
+et la taille. Les options explicites par appel gagnent toujours.
 
 ```ts
 configureAtomContext({ precision: 8, roundMode: 'trunc', quantizeMode: 'half-up' })
 
 decimal('1').div('3').toString() // "0.33333333"
 
-withAtomContext({ precision: 2 }, () => decimal('1').div('8').toString()) // "0.12"
+withAtomContext({ precision: 2 }, () => decimal('1').div('8').toString()) // "0.13"
 ```
+
+| Réglage | Défaut | Utilisé par |
+| --- | --- | --- |
+| `precision` | `18` | `div`, `sqrt`, un `pow` négatif, `avg`, `median`, `stddev` |
+| `roundMode` | `'half-up'` | les mêmes, plus `toFixed`, `round` et `toScale` |
+| `quantizeMode` | `'half-up'` | `quantize` et `Money` |
+| `maxDigits` | `20000` | toute valeur lue ou produite |
+
+Un quotient, une racine et une puissance négative sont arrondis une seule fois,
+depuis la valeur exacte, selon `roundMode` ; chacun prend aussi `{ mode }` par
+appel. `toFixed(2)` arrondit de la même façon, donc `1.999` s'affiche `2.00`.
+
+```ts
+decimal('2').div('3', { precision: 2 }).toString() // "0.67"
+decimal('2').div('3', { precision: 2, mode: 'trunc' }).toString() // "0.66"
+```
+
+`withAtomContext` suit l'appel pour lequel il a été ouvert. Sous Node, un
+callback async garde ses options à travers chaque `await`, et deux portées
+concurrentes — deux requêtes — ne voient jamais celles de l'autre. Dans un
+navigateur, la portée ne tient que pour un callback synchrone.
+`configureAtomContext` dans une portée change les options de cette portée, qui
+finissent avec elle. Un mode d'arrondi inconnu est refusé dès qu'on le règle.
+
+`maxDigits` borne les chiffres significatifs de toute valeur, en entrée comme
+en résultat, et refuse avant de la calculer une puissance dont la taille le
+dépasse de façon prévisible. Chaque opération relit ses opérandes : un
+mégaoctet de chiffres venu d'une requête coûterait sinon des secondes de CPU par
+appel. Baisse-le là où les montants viennent des utilisateurs ; monte-le
+(jusqu'à un million) pour de très longs calculs exacts. Plus de `10000`
+décimales sont refusées quelle que soit la borne.
 
 ## Locale
 
@@ -155,6 +189,12 @@ Un groupement invalide est refusé au lieu d'être supprimé en silence, contre 
 groupement de la locale lue — `1,234,567` est bien formé en `en-US` et malformé
 en `hi-IN`.
 
+Les espaces suivent la même règle. Une locale qui groupe par une espace accepte
+les trois qu'un clavier ou `Intl` écrit (U+0020, U+00A0, U+202F) et vérifie la
+taille des groupes, donc `1 23,45` est refusé en `fr-FR` ; dans toute autre
+locale, une espace à l'intérieur du nombre est refusée. Seules les extrémités
+sont rognées.
+
 Atom n'importe jamais `@c9up/rosetta` : l'intégration est structurelle, donc
 tout objet exposant `getNumberFormatData()` et `formatNumberString()` convient.
 
@@ -173,6 +213,9 @@ class Invoice {
   total!: Decimal
 }
 ```
+
+`decimalColumn` passe à `@Column` le `type` (`'decimal'`, ou `'numeric'` avec
+`{ columnType }`) et le `nullable` qu'il lit, à côté de `prepare` et `consume`.
 
 Pour les usages bas niveau, `decimalAtlasAdapter` reste disponible.
 
@@ -298,7 +341,11 @@ n'est pas assez large pour tout.
 Chaque étape est vérifiée. Une valeur trop large pour être disposée, ou un
 débordement en cours d'exécution, fait rejouer le même plan sur l'exécuteur
 BigInt, qui n'a pas de plafond — le même graphe, évalué avec les mêmes fonctions
-que `Decimal` utilise. Le chemin rapide a le droit d'être trop étroit. Il n'a
+que `Decimal` utilise.
+
+Précisions, modes d'arrondi et exposants sont vérifiés à l'écriture du plan,
+contre les mêmes bornes que `Decimal`, et une division ou une racine arrondit
+selon le même `mode`. Le chemin rapide a le droit d'être trop étroit. Il n'a
 jamais le droit d'être faux, et la suite de tests rejoue chaque cas sur les deux
 exécuteurs et compare.
 
