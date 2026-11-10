@@ -344,6 +344,21 @@ projet `api` ou `web` frais les a déjà : une suite `unit`, une suite
 un serveur — c'est ce que fait son hook de suite, donc un fichier unitaire ne le
 paie pas.
 
+### Filtrer une exécution
+
+```bash
+ream test --files=tests/functional/root.test.ts
+ream test --tests="renders the home page" --groups=Users
+ream test --tags=@slow --tags=~@flaky
+ream test --failed                    # seulement ce qui a échoué la dernière fois
+ream test unit --timeout=5000 --retries=2
+ream test --watch                     # relance à chaque changement ; --poll, --no-clear
+```
+
+`--files`, `--tests`, `--groups` et `--tags` se répètent pour plusieurs valeurs ;
+une valeur n'est jamais découpée sur ses virgules, un titre de test peut donc en
+contenir une.
+
 ### Couverture
 
 ```bash

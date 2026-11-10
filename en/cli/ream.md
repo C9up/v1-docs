@@ -336,6 +336,20 @@ the suite names and their globs live in one place rather than in a script. A new
 `tests/bootstrap.ts`, and a first test. Only `functional` starts a server —
 that is what its suite hook does, so a unit file pays nothing for it.
 
+### Filtering a run
+
+```bash
+ream test --files=tests/functional/root.test.ts
+ream test --tests="renders the home page" --groups=Users
+ream test --tags=@slow --tags=~@flaky
+ream test --failed                    # only what failed last time
+ream test unit --timeout=5000 --retries=2
+ream test --watch                     # re-run on change; --poll, --no-clear
+```
+
+`--files`, `--tests`, `--groups` and `--tags` are repeated for several values;
+a value is never split on its commas, so a test title can hold one.
+
 ### Coverage
 
 ```bash
