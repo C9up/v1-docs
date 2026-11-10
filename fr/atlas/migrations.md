@@ -73,6 +73,11 @@ En production, `migration:run` demande confirmation avant d'appliquer quoi que
 ce soit ; `--force` évite la question. Un run qui ne peut pas poser la question
 (pas de terminal) ou dont la réponse est non n'applique rien.
 
+La production se lit dans l'application quand la console la fournit, sinon dans
+`REAM_ENV` et `NODE_ENV` : l'une ou l'autre à `production` (ou `prod`) active
+cette question et la garde des `migration:rollback`, `reset`, `refresh`, `fresh`
+et `db:wipe`.
+
 ### D'où viennent les chemins
 
 De la config de la connexion — la commande lit donc ce
