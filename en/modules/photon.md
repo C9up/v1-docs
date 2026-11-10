@@ -596,7 +596,7 @@ The SSR side currently always emits `<div id="app">`; if you pass a custom `targ
 
 ## SPA Navigation (server-side detection)
 
-The `X-Photon: true` header convention is detected by `PhotonMiddleware` and converts the SSR response into a props-only JSON payload — see the [Client Hydration](#client-hydration) section above for the browser-side router that emits this header.
+The `X-Photon: true` header convention is detected by `PhotonMiddleware`, and `photon.render()` answers such a request with the props-only JSON payload directly — see the [Client Hydration](#client-hydration) section above for the browser-side router that emits this header. The props are resolved once, against the partial reload the client asked for: a prop it did not name never has its resolver called, and neither the SSR bundle nor the HTML document is built for a props request.
 
 No extra configuration is needed. Photon handles the `X-Photon` header detection and response format switching transparently.
 
