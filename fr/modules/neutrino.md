@@ -54,7 +54,7 @@ pnpm buf build -o proto/app.binpb  # le jeu de descripteurs, si vous en chargez 
 
 La génération est une étape côté serveur : les fichiers générés sont des modules ordinaires, et rien de ce qui arrive au navigateur n'a besoin d'une compilation pour fonctionner.
 
-Les messages sont ceux de [`@bufbuild/protobuf`](https://github.com/bufbuild/protobuf-es). Le décodage ne génère aucun code à l'exécution — il fonctionne sous un `script-src` sans `'unsafe-eval'`, celui de Blackhole par défaut —, garde les champs qu'il ne connaît pas et s'arrête à 100 niveaux d'imbrication.
+Les messages sont ceux de [`@bufbuild/protobuf`](https://github.com/bufbuild/protobuf-es). Le décodage ne génère aucun code à l'exécution — il fonctionne sous un `script-src` sans `'unsafe-eval'`, celui de Blackhole par défaut —, garde les champs qu'il ne connaît pas (`decode(schema, bytes, { readUnknownFields: false })` les écarte) et s'arrête à 100 niveaux d'imbrication.
 
 ## Configuration
 
@@ -126,10 +126,35 @@ grpc.service(Echo, {
 - Une méthode absente répond `UNIMPLEMENTED`.
 - Une `GrpcError` est répondue avec son statut et son message. **Toute autre erreur répond `INTERNAL`, sans son message**, et elle est signalée — à `console.error`, sauf si `new GrpcServices(protobuf, { onError })` en décide autrement.
 - L'enregistrement refuse ce qui échouerait plus tard en silence : un nom de méthode mal orthographié, une méthode en streaming, un service enregistré deux fois.
+- Une requête est décodée **sans les champs que son schéma ne connaît pas** : chacun coûterait un objet, si bien qu'une requête de 4 Mio faite de ces champs occuperait quelque 300 Mo. `grpc: { keepUnknownFields: true }` les garde, pour une méthode qui transmet sa requête ailleurs.
 
 **Méthodes unaires seulement** pour l'instant. Les méthodes en streaming sont refusées à l'enregistrement.
 
-Chaque appel traverse une seule fois vers JavaScript, en octets. Le message est limité à 4 Mio (au-delà, la réponse est `OUT_OF_RANGE`) et ne passe ni par la limite de taille du corps HTTP ni par le bodyparser.
+Chaque appel traverse une seule fois vers JavaScript, en octets, et ne passe ni par la limite de taille du corps HTTP ni par le bodyparser.
+
+### Le contexte de l'appel
+
+Une méthode (et un intercepteur) reçoit le `context` de l'appel :
+
+- `context.metadata.get(key)` — toutes les valeurs d'une clé de métadonnées, dans l'ordre ; `[]` si elle est absente. Les clés en `-bin` sont décodées en `Uint8Array` (une valeur qui n'est pas du base64 répond `INTERNAL`). `context.metadata.getMap()` donne la première valeur de chaque clé. Les en-têtes propres au transport — `content-type`, `te`, `grpc-timeout`, `grpc-encoding`, `grpc-accept-encoding`, `accept-encoding` — ne sont pas des métadonnées.
+- `context.ip` — l'IP du client, selon les règles de proxys de confiance de `request.ip()`.
+- `context.deadline` — l'instant où le client cesse d'attendre, tiré de son `grpc-timeout`, en millisecondes epoch ; `Infinity` s'il n'en donne pas. Passé ce délai, l'appel répond `DEADLINE_EXCEEDED` ; un `grpc-timeout` mal formé répond `INTERNAL`.
+- `context.signal` — interrompu quand l'appel reçoit sa réponse sans la méthode : délai dépassé, ou appel annulé par le client. Passez-le à la requête ou à l'appel HTTP que la méthode attend, pour que le travail s'arrête avec l'appel.
+
+### Taille des messages
+
+```ts
+// config/protobuf.ts
+export default defineConfig({
+  descriptorSets: [app.makePath('proto/app.binpb')],
+  grpc: {
+    maxReceiveMessageLength: 1024 * 1024, // 4 Mio par défaut ; -1 : sans limite
+    maxSendMessageLength: 8 * 1024 * 1024, // -1 par défaut : sans limite
+  },
+})
+```
+
+Une requête au-delà de `maxReceiveMessageLength` répond `RESOURCE_EXHAUSTED` avant tout intercepteur ; une réponse au-delà de `maxSendMessageLength` est remplacée par `RESOURCE_EXHAUSTED`. Une valeur qui n'est pas un nombre entier d'octets (ou `-1`) arrête le démarrage. Le port HTTP borne aussi, de lui-même, un message de requête à 4 Mio, avec `OUT_OF_RANGE` : une limite plus basse s'applique telle quelle, une plus haute ne lève pas celle-là.
 
 ## Protéger les appels
 
@@ -165,7 +190,7 @@ grpc.service(
 )
 ```
 
-- **`bearerAuth(verifier, { guard })`** vérifie `authorization: Bearer <jeton>` avec tout objet doté de `verify(token, guard)` — le gestionnaire d'authentification de Warden tel quel. Un jeton absent, mal formé ou refusé répond `UNAUTHENTICATED` ; un vérificateur qui plante répond `INTERNAL`. `signedIn.user(context)` renvoie l'utilisateur, et **échoue fermé** dans une méthode que l'intercepteur ne protège pas.
+- **`bearerAuth(verifier, { guard })`** vérifie `authorization: Bearer <jeton>` avec tout objet doté de `verify(token, guard)` — le gestionnaire d'authentification de Warden tel quel. Un jeton absent, mal formé ou refusé répond `UNAUTHENTICATED`, tout comme un appel qui porte deux valeurs `authorization` ; un vérificateur qui plante répond `INTERNAL`. `signedIn.user(context)` renvoie l'utilisateur, et **échoue fermé** dans une méthode que l'intercepteur ne protège pas.
 - **`rateLimit(limiter, { keyFor })`** compte avec tout objet doté de `checkRateLimit(key)` — Blackhole avec un `rateLimit.store` configuré. Au-delà de la limite, l'appel répond `RESOURCE_EXHAUSTED`. La clé est par défaut l'IP du client, celle sous laquelle Blackhole compte les requêtes HTTP : avec le même store, un client a un seul budget pour les deux. Sans store, Blackhole compte dans son moteur natif, par requête HTTP, et ce compteur n'est pas accessible depuis un appel gRPC.
 
 ## En production

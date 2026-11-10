@@ -54,7 +54,7 @@ pnpm buf build -o proto/app.binpb  # the descriptor set, if you load one
 
 Generation is a server-side step: the generated files are ordinary modules, and nothing that reaches the browser needs a build to run.
 
-Messages are [`@bufbuild/protobuf`](https://github.com/bufbuild/protobuf-es) messages. Decoding generates no code at runtime — it works under a `script-src` without `'unsafe-eval'`, Blackhole's default — keeps the fields it does not know, and stops at a nesting depth of 100.
+Messages are [`@bufbuild/protobuf`](https://github.com/bufbuild/protobuf-es) messages. Decoding generates no code at runtime — it works under a `script-src` without `'unsafe-eval'`, Blackhole's default — keeps the fields it does not know (`decode(schema, bytes, { readUnknownFields: false })` drops them), and stops at a nesting depth of 100.
 
 ## Configure
 
@@ -126,10 +126,35 @@ grpc.service(Echo, {
 - A method left out answers `UNIMPLEMENTED`.
 - A `GrpcError` is answered with its status and message. **Any other error is answered `INTERNAL` without its message**, and reported — to `console.error` unless `new GrpcServices(protobuf, { onError })` says otherwise.
 - Registration refuses what would otherwise fail quietly later: a misspelt method name, a streaming method, a service registered twice.
+- A request is decoded **without the fields its schema does not know**: each would cost an object, so a 4 MiB request made of them would hold some 300 MB. `grpc: { keepUnknownFields: true }` keeps them, for a method that forwards its request elsewhere.
 
 **Unary methods only** for now. Streaming methods are refused at registration.
 
-Each call crosses to JavaScript once, in bytes. The message is bounded at 4 MiB (a larger one is answered `OUT_OF_RANGE`) and never goes through the HTTP body limit or the body parser.
+Each call crosses to JavaScript once, in bytes, and never goes through the HTTP body limit or the body parser.
+
+### The call context
+
+A method (and an interceptor) receives the call's `context`:
+
+- `context.metadata.get(key)` — every value of a metadata key, in order; `[]` when absent. Keys ending in `-bin` are decoded to `Uint8Array` (a value that is not base64 is answered `INTERNAL`). `context.metadata.getMap()` gives the first value of each key. The transport's own headers — `content-type`, `te`, `grpc-timeout`, `grpc-encoding`, `grpc-accept-encoding`, `accept-encoding` — are not metadata.
+- `context.ip` — the client IP, by the trusted-proxy rules of `request.ip()`.
+- `context.deadline` — when the client stops waiting, from its `grpc-timeout`, in epoch milliseconds; `Infinity` without one. Past it the call is answered `DEADLINE_EXCEEDED`; a malformed `grpc-timeout` is answered `INTERNAL`.
+- `context.signal` — aborted when the call is answered without the method: its deadline passed, or the client cancelled it. Hand it to the query or the HTTP call the method waits on, so that the work stops with the call.
+
+### Message size
+
+```ts
+// config/protobuf.ts
+export default defineConfig({
+  descriptorSets: [app.makePath('proto/app.binpb')],
+  grpc: {
+    maxReceiveMessageLength: 1024 * 1024, // default 4 MiB; -1: no limit
+    maxSendMessageLength: 8 * 1024 * 1024, // default -1: no limit
+  },
+})
+```
+
+A request past `maxReceiveMessageLength` is answered `RESOURCE_EXHAUSTED` before any interceptor runs; a reply past `maxSendMessageLength` is answered `RESOURCE_EXHAUSTED` instead of being sent. A value that is not a whole number of bytes (or `-1`) stops the start. The HTTP port also bounds a request message at 4 MiB on its own, answered `OUT_OF_RANGE`: a lower limit applies as configured, a higher one does not lift it.
 
 ## Protecting calls
 
@@ -165,7 +190,7 @@ grpc.service(
 )
 ```
 
-- **`bearerAuth(verifier, { guard })`** checks `authorization: Bearer <token>` with anything that has `verify(token, guard)` — Warden's auth manager as it is. A missing, malformed or refused token is answered `UNAUTHENTICATED`; a verifier that breaks is answered `INTERNAL`. `signedIn.user(context)` returns the user, and **fails closed** in a method the interceptor did not protect.
+- **`bearerAuth(verifier, { guard })`** checks `authorization: Bearer <token>` with anything that has `verify(token, guard)` — Warden's auth manager as it is. A missing, malformed or refused token is answered `UNAUTHENTICATED`, and so is a call carrying two `authorization` values; a verifier that breaks is answered `INTERNAL`. `signedIn.user(context)` returns the user, and **fails closed** in a method the interceptor did not protect.
 - **`rateLimit(limiter, { keyFor })`** counts with anything that has `checkRateLimit(key)` — Blackhole with a `rateLimit.store` configured. Over the limit, the call is answered `RESOURCE_EXHAUSTED`. The key defaults to the client IP, the key Blackhole counts HTTP requests under: with the same store, a client has one budget for both. Without a store, Blackhole counts in its native engine, per HTTP request, and that count cannot be reached from a gRPC call.
 
 ## In production
