@@ -510,6 +510,11 @@ scrollback and CI logs, so `.env` is the only sink. It refuses on a machine that
 says it is production — under `production` or `prod`, because the second is
 ordinary in a Dockerfile and read strictly it would take the guard off.
 
+A project that keeps a `.env.example` gets `APP_KEY=` recorded there with no
+value, so the variable is documented and the key stays in `.env`. `ream new`
+writes that file: every variable of `.env`, with `APP_KEY` and `DB_PASSWORD`
+left empty, and only `.env` in `.gitignore`.
+
 ## Diagnostics
 
 ```bash

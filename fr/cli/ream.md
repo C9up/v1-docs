@@ -524,6 +524,11 @@ puits. Elle refuse sur une machine qui se déclare en production — sous
 `production` comme sous `prod`, parce que le second est ordinaire dans un
 Dockerfile et qu'une lecture stricte lèverait la garde.
 
+Un projet qui tient un `.env.example` y voit `APP_KEY=` inscrite sans valeur :
+la variable est documentée et la clé reste dans `.env`. `ream new` écrit ce
+fichier : toutes les variables de `.env`, avec `APP_KEY` et `DB_PASSWORD` vides,
+et seul `.env` figure dans `.gitignore`.
+
 ## Diagnostics
 
 ```bash
