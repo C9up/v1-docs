@@ -152,8 +152,7 @@ Leave `transport` out and relay is single-instance.
 ## Broadcasting application events
 
 Relay has no event-to-channel mapping of its own: the application listens to
-its events and broadcasts, in a listener it writes and reads like any other —
-the same thing an AdonisJS app does with Transmit.
+its events and broadcasts, in a listener it writes and reads like any other.
 
 ```ts
 // start/services.ts
@@ -334,8 +333,8 @@ refused, and a cancel targets a stream that was never started.
 
 ### The wire
 
-The transport is **Server-Sent Events** — what relay already serves, what
-AdonisJS's own realtime package uses, and a first-class SignalR transport. A
+The transport is **Server-Sent Events**, which relay already serves and which
+is a first-class SignalR transport. A
 stock `@microsoft/signalr` client configured with
 `HttpTransportType.ServerSentEvents` speaks it unchanged:
 

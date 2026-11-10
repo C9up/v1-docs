@@ -159,7 +159,7 @@ Sans `transport`, relay reste mono-instance.
 
 Relay n'a pas de correspondance événement → canal à lui : l'application écoute
 ses événements et diffuse, dans un listener qu'elle écrit et lit comme les
-autres — ce que fait une app AdonisJS avec Transmit.
+autres.
 
 ```ts
 // start/services.ts
@@ -347,9 +347,8 @@ déjà été refusée, et une annulation vise un flux qui n'a jamais démarré.
 
 ### Le fil
 
-Le transport est le **Server-Sent Events** — ce que relay sert déjà, ce
-qu'utilise le paquet temps réel d'AdonisJS, et un transport SignalR de première
-classe. Un client `@microsoft/signalr` standard configuré en
+Le transport est le **Server-Sent Events**, que relay sert déjà et qui est un
+transport SignalR de première classe. Un client `@microsoft/signalr` standard configuré en
 `HttpTransportType.ServerSentEvents` le parle sans modification :
 
 | Route | Rôle |
