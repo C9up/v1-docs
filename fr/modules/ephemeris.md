@@ -219,6 +219,7 @@ le nonce de la requête, échappé :
 | `E_EPHEMERIS_INVALID_VALUE` | une valeur que JSON ne peut pas tenir fidèlement |
 | `E_EPHEMERIS_UNSAFE_KEY` | une clé `__proto__`, `constructor` ou `prototype` |
 | `E_EPHEMERIS_SLOT_TAKEN` | un second nœud, d'un autre `@id`, mis dans un emplacement déjà rempli |
+| `E_EPHEMERIS_ID_TAKEN` | un `options.id` ou un `@id` égal au `#/schema/<type>/<n>` que le graphe a généré pour un autre nœud |
 | `E_EPHEMERIS_CYCLE` | des données qui se contiennent elles-mêmes — dans une fonction d'aide, le graphe ou le sérialiseur |
 | `E_EPHEMERIS_TOO_DEEP` | une imbrication de plus de 64 niveaux |
 | `E_EPHEMERIS_TOO_LONG` | un texte de plus de 10 000 caractères |

@@ -208,6 +208,7 @@ request's nonce, escaped:
 | `E_EPHEMERIS_INVALID_VALUE` | a value JSON cannot hold faithfully |
 | `E_EPHEMERIS_UNSAFE_KEY` | a `__proto__`, `constructor` or `prototype` key |
 | `E_EPHEMERIS_SLOT_TAKEN` | a second node with another `@id` put in a filled graph slot |
+| `E_EPHEMERIS_ID_TAKEN` | an `options.id` or `@id` equal to the `#/schema/<type>/<n>` the graph generated for another node |
 | `E_EPHEMERIS_CYCLE` | data that contains itself — in a helper, the graph or the serializer |
 | `E_EPHEMERIS_TOO_DEEP` | data nested more than 64 levels deep |
 | `E_EPHEMERIS_TOO_LONG` | text over 10,000 characters |
