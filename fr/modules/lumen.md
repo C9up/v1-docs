@@ -35,15 +35,24 @@ Une UI est dans l'un de trois modes, et la décision est prise une fois :
 | `silent` | aucune | le terminal |
 | `raw` | écrites en toutes lettres — `dim(yellow(2 fichiers))` | la mémoire |
 
-`lumen()` choisit entre `normal` et `silent` en interrogeant le flux.
-`NO_COLOR`, `FORCE_COLOR`, `TERM=dumb` et la détection de CI sont résolus là,
-donc plus rien en aval ne relit l'environnement.
+`lumen()` choisit entre `normal` et `silent` en interrogeant le flux, donc plus
+rien en aval ne relit l'environnement. L'ordre :
 
-`FORCE_COLOR` l'emporte sur `NO_COLOR` — l'un est une surcharge délibérée,
-l'autre un défaut — et `FORCE_COLOR=0` veut dire non : une variable posée à une
-valeur fausse ne doit pas signifier « oui » du simple fait d'exister. Une CI que
-la liste ne connaît pas n'a pas de couleur : `[32m` sur chaque ligne d'un
-visualiseur de logs est pire qu'une transcription nue.
+1. `FORCE_COLOR` — vide, `true` ou `1`–`3` veut dire oui, `0` ou `false` veut
+   dire non, toute autre valeur est ignorée — puis les flags `--color` /
+   `--no-color` (avant un éventuel `--`) ;
+2. `NO_COLOR` coupe la couleur — une surcharge délibérée l'emporte sur un
+   défaut, donc il ne cède qu'à l'étape 1 ;
+3. un flux qui n'est pas un terminal reçoit du texte nu, même en CI :
+   `ream cmd > out.txt` dans un job GitHub n'écrit aucun code d'échappement.
+   Pose `FORCE_COLOR=1` dans le workflow pour des logs de CI en couleur (Azure
+   Pipelines est reconnu tout seul) ;
+4. `TERM=dumb`, les services de CI connus et ce que le terminal dit de lui-même
+   (`TERM`, `COLORTERM`, `TERM_PROGRAM`) tranchent le reste. Un terminal qui ne
+   dit rien n'a pas de couleur.
+
+stdout et stderr sont interrogés séparément, puisqu'ils sont redirigés
+séparément.
 
 `raw` est pour les tests :
 
@@ -53,9 +62,14 @@ ui.logger.warning('attention')
 expect(ui.getLogs()).toEqual(['[ yellow(warn) ] attention'])
 ```
 
-`getCapturedLogs()` ajoute le flux visé par chaque ligne ; `switchMode('raw')`
-vide ce qui a été capturé, pour qu'un cas de test ne voie jamais les lignes du
-précédent.
+`getCapturedLogs()` et `ui.logger.getLogs()` ajoutent le flux visé par chaque
+ligne (`{ message, stream }`) ; `switchMode('raw')` vide ce qui a été capturé,
+pour qu'un cas de test ne voie jamais les lignes du précédent.
+
+En mode `raw`, les widgets abandonnent leur mise en page, pour qu'un test
+vérifie le contenu et non les bordures : une table affiche ses cellules jointes
+par `|`, `sticker()` et `instructions()` affichent le titre et les lignes sans
+le cadre, et `steps()` affiche ses lignes sans indentation ni ligne vide.
 
 ## Niveaux
 
@@ -69,8 +83,10 @@ même sens, dans tous les paquets :
 
 `warning`, `error` et `fatal` partent sur **stderr**, pour que la sortie de
 données d'une commande reste pipeable : un avertissement ne doit pas atterrir
-dans `ream list --json | jq`. `debug` n'affiche que si `DEBUG` est posé.
-`fatal` ajoute la stack, indentée et atténuée sous le message.
+dans `ream list --json | jq`. `debug` affiche toujours : vouloir du
+détail est une décision de la commande, derrière son propre flag `--verbose`.
+`fatal` ajoute la stack, indentée et atténuée sous le message. Chaque niveau,
+`fatal` compris, respecte `{ silent: true }`.
 
 Chaque message accepte trois décorations :
 
@@ -135,9 +151,43 @@ compris celle qui a échoué. `task.update()` ne garde que le dernier message pa
 défaut ; `tasks({ verbose: true })` les affiche tous, ce qu'un flag `--verbose`
 active.
 
+Un callback réussit en renvoyant son message de succès (ou la tâche qu'il a
+marquée lui-même) ; une `Error`, `task.error(…)` ou rien du tout le fait
+échouer, pour qu'un `return` oublié ne s'affiche jamais en vert. `run()`
+s'exécute une fois : un deuxième appel, concurrent ou non, reçoit les mêmes
+issues sans rien réexécuter.
+
 `table.fullWidth()` étire à la largeur du terminal, `fluidColumnIndex(n)`
 choisissant la colonne qui absorbe le mou. `sticker().drawBorder((char, colors)
 => colors.red(char))` est ce qui transforme la même boîte en boîte d'erreur.
+
+### Texte non fiable
+
+Chaque widget affiche des données — un nom de fichier, une valeur de base, un
+message d'erreur — donc chaque widget montre les caractères de contrôle qu'elles
+contiennent au lieu de les laisser agir sur le terminal : `\x1b]52;…` plutôt
+qu'une écriture dans le presse-papiers, `\x0d` plutôt qu'un retour chariot qui
+réécrit par-dessus `[ error ]`, `\x0a` plutôt qu'une deuxième ligne de log
+forgée. Cela couvre le message, le préfixe et le suffixe du logger, la stack
+d'une erreur, les titres et raisons des actions, le texte du spinner, les
+cellules et l'en-tête des tables, les lignes des boîtes, les titres et contenus
+des étapes, et les titres et messages des tâches.
+
+La couleur survit : `ui.colors.green(cellule)` reste vert, et un style que le
+texte ouvre sans le fermer est fermé à sa fin, pour qu'il ne déborde pas sur la
+ligne suivante. Les hyperliens et toute autre séquence qui n'est pas de la
+couleur sont montrés, pas exécutés.
+
+`logger.log()`, `logger.logError()`, `logger.logUpdate()` et `ui.write()` sont
+la sortie brute : ils écrivent ce qu'on leur donne, pour une commande qui
+imprime ses propres séquences exprès. Ne leur passe jamais de texte non fiable
+— fais-le d'abord passer par `sanitize()` :
+
+```ts
+import { sanitize } from '@c9up/lumen'
+
+ui.write(`${lien} ${sanitize(nomDeFichier)}`)
+```
 
 ## Piloter la sortie toi-même
 
@@ -207,14 +257,19 @@ construits :
 import { stringWidth, justify, wrap, truncate, terminalWidth } from '@c9up/lumen/helpers'
 ```
 
-`stringWidth` ignore les codes d'échappement, ne donne aucune largeur à un
-accent combinant et compte un idéogramme CJK ou un emoji pour deux colonnes.
+`stringWidth` ignore les codes d'échappement (hyperliens et déplacements de
+curseur compris), ne donne aucune largeur à un accent combinant et compte un
+idéogramme CJK ou un emoji pour deux colonnes.
+Elle mesure par graphème, contre la table Unicode East Asian Width complète :
+`✅`, un 👍🏽 avec teinte de peau ou une famille ZWJ est un seul glyphe large.
 Mesurer avec `String.length`, c'est ainsi qu'une table avec un seul emoji
 devient bancale pour toutes les lignes en dessous.
 
 `justify` complète un ensemble de colonnes à une largeur, `wrap` réenroule un
 texte entre deux colonnes et indente les lignes de continuation, `truncate`
-coupe au début, au milieu ou à la fin sans jamais scinder un glyphe en deux.
+coupe au début, au milieu ou à la fin sans jamais scinder un glyphe en deux,
+et garde la couleur de ce qu'elle coupe : `truncate([red('hello world')],
+{ maxWidth: 6 })` donne un `hello…` rouge.
 
 ## La moitié Rust
 

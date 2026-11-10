@@ -35,15 +35,22 @@ A UI is in one of three modes, and the decision is made once:
 | `silent` | none | the terminal |
 | `raw` | spelled out — `dim(yellow(2 files))` | memory |
 
-`lumen()` picks between `normal` and `silent` by asking the stream. `NO_COLOR`,
-`FORCE_COLOR`, `TERM=dumb` and CI detection are all resolved there, so nothing
-downstream checks the environment again.
+`lumen()` picks between `normal` and `silent` by asking the stream, so nothing
+downstream checks the environment again. The order:
 
-`FORCE_COLOR` wins over `NO_COLOR` — one is a deliberate override, the other a
-default — and `FORCE_COLOR=0` means off, because a variable set to a falsy
-value must not read as "on" merely by existing. A CI the list does not know
-gets no colour: `[32m` on every line of a log viewer is worse than a plain
-transcript.
+1. `FORCE_COLOR` — empty, `true` or `1`–`3` means on, `0` or `false` means off,
+   anything else is ignored — then the `--color` / `--no-color` flags (before
+   any `--`);
+2. `NO_COLOR` turns colour off — a deliberate override beats a default, so it
+   only loses to step 1;
+3. a stream that is not a terminal gets plain text, even inside CI: `ream cmd >
+   out.txt` in a GitHub job writes no escape codes. Set `FORCE_COLOR=1` in the
+   workflow for coloured CI logs (Azure Pipelines is recognised on its own);
+4. `TERM=dumb`, the known CI services and what the terminal says about itself
+   (`TERM`, `COLORTERM`, `TERM_PROGRAM`) decide the rest. A terminal that says
+   nothing gets no colour.
+
+stdout and stderr are asked separately, since they are redirected separately.
 
 `raw` is for tests:
 
@@ -53,8 +60,14 @@ ui.logger.warning('careful')
 expect(ui.getLogs()).toEqual(['[ yellow(warn) ] careful'])
 ```
 
-`getCapturedLogs()` adds the stream each line targeted; `switchMode('raw')`
-clears what was captured, so one test case cannot see the previous one's lines.
+`getCapturedLogs()` and `ui.logger.getLogs()` add the stream each line
+targeted (`{ message, stream }`); `switchMode('raw')` clears what was captured,
+so one test case cannot see the previous one's lines.
+
+Widgets drop their layout in raw mode, so a test asserts content rather than
+borders: a table prints its cells joined by `|`, `sticker()` and
+`instructions()` print the heading and the lines without the frame, and
+`steps()` prints its lines without indent or blank separators.
 
 ## Levels
 
@@ -68,8 +81,9 @@ same meaning, in every package:
 
 `warning`, `error` and `fatal` go to **stderr**, so a command's data output
 stays pipeable: a warning must not end up inside `ream list --json | jq`.
-`debug` only prints when `DEBUG` is set. `fatal` adds the stack, indented and
-dimmed under the message.
+`debug` always prints: whether detail is wanted is the command's decision,
+behind its own `--verbose` flag. `fatal` adds the stack, indented and dimmed
+under the message. Every level, `fatal` included, honours `{ silent: true }`.
 
 Each message takes three decorations:
 
@@ -134,9 +148,39 @@ failed. `task.update()` keeps only the last message by default;
 `tasks({ verbose: true })` prints each one, which is what a `--verbose` flag
 turns on.
 
+A callback succeeds by returning its success message (or the task it marked
+itself); an `Error`, `task.error(…)` or nothing at all fails it, so a
+forgotten `return` never reports green. `run()` runs once: a second or
+concurrent call gets the same outcomes back without executing anything again.
+
 `table.fullWidth()` stretches to the terminal width, `fluidColumnIndex(n)`
 choosing which column absorbs the slack. `sticker().drawBorder((char, colors)
 => colors.red(char))` is how the same box becomes an error box.
+
+### Untrusted text
+
+Every widget prints data — a file name, a database value, an error message —
+so every widget shows the controls in it instead of letting them act on the
+terminal: `\x1b]52;…` rather than a clipboard write, `\x0d` rather than a
+carriage return rewinding over `[ error ]`, `\x0a` rather than a forged second
+log line. That covers the logger's message, prefix and suffix, an error's
+stack, action titles and reasons, spinner text, table cells and head, box
+lines, step titles and content, and task titles and messages.
+
+Colour survives: `ui.colors.green(cell)` stays green, and a style the text opens
+without closing is closed at its end, so it cannot spill onto the next line.
+Hyperlinks and every other non-colour sequence are shown, not run.
+
+`logger.log()`, `logger.logError()`, `logger.logUpdate()` and `ui.write()` are
+the raw escape hatch: they write what they are given, for a command printing
+its own escape sequences on purpose. Never hand them untrusted text — pass it
+through `sanitize()` first:
+
+```ts
+import { sanitize } from '@c9up/lumen'
+
+ui.write(`${link} ${sanitize(fileName)}`)
+```
 
 ## Driving the output yourself
 
@@ -203,13 +247,18 @@ colors.red(`a ${colors.dim('b')} c`)
 import { stringWidth, justify, wrap, truncate, terminalWidth } from '@c9up/lumen/helpers'
 ```
 
-`stringWidth` ignores escape codes, gives a combining accent no width and
-counts a CJK glyph or an emoji as two columns. Measuring with `String.length`
-is how a table with one emoji in it becomes ragged for every row below.
+`stringWidth` ignores escape codes (hyperlinks and cursor moves included),
+gives a combining accent no width and counts a CJK glyph or an emoji as two
+columns. It measures per grapheme against the full Unicode East Asian Width
+table, so `✅`, a skin-toned 👍🏽 or a ZWJ family is one wide glyph. Measuring
+with `String.length` is how a table with one emoji in it becomes ragged for
+every row below.
 
 `justify` pads a set of columns to one width, `wrap` re-flows text between two
 columns and indents the continuation lines, `truncate` cuts at the start, the
-middle or the end without ever splitting a glyph in half.
+middle or the end without ever splitting a glyph in half, and keeps the colour
+of what it cut: `truncate([red('hello world')], { maxWidth: 6 })` is a red
+`hello…`.
 
 ## The Rust half
 
