@@ -191,7 +191,7 @@ const url = router.urlFor('users.show', { id: '42' })
 // → /users/42
 ```
 
-> `router.makeUrl()` est un alias **déprécié** de `urlFor()` (AdonisJS v7 a renommé `makeUrl` → `urlFor`). Préférez `urlFor`.
+> `router.makeUrl()` est un alias **déprécié** de `urlFor()`. Préférez `urlFor`.
 
 Les routes de ressource sont nommées automatiquement : `posts.index`, `posts.store`, `posts.show`, `posts.update`, `posts.destroy`.
 
@@ -293,8 +293,8 @@ async show({ params }: HttpContext) {
 }
 ```
 
-Utilise `request.param()` plutôt que d'écrire ton propre accesseur. C'est le nom
-d'AdonisJS lui-même, il rend `string | undefined`, et joint un attrape-tout
+Utilise `request.param()` plutôt que d'écrire ton propre accesseur. Il rend
+`string | undefined`, et joint un attrape-tout
 avec `/` :
 
 ```typescript
@@ -303,12 +303,12 @@ async show({ request }: HttpContext) {
 }
 ```
 
-> **Déviation nommée.** AdonisJS type `ctx.params` en `Record<string, any>` et
-> `request.param()` en `any`. Le runtime est le même des deux côtés — un
-> attrape-tout est bien un tableau — donc le `any` ne fait que le masquer. Le
+> **Pourquoi pas `any`.** Un attrape-tout est bien un tableau à l'exécution :
+> typer `ctx.params` en `Record<string, any>` ne ferait que le masquer. Le
 > type honnête est conservé : une valeur qui peut être un tableau ne doit pas
 > être typée comme si elle ne pouvait pas l'être, et une erreur de compilation
 > vaut mieux qu'un `.toUpperCase()` sur un tableau en production.
+
 ## Builder de route fluide
 
 Chaque enregistrement de route retourne un `RouteBuilder` qui supporte le chaînage complet :

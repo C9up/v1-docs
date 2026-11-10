@@ -191,7 +191,7 @@ const url = router.urlFor('users.show', { id: '42' })
 // → /users/42
 ```
 
-> `router.makeUrl()` is a **deprecated** alias of `urlFor()` (AdonisJS v7 renamed `makeUrl` → `urlFor`). Prefer `urlFor`.
+> `router.makeUrl()` is a **deprecated** alias of `urlFor()`. Prefer `urlFor`.
 
 Resource routes are named automatically: `posts.index`, `posts.store`, `posts.show`, `posts.update`, `posts.destroy`.
 
@@ -291,8 +291,8 @@ async show({ params }: HttpContext) {
 }
 ```
 
-Reach for `request.param()` rather than writing your own accessor. It is
-AdonisJS's own name, returns `string | undefined`, and joins a catch-all with
+Reach for `request.param()` rather than writing your own accessor. It
+returns `string | undefined`, and joins a catch-all with
 `/`:
 
 ```typescript
@@ -301,9 +301,8 @@ async show({ request }: HttpContext) {
 }
 ```
 
-> **Named deviation.** AdonisJS types `ctx.params` as `Record<string, any>` and
-> `request.param()` as `any`. The runtime is the same on both sides — a
-> catch-all really is an array — so the `any` only hides it. The honest type is
+> **Why not `any`.** A catch-all really is an array at runtime, so typing
+> `ctx.params` as `Record<string, any>` would only hide it. The honest type is
 > kept: a value that can be an array should not be typed as though it cannot,
 > and the compiler catching it beats a `.toUpperCase()` on an array in
 > production.
