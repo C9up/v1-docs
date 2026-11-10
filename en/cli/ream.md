@@ -273,11 +273,18 @@ ream list                                # every command, the binary's and the a
 ream list make --json                    # one namespace, as JSON
 ```
 
-`ream` with no command is `ream list`. A command the app declares under a name
-the binary also uses — `start`, `build`, `test`, `list`, … — wins: the listing
-marks it as overriding the built-in, and dispatch sends the original argv
-straight through. An alias counts as a declaration, and so does an entry in
-`reamrc.commands`.
+`ream` with no command, like `ream --help`, lists the binary's own commands and
+runs nothing from the directory it is typed in: reading the application's
+commands means executing its console entry, which only an explicit `ream list`
+does. Inspecting a repository you just cloned is safe.
+
+A command the app declares under a name the binary also uses — `dev`, `start`,
+`build`, `test`, `repl`, `inspect`, `list` — wins: the listing marks it as
+overriding the built-in, and dispatch sends the original argv straight through.
+Those commands run the project anyway. `doctor`, `info` and `generate:key`
+cannot be redefined: a file in `commands/` must not be able to answer a
+diagnostic or receive the key it was asked to write. An alias counts as a
+declaration, and so does an entry in `reamrc.commands`.
 
 ```bash
 ream make:command app:provision   # commands/app-provision.ts, discovered automatically

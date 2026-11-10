@@ -278,11 +278,19 @@ ream list                                 # toutes les commandes, celles du bina
 ream list make --json                     # un seul espace de noms, en JSON
 ```
 
-`ream` sans commande vaut `ream list`. Une commande que l'application déclare
-sous un nom que le binaire porte aussi — `start`, `build`, `test`, `list`, … —
-l'emporte : le listing la marque comme surchargeant la commande intégrée, et la
-répartition transmet l'argv d'origine tel quel. Un alias compte comme une
-déclaration, et une entrée dans `reamrc.commands` aussi.
+`ream` sans commande, comme `ream --help`, liste les commandes du binaire et
+n'exécute rien du dossier où il est tapé : lire les commandes de l'application
+revient à exécuter son point d'entrée console, ce que seul un `ream list`
+explicite fait. Inspecter un dépôt tout juste cloné est donc sans risque.
+
+Une commande que l'application déclare sous un nom que le binaire porte aussi —
+`dev`, `start`, `build`, `test`, `repl`, `inspect`, `list` — l'emporte : le
+listing la marque comme surchargeant la commande intégrée, et la répartition
+transmet l'argv d'origine tel quel. Ces commandes exécutent le projet de toute
+façon. `doctor`, `info` et `generate:key` ne peuvent pas être redéfinies : un
+fichier de `commands/` ne doit pas pouvoir répondre à un diagnostic, ni recevoir
+la clé qu'on lui a demandé d'écrire. Un alias compte comme une déclaration, et
+une entrée dans `reamrc.commands` aussi.
 
 ```bash
 ream make:command app:provision   # commands/app-provision.ts, découverte automatiquement
