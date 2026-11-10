@@ -99,6 +99,8 @@ InputOTP({
 | Prop | Type | Default | Description |
 |---|---|---|---|
 | `length` | `number` | `6` | The number of boxes. Must match the slots built. |
+| `pattern` | `RegExp \| string` | — | What the code may hold, tested against the whole value. A character, a paste or a fill that would not match is refused. `REGEXP_ONLY_DIGITS`, `REGEXP_ONLY_CHARS` and `REGEXP_ONLY_DIGITS_AND_CHARS` are exported. |
+| `inputMode` | `'numeric' \| 'text'` | `'numeric'` | The on-screen keyboard. `'text'` for a code with letters. |
 | `slotLabel` | `(position: number, length: number) => string` | `` `Character ${position} of ${length}` `` | Each box's accessible name, from its 1-based position. |
 | `name` | `string` | — | The hidden input's `name`: the code posts as one field. |
 | `disabled` | `Reactive<boolean>` | `false` | Disables every box. |
@@ -141,4 +143,6 @@ Each box is a text `<input>` named by `slotLabel` — "Character 1 of 6", "Chara
 | <kbd>ArrowLeft</kbd> / <kbd>ArrowRight</kbd> | Previous / next box, stopping at the ends. |
 | Paste | Fills the boxes from this one onwards, and moves to the box after the last character pasted — or the last box. |
 
-The boxes accept any character: `inputmode="numeric"` asks for the number pad, it does not filter. A pasted `482 913` fills a box with the space.
+Without a `pattern` the boxes accept any character: `inputmode="numeric"` asks for the number pad, it does not filter. A pasted `482 913` fills a box with the space; with `pattern: REGEXP_ONLY_DIGITS` it is refused.
+
+A whole code that arrives in one box at once (the system's one-time-code autofill, a password manager, an input method) is shared out over the boxes the way a paste is.

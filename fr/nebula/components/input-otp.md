@@ -99,6 +99,8 @@ InputOTP({
 | Prop | Type | Défaut | Description |
 |---|---|---|---|
 | `length` | `number` | `6` | Le nombre de cases. Doit correspondre aux cases construites. |
+| `pattern` | `RegExp \| string` | — | Ce que le code peut contenir, testé sur la valeur entière. Un caractère, un collage ou un remplissage qui ne correspondrait pas est refusé. `REGEXP_ONLY_DIGITS`, `REGEXP_ONLY_CHARS` et `REGEXP_ONLY_DIGITS_AND_CHARS` sont exportés. |
+| `inputMode` | `'numeric' \| 'text'` | `'numeric'` | Le clavier à l'écran. `'text'` pour un code avec des lettres. |
 | `slotLabel` | `(position: number, length: number) => string` | `` `Character ${position} of ${length}` `` | Le nom accessible de chaque case, d'après sa position comptée depuis 1. |
 | `name` | `string` | — | Le `name` du champ caché : le code s'envoie comme un seul champ. |
 | `disabled` | `Reactive<boolean>` | `false` | Désactive toutes les cases. |
@@ -141,4 +143,6 @@ Chaque case est un `<input>` texte nommé par `slotLabel` — « Character 1 of 
 | <kbd>ArrowLeft</kbd> / <kbd>ArrowRight</kbd> | Case précédente / suivante, en s'arrêtant aux extrémités. |
 | Coller | Remplit les cases à partir de celle-ci, et passe à la case qui suit le dernier caractère collé — ou à la dernière case. |
 
-Les cases acceptent n'importe quel caractère : `inputmode="numeric"` demande le pavé numérique, il ne filtre pas. Un `482 913` collé met l'espace dans une case.
+Sans `pattern`, les cases acceptent n'importe quel caractère : `inputmode="numeric"` demande le pavé numérique, il ne filtre pas. Un `482 913` collé met l'espace dans une case ; avec `pattern: REGEXP_ONLY_DIGITS`, il est refusé.
+
+Un code entier qui arrive d'un coup dans une case (le remplissage automatique des codes à usage unique du système, un gestionnaire de mots de passe, une méthode de saisie) est réparti sur les cases comme un collage.
