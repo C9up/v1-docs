@@ -154,7 +154,9 @@ export default defineConfig({
 })
 ```
 
-A request past `maxReceiveMessageLength` is answered `RESOURCE_EXHAUSTED` before any interceptor runs; a reply past `maxSendMessageLength` is answered `RESOURCE_EXHAUSTED` instead of being sent. A value that is not a whole number of bytes (or `-1`) stops the start. The HTTP port also bounds a request message at 4 MiB on its own, answered `OUT_OF_RANGE`: a lower limit applies as configured, a higher one does not lift it.
+A request past `maxReceiveMessageLength` is answered `RESOURCE_EXHAUSTED` before any interceptor runs; a reply past `maxSendMessageLength` is answered `RESOURCE_EXHAUSTED` instead of being sent. A value that is not a whole number of bytes (or `-1`) stops the start. The native server applies the same limits: a request is refused on its length prefix, before the message is read.
+
+The request side of a call must arrive whole — one message, then the end of the stream — within the server's `requestTimeout` (`config/app.ts` → `http`), or the call is answered `DEADLINE_EXCEEDED`. A second message is answered `UNIMPLEMENTED` and request trailers `INTERNAL`, before the method runs: the metadata is the request headers only.
 
 ## Protecting calls
 

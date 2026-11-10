@@ -154,7 +154,9 @@ export default defineConfig({
 })
 ```
 
-Une requête au-delà de `maxReceiveMessageLength` répond `RESOURCE_EXHAUSTED` avant tout intercepteur ; une réponse au-delà de `maxSendMessageLength` est remplacée par `RESOURCE_EXHAUSTED`. Une valeur qui n'est pas un nombre entier d'octets (ou `-1`) arrête le démarrage. Le port HTTP borne aussi, de lui-même, un message de requête à 4 Mio, avec `OUT_OF_RANGE` : une limite plus basse s'applique telle quelle, une plus haute ne lève pas celle-là.
+Une requête au-delà de `maxReceiveMessageLength` répond `RESOURCE_EXHAUSTED` avant tout intercepteur ; une réponse au-delà de `maxSendMessageLength` est remplacée par `RESOURCE_EXHAUSTED`. Une valeur qui n'est pas un nombre entier d'octets (ou `-1`) arrête le démarrage. Le serveur natif applique les mêmes limites : une requête est refusée sur son préfixe de longueur, avant que le message soit lu.
+
+Le côté requête d'un appel doit arriver entier — un message, puis la fin du flux — dans le `requestTimeout` du serveur (`config/app.ts` → `http`), sinon l'appel répond `DEADLINE_EXCEEDED`. Un second message répond `UNIMPLEMENTED` et des trailers de requête `INTERNAL`, avant que la méthode s'exécute : les métadonnées sont les seuls en-têtes de la requête.
 
 ## Protéger les appels
 
