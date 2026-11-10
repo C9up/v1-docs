@@ -214,6 +214,7 @@ The select keeps a hidden input carrying the chosen value; with a `name`, it is 
 | `size` | `'default' \| 'sm'` | `'default'` | 36 or 32 px high. |
 | `id` | `string` | a minted id | The trigger's `id` — what a `FieldLabel` or `<label for>` points at. |
 | `label` | `Reactive<string \| undefined>` | — | Sets `aria-label`, for a select no `<label>` names. |
+| `labelledBy` | `Reactive<string \| undefined>` | — | Sets `aria-labelledby`: the id(s) of the element(s) that name it, such as a heading. |
 | `describedBy` | `Reactive<string \| undefined>` | — | Sets `aria-describedby`. |
 | `class` | `Reactive<string>` | — | Merged last, so a conflicting utility wins. |
 
@@ -260,7 +261,7 @@ A rule between groups, and the two scroll arrows. Each takes only `class: Reacti
 
 ## Accessibility
 
-The trigger is a `<button role="combobox">` with `aria-haspopup="listbox"`, `aria-expanded`, `aria-controls` naming the list while it is open, and `aria-activedescendant` naming the highlighted option. The panel is `role="listbox"`, labelled by the trigger; each item is `role="option"`, with `aria-selected="true"` on the chosen one and `"false"` on the others. Focus never enters the panel. After a choice it is put back on the trigger.
+The trigger is a `<button role="combobox">` with `aria-haspopup="listbox"`, `aria-expanded`, `aria-controls` naming the list while it is open, and `aria-activedescendant` naming the highlighted option. Its name comes from the `<label>` pointing at its `id`, from `label` or from `labelledBy`. The panel is `role="listbox"`, labelled by the trigger; each item is `role="option"`, with `aria-selected="true"` on the chosen one and `"false"` on the others. Focus never enters the panel. After a choice it is put back on the trigger.
 
 | Key | Action |
 |---|---|

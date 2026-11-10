@@ -214,6 +214,7 @@ Le select garde un input caché qui porte la valeur choisie ; avec un `name`, el
 | `size` | `'default' \| 'sm'` | `'default'` | 36 ou 32 px de haut. |
 | `id` | `string` | un id fabriqué | L'`id` du déclencheur — ce que vise un `FieldLabel` ou un `<label for>`. |
 | `label` | `Reactive<string \| undefined>` | — | Pose `aria-label`, pour un select qu'aucun `<label>` ne nomme. |
+| `labelledBy` | `Reactive<string \| undefined>` | — | Pose `aria-labelledby` : l'id du ou des éléments qui le nomment, un titre par exemple. |
 | `describedBy` | `Reactive<string \| undefined>` | — | Pose `aria-describedby`. |
 | `class` | `Reactive<string>` | — | Fusionnée en dernier : une utilitaire en conflit l'emporte. |
 
@@ -260,7 +261,7 @@ Un filet entre des groupes, et les deux flèches de défilement. Chacun ne prend
 
 ## Accessibilité
 
-Le déclencheur est un `<button role="combobox">` avec `aria-haspopup="listbox"`, `aria-expanded`, `aria-controls` qui nomme la liste quand elle est ouverte, et `aria-activedescendant` qui nomme l'option en surbrillance. Le panneau est `role="listbox"`, étiqueté par le déclencheur ; chaque élément est `role="option"`, avec `aria-selected="true"` sur celui qui est choisi et `"false"` sur les autres. Le focus n'entre jamais dans le panneau. Après un choix, il est remis sur le déclencheur.
+Le déclencheur est un `<button role="combobox">` avec `aria-haspopup="listbox"`, `aria-expanded`, `aria-controls` qui nomme la liste quand elle est ouverte, et `aria-activedescendant` qui nomme l'option en surbrillance. Son nom vient du `<label>` qui vise son `id`, de `label` ou de `labelledBy`. Le panneau est `role="listbox"`, étiqueté par le déclencheur ; chaque élément est `role="option"`, avec `aria-selected="true"` sur celui qui est choisi et `"false"` sur les autres. Le focus n'entre jamais dans le panneau. Après un choix, il est remis sur le déclencheur.
 
 | Touche | Action |
 |---|---|
