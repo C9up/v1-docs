@@ -177,7 +177,7 @@ Request query strings and bodies are **not** mutated; user input is neutralized 
 
 ## CSRF Protection
 
-Stateless **signed double-submit cookie** validation (HMAC-SHA256), with an AdonisJS-compatible API. The `XSRF-TOKEN` cookie carries `<random>.<HMAC(secret, random)>`. A state-changing request (`POST`, `PUT`, `PATCH`, `DELETE`) must echo that exact token **and** the token must carry a valid signature. There is no server-side token store, so it scales horizontally — every instance only needs the same `secret`.
+Stateless **signed double-submit cookie** validation (HMAC-SHA256). The `XSRF-TOKEN` cookie carries `<random>.<HMAC(secret, random)>`. A state-changing request (`POST`, `PUT`, `PATCH`, `DELETE`) must echo that exact token **and** the token must carry a valid signature. There is no server-side token store, so it scales horizontally — every instance only needs the same `secret`.
 
 Signing is what makes this *signed* double-submit (the OWASP-recommended shape): a naive double-submit accepts any self-consistent pair, so an attacker who can plant an `XSRF-TOKEN` cookie (a sibling subdomain, a MITM on an HTTP sibling) could forge one. A signed token can't be forged without the secret.
 
@@ -194,7 +194,7 @@ When CSRF is enabled, a `secret` is **required**. `createBlackhole({ csrf: true 
 
 ### How it works
 
-1. **Seed** — On every request the middleware ensures an `XSRF-TOKEN` cookie exists (minting `<random>.<HMAC>` with CSPRNG randomness via `getrandom` if absent) and publishes the token as `ctx.request.csrfToken` (Adonis idiom) and in `ctx.store` (`csrfToken`) for templating.
+1. **Seed** — On every request the middleware ensures an `XSRF-TOKEN` cookie exists (minting `<random>.<HMAC>` with CSPRNG randomness via `getrandom` if absent) and publishes the token as `ctx.request.csrfToken` and in `ctx.store` (`csrfToken`) for templating.
 2. **Submit** — On an unsafe request the client echoes the same token, via **any** of:
    - the `X-XSRF-TOKEN` header (Axios / Angular `HttpClient` read the cookie automatically),
    - the `X-CSRF-TOKEN` header (manual SPA clients),
@@ -400,7 +400,7 @@ csrf: {
   on every adapter (Express and Hono have no matched route at that point). The
   predicate receives the request context: the HTTP context itself on Ream; on
   the standalone adapters, `{ request: { method(), url(), header() }, route }`.
-- **`cookieOptions`** is the AdonisJS key; `cookie` is ours. Both work.
+- **`cookieOptions`** and `cookie` are two names for the same option.
 
 ### Rejection
 
