@@ -114,8 +114,9 @@ Tous les points d'entrée bruts (`rawQuery`, `raw`, `whereRaw`, `havingRaw`,
   identifiant entre guillemets (`"…"`, `` `…` `` sur MySQL et SQLite, `[…]` sur
   SQLite), un commentaire ou un corps entre dollars Postgres :
   `rawQuery("SELECT ':id' AS label, :id AS value", { id: 7 })` ne lie que le
-  second `:id`. Les liaisons nommées passées à `db.raw()` sont lues avec le
-  dialecte de la connexion sur laquelle il est appelé.
+  second `:id`. `db.raw()` n'a besoin d'aucune connexion : ses liaisons nommées
+  sont gardées telles quelles et lues avec le dialecte de la requête qui
+  utilise le fragment.
 - Le nombre de liaisons doit correspondre aux paramètres, et une liaison
   `undefined` est refusée : une valeur manquante est une erreur, jamais un
   `NULL` silencieux.

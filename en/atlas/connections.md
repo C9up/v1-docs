@@ -107,8 +107,9 @@ Every raw entry point (`rawQuery`, `raw`, `whereRaw`, `havingRaw`, `orderByRaw`,
 - Placeholders, named ones included, are text inside string literals, quoted
   identifiers (`"…"`, `` `…` `` on MySQL and SQLite, `[…]` on SQLite), comments
   and Postgres dollar-quoted bodies: `rawQuery("SELECT ':id' AS label, :id AS
-  value", { id: 7 })` binds only the second `:id`. Named bindings given to
-  `db.raw()` are read with the dialect of the connection it is called on.
+  value", { id: 7 })` binds only the second `:id`. `db.raw()` needs no
+  connection: its named bindings are kept as given and read with the dialect
+  of the query that uses the fragment.
 - The number of bindings must match the placeholders, and an `undefined` binding
   is refused: a missing value is an error, never a silent `NULL`.
 
