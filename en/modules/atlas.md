@@ -52,7 +52,7 @@ declare total: number
 
 By default a property maps to its `snake_case` column (`userId` → `user_id`).
 Override that per-column for legacy/non-conventional schemas with `columnName`
-(AdonisJS Lucid parity) — reads, writes, `where`/`orderBy` and hydration all
+— reads, writes, `where`/`orderBy` and hydration all
 honor it:
 
 ```typescript
@@ -61,7 +61,7 @@ honor it:
 
 ### Date columns
 
-`@column.date()` / `@column.dateTime()` hydrate to a **`@c9up/chronos` `DateTime`** — the Ream date engine, exactly as AdonisJS Lucid hydrates date columns to a Luxon `DateTime`. Reads return a `DateTime`, writes lower it back to an ISO 8601 string, and `autoCreate` / `autoUpdate` stamp `DateTime.now()`:
+`@column.date()` / `@column.dateTime()` hydrate to a **`@c9up/chronos` `DateTime`** — the Ream date engine. Reads return a `DateTime`, writes lower it back to an ISO 8601 string, and `autoCreate` / `autoUpdate` stamp `DateTime.now()`:
 
 ```typescript
 import { DateTime } from '@c9up/chronos'
@@ -111,9 +111,9 @@ entity.hasDomainEvents() // boolean
 entity.clearDomainEvents()
 ```
 
-## BaseModel — Active Record (AdonisJS Lucid parity)
+## BaseModel — Active Record
 
-Extend `BaseModel` (instead of `BaseEntity`) for the Lucid-style Active Record API: static finders/creators and `instance.save()` / `instance.delete()` that delegate to a per-connection repository. `@Entity('table')` is **optional** — the table name is inferred from the class name (`User` → `users`); override with `static table`.
+Extend `BaseModel` (instead of `BaseEntity`) for the Active Record API: static finders/creators and `instance.save()` / `instance.delete()` that delegate to a per-connection repository. `@Entity('table')` is **optional** — the table name is inferred from the class name (`User` → `users`); override with `static table`.
 
 ```typescript
 import { BaseModel, Column, PrimaryKey } from '@c9up/atlas'
@@ -147,7 +147,7 @@ if (user) {
 }
 ```
 
-### Model state (Lucid parity)
+### Model state
 
 ```typescript
 user.$isPersisted     // true once the row is in the DB (after save/fetch)
@@ -179,7 +179,7 @@ await User.create({ is_admin: true })  // MassAssignmentError — resolves to is
 
 ### `fill()` / `merge()` and `$extras`
 
-A payload key is resolved in Lucid's order: a declared property, then the DB
+A payload key is resolved in this order: a declared property, then the DB
 column name it maps to, then a relation (ignored — set those through their own
 API), then framework state (ignored). Anything left is an extra:
 
@@ -201,7 +201,7 @@ the same `{ allowExtraProperties: true }` and behaves the same way.
 
 ### Serializing `$extras`
 
-Opt in per model. `true` nests the bag under `meta`, as Lucid does — spread at
+Opt in per model. `true` nests the bag under `meta` — spread at
 the top level, an aggregate could collide with a real column of the same name:
 
 ```typescript
@@ -222,13 +222,13 @@ class User extends BaseModel {
 }
 ```
 
-Lucid reads `serializeExtras` off the instance; the static form is what atlas
-shipped, so both work and the instance wins.
+`serializeExtras` can also be set on the instance; both forms work and the
+instance wins.
 
 ### Serialization visibility
 
 Hide a column permanently at its declaration, and trim one response at the call
-site — the two spellings Lucid gives you:
+site:
 
 ```typescript
 class User extends BaseModel {
@@ -244,7 +244,7 @@ user.serialize({                                     // relations too
 ```
 
 `toJSON()` delegates to three overridable hooks — override just the layer you
-need (AdonisJS Lucid `serializeAttributes` / `serializeRelations` / `serializeComputed`):
+need (`serializeAttributes` / `serializeRelations` / `serializeComputed`):
 
 ```typescript
 class Account extends BaseModel {
@@ -258,7 +258,7 @@ class Account extends BaseModel {
 
 The full static surface: `find`, `findOrFail`, `findBy`, `findByOrFail`, `findMany`, `findManyBy`, `all`, `first`, `firstOrFail`, `query`, `create`, `createMany`, `firstOrCreate`, `firstOrNew`, `updateOrCreate`, `updateOrCreateMany`, `fetchOrCreateMany`, `fetchOrNewUpMany`, `truncate`, plus the hook-muting `createQuietly` / `createManyQuietly`.
 
-Instances add `saveQuietly()` / `deleteQuietly()` — persist/remove without firing lifecycle hooks (AdonisJS Lucid parity, handy for seeders/backfills). `save()` throws once the instance is deleted (`$isDeleted`), and `$isDirty` reports unsaved changes.
+Instances add `saveQuietly()` / `deleteQuietly()` — persist/remove without firing lifecycle hooks (handy for seeders/backfills). `save()` throws once the instance is deleted (`$isDeleted`), and `$isDirty` reports unsaved changes.
 
 ### Self-assigned primary keys
 
@@ -300,9 +300,9 @@ field never exposes one.
 
 ### Many-to-many pivot keys
 
-Both spellings are accepted, so an AdonisJS relation declaration ports as-is:
+Both spellings are accepted; each row names the same key:
 
-| atlas | AdonisJS |
+| Short | Long |
 |---|---|
 | `foreignKey` | `pivotForeignKey` |
 | `otherKey` | `pivotRelatedForeignKey` |
@@ -912,7 +912,7 @@ Atlas can reconcile your models against the **live** database schema — somethi
 
 ### Boot-time guard
 
-Enable it in `config/database.ts`. Atlas has no global entity registry by design (like Lucid, where `ace` is pointed at your models) — list your models.
+Enable it in `config/database.ts`. Atlas has no global entity registry by design — list your models.
 
 ```typescript
 import { defineConfig } from '@c9up/atlas'
@@ -941,7 +941,7 @@ Didactic output on drift:
 
 ### CLI command (`atlas:check`)
 
-Atlas ships a command for Ream's console kernel (the AdonisJS `ace` equivalent). List your models in a file under `commands/`.
+Atlas ships a command for Ream's console kernel. List your models in a file under `commands/`.
 
 ```typescript
 // commands/atlas-check.ts

@@ -52,7 +52,7 @@ total!: number
 
 Par défaut une propriété est mappée sur sa colonne `snake_case` (`userId` →
 `user_id`). Surcharge ce nom par colonne pour les schémas legacy/non-conventionnels
-via `columnName` (parité AdonisJS Lucid) — lectures, écritures, `where`/`orderBy`
+via `columnName` — lectures, écritures, `where`/`orderBy`
 et hydratation le respectent tous :
 
 ```typescript
@@ -61,7 +61,7 @@ et hydratation le respectent tous :
 
 ### Colonnes date
 
-`@column.date()` / `@column.dateTime()` hydratent vers un **`DateTime` de `@c9up/chronos`** — le moteur date de Ream, exactement comme AdonisJS Lucid hydrate ses colonnes date vers un `DateTime` Luxon. Les lectures renvoient un `DateTime`, les écritures le ramènent à une chaîne ISO 8601, et `autoCreate` / `autoUpdate` posent `DateTime.now()` :
+`@column.date()` / `@column.dateTime()` hydratent vers un **`DateTime` de `@c9up/chronos`** — le moteur date de Ream. Les lectures renvoient un `DateTime`, les écritures le ramènent à une chaîne ISO 8601, et `autoCreate` / `autoUpdate` posent `DateTime.now()` :
 
 ```typescript
 import { DateTime } from '@c9up/chronos'
@@ -111,9 +111,9 @@ entity.hasDomainEvents() // boolean
 entity.clearDomainEvents()
 ```
 
-## BaseModel — Active Record (parité AdonisJS Lucid)
+## BaseModel — Active Record
 
-Étendez `BaseModel` (au lieu de `BaseEntity`) pour l'API Active Record façon Lucid : finders/créateurs statiques et `instance.save()` / `instance.delete()` qui délèguent à un dépôt lié à la connexion. `@Entity('table')` est **optionnel** — le nom de table est inféré du nom de classe (`User` → `users`) ; surchargez via `static table`.
+Étendez `BaseModel` (au lieu de `BaseEntity`) pour l'API Active Record : finders/créateurs statiques et `instance.save()` / `instance.delete()` qui délèguent à un dépôt lié à la connexion. `@Entity('table')` est **optionnel** — le nom de table est inféré du nom de classe (`User` → `users`) ; surchargez via `static table`.
 
 ```typescript
 import { BaseModel, Column, PrimaryKey } from '@c9up/atlas'
@@ -147,7 +147,7 @@ if (user) {
 }
 ```
 
-### État du modèle (parité Lucid)
+### État du modèle
 
 ```typescript
 user.$isPersisted     // true dès que la ligne est en base (après save/fetch)
@@ -180,7 +180,7 @@ await User.create({ is_admin: true })  // MassAssignmentError — résout vers i
 
 ### `fill()` / `merge()` et `$extras`
 
-Une clé de charge utile est résolue dans l'ordre de Lucid : propriété déclarée,
+Une clé de charge utile est résolue dans cet ordre : propriété déclarée,
 puis nom de colonne DB correspondant, puis relation (ignorée — celles-là se
 posent par leur propre API), puis état interne du framework (ignoré). Ce qui
 reste est un extra :
@@ -203,7 +203,7 @@ user.$extras.comments_count                // 3
 
 ### Sérialiser `$extras`
 
-À activer par modèle. `true` niche le sac sous `meta`, comme Lucid — étalé au
+À activer par modèle. `true` niche le sac sous `meta` — étalé au
 premier niveau, un agrégat pourrait entrer en collision avec une vraie colonne
 du même nom :
 
@@ -225,13 +225,13 @@ class User extends BaseModel {
 }
 ```
 
-Lucid lit `serializeExtras` sur l'instance ; la forme statique est celle qu'atlas
-a publiée, donc les deux marchent et l'instance gagne.
+`serializeExtras` peut aussi se poser sur l'instance ; les deux formes marchent
+et l'instance gagne.
 
 ### Visibilité de sérialisation
 
 Cacher une colonne définitivement à sa déclaration, et rogner une réponse au
-point d'appel — les deux écritures que donne Lucid :
+point d'appel :
 
 ```typescript
 class User extends BaseModel {
@@ -247,7 +247,7 @@ user.serialize({                                     // les relations aussi
 ```
 
 `toJSON()` délègue à trois hooks surchargeables — surcharge uniquement la couche
-voulue (parité AdonisJS Lucid `serializeAttributes` / `serializeRelations` / `serializeComputed`) :
+voulue (`serializeAttributes` / `serializeRelations` / `serializeComputed`) :
 
 ```typescript
 class Account extends BaseModel {
@@ -261,7 +261,7 @@ class Account extends BaseModel {
 
 Surface statique complète : `find`, `findOrFail`, `findBy`, `findByOrFail`, `findMany`, `findManyBy`, `all`, `first`, `firstOrFail`, `query`, `create`, `createMany`, `firstOrCreate`, `firstOrNew`, `updateOrCreate`, `updateOrCreateMany`, `fetchOrCreateMany`, `fetchOrNewUpMany`, `truncate`, plus `createQuietly` / `createManyQuietly` (sans hooks).
 
-Les instances ajoutent `saveQuietly()` / `deleteQuietly()` — persister/supprimer sans déclencher les hooks de cycle de vie (parité AdonisJS Lucid, pratique pour seeders/backfills). `save()` lève une erreur dès que l'instance est supprimée (`$isDeleted`), et `$isDirty` indique les changements non sauvegardés.
+Les instances ajoutent `saveQuietly()` / `deleteQuietly()` — persister/supprimer sans déclencher les hooks de cycle de vie (pratique pour seeders/backfills). `save()` lève une erreur dès que l'instance est supprimée (`$isDeleted`), et `$isDirty` indique les changements non sauvegardés.
 
 ### Clés primaires auto-assignées
 
@@ -304,10 +304,9 @@ en la nommant, et omettre un champ n'en expose jamais.
 
 ### Clés pivot du many-to-many
 
-Les deux orthographes sont acceptées, donc une déclaration de relation AdonisJS
-se transpose telle quelle :
+Les deux orthographes sont acceptées ; chaque ligne nomme la même clé :
 
-| atlas | AdonisJS |
+| Courte | Longue |
 |---|---|
 | `foreignKey` | `pivotForeignKey` |
 | `otherKey` | `pivotRelatedForeignKey` |
@@ -920,7 +919,7 @@ Atlas peut réconcilier vos modèles avec le schéma **réel** de la base — qu
 
 ### Garde-fou au démarrage
 
-Activez-le dans `config/database.ts`. Atlas n'a pas de registre global d'entités (par choix — comme Lucid où l'on pointe `ace` vers ses modèles) : listez vos modèles.
+Activez-le dans `config/database.ts`. Atlas n'a pas de registre global d'entités (par choix) : listez vos modèles.
 
 ```typescript
 import { defineConfig } from '@c9up/atlas'
@@ -949,7 +948,7 @@ Sortie didactique en cas de dérive :
 
 ### Commande CLI (`atlas:check`)
 
-Atlas fournit une commande pour le ConsoleKernel de Ream (l'équivalent `ace` d'AdonisJS). Listez vos modèles dans un fichier de `commands/` : le noyau console découvre ce dossier automatiquement, il n'y a rien à déclarer dans `reamrc.ts`.
+Atlas fournit une commande pour le ConsoleKernel de Ream. Listez vos modèles dans un fichier de `commands/` : le noyau console découvre ce dossier automatiquement, il n'y a rien à déclarer dans `reamrc.ts`.
 
 ```typescript
 // commands/atlas-check.ts
