@@ -2,7 +2,7 @@
 
 Ream (`@c9up/ream`) is the framework core: app bootstrap, IoC, providers, HTTP server, middleware pipeline, error handling, lifecycle, and module orchestration (`atlas`, `rune`, `warden`, `spectrum`, etc.).
 
-> Status: actively evolving. The target is an Adonis/Laravel-like DX with agnostic modular architecture.
+> Status: actively evolving. The target is a batteries-included, convention-first DX with agnostic modular architecture.
 
 ## What the core actually does
 
@@ -368,7 +368,7 @@ The core is the orchestrator. Modules remain standalone, but Ream simplifies com
 
 - API surface is still evolving,
 - some documentation areas are still catching up,
-- ongoing convergence toward stricter Adonis-like conventions.
+- conventions are still being tightened.
 
 ## Useful links
 
