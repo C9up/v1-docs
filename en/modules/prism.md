@@ -348,6 +348,8 @@ A request names a source, a width, and optionally a format and a quality:
 /__image?src=hero.jpg&w=1280&f=webp&q=82
 ```
 
+`src` is a path under the roots. One leading slash is accepted, so the path a page already uses for a public file works as is: `src=/photos/hero.jpg` and `src=photos/hero.jpg` name the same file. Never two — `//host/a.png` is a protocol-relative URL and is refused as one.
+
 The answer is resized, re-encoded, tagged with an `ETag` and marked `immutable` for a year. The tag covers the source's size and modification time, so replacing a file on disk invalidates every variant of it without anyone clearing a cache — which matters, because the URL carries no version and nothing else could.
 
 ### Nothing is mounted unless you ask
@@ -379,7 +381,7 @@ That leaves the number of distinct answers at (files × widths × formats × qua
 
 Height and crop are absent on purpose. They are the two axes that cannot be allow-listed without making the component unusable, and neither is needed: a responsive image crops with `object-fit`, in the browser, for free.
 
-A `src` that reaches outside its root and a `src` that names nothing get the same 404. Telling them apart is how a caller maps the disk.
+A `src` that reaches outside its root and a `src` that names nothing get the same 404. Telling them apart is how a caller maps the disk. The check holds on the file's real path too: a symbolic link inside a root that points outside it — left by an archive extracted into an upload directory, a shared volume — is a 404, while a link that stays inside the root, or a root that is itself a link, works.
 
 ### What comes back
 
@@ -387,9 +389,26 @@ Never larger than the source. The component offers a 2x variant without knowing 
 
 Never carrying EXIF. The engine re-encodes from decoded pixels and metadata does not survive that, so GPS coordinates, serial numbers and timestamps do not reach the page. A holiday photo carries the house's coordinates, and a public thumbnail is exactly where that surfaces.
 
-A file the engine cannot re-encode — an SVG, say — is passed through untouched with its own content type. It already passed the root check, and a 415 there would be a broken image for a file that serves perfectly well as it stands.
+Never anything but what the engine wrote. A file that is not an image — an SVG, a `.env` that happens to sit in a root — answers the same 404 as a missing file. An image the engine refuses — over the pixel ceiling, corrupt, in a format the application does not accept — answers 422 `E_PRISM_IMAGE_UNPROCESSABLE`. Neither is ever sent as it stands: the original of a file that failed to render is exactly the file nobody vetted, the SVG with a script in it, the photo still carrying its GPS block. Refusals are `Cache-Control: no-store`.
 
-The same variant asked for several times at once is decoded once. A page with a `<picture>` resolves several of them in the same tick, and without that the first visit decodes each image as many times as it appears.
+The content type is the format the engine wrote, never the file's extension, and every answer carries `Content-Security-Policy: default-src 'none'; sandbox` and `X-Content-Type-Options: nosniff`.
+
+### What producing a variant costs
+
+The allow-lists bound how many answers exist, not what producing one costs nor how often it is produced. An AVIF encode is seconds of CPU on libuv's thread pool — the four threads that also serve the application's file, DNS and crypto calls. So:
+
+- **A variant is rendered once.** It is keyed by the width it will really have: 3200, 3840 and 5120 of a 3000px source are the same image and one render. The same variant asked for several times at once is decoded once.
+- **There is always a cache.** With `cacheDir`, variants are kept on disk, one directory per source; replacing a source deletes its previous version's variants when the new ones are written, so an avatar re-uploaded at the same path does not pile up. Without `cacheDir`, they are kept in memory up to `memoryCacheBytes` (32 MiB), least recently used dropped first.
+- **Renders run a few at a time.** `concurrency` (2) renders run at once, `queueLimit` (64) wait; past that the answer is 503 `E_PRISM_IMAGE_BUSY` with `Retry-After`, rather than a longer wait for everyone.
+- **AVIF is encoded at `effort` 1** (0 fastest, 9 slowest): the image is encoded while a visitor waits, and effort 4 takes about four times as long for bytes within a percent.
+
+| Option | Default | |
+|---|---|---|
+| `cacheDir` | — | variants on disk |
+| `memoryCacheBytes` | 32 MiB | in-memory cache when there is no `cacheDir`; 0 turns it off |
+| `concurrency` | 2 | renders at once; keep it below `UV_THREADPOOL_SIZE` |
+| `queueLimit` | 64 | renders waiting before a 503 |
+| `effort` | 1 | AVIF encoding effort, 0–9 |
 
 ## Safety
 
@@ -406,7 +425,18 @@ feature — a GIF is a perfectly valid image and still refused.
 **A pixel ceiling, checked against the header.** A 40 KB PNG can declare
 50000x50000, and decoding it asks for ten gigabytes before anything objects.
 The product is computed in 64 bits: in 32 it overflows to a small number for
-exactly the largest image expressible, and the check would pass.
+exactly the largest image expressible, and the check would pass. For AVIF the
+header is the AV1 sequence header, read without decoding — `inspect` stays a
+header read — and the AV1 decoder is given the same ceiling as a frame-size
+limit, because a frame may declare a size of its own.
+
+**The same ceiling on what an operation builds.** A resize target, the side a
+resize derives from the aspect ratio, the scaled intermediate of a `cover`, a
+watermark layer: each is refused with `E_PRISM_TOO_MANY_PIXELS` before it is
+allocated. An allocation that fails aborts the process rather than raising, so
+a size that came from a request has to be bounded before it is asked for.
+Watermark text is limited to 1024 characters, and a width, height or quality
+that is not an integer in range is refused, not wrapped.
 
 **A panic net on every boundary.** A panic crossing NAPI takes the Node process
 down; on a libuv worker it aborts outright.
@@ -457,6 +487,17 @@ A lossless WebP is several times the size of a lossy one, and size is the
 entire reason anyone reaches for the format. `image` ships no lossy encoder, so
 that path goes through libwebp. `quality: 100` selects lossless — the one value
 that cannot mean "compress a bit".
+
+### AVIF takes an effort
+
+```ts
+await images.edit(photo).toBuffer({ format: 'avif', quality: 60, effort: 2 })
+```
+
+`quality` is honoured as for every lossy format, and `effort` runs from 0
+(fastest) to 9 (slowest), 4 by default. An AVIF encoder trades a great deal of
+CPU for a few bytes: on a 1600px image effort 4 took four times as long as
+effort 1 for a file within one percent. Only AVIF has the knob.
 
 ### What installing this needs: nothing
 
@@ -535,12 +576,12 @@ when its output format is switched.
 |---|---|
 | `E_PRISM_EMPTY_INPUT` | nothing was passed |
 | `E_PRISM_INPUT_TOO_LARGE` | over the byte ceiling |
-| `E_PRISM_TOO_MANY_PIXELS` | the header declares more pixels than allowed |
+| `E_PRISM_TOO_MANY_PIXELS` | the header declares, or an operation would build, more pixels than allowed |
 | `E_PRISM_UNKNOWN_FORMAT` | the bytes are not an image |
 | `E_PRISM_UNSUPPORTED_FORMAT` | a real image, in a format not on the allowlist |
-| `E_PRISM_INVALID_GEOMETRY` | a crop outside the image, a rotation off the right angles |
+| `E_PRISM_INVALID_GEOMETRY` | a crop outside the image, a rotation off the right angles, a watermark text over 1024 characters |
 | `E_PRISM_INVALID_FONT` | the watermark font could not be read |
-| `E_PRISM_INVALID_OPERATION` | an operation missing a field it needs |
+| `E_PRISM_INVALID_OPERATION` | an operation missing a field it needs, or a size, quality or effort that is not an integer in range |
 | `E_PRISM_QR_TOO_LONG` | more text than a QR code holds at the chosen level and version |
 | `E_PRISM_INVALID_QR_OPTION` | a QR option out of range, a colour that is not strict hex, or a style that would not scan |
 | `E_PRISM_NATIVE_REQUIRED` | the Rust engine is not installed for this platform |

@@ -357,6 +357,8 @@ Une requête nomme une source, une largeur, et éventuellement un format et une 
 /__image?src=hero.jpg&w=1280&f=webp&q=82
 ```
 
+`src` est un chemin sous les racines. Une barre oblique initiale est acceptée, si bien que le chemin qu'une page utilise déjà pour un fichier public fonctionne tel quel : `src=/photos/hero.jpg` et `src=photos/hero.jpg` désignent le même fichier. Jamais deux — `//hote/a.png` est une URL relative au protocole, et refusée comme telle.
+
 La réponse est redimensionnée, réencodée, marquée d'un `ETag` et déclarée `immutable` pour un an. Le tag couvre la taille et la date de modification de la source : remplacer un fichier sur le disque invalide donc toutes ses variantes sans que personne ne vide de cache — ce qui compte, puisque l'URL ne porte aucune version et que rien d'autre ne le ferait.
 
 ### Rien n'est monté sans le demander
@@ -388,7 +390,7 @@ Le nombre de réponses distinctes reste donc à (fichiers × largeurs × formats
 
 La hauteur et le recadrage sont absents à dessein. Ce sont les deux axes qu'on ne peut pas mettre sur liste blanche sans rendre le composant inutilisable, et aucun n'est nécessaire : une image responsive se recadre avec `object-fit`, dans le navigateur, gratuitement.
 
-Un `src` qui sort de sa racine et un `src` qui ne nomme rien reçoivent le même 404. Les distinguer, c'est la façon dont un appelant cartographie le disque.
+Un `src` qui sort de sa racine et un `src` qui ne nomme rien reçoivent le même 404. Les distinguer, c'est la façon dont un appelant cartographie le disque. Le contrôle porte aussi sur le chemin réel du fichier : un lien symbolique placé dans une racine et pointant au-dehors — laissé par une archive extraite dans un dossier d'upload, un volume partagé — répond 404, tandis qu'un lien qui reste dans la racine, ou une racine qui est elle-même un lien, fonctionne.
 
 ### Ce qui revient
 
@@ -396,9 +398,26 @@ Jamais plus grand que la source. Le composant propose une variante 2x sans savoi
 
 Jamais d'EXIF. Le moteur réencode à partir des pixels décodés et les métadonnées n'y survivent pas : coordonnées GPS, numéros de série et horodatages n'atteignent pas la page. Une photo de vacances porte les coordonnées de la maison, et une miniature publique est exactement l'endroit où ça ressort.
 
-Un fichier que le moteur ne sait pas réencoder — un SVG, par exemple — est transmis tel quel avec son propre type de contenu. Il a déjà passé le contrôle de racine, et un 415 à cet endroit donnerait une image cassée pour un fichier qui se sert très bien en l'état.
+Jamais autre chose que ce que le moteur a écrit. Un fichier qui n'est pas une image — un SVG, un `.env` qui traîne dans une racine — reçoit le même 404 qu'un fichier absent. Une image que le moteur refuse — au-delà du plafond de pixels, corrompue, dans un format que l'application n'accepte pas — reçoit un 422 `E_PRISM_IMAGE_UNPROCESSABLE`. Aucun n'est jamais envoyé tel quel : l'original d'un fichier dont le rendu a échoué est exactement le fichier que personne n'a vérifié, le SVG qui contient un script, la photo qui porte encore son bloc GPS. Les refus sont `Cache-Control: no-store`.
 
-La même variante demandée plusieurs fois en même temps n'est décodée qu'une fois. Une page contenant un `<picture>` en résout plusieurs dans le même tick, et sans cela la première visite décode chaque image autant de fois qu'elle apparaît.
+Le type de contenu est le format écrit par le moteur, jamais l'extension du fichier, et chaque réponse porte `Content-Security-Policy: default-src 'none'; sandbox` et `X-Content-Type-Options: nosniff`.
+
+### Ce que coûte une variante
+
+Les listes blanches bornent le nombre de réponses, pas le coût d'en produire une ni la fréquence à laquelle on la produit. Un encodage AVIF, ce sont des secondes de CPU sur le pool de threads de libuv — les quatre threads qui servent aussi les appels fichier, DNS et crypto de l'application. Donc :
+
+- **Une variante n'est rendue qu'une fois.** Sa clé est la largeur qu'elle aura vraiment : 3200, 3840 et 5120 d'une source de 3000 px sont la même image et un seul rendu. La même variante demandée plusieurs fois en même temps n'est décodée qu'une fois.
+- **Il y a toujours un cache.** Avec `cacheDir`, les variantes sont gardées sur le disque, un dossier par source ; remplacer une source supprime les variantes de sa version précédente quand les nouvelles sont écrites, si bien qu'un avatar renvoyé au même chemin ne s'accumule pas. Sans `cacheDir`, elles sont gardées en mémoire jusqu'à `memoryCacheBytes` (32 Mio), les moins récemment utilisées partant les premières.
+- **Les rendus passent quelques-uns à la fois.** `concurrency` (2) rendus tournent en même temps, `queueLimit` (64) attendent ; au-delà, la réponse est un 503 `E_PRISM_IMAGE_BUSY` avec `Retry-After`, plutôt qu'une attente plus longue pour tout le monde.
+- **L'AVIF est encodé à l'`effort` 1** (0 le plus rapide, 9 le plus lent) : l'image est encodée pendant qu'un visiteur attend, et l'effort 4 prend environ quatre fois plus de temps pour des octets à un pour cent près.
+
+| Option | Défaut | |
+|---|---|---|
+| `cacheDir` | — | variantes sur le disque |
+| `memoryCacheBytes` | 32 Mio | cache en mémoire quand il n'y a pas de `cacheDir` ; 0 le coupe |
+| `concurrency` | 2 | rendus simultanés ; à garder sous `UV_THREADPOOL_SIZE` |
+| `queueLimit` | 64 | rendus en attente avant un 503 |
+| `effort` | 1 | effort d'encodage AVIF, 0–9 |
 
 ## Sûreté
 
@@ -417,6 +436,19 @@ reste refusé.
 50000x50000, et le décoder demande dix gigaoctets avant que quoi que ce soit ne
 proteste. Le produit est calculé en 64 bits : en 32 il déborde vers un petit
 nombre pour exactement la plus grande image exprimable, et le test passerait.
+Pour l'AVIF, l'en-tête est l'en-tête de séquence AV1, lu sans décoder —
+`inspect` reste une lecture d'en-tête — et le décodeur AV1 reçoit le même
+plafond comme limite de taille de trame, parce qu'une trame peut déclarer sa
+propre taille.
+
+**Le même plafond sur ce qu'une opération construit.** Une cible de
+redimensionnement, le côté qu'un redimensionnement déduit des proportions,
+l'intermédiaire agrandi d'un `cover`, un calque de filigrane : chacun est
+refusé avec `E_PRISM_TOO_MANY_PIXELS` avant d'être alloué. Une allocation qui
+échoue arrête le processus au lieu de lever une erreur, donc une taille venue
+d'une requête doit être bornée avant d'être demandée. Le texte d'un filigrane
+est limité à 1024 caractères, et une largeur, une hauteur ou une qualité qui
+n'est pas un entier dans les bornes est refusée, pas tronquée.
 
 **Un filet anti-panique sur chaque frontière.** Une panique qui traverse NAPI
 fait tomber le processus Node ; sur un thread libuv elle l'avorte purement.
@@ -469,6 +501,18 @@ poids est toute la raison d'utiliser ce format. `image` ne livre pas
 d'encodeur avec perte, donc ce chemin passe par libwebp. `quality: 100`
 sélectionne le sans-perte — la seule valeur qui ne peut pas vouloir dire
 « compresse un peu ».
+
+### L'AVIF prend un effort
+
+```ts
+await images.edit(photo).toBuffer({ format: 'avif', quality: 60, effort: 2 })
+```
+
+`quality` est respectée comme pour tout format avec perte, et `effort` va de 0
+(le plus rapide) à 9 (le plus lent), 4 par défaut. Un encodeur AVIF échange
+beaucoup de CPU contre peu d'octets : sur une image de 1600 px, l'effort 4 a
+pris quatre fois plus de temps que l'effort 1 pour un fichier à un pour cent
+près. Seul l'AVIF a ce réglage.
 
 ### Ce qu'il faut pour l'installer : rien
 
@@ -549,12 +593,12 @@ quand son format de sortie change.
 |---|---|
 | `E_PRISM_EMPTY_INPUT` | rien n'a été passé |
 | `E_PRISM_INPUT_TOO_LARGE` | au-delà du plafond d'octets |
-| `E_PRISM_TOO_MANY_PIXELS` | l'en-tête déclare plus de pixels qu'autorisé |
+| `E_PRISM_TOO_MANY_PIXELS` | l'en-tête déclare, ou une opération construirait, plus de pixels qu'autorisé |
 | `E_PRISM_UNKNOWN_FORMAT` | les octets ne sont pas une image |
 | `E_PRISM_UNSUPPORTED_FORMAT` | une vraie image, dans un format hors liste blanche |
-| `E_PRISM_INVALID_GEOMETRY` | recadrage hors image, rotation hors angles droits |
+| `E_PRISM_INVALID_GEOMETRY` | recadrage hors image, rotation hors angles droits, texte de filigrane de plus de 1024 caractères |
 | `E_PRISM_INVALID_FONT` | la police du filigrane est illisible |
-| `E_PRISM_INVALID_OPERATION` | une opération à laquelle il manque un champ |
+| `E_PRISM_INVALID_OPERATION` | une opération à laquelle il manque un champ, ou une taille, une qualité ou un effort qui n'est pas un entier dans les bornes |
 | `E_PRISM_QR_TOO_LONG` | plus de texte qu'un QR code n'en contient au niveau et à la version choisis |
 | `E_PRISM_INVALID_QR_OPTION` | une option de QR code hors bornes, une couleur qui n'est pas de l'hexadécimal strict, ou un style qui ne serait pas lisible |
 | `E_PRISM_NATIVE_REQUIRED` | le moteur Rust n'est pas installé pour cette plateforme |
