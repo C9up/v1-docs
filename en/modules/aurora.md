@@ -874,6 +874,24 @@ resolves identically on the server and in the browser. (`setRouteManifest(routes
 is exported too, if you need to install it by hand.) See
 [Routing → Named Routes](../guide/routing.md#named-routes).
 
+**The serialized manifest is public** — every visitor of the page can read it, so
+`router.namedManifest()` as is hands an anonymous visitor of `/login` the names
+and paths of your admin and internal routes. Expose only the routes the browser
+calls `urlFor` on, with `clientRoutes` — per call, or once in `config/aurora.ts`:
+
+```ts
+// config/aurora.ts
+export default defineConfig({
+  clientRoutes: { only: ['auth.*', 'users.*'] },  // or { except: ['admin.*'] }
+})                                                 // or (name, pattern) => boolean
+```
+
+`*` matches any run of characters. The server still resolves against the whole
+`routes` map; only the copy in the page is filtered. Without `clientRoutes`,
+every route is serialized. In development, a route the page resolved on the
+server but left out of the client is warned about: a `urlFor` of it would throw
+once the page hydrates.
+
 ## Tailwind classes — `cn`
 
 Compose class names and resolve Tailwind conflicts — a **zero-dependency**

@@ -896,6 +896,25 @@ bien que le bootstrap d'hydratation le réinstalle via `setRouteManifest` —
 (`setRouteManifest(routes)` est aussi exporté si vous devez l'installer à la
 main.) Voir [Routage → Routes nommées](../guide/routing.md#routes-nommées).
 
+**Le manifeste sérialisé est public** — tout visiteur de la page peut le lire :
+`router.namedManifest()` tel quel livre à un visiteur anonyme de `/login` les noms
+et chemins de vos routes d'administration et internes. N'exposez que les routes
+sur lesquelles le navigateur appelle `urlFor`, avec `clientRoutes` — par appel, ou
+une fois dans `config/aurora.ts` :
+
+```ts
+// config/aurora.ts
+export default defineConfig({
+  clientRoutes: { only: ['auth.*', 'users.*'] },  // ou { except: ['admin.*'] }
+})                                                 // ou (name, pattern) => boolean
+```
+
+`*` correspond à n'importe quelle suite de caractères. Le serveur résout toujours
+sur toute la table `routes` ; seule la copie de la page est filtrée. Sans
+`clientRoutes`, toutes les routes sont sérialisées. En développement, une route
+que la page a résolue côté serveur mais que le client n'aura pas est signalée :
+un `urlFor` dessus lèverait une fois la page hydratée.
+
 ## Classes Tailwind — `cn`
 
 Composez les noms de classes et résolvez les conflits Tailwind — une
