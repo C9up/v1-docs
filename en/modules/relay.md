@@ -17,8 +17,8 @@ Relay is Ream's realtime module (`@c9up/relay`): server-sent events for broadcas
 import relay from '@c9up/relay/services/main'
 
 relay.registerRoutes()
-// `:id` is a param, `projects/*` a prefix. The authorizer gets the subscribe
-// request's context and the params its pattern captured.
+// The authorizer gets the subscribe request's context and the params its
+// pattern captured.
 relay.authorize<{ id: string }>('users/:id', (ctx, { id }) => ctx.auth?.user?.id === id)
 relay.authorize('reports/*', (ctx) => ctx.bouncer?.allows('reports.read') ?? false)
 
@@ -29,6 +29,35 @@ relay.broadcast('users/42', { unread: 3 })
 The authorizer is handed the whole context of the subscribe request, as for a
 controller: `ctx.bouncer`, the tenant, anything a middleware put there. `auth`
 and `bouncer` are typed; the rest is there at run time.
+
+### Channel patterns
+
+| Segment | Matches | Param |
+|---|---|---|
+| `users` | that exact segment | — |
+| `:id` | any one segment | `id` |
+| `:name.csv` | a segment ending in `.csv` | `name`, without the suffix |
+| `:id?` | one segment, or nothing — trailing only | `id` when present |
+| `*` | one or more segments — last only | `'*'`, the rest joined with `/` |
+
+`orgs/:org/*` covers `orgs/acme/projects/42` with `{ org: 'acme', '*': 'projects/42' }`;
+`posts/:id?` covers both `posts` and `posts/42`. A registration with no param
+and no wildcard wins over every pattern; patterns are tried in the order they
+were registered. A pattern that could never match — a `*` that is not last, an
+empty param name, a required segment after an optional one — throws at
+`authorize()`.
+
+### What a broadcast carries
+
+The payload is sent as JSON, whatever it is: `broadcast(ch, 'hello')` reaches
+the client as the string `hello`, and `broadcast(ch, '{"a":1}')` as that string,
+not as an object. A string is never written raw onto the stream, so no line
+break or carriage return in it can end its event and forge another. A payload
+JSON cannot carry — a cycle, a `BigInt` — throws from `broadcast()` before
+anything is sent; `undefined` is sent as `null`.
+
+`broadcastExcept(channel, payload, uid)` skips the given uid(s), on this
+instance and, through the bus, on every other.
 
 ## Configuration
 
@@ -42,6 +71,11 @@ export default defineConfig({
   allowUnauthorizedChannels: false,
   // Concurrent SSE clients this instance accepts. Past it, connects are 503'd.
   maxClients: 10_000,
+  // Concurrent SSE clients one owner may hold — a user, or the client address
+  // of an anonymous connection — so one client cannot take every slot.
+  // Default 20; false for none. Behind a proxy, configure the trusted proxies,
+  // or every anonymous visitor counts as the proxy.
+  maxClientsPerOwner: 20,
   // Channels one client may hold. Client-supplied names are indexed, so an
   // unbounded cap lets a single socket pin memory.
   maxChannelsPerClient: 100,
@@ -163,12 +197,32 @@ answered 404.
 Every stream gets a uid from the server — never from the client — sent in its
 first frame, `connected { uid }`, and echoed back in `subscribe` / `unsubscribe`.
 Each connection has its own, so two tabs of one account stay open side by side.
-Who opened it is recorded beside it: if the connection was authenticated, a
-`subscribe` or `unsubscribe` must come from the same user (`403 E_RELAY_NOT_OWNER`
-otherwise); an anonymous connection's random uid is its only credential.
+Who opened it is recorded beside it — the user, and the session the request came
+in with — and a `subscribe` or `unsubscribe` must carry the same, in both
+directions (`403 E_RELAY_NOT_OWNER` otherwise): a stream opened as a user takes
+requests from that user only, and one opened anonymously, or with no session,
+takes requests carrying neither. Otherwise a request with someone's credentials
+— a forged frame replayed by their own client, a cross-site form — could have
+the authorizer approve, with those credentials, a channel that streams to a
+connection somebody else holds. A client that logs in, or receives a session
+cookie, reconnects to get a stream bound to it.
 
-`relay.shutdown()` stops the bus listener and the keep-alive timer, as
-Transmit's does; the open streams end with the process.
+Lifecycle listeners receive the request's context beside the uid:
+
+```ts
+relay.on('subscribe', ({ uid, channel, context }) => {
+  audit.log(context.auth?.user?.id, 'subscribed', channel)
+})
+```
+
+`connect` and `disconnect` carry the context of the request that opened the
+stream; `subscribe` and `unsubscribe` that of their own request.
+
+`relay.shutdown()` stops the keep-alive timer, ends every open stream — the
+event streams and those of the mounted hubs — and refuses new ones, then
+releases the bus. A stream opened afterwards is ended at once, so the client
+reconnects, to another instance if there is one. The next `startTransport()`
+(the provider's `ready()`) accepts connections again.
 
 ## Hubs (SignalR)
 
@@ -184,7 +238,7 @@ import { Hub, type HubContext } from '@c9up/relay'
 
 class ChatHub extends Hub {
   // `onSendMessage` handles the `sendMessage` invocation: the method name
-  // after `on`, first letter lowercased.
+  // after `on`, matched without regard to case.
   async onSendMessage(ctx: HubContext, data: unknown) {
     ctx.group('room-1').send('message', data)
   }
@@ -199,8 +253,12 @@ method's return value is what the client's `invoke()` resolves with.
 
 A stream that has not completed the handshake within `handshakeTimeoutMs`
 (default 15 s, the client's own) is closed, and past `maxConnections` open
-streams (default 10 000) a new one is refused with 503. Both are options of the
-adapter passed as the third argument:
+streams (default 10 000) a new one is refused with 503. One owner — a user, or
+the client address of an anonymous request — may hold `maxConnectionsPerOwner`
+streams (default 20) and `maxPendingTokensPerOwner` negotiated tokens not yet
+attached (default 20); a full token table refuses a new negotiate with 503
+rather than dropping somebody else's token. All are options of the adapter
+passed as the third argument:
 
 ```ts
 import { SignalRAdapter } from '@c9up/relay'
@@ -221,6 +279,13 @@ class AdminHub extends Hub {
   }
 }
 ```
+
+Each invocation is checked against the request that carries it — every one
+arrives on its own POST — not against the request that opened the stream: a
+role revoked since then stops working on the next call, and one granted works
+without reconnecting. `ctx.auth` in the method is that same request's. A POST
+must come from the user the stream was opened by, and a stream opened
+anonymously takes anonymous POSTs only (`403 E_RELAY_NOT_OWNER`).
 
 `guards` names the guards the request may have authenticated through — what
 Warden reports as `auth.authenticatedViaGuard`. `roles` is satisfied by **any**
@@ -250,6 +315,11 @@ class MathHub extends Hub {
 A method declaring one parameter is unaffected — the extras are simply ignored,
 as in any JavaScript call. Only the first argument used to be passed, and the
 rest went nowhere without anything reporting it.
+
+The name is matched without regard to case, as SignalR clients expect:
+`invoke('Sum')`, `invoke('sum')` and `invoke('SUM')` all reach `onSum`. Two
+methods whose names differ only by case answer the same invocation, so the hub
+refuses to construct.
 
 ### What is not supported
 

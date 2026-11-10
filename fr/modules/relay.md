@@ -17,8 +17,8 @@ Relay est le module de transport realtime client de Ream (`@c9up/relay`) avec SS
 import relay from '@c9up/relay/services/main'
 
 relay.registerRoutes()
-// `:id` est un paramètre, `projects/*` un préfixe. L'autorisateur reçoit le
-// contexte de la requête de souscription et les paramètres capturés.
+// L'autorisateur reçoit le contexte de la requête de souscription et les
+// paramètres capturés par son motif.
 relay.authorize<{ id: string }>('users/:id', (ctx, { id }) => ctx.auth?.user?.id === id)
 relay.authorize('reports/*', (ctx) => ctx.bouncer?.allows('reports.read') ?? false)
 
@@ -29,6 +29,36 @@ relay.broadcast('users/42', { unread: 3 })
 L'autorisateur reçoit tout le contexte de la requête de souscription, comme un
 contrôleur : `ctx.bouncer`, le tenant, tout ce qu'un middleware y a mis. `auth`
 et `bouncer` sont typés ; le reste est là à l'exécution.
+
+### Motifs de canal
+
+| Segment | Correspond à | Paramètre |
+|---|---|---|
+| `users` | ce segment exactement | — |
+| `:id` | un segment quelconque | `id` |
+| `:name.csv` | un segment qui finit par `.csv` | `name`, sans le suffixe |
+| `:id?` | un segment, ou rien — en fin de motif seulement | `id` s'il est présent |
+| `*` | un segment ou plus — en dernier seulement | `'*'`, le reste joint par `/` |
+
+`orgs/:org/*` couvre `orgs/acme/projects/42` avec `{ org: 'acme', '*': 'projects/42' }` ;
+`posts/:id?` couvre `posts` comme `posts/42`. Un enregistrement sans paramètre
+ni joker l'emporte sur tous les motifs ; les motifs sont essayés dans l'ordre où
+ils ont été enregistrés. Un motif qui ne pourrait jamais correspondre — un `*`
+qui n'est pas le dernier, un nom de paramètre vide, un segment obligatoire après
+un optionnel — lève une erreur dès `authorize()`.
+
+### Ce que transporte un broadcast
+
+La charge part en JSON, quelle qu'elle soit : `broadcast(ch, 'hello')` arrive au
+client comme la chaîne `hello`, et `broadcast(ch, '{"a":1}')` comme cette
+chaîne, pas comme un objet. Une chaîne n'est jamais écrite brute dans le flux :
+aucun saut de ligne ni retour chariot qu'elle contient ne peut clore son
+événement et en forger un autre. Une charge que JSON ne sait pas porter — un
+cycle, un `BigInt` — fait lever `broadcast()` avant tout envoi ; `undefined`
+part comme `null`.
+
+`broadcastExcept(channel, payload, uid)` écarte le ou les uid donnés, sur cette
+instance et, par le bus, sur toutes les autres.
 
 ## Configuration
 
@@ -43,6 +73,12 @@ export default defineConfig({
   allowUnauthorizedChannels: false,
   // Clients SSE simultanés acceptés par cette instance. Au-delà, 503.
   maxClients: 10_000,
+  // Clients SSE simultanés qu'un même propriétaire peut détenir — un
+  // utilisateur, ou l'adresse du client d'une connexion anonyme — pour qu'un
+  // seul client ne prenne pas toutes les places. Par défaut 20 ; false pour
+  // aucune limite. Derrière un proxy, déclarez les proxys de confiance, sinon
+  // tous les visiteurs anonymes comptent comme le proxy.
+  maxClientsPerOwner: 20,
   // Canaux qu'un client peut détenir. Les noms viennent du client et sont
   // indexés : sans borne, une seule socket peut immobiliser la mémoire.
   maxChannelsPerClient: 100,
@@ -167,13 +203,35 @@ l'application répondait 404.
 Chaque flux reçoit un uid du serveur — jamais du client — envoyé dans sa
 première trame, `connected { uid }`, et renvoyé dans `subscribe` / `unsubscribe`.
 Chaque connexion a le sien, si bien que deux onglets d'un même compte restent
-ouverts côte à côte. Qui l'a ouverte est enregistré à côté : si la connexion
-était authentifiée, un `subscribe` ou un `unsubscribe` doit venir du même
-utilisateur (`403 E_RELAY_NOT_OWNER` sinon) ; l'uid aléatoire d'une connexion anonyme
-est son seul credential.
+ouverts côte à côte. Qui l'a ouverte est enregistré à côté — l'utilisateur, et
+la session avec laquelle la requête est arrivée — et un `subscribe` ou un
+`unsubscribe` doit porter les mêmes, dans les deux sens (`403 E_RELAY_NOT_OWNER`
+sinon) : un flux ouvert par un utilisateur n'accepte que ses requêtes à lui, et
+un flux ouvert anonymement, ou sans session, n'accepte que des requêtes qui n'en
+portent pas. Sinon une requête munie des credentials de quelqu'un — une trame
+forgée rejouée par son propre client, un formulaire d'un autre site — pourrait
+faire approuver par l'autorisateur, avec ces credentials, un canal qui coule
+vers une connexion tenue par un autre. Un client qui se connecte à son compte,
+ou qui reçoit un cookie de session, se reconnecte pour obtenir un flux lié.
 
-`relay.shutdown()` arrête l'écoute du bus et le timer de keep-alive, comme celui
-de Transmit ; les flux ouverts se terminent avec le processus.
+Les écouteurs de cycle de vie reçoivent le contexte de la requête à côté de
+l'uid :
+
+```ts
+relay.on('subscribe', ({ uid, channel, context }) => {
+  audit.log(context.auth?.user?.id, 'subscribed', channel)
+})
+```
+
+`connect` et `disconnect` portent le contexte de la requête qui a ouvert le
+flux ; `subscribe` et `unsubscribe` celui de leur propre requête.
+
+`relay.shutdown()` arrête le timer de keep-alive, termine tous les flux ouverts
+— ceux des événements et ceux des hubs montés — et refuse les nouveaux, puis
+libère le bus. Un flux ouvert ensuite est terminé aussitôt, si bien que le
+client se reconnecte, sur une autre instance s'il y en a une. Le
+`startTransport()` suivant (le `ready()` du provider) accepte de nouveau les
+connexions.
 
 ## Hubs (SignalR)
 
@@ -189,7 +247,7 @@ import { Hub, type HubContext } from '@c9up/relay'
 
 class ChatHub extends Hub {
   // `onSendMessage` traite l'invocation `sendMessage` : le nom de méthode
-  // après `on`, première lettre en minuscule.
+  // après `on`, comparé sans tenir compte de la casse.
   async onSendMessage(ctx: HubContext, data: unknown) {
     ctx.group('room-1').send('message', data)
   }
@@ -205,8 +263,12 @@ client.
 
 Un flux qui n'a pas terminé le handshake après `handshakeTimeoutMs` (15 s par
 défaut, celui du client) est fermé, et au-delà de `maxConnections` flux ouverts
-(10 000 par défaut) un nouveau est refusé en 503. Ce sont des options de
-l'adaptateur passé en troisième argument :
+(10 000 par défaut) un nouveau est refusé en 503. Un même propriétaire — un
+utilisateur, ou l'adresse du client d'une requête anonyme — peut tenir
+`maxConnectionsPerOwner` flux (20 par défaut) et `maxPendingTokensPerOwner`
+tokens négociés pas encore rattachés (20 par défaut) ; une table de tokens
+pleine refuse une nouvelle négociation en 503 plutôt que de supprimer le token
+d'un autre. Ce sont des options de l'adaptateur passé en troisième argument :
 
 ```ts
 import { SignalRAdapter } from '@c9up/relay'
@@ -227,6 +289,13 @@ class AdminHub extends Hub {
   }
 }
 ```
+
+Chaque invocation est vérifiée contre la requête qui la porte — chacune arrive
+dans son propre POST — et non contre celle qui a ouvert le flux : un rôle retiré
+depuis cesse de fonctionner à l'appel suivant, et un rôle accordé fonctionne
+sans reconnexion. `ctx.auth` dans la méthode est celui de cette même requête.
+Un POST doit venir de l'utilisateur qui a ouvert le flux, et un flux ouvert
+anonymement n'accepte que des POST anonymes (`403 E_RELAY_NOT_OWNER`).
 
 `guards` nomme les gardes par lesquels la requête a pu s'authentifier — ce que
 Warden expose comme `auth.authenticatedViaGuard`. `roles` est satisfait par
@@ -258,6 +327,11 @@ Une méthode qui déclare un seul paramètre n'est pas affectée — les argumen
 trop sont simplement ignorés, comme dans tout appel JavaScript. Seul le premier
 argument passait jusqu'ici, et les autres disparaissaient sans que rien ne le
 signale.
+
+Le nom est comparé sans tenir compte de la casse, comme l'attendent les clients
+SignalR : `invoke('Sum')`, `invoke('sum')` et `invoke('SUM')` atteignent tous
+`onSum`. Deux méthodes dont les noms ne diffèrent que par la casse répondraient à
+la même invocation : le hub refuse alors de se construire.
 
 ### Ce qui n'est pas supporté
 
