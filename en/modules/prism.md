@@ -167,7 +167,7 @@ hero. `exact: true` ignores the aspect ratio, as `fit: 'fill'` does.
 
 `qrcode` writes a QR code as SVG — the output to reach for on a page, sharp at
 every size and a few hundred bytes — or as PNG, WebP or AVIF through the same
-encoders as the rest of Prism. Its shape is the npm `qrcode` package's:
+encoders as the rest of Prism:
 
 ```ts
 import { qrcode } from '@c9up/prism'
@@ -189,24 +189,21 @@ const src = await qrcode.toDataURL(uri, { type: 'svg' })             // <img src
 | `type` | `svg` (`toString`), `png` | `png`, `webp`, `avif`, `svg`, or their MIME types |
 | `rendererOpts.quality` | `100` | WebP and AVIF; 100 is lossless for WebP — lossy edges make scanners hesitate |
 
-The SVG is upstream's: one `path` of horizontal runs, a `viewBox`, and
-`shape-rendering="crispEdges"`, so markup styled for one works with the other.
+The SVG is one `path` of horizontal runs, a `viewBox`, and
+`shape-rendering="crispEdges"`.
 
 Everything may come from a request, so everything is bounded: text beyond what
 a QR code holds at the chosen level is `E_PRISM_QR_TOO_LONG`; an image over
 4096 pixels a side, a margin over 64, a version outside 1–40, a colour that is
 not strict hex or a dark colour with less than 3:1 contrast against the light
-one is `E_PRISM_INVALID_QR_OPTION` — where upstream falls back
-quietly. The SVG is written from the parsed colour channels, never from the
+one is `E_PRISM_INVALID_QR_OPTION`, never a quiet fallback. The SVG is written from the parsed colour channels, never from the
 string given, so a colour cannot inject markup.
 
-`toString` writes SVG only (upstream's text-art renderers are for a terminal),
-and WebP and AVIF are available on the server, which upstream only offers in a
-browser.
+`toString` writes SVG only, and WebP and AVIF are available on the server.
 
 ### Styling
 
-The options of `qr-code-styling`, in its names, change how the code is drawn:
+Styling options change how the code is drawn:
 module shapes, the finder patterns, colours or gradients, a rounded background
 and a logo. The same options style the SVG and the images, which are that SVG
 rendered.
@@ -248,7 +245,7 @@ Lengths stay in modules, so `margin`, `scale` and `width` mean what they mean
 above. The logo is an upload like any other: it goes through Prism's probe and
 limits, is decoded, and is embedded re-encoded as PNG — never fetched from a
 URL. With a logo the error correction defaults to `H`, and the area it hides is
-sized from the level's recovery capacity, as `qr-code-styling` does.
+sized from the level's recovery capacity.
 
 A code must still scan, so what would not is refused with
 `E_PRISM_INVALID_QR_OPTION`: an `imageSize` over 0.5, a colour or gradient stop
@@ -256,15 +253,13 @@ with less than 3:1 contrast against the background (WCAG's figure for graphics;
 a transparent background is not judged), and finder centres drawn as nine
 separate `dots`, which ZXing — the decoder behind most phone scanners — does not
 find. With `dots` modules and no `cornersDotOptions.type`, the centres are one
-round `dot` instead. Every style is read back by ZXing in the tests. Not
-carried over: `shape: 'circle'`, `roundSize` and the canvas options.
+round `dot` instead. Every style is read back by ZXing in the tests.
 
 ### Swiss QR-bills
 
 The payment slip at the foot of a Swiss invoice — receipt, payment part and the
-QR code with its Swiss cross — under `@c9up/prism/swissqrbill/*`, with the
-shape of the `swissqrbill` package: `pdf`, `svg`, `utils`, `errors` and
-`types`.
+QR code with its Swiss cross — under `@c9up/prism/swissqrbill/*`, split into
+`pdf`, `svg`, `utils`, `errors` and `types`.
 
 ```ts
 import PDFDocument from 'pdfkit'
@@ -304,26 +299,23 @@ text stays selectable. PDFKit is the application's dependency, not Prism's.
 and amount helpers.
 
 The QR code is encoded by the engine with the mask the Swiss reference encoder
-picks, so it is the same symbol module for module. The tests compare the
-output with `swissqrbill` 4.4.2 itself: the SVG byte for byte outside the QR
-code, the QR code module for module, and the PDFKit calls in order. A `ValidationError` carries the package's own codes and
-messages (`CREDITOR_ACCOUNT_IS_INVALID`, `QR_REFERENCE_IS_INVALID`…), so code
-that branched on `error.code` keeps working.
+picks, so it is the same symbol module for module. A `ValidationError` carries a code
+and a message (`CREDITOR_ACCOUNT_IS_INVALID`, `QR_REFERENCE_IS_INVALID`…) to
+branch on.
 
-Where Prism does more:
+Worth knowing:
 
 - data too long for the QR code is refused by the constructor with
   `E_PRISM_QR_TOO_LONG`, not halfway through drawing;
 - the SVG draws the QR code as one path rather than a rectangle per module:
-  the whole slip weighs about 12 KB instead of 210;
+  the whole slip weighs about 12 KB;
 - SVG attributes are escaped;
-- a character outside the font width tables no longer breaks an SVG address
+- a character outside the font width tables does not break an SVG address
   one word per line;
 - a creditor reference (`RF…`) is checked without regard to case, as
   ISO 11649 reads.
 
-The SVG classes return a string (no DOM element), and `Table` is not carried
-over.
+The SVG classes return a string (no DOM element).
 
 ## Serving images to a page
 
