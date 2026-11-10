@@ -504,7 +504,7 @@ pnpm add -D hot-hook @hot-hook/runner
 
 Désormais, éditer une page **ou** n'importe quel composant/layout/service qu'elle importe recharge le SSR à chaud, sans restart. Les éditions hors de l'arbre des pages (`app/`, `config/`, `start/`, `providers/`) déclenchent un restart complet via `hot-runner`, exactement comme avant.
 
-> **Vise les `boundaries` sur les _entrées_ de page uniquement** — `./resources/pages/*.js` (enfants directs), **pas** `**/*.js`. hot-hook exige que tout fichier matché par `boundaries` soit importé dynamiquement ; un composant importé statiquement mais qui matche la glob est marqué « wrongly imported » et force un restart complet. Garde les pages en enfants directs de `resources/pages/` et les composants dans des sous-dossiers (`atoms/`, `molecules/`, …) — ils deviennent hot-reloadables en tant que dépendances en aval d'une page boundary. Reflète le `["./app/controllers/**/*.ts"]` d'Adonis (entrypoints seulement).
+> **Vise les `boundaries` sur les _entrées_ de page uniquement** — `./resources/pages/*.js` (enfants directs), **pas** `**/*.js`. hot-hook exige que tout fichier matché par `boundaries` soit importé dynamiquement ; un composant importé statiquement mais qui matche la glob est marqué « wrongly imported » et force un restart complet. Garde les pages en enfants directs de `resources/pages/` et les composants dans des sous-dossiers (`atoms/`, `molecules/`, …) — ils deviennent hot-reloadables en tant que dépendances en aval d'une page boundary.
 
 ### Servir un autre paquet au navigateur
 
