@@ -83,6 +83,23 @@ Les options écrasent ce que dit le fichier rc : `suites`, `threads`, `reporters
 `bail`, `passWithNoTests`, et `coverage` — cette dernière passée telle quelle à
 Helix, la couverture appartenant au runner.
 
+Les flags de `ream test` arrivent avec le reste des options, et chacun restreint
+ou règle le run :
+
+| Option | Flag de `ream test` | Effet |
+| --- | --- | --- |
+| `filters.files` | `--files` | Garde les fichiers de test correspondants (`user`, `unit/*`, une fin de chemin) |
+| `filters.tags` | `--tags` | Garde les tests portant un tag ; `~@tag` exclut |
+| `filters.groups` | `--groups` | Garde les tests des groupes nommés |
+| `filters.tests` | `--tests` | Garde les tests de ces titres exacts, virgules comprises |
+| `timeout` | `--timeout` | Timeout de chaque test, qui l'emporte sur celui de la suite et du fichier rc |
+| `retries` | `--retries` | Tentatives supplémentaires pour chaque test d'une suite qui n'en déclare pas |
+| `failed` | `--failed` | Ne lance que les tests en échec au run précédent |
+| `watch`, `poll`, `clear` | `--watch`, `--poll`, `--no-clear` | Relance à chaque changement ; sonde au lieu des événements du système de fichiers ; garde la sortie précédente au lieu d'effacer l'écran |
+
+Un filtre de fichiers qui vide une suite nommée n'est pas une erreur ; un run
+sans aucun fichier sort toujours en 1.
+
 `NODE_ENV=test` est fixé et les fichiers `.env` chargés (`.env.test` avant
 `.env`) avant l'import du fichier rc. Un run qui ne trouve aucun fichier de test
 sort en 1, tout comme une suite nommée dans `suites` qui ne désigne rien, sauf

@@ -82,6 +82,23 @@ Options are overrides on top of the rc file: `suites`, `threads`, `reporters`,
 `bail`, `passWithNoTests`, and `coverage` — the last one handed to Helix
 untouched, since coverage is the runner's.
 
+The flags of `ream test` arrive as the rest of the options, and each one
+narrows or tunes the run:
+
+| Option | `ream test` flag | Effect |
+| --- | --- | --- |
+| `filters.files` | `--files` | Keep the matching test files (`user`, `unit/*`, a path suffix) |
+| `filters.tags` | `--tags` | Keep tests carrying a tag; `~@tag` excludes |
+| `filters.groups` | `--groups` | Keep tests of the named groups |
+| `filters.tests` | `--tests` | Keep tests with these exact titles, commas included |
+| `timeout` | `--timeout` | Timeout for every test, beating the suite's and the rc file's |
+| `retries` | `--retries` | Extra attempts for every test of a suite that declares none |
+| `failed` | `--failed` | Run only the tests that failed last time |
+| `watch`, `poll`, `clear` | `--watch`, `--poll`, `--no-clear` | Re-run on a change; poll instead of file-system events; keep the previous output instead of clearing the screen |
+
+A file filter that leaves a named suite empty is not an error; a run left
+with no file at all still exits 1.
+
 `NODE_ENV=test` is set and the `.env` files are loaded (`.env.test` over
 `.env`) before the rc file is imported. A run that finds no test file exits 1,
 and so does a suite named in `suites` that matches nothing, unless
