@@ -44,8 +44,6 @@ when the build moves, or point `assetsUrl` at a CDN.
 
 The SSR bundle is server code and goes in `ssrBuildDir`, which boot refuses
 inside `buildDir` or `public/` — anywhere the static server would hand it out.
-AdonisJS writes its server entry points under the public build directory; Photon
-deliberately does not.
 
 ## Rendering Pages
 
@@ -525,8 +523,7 @@ If the SPA-nav fetch of an opted-in anchor fails (non-2xx response, wrong `Conte
 
 ### Navigating from code — `router`
 
-`@c9up/photon/client` exports a `router` with the shape of Inertia's, so code
-written against `@inertiajs/core` reads the same:
+`@c9up/photon/client` exports a `router` for visits made from code:
 
 ```ts
 import { router } from '@c9up/photon/client'
@@ -539,7 +536,7 @@ router.reload({ only: ['rows'], reset: ['rows'] }) // replace, not combine
 router.visit('/login', { errorBag: 'login' })    // scope validation errors
 ```
 
-Visits take Inertia's callbacks — `onBefore` (return `false` to cancel),
+Visits take callbacks — `onBefore` (return `false` to cancel),
 `onBeforeUpdate`, `onSuccess`, `onFinish` — and `data` (query parameters),
 `preserveUrl` and `preserveErrors`. The router also has `router.on('success', cb)`
 (returns the function that stops listening), `router.remember(data, key)` /
@@ -549,9 +546,8 @@ Visits take Inertia's callbacks — `onBefore` (return `false` to cancel),
 A partial reload (`only`, `except` or `reset`) merges the answer into the page
 on screen without remounting it; the props it did not ask for keep their value,
 and it takes the server's `errors`. `reload()` sends `Cache-Control: no-cache`.
-A URL on another origin is a full navigation. One difference from Inertia: both
-methods return a promise that settles once the page is applied, so they can be
-awaited; ignoring it, as Inertia code does, works too.
+A URL on another origin is a full navigation. Both methods return a promise that
+settles once the page is applied, so they can be awaited; ignoring it works too.
 
 ### Server-side contract
 
@@ -782,8 +778,7 @@ See the [full catalog](../errors/#photon-errors) for cause + fix per code.
 
 ## Prop helpers
 
-A migrated Inertia controller calls the same helpers — the implementation is
-ours, the surface is theirs.
+A controller shapes the props it sends with these helpers:
 
 ```ts
 ctx.photon.render('Dashboard', {
@@ -819,14 +814,14 @@ state; Svelte still remounts). A form's `errors` stay as they were.
 
 On a partial reload — a deferred group, `router.reload({ only })` — the props
 labelled `merge`, `merge().prepend()` or `deepMerge` are combined with what the
-page holds, following `matchOn`; a full visit replaces them, as in Inertia.
+page holds, following `matchOn`; a full visit replaces them.
 
 A `once` value is kept by the page that received it: every request announces
 the keys still held and not expired (`x-photon-except-once-props`), the server
 skips resolving them, and the router puts its copy back with its first expiry.
 
 A `scroll` prop is paginated from the page with `useInfiniteScrollData`, the data
-half of Inertia's infinite scroll under the same names:
+half of infinite scroll:
 
 ```ts
 import { useInfiniteScrollData } from '@c9up/photon/client'
@@ -840,7 +835,7 @@ Each call is a partial reload of the scroll prop; the address bar does not move,
 and a `null` page on either side stops the requests. A reload with
 `reset: ['users']` starts the cursor over.
 
-`useInfiniteScroll` wires it to the page, as Inertia's does: it loads a side
+`useInfiniteScroll` wires it to the page: it loads a side
 when its trigger element scrolls into view, tags each row with the page it came
 with, moves the URL to the page most visible on screen, and keeps the reader's
 row in place when rows arrive above it. The cursor and the row ranges are kept
@@ -875,9 +870,8 @@ Most pages use it through the framework component instead.
 ## Framework components
 
 `@c9up/photon/react`, `@c9up/photon/vue` and `@c9up/photon/svelte` export the
-components of `@inertiajs/react`, `@inertiajs/vue3` and `@inertiajs/svelte`,
-with the same props and slots: `usePage`, `Deferred`, `WhenVisible` and
-`InfiniteScroll`. Each subpath is imported only by an app of that framework.
+same components, with the same props and slots, for each framework: `usePage`,
+`Deferred`, `WhenVisible` and `InfiniteScroll`. Each subpath is imported only by an app of that framework.
 
 ```tsx
 import { Deferred, InfiniteScroll, WhenVisible } from '@c9up/photon/react'
@@ -921,17 +915,16 @@ const app = createSSRApp({ render: () => h(PhotonPage, { page: pageData }, () =>
 svelteRender(PhotonRoot, { props: { component, props: pageData.props, page: pageData } })
 ```
 
-`Link` is there in the three frameworks too, with Inertia's props (`href`,
-`method`, `data`, `replace`, `only`, `except`, `headers`, `preserveState`, …):
-an anchor the router follows, or — for any method but GET — a button, as
-upstream renders it. Prefetching is not supported (Photon keeps no visit cache).
+`Link` is there in the three frameworks too, with the props `href`,
+`method`, `data`, `replace`, `only`, `except`, `headers`, `preserveState`, …:
+an anchor the router follows, or — for any method but GET — a button. Prefetching is not supported (Photon keeps no visit cache).
 
 ```tsx
 <Link href="/orders" data={{ status: 'open' }}>Open orders</Link>
 <Link href={`/orders/${id}`} method="delete" onSuccess={() => toast('Deleted')}>Delete</Link>
 ```
 
-As in `@adonisjs/inertia`, `Link`, `Form` and the router also take a **named
+`Link`, `Form` and the router also take a **named
 route**: `route`, `routeParams`, `qs`, and the route's own method unless
 `method` is given. The routes are Ream's, handed to the browser once:
 
@@ -954,10 +947,10 @@ declare module '@c9up/photon/client' {
 }
 ```
 
-Adonis passes its routes down a `TuyauProvider`; Photon sets them once for the
-module — they are the application's, the same on every page. The client entry
-can use `resolvePageComponent(name, import.meta.glob('./pages/**/*.tsx'))`,
-Adonis's helper, to resolve pages.
+Photon sets the routes once for the module — they are the application's, the
+same on every page. The client entry can use
+`resolvePageComponent(name, import.meta.glob('./pages/**/*.tsx'))` to resolve
+pages.
 
 Visits other than GET go through the router too — `router.post(url, data)`,
 `put`, `patch`, `delete`, or `visit(url, { method, data })`. The data is sent as
@@ -967,7 +960,7 @@ validation errors (scoped by `errorBag`) calls `onError` instead of `onSuccess`.
 A mutation that fails leaves the page as it is rather than reloading its URL as
 a GET.
 
-Forms work as in Inertia. `useForm` holds a form's data, errors and submission
+`useForm` holds a form's data, errors and submission
 state — `form.data` and `form.setData` in React, the fields at the top level in
 Vue and Svelte (`v-model="form.email"`, `bind:value={form.email}`):
 
@@ -993,9 +986,8 @@ the same state:
 </Form>
 ```
 
-Two parts of Inertia's forms are not ported: Laravel Precognition (live
-validation against a Laravel endpoint), and upload `progress`, which stays
-`null` because the router sends with `fetch`.
+Forms have no live validation against the server while the user types, and
+upload `progress` stays `null` because the router sends with `fetch`.
 
 ## Validation errors
 
@@ -1023,8 +1015,7 @@ The router keeps each page in `history.state`. With `encryptHistory` that copy i
 AES-GCM ciphertext under a key kept in `sessionStorage`; `clearHistory` deletes
 the key, so every earlier entry becomes unreadable and the back button — or a
 page restored from the back-forward cache — loads the URL from the server
-instead. Two deliberate differences from Inertia's client: every entry gets its
-own random IV (Inertia reuses one per key), and without Web Crypto (a page not
+instead. Every entry gets its own random IV, and without Web Crypto (a page not
 served over HTTPS) nothing is stored rather than the page in the clear.
 
 The flash bag reaches the page as a `photon:flash` event on `document` — once per

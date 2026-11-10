@@ -39,8 +39,7 @@ servi : le serveur statique retire `public/`, donc `public/build/app.js` devient
 
 Le bundle SSR est du code serveur et va dans `ssrBuildDir`, que le boot refuse
 à l'intérieur de `buildDir` ou de `public/` — partout où le serveur statique le
-distribuerait. AdonisJS écrit ses points d'entrée serveur sous le dossier de
-build public ; Photon s'en écarte volontairement.
+distribuerait.
 
 `buildDir` est résolu depuis la **racine de l'application**, que le provider
 obtient via `app.makePath()` — et non depuis le répertoire où le processus a
@@ -534,8 +533,8 @@ Si le fetch SPA-nav d'une ancre inscrite échoue (réponse non-2xx, mauvais `Con
 
 ### Naviguer depuis le code — `router`
 
-`@c9up/photon/client` exporte un `router` qui a la forme de celui d'Inertia : du
-code écrit pour `@inertiajs/core` se lit de la même façon.
+`@c9up/photon/client` exporte un `router` pour les visites lancées depuis le
+code :
 
 ```ts
 import { router } from '@c9up/photon/client'
@@ -548,7 +547,7 @@ router.reload({ only: ['rows'], reset: ['rows'] }) // remplacer, pas combiner
 router.visit('/login', { errorBag: 'login' })    // cibler les erreurs de validation
 ```
 
-Les visites prennent les callbacks d'Inertia — `onBefore` (renvoyer `false`
+Les visites prennent des callbacks — `onBefore` (renvoyer `false`
 annule), `onBeforeUpdate`, `onSuccess`, `onFinish` — ainsi que `data` (paramètres
 de query), `preserveUrl` et `preserveErrors`. Le routeur a aussi
 `router.on('success', cb)` (renvoie la fonction qui arrête l'écoute),
@@ -559,9 +558,9 @@ l'adresse sans requête.
 Un rechargement partiel (`only`, `except` ou `reset`) fusionne la réponse dans la
 page affichée sans la remonter ; les props non demandés gardent leur valeur, et
 il prend les `errors` du serveur. `reload()` envoie `Cache-Control: no-cache`.
-Une URL d'une autre origine est une navigation complète. Un écart avec Inertia :
-les deux méthodes renvoient une promesse, résolue une fois la page appliquée,
-qu'on peut donc attendre ; l'ignorer, comme le fait le code Inertia, marche aussi.
+Une URL d'une autre origine est une navigation complète. Les deux méthodes
+renvoient une promesse, résolue une fois la page appliquée, qu'on peut donc
+attendre ; l'ignorer marche aussi.
 
 ### Contrat côté serveur
 
@@ -792,8 +791,7 @@ Voir le [catalogue complet](../errors/#erreurs-photon) pour cause + fix par code
 
 ## Helpers de props
 
-Un contrôleur Inertia migré appelle les mêmes helpers — l'implémentation est la
-nôtre, la surface est la leur.
+Un contrôleur façonne les props qu'il envoie avec ces helpers :
 
 ```ts
 ctx.photon.render('Dashboard', {
@@ -831,14 +829,14 @@ telles quelles.
 Lors d'un rechargement partiel — un groupe différé, `router.reload({ only })` —
 les props étiquetés `merge`, `merge().prepend()` ou `deepMerge` sont combinés
 avec ce que la page tient, en suivant `matchOn` ; une visite complète les
-remplace, comme dans Inertia.
+remplace.
 
 Une valeur `once` est gardée par la page qui l'a reçue : chaque requête annonce
 les clés encore tenues et non expirées (`x-photon-except-once-props`), le serveur
 ne les résout pas, et le routeur remet sa copie avec sa première échéance.
 
 Un prop `scroll` se pagine depuis la page avec `useInfiniteScrollData`, la
-moitié « données » du défilement infini d'Inertia, sous les mêmes noms :
+moitié « données » du défilement infini :
 
 ```ts
 import { useInfiniteScrollData } from '@c9up/photon/client'
@@ -852,7 +850,7 @@ Chaque appel est un rechargement partiel du prop ; la barre d'adresse ne bouge
 pas, et une page `null` d'un côté arrête les requêtes. Un rechargement avec
 `reset: ['users']` remet le curseur à zéro.
 
-`useInfiniteScroll` le branche sur la page, comme celui d'Inertia : il charge un
+`useInfiniteScroll` le branche sur la page : il charge un
 côté quand son élément déclencheur entre à l'écran, étiquette chaque ligne avec
 sa page, fait suivre l'URL à la page la plus visible, et garde la ligne du
 lecteur en place quand des lignes arrivent au-dessus. Le curseur et les plages
@@ -887,9 +885,8 @@ La plupart des pages l'utilisent plutôt à travers le composant du framework.
 ## Composants par framework
 
 `@c9up/photon/react`, `@c9up/photon/vue` et `@c9up/photon/svelte` exportent les
-composants de `@inertiajs/react`, `@inertiajs/vue3` et `@inertiajs/svelte`,
-avec les mêmes props et slots : `usePage`, `Deferred`, `WhenVisible` et
-`InfiniteScroll`. Chaque sous-chemin n'est importé que par une app de ce
+mêmes composants, avec les mêmes props et slots, pour chaque framework :
+`usePage`, `Deferred`, `WhenVisible` et `InfiniteScroll`. Chaque sous-chemin n'est importé que par une app de ce
 framework.
 
 ```tsx
@@ -934,10 +931,10 @@ const app = createSSRApp({ render: () => h(PhotonPage, { page: pageData }, () =>
 svelteRender(PhotonRoot, { props: { component, props: pageData.props, page: pageData } })
 ```
 
-`Link` est aussi là dans les trois frameworks, avec les props d'Inertia
-(`href`, `method`, `data`, `replace`, `only`, `except`, `headers`,
-`preserveState`, …) : une ancre que le routeur suit, ou — pour toute méthode
-autre que GET — un bouton, comme en amont. Le préchargement n'est pas pris en
+`Link` est aussi là dans les trois frameworks, avec les props
+`href`, `method`, `data`, `replace`, `only`, `except`, `headers`,
+`preserveState`, … : une ancre que le routeur suit, ou — pour toute méthode
+autre que GET — un bouton. Le préchargement n'est pas pris en
 charge (Photon ne garde pas de cache de visites).
 
 ```tsx
@@ -945,7 +942,7 @@ charge (Photon ne garde pas de cache de visites).
 <Link href={`/orders/${id}`} method="delete" onSuccess={() => toast('Supprimée')}>Supprimer</Link>
 ```
 
-Comme dans `@adonisjs/inertia`, `Link`, `Form` et le routeur prennent aussi une
+`Link`, `Form` et le routeur prennent aussi une
 **route nommée** : `route`, `routeParams`, `qs`, et la méthode de la route sauf
 si `method` est donné. Les routes sont celles de Ream, transmises une fois au
 navigateur :
@@ -969,11 +966,9 @@ declare module '@c9up/photon/client' {
 }
 ```
 
-Adonis transmet ses routes par un `TuyauProvider` ; Photon les fixe une fois
-pour le module — ce sont celles de l'application, les mêmes sur chaque page.
-L'entrée client peut résoudre ses pages avec
-`resolvePageComponent(name, import.meta.glob('./pages/**/*.tsx'))`, le helper
-d'Adonis.
+Photon fixe les routes une fois pour le module — ce sont celles de
+l'application, les mêmes sur chaque page. L'entrée client peut résoudre ses
+pages avec `resolvePageComponent(name, import.meta.glob('./pages/**/*.tsx'))`.
 
 Les visites autres que GET passent aussi par le routeur — `router.post(url, data)`,
 `put`, `patch`, `delete`, ou `visit(url, { method, data })`. Les données partent
@@ -983,7 +978,7 @@ qui revient avec des erreurs de validation (ciblées par `errorBag`) appelle
 `onError` au lieu de `onSuccess`. Une mutation en échec laisse la page telle
 quelle plutôt que de recharger son URL en GET.
 
-Les formulaires fonctionnent comme dans Inertia. `useForm` tient les données,
+`useForm` tient les données,
 les erreurs et l'état de soumission d'un formulaire — `form.data` et
 `form.setData` en React, les champs au premier niveau en Vue et Svelte
 (`v-model="form.email"`, `bind:value={form.email}`) :
@@ -1010,9 +1005,9 @@ même état à ses enfants :
 </Form>
 ```
 
-Deux parties des formulaires d'Inertia ne sont pas portées : Laravel
-Precognition (validation en direct contre un endpoint Laravel), et la
-`progress` d'envoi, qui reste `null` parce que le routeur envoie avec `fetch`.
+Les formulaires n'ont pas de validation en direct contre le serveur pendant la
+saisie, et la `progress` d'envoi reste `null` parce que le routeur envoie avec
+`fetch`.
 
 ## Erreurs de validation
 
@@ -1040,9 +1035,9 @@ Le routeur garde chaque page dans `history.state`. Avec `encryptHistory`, cette
 copie est chiffrée en AES-GCM sous une clé gardée dans `sessionStorage` ;
 `clearHistory` supprime la clé, donc toute entrée antérieure devient illisible et
 le bouton retour — ou une page restaurée depuis le cache avant-arrière — recharge
-l'URL depuis le serveur. Deux écarts volontaires avec le client d'Inertia : un IV
-aléatoire par entrée (Inertia en réutilise un par clé), et sans Web Crypto (page
-non servie en HTTPS) rien n'est rangé plutôt que la page en clair.
+l'URL depuis le serveur. Chaque entrée reçoit son propre IV aléatoire, et sans
+Web Crypto (page non servie en HTTPS) rien n'est rangé plutôt que la page en
+clair.
 
 Le sac flash arrive à la page comme un événement `photon:flash` sur `document` —
 une fois par page, jamais pour un groupe différé, et jamais rejoué par le bouton
