@@ -166,8 +166,7 @@ const { messageId } = await mail.send((message) => {
 > l'invitation part comme partie `text/calendar`, ce qui est de toute façon la
 > façon dont les clients mail la lisent.
 >
-> `icalEvent()` accepte soit le texte ICS, soit un callback de construction,
-> comme en amont :
+> `icalEvent()` accepte soit le texte ICS, soit un callback de construction :
 >
 > ```ts
 > mail.icalEvent((calendar) => {
@@ -399,7 +398,7 @@ message.assertHtmlIncludes('Bonjour')
 message.toObject()
 ```
 
-`hasRecipient` prend le **champ d'abord**, comme AdonisJS, et `hasAnyRecipient`
+`hasRecipient` prend le **champ d'abord**, et `hasAnyRecipient`
 pose la question « n'importe quel champ » :
 
 ```ts
@@ -423,7 +422,7 @@ servir de relais.
 
 ## Événements de cycle de vie
 
-Chaque événement porte le triplet d'AdonisJS — le mailer qui l'a traité, le
+Chaque événement porte trois choses — le mailer qui l'a traité, le
 message, et les templates dont il a été rendu :
 
 ```ts
@@ -454,12 +453,10 @@ message.assertWatchIncludes(/poignet/i)
 message.preparedHeader('X-Signature', 'a=b; c=d')
 ```
 
-::: warning Écart nommé — et un bug amont
-`watch()` écrit le `watchHtml` de nodemailer. AdonisJS écrit un champ `watch`
-nu, que le compositeur de nodemailer ne lit jamais
-(`lib/mail-composer/index.js` ne regarde que `watchHtml`) : **le corps Apple
-Watch d'AdonisJS ne part donc jamais**. `watchHtml()` est la même méthode sous
-le nom du champ.
+::: tip `watch()` et `watchHtml()`
+`watch()` écrit le `watchHtml` de nodemailer, le seul champ que lit son
+compositeur (`lib/mail-composer/index.js`). `watchHtml()` est la même méthode
+sous le nom du champ.
 :::
 
 `preparedHeader` marque une valeur que nodemailer doit laisser intacte. Les

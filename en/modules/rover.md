@@ -163,8 +163,7 @@ const { messageId } = await mail.send((message) => {
 > forms work everywhere — for those transports the invitation is sent as a
 > `text/calendar` part, which is how mail clients read it anyway.
 >
-> `icalEvent()` takes either the ICS text or a builder callback, as upstream
-> does:
+> `icalEvent()` takes either the ICS text or a builder callback:
 >
 > ```ts
 > mail.icalEvent((calendar) => {
@@ -398,7 +397,7 @@ message.assertHtmlIncludes('Hello')
 message.toObject()
 ```
 
-`hasRecipient` takes the **field first**, as AdonisJS does, and
+`hasRecipient` takes the **field first**, and
 `hasAnyRecipient` is the any-field question:
 
 ```ts
@@ -420,7 +419,7 @@ entries, with `E_MAIL_HEADER_INJECTION`: a contact form passing its fields to
 
 ## Lifecycle events
 
-Every event carries the AdonisJS triple — the mailer that handled it, the
+Every event carries three things — the mailer that handled it, the
 message, and the templates it was rendered from:
 
 ```ts
@@ -451,11 +450,10 @@ message.assertWatchIncludes(/wrist/i)
 message.preparedHeader('X-Signature', 'a=b; c=d')
 ```
 
-::: warning Named deviation — and an upstream bug
-`watch()` writes nodemailer's `watchHtml`. AdonisJS writes a bare `watch` field,
-which nodemailer's mail composer never reads (`lib/mail-composer/index.js` only
-looks at `watchHtml`), so **upstream's watch body never reaches the wire**.
-`watchHtml()` is the same method under the field's own name.
+::: tip `watch()` and `watchHtml()`
+`watch()` writes nodemailer's `watchHtml`, the only field its mail composer
+reads (`lib/mail-composer/index.js`). `watchHtml()` is the same method under the
+field's own name.
 :::
 
 `preparedHeader` marks a value nodemailer must pass through untouched. Normal
