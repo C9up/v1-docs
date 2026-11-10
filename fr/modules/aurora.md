@@ -511,6 +511,10 @@ glue bindgen va ensuite chercher le binaire à côté de lui. L'importmap pointe
 donc **dans** `dist/` pour que ce chemin relatif atterrisse sur la route frère.
 Servir la racine du paquet répondrait aux deux et publierait aussi les
 `index.*.node`, des binaires serveur qui se comptent en dizaines de méga-octets.
+Un paquet dont l'entrée est à sa racine (`./index.mjs` à côté de son
+`package.json`) n'a pas de tel dossier étroit : il est refusé au démarrage par
+une erreur qui le nomme. Retirez-le de `browserPackages` et mappez-le avec
+`importmap` vers un montage des seuls fichiers dont le navigateur a besoin.
 
 ### Attraper une erreur d'aurora
 

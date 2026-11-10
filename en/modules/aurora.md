@@ -501,6 +501,10 @@ the binary beside itself, so the importmap points INTO `dist/` for that relative
 path to land on the sibling route. Serving the package root would answer both
 and also publish `index.*.node`, server-only binaries measured in tens of
 megabytes.
+A package whose entry sits at its root (`./index.mjs` beside its
+`package.json`) has no such narrow directory, so it is refused at boot with an
+error naming it: leave it out of `browserPackages` and map it with `importmap`
+onto a mount of just the files the browser needs.
 
 ### Catching an aurora failure
 
