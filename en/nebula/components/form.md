@@ -152,8 +152,13 @@ TextField({ bind: bind(order, 'quantity'), label: 'Quantity' })
 | Prop | Type | Default | Description |
 |---|---|---|---|
 | `form` | `AuroraForm<T>` | — | Required. The controller from Aurora's `form()`. Its `handleSubmit` runs on submit. |
+| `method` | `'post' \| 'get' \| 'dialog'` | `'post'` | How the browser submits the form before the page is hydrated, or when a script fails to load. |
+| `action` | `string` | — | Where that submission goes. Left out, it goes to the current page. A `javascript:` URL is neutralised. |
+| `enctype` | `'application/x-www-form-urlencoded' \| 'multipart/form-data' \| 'text/plain'` | — | The encoding of that submission. |
 | `children` | `Slot` | — | The fields and the submit button. |
 | `class` | `Reactive<string>` | — | Merged into the form's classes. |
+
+The server renders the `<form>`, so a user can press Enter before the page is hydrated. The browser then submits it on its own, and a form with no method is a GET: every named field, a password included, would end up in the URL, the history and the server logs. That is why the method defaults to `post`. If the application checks a CSRF token, put the token field among the children so this early POST is accepted.
 
 The form is `novalidate`: the browser's own bubbles cannot be styled, appear one at a time, and would fire before the controller's validation, giving the same error two presentations. A validator that throws is reported on the console as `[nebula] Form submit failed:` rather than lost in an unhandled promise.
 

@@ -152,8 +152,13 @@ TextField({ bind: bind(order, 'quantity'), label: 'Quantité' })
 | Prop | Type | Défaut | Description |
 |---|---|---|---|
 | `form` | `AuroraForm<T>` | — | Obligatoire. Le contrôleur issu du `form()` d'Aurora. Son `handleSubmit` s'exécute à l'envoi. |
+| `method` | `'post' \| 'get' \| 'dialog'` | `'post'` | La façon dont le navigateur envoie le formulaire avant l'hydratation de la page, ou quand un script ne se charge pas. |
+| `action` | `string` | — | L'adresse de cet envoi. Sans elle, il va à la page courante. Une URL `javascript:` est neutralisée. |
+| `enctype` | `'application/x-www-form-urlencoded' \| 'multipart/form-data' \| 'text/plain'` | — | L'encodage de cet envoi. |
 | `children` | `Slot` | — | Les champs et le bouton d'envoi. |
 | `class` | `Reactive<string>` | — | Fusionnée dans les classes du formulaire. |
+
+Le serveur rend le `<form>`, si bien qu'un utilisateur peut appuyer sur Entrée avant l'hydratation de la page. Le navigateur envoie alors le formulaire lui-même, et un formulaire sans méthode part en GET : tous les champs nommés, mot de passe compris, finiraient dans l'URL, l'historique et les journaux du serveur. C'est pourquoi la méthode vaut `post` par défaut. Si l'application vérifie un jeton CSRF, placez le champ du jeton parmi les enfants pour que cet envoi anticipé soit accepté.
 
 Le formulaire est `novalidate` : les bulles du navigateur ne se stylent pas, apparaissent une à une, et se déclencheraient avant la validation du contrôleur, ce qui donnerait deux présentations à la même erreur. Un validateur qui lève une exception est signalé dans la console par `[nebula] Form submit failed:` plutôt que perdu dans une promesse non gérée.
 
