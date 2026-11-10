@@ -1,19 +1,19 @@
 # Inker — Server-side Templates
 
-Inker is the server-side templating module in the Ream ecosystem (`@c9up/inker`). It is a hand-rolled **AdonisJS Edge** clone: the same `@`-directive syntax, the same `{{ }}` interpolation, the same layouts / sections / components / slots — with a Rust lexer + parser and a Node evaluator.
+Inker is the server-side templating module in the Ream ecosystem (`@c9up/inker`). Templates use `@` directives, `{{ }}` interpolation, and layouts / sections / components / slots — parsed by a Rust lexer + parser and rendered by a Node evaluator.
 
-> Status: full Edge-parity engine. `{{ }}` interpolation evaluates real JavaScript expressions; `@if`/`@elseif`/`@else`/`@unless`, `@each`, `@let`, `@layout` + `@section`/`@super`, `@include`/`@includeIf`, `@component` + `@slot` with `$props`/`$slots`, core globals, registered helpers, `@eval`/`@dump`, and custom tags (`registerTag`) all ship. The Ream provider and the agnostic `@c9up/inker/testing` sub-path are wired.
+> Status: complete. `{{ }}` interpolation evaluates real JavaScript expressions; `@if`/`@elseif`/`@else`/`@unless`, `@each`, `@let`, `@layout` + `@section`/`@super`, `@include`/`@includeIf`, `@component` + `@slot` with `$props`/`$slots`, core globals, registered helpers, `@eval`/`@dump`, and custom tags (`registerTag`) all ship. The Ream provider and the agnostic `@c9up/inker/testing` sub-path are wired.
 
-## Architecture — Rust parses, Node evaluates (the Edge model)
+## Architecture — Rust parses, Node evaluates
 
-The epic forbids pulling in a templating dependency (Handlebars, Mustache, Eta, EJS, Pug, Nunjucks, even Edge.js itself). Inker is hand-rolled, split across a Rust core and a Node renderer:
+Inker pulls in no templating dependency. It is hand-rolled, split across a Rust core and a Node renderer:
 
 - **Rust (`inker-engine`)** — a single forward-scan lexer and a linear parser turn a `.inker` source into a **JSON AST** (`parseTemplate` / `parseTemplateJson` over NAPI). This is the CPU-bound work; each node carries the *verbatim source* of its expressions.
-- **Node (`renderNode.ts`)** — walks the JSON AST and evaluates each expression's source in Node's own **V8**, with the registered helpers, core globals, and the render scope all in lexical scope — exactly like Edge (one runtime; helpers are plain functions callable anywhere, including inside arrow functions and loop-scoped arguments).
+- **Node (`renderNode.ts`)** — walks the JSON AST and evaluates each expression's source in Node's own **V8**, with the registered helpers, core globals, and the render scope all in lexical scope (one runtime; helpers are plain functions callable anywhere, including inside arrow functions and loop-scoped arguments).
 
-> The expression source is author-controlled (`.inker` files) — the same trust level as the rest of the app's code. That is Edge's model, and it is why a helper can be called *inside* a rich expression (`{{ users.filter(u => can(u)).map(u => u.name).join(', ') }}`).
+> The expression source is author-controlled (`.inker` files) — the same trust level as the rest of the app's code. That is why a helper can be called *inside* a rich expression (`{{ users.filter(u => can(u)).map(u => u.name).join(', ') }}`).
 
-> **Trust boundary (security).** Because expressions run in V8, a template *is code*. Never feed untrusted input to `renderString`, and never load `.inker` templates from an untrusted source (a CMS field, a user upload) — that is arbitrary code execution, exactly as it would be in Edge. As a bar-raise (a named deviation from strict Edge parity), the dangerous Node globals — `process`, `globalThis`, `global`, `require`, `module`, `exports`, `Function`, `eval` — are shadowed to `undefined` in the expression scope, so `{{ process.env.SECRET }}` or `@eval(require('child_process')…)` fail. This is **not** a sandbox: a determined property-chain escape (`({}).constructor.constructor(…)`) is not blocked. Treat templates as trusted code.
+> **Trust boundary (security).** Because expressions run in V8, a template *is code*. Never feed untrusted input to `renderString`, and never load `.inker` templates from an untrusted source (a CMS field, a user upload) — that is arbitrary code execution. As a hardening measure, the dangerous Node globals — `process`, `globalThis`, `global`, `require`, `module`, `exports`, `Function`, `eval` — are shadowed to `undefined` in the expression scope, so `{{ process.env.SECRET }}` or `@eval(require('child_process')…)` fail. This is **not** a sandbox: a determined property-chain escape (`({}).constructor.constructor(…)`) is not blocked. Treat templates as trusted code.
 
 This keeps the package zero-runtime-dep, agnostic by construction, and free of any embedded JS VM (an earlier QuickJS spike was dropped: two runtimes meant a crash-prone FFI bridge, and V8-in-Node is both simpler and faster).
 
@@ -53,14 +53,13 @@ try {
 }
 ```
 
-> **Inker deviation (named):** Edge's `compile` returns the compiled JavaScript
-> function. Inker's compiler is in Rust and produces an opaque native AST
+> **Why nothing is returned:** inker's compiler is in Rust and produces an opaque native AST
 > handle, which means nothing on this side of the bridge — so these report
-> whether the template parses rather than handing back the artifact.
+> whether the template parses rather than handing back an artifact.
 
 ## Interpolation & expressions
 
-Inker mirrors Adonis Edge for output:
+Output comes in two forms:
 
 ```inker
 <!-- Escaped (HTML-safe by default — defends against stored XSS) -->
@@ -84,7 +83,7 @@ A value that is a `SafeString` is emitted raw (even in the escaped `{{ }}` form)
 
 ### Escape characters, comments, whitespace
 
-Use `\{{` / `\}}` to emit literal braces (the backslash is consumed). Edge-style comments are supported and stripped entirely — they emit nothing, and their contents are never parsed:
+Use `\{{` / `\}}` to emit literal braces (the backslash is consumed). Template comments are supported and stripped entirely — they emit nothing, and their contents are never parsed:
 
 ```inker
 Use \{{ name \}} to interpolate.     →   Use {{ name }} to interpolate.
@@ -95,7 +94,7 @@ An unterminated `{{--` is a hard lex error, so a stray comment open cannot silen
 
 ## Control flow
 
-Adonis-style block tags. `@if` / `@elseif` / `@else` / `@endif`, its negation `@unless`, and `@each` / `@endeach`:
+Block tags: `@if` / `@elseif` / `@else` / `@endif`, its negation `@unless`, and `@each` / `@endeach`:
 
 ```inker
 @if(cart.items.length > 0)
@@ -113,13 +112,13 @@ Adonis-style block tags. `@if` / `@elseif` / `@else` / `@endif`, its negation `@
 
 Every block also closes with the generic `@end`, which closes whatever block is innermost (`@if(x)…@end`, `@each(…)…@end`, `@component(…)…@end`, `@slot(…)…@end`, custom block tags). Ending a tag line with `~` (`@if(x)~`, `@end~`) drops the line break that leads into the next line of output, so a loop can emit `<li>`s with no newline between them.
 
-Line breaks follow Edge's line model, so a template renders byte for byte as it does in Edge:
+Line breaks follow a fixed line model:
 
 - A tag written at the start of its line (indentation allowed, and dropped) produces no line break of its own. The line break before a content line is kept; the one before a tag line is kept only when the previous line was also a tag line; a closing tag line never has one.
 - `@let`, `@assign`, `@eval`, `@inject`, `@slot`, `@pushTo`, `@pushOnceTo`, `@debugger`, `@newError` and `@layout` also drop the next line break, as does a registered tag declared with `noNewLine: true`.
 - A component's default slot ignores its first line break. A page loses one line break at its very start and one at its very end; partials and components keep theirs.
 - A stack joins the contents pushed to it with a line break.
-- A tag written in the middle of a line is an inker extension (Edge treats it as text): it leaves the line's line breaks alone.
+- A tag written in the middle of a line is still a tag: it leaves the line's line breaks alone.
 
 `@each` iterates arrays, strings (one character per code point), objects (every own key), `Map`s, and `Set`s, with an optional `@else` for the empty case:
 
@@ -144,7 +143,7 @@ Line breaks follow Edge's line model, so a template renders byte for byte as it 
 <p>Total: {{ total }}</p>
 ```
 
-It also supports object and array destructuring, including rename, defaults, and rest — exactly like Edge:
+It also supports object and array destructuring, including rename, defaults, and rest:
 
 ```inker
 @let({ name, email } = user)
@@ -219,7 +218,7 @@ The props are any JavaScript expression — an object literal with quoted keys, 
 
 Two function layers are always in expression scope:
 
-- **Core globals** — string casing (`camelCase`, `pascalCase`, `snakeCase`, `dashCase`, `titleCase`), text (`truncate` keeps the tags of HTML input and closes the ones it cuts open, `excerpt` strips them and counts each paragraph end as a space — both whole words and a `...` suffix by default, `{ strict: true }` to cut at exactly the length — and `nl2br`), `pluralize`, formatting (`prettyBytes`, `prettyMs`, `ordinal`), `inspect`, and the `html` helpers (`html.attrs`, `html.classNames`, `html.safe`). These mirror Edge's built-in globals. Inker adds `html.jsonLd(data, cspNonce())`, which writes a page's structured data as `<script type="application/ld+json">` — the value escaped as `js.stringify` does, so no value can end the script, and the nonce on the tag. A value JSON cannot hold (a function, a symbol, a bigint, `NaN`/`Infinity`, a cycle) is refused with `E_INKER_INVALID_JSON_LD` rather than written as invalid structured data.
+- **Core globals** — string casing (`camelCase`, `pascalCase`, `snakeCase`, `dashCase`, `titleCase`), text (`truncate` keeps the tags of HTML input and closes the ones it cuts open, `excerpt` strips them and counts each paragraph end as a space — both whole words and a `...` suffix by default, `{ strict: true }` to cut at exactly the length — and `nl2br`), `pluralize`, formatting (`prettyBytes`, `prettyMs`, `ordinal`), `inspect`, and the `html` helpers (`html.attrs`, `html.classNames`, `html.safe`). There is also `html.jsonLd(data, cspNonce())`, which writes a page's structured data as `<script type="application/ld+json">` — the value escaped as `js.stringify` does, so no value can end the script, and the nonce on the tag. A value JSON cannot hold (a function, a symbol, a bigint, `NaN`/`Infinity`, a cycle) is refused with `E_INKER_INVALID_JSON_LD` rather than written as invalid structured data.
 - **Registered helpers** — passed to the constructor (`helpers` option) or wired by the provider: `t()` (i18n), `route`/`urlFor` and `signedUrlFor`, `asset`, `csrfField` / `csrfMeta`, etc. A registered name overrides a core global of the same name.
 
 ```ts
@@ -285,7 +284,7 @@ Rendering before `InkerProvider` has started throws `E_INKER_ENGINE_MISSING`.
 
 ## Custom tags — `registerTag`
 
-Register a custom `@`-tag (AdonisJS/Edge `edge.registerTag` parity). The definition is an object — `{ tagName, block, seekable, compile(parser, buffer, token) }` — and it makes the parser recognise `@<tagName>(jsArg)` in every template:
+Register a custom `@`-tag. The definition is an object — `{ tagName, block, seekable, compile(parser, buffer, token) }` — and it makes the parser recognise `@<tagName>(jsArg)` in every template:
 
 ```ts
 import fs from 'node:fs'
@@ -313,7 +312,7 @@ Inside `compile`:
 - `buffer.outputExpression(jsExpression, filename, line, escape)` evaluates a template expression (a JS source string) in the render scope and emits its value — escaped when `escape` is `true`.
 - A `seekable: false` tag rejects any argument; `block: true` is rejected (only inline tags ship for now).
 
-> **Inker deviation (named):** Edge runs `compile` once at template *compilation* (it emits JS). Inker parses in Rust and renders by walking the JSON AST, so `compile` runs at **render** time — the authoring model is identical, there is just no compile phase to imitate. Because a tag name changes how a template *parses*, `registerTag` clears the AST cache; register your tags during boot, before rendering. Registering a name that collides with a built-in directive, or an invalid identifier, throws `E_INKER_INVALID_PATH`; an unregistered `@word` is inert (rendered as literal text, Edge parity).
+> **When `compile` runs:** inker parses in Rust and renders by walking the JSON AST, so a tag's `compile` runs at **render** time. Because a tag name changes how a template *parses*, `registerTag` clears the AST cache; register your tags during boot, before rendering. Registering a name that collides with a built-in directive, or an invalid identifier, throws `E_INKER_INVALID_PATH`; an unregistered `@word` is inert (rendered as literal text).
 
 Types `InkerTag`, `InkerTagBuffer`, `InkerTagToken`, `InkerTagParser` are exported from `@c9up/inker`.
 
@@ -355,7 +354,7 @@ Sync. Renders an in-memory string. It cannot resolve disk-backed directives (`@l
 
 ### `mount(diskName, dir)` / `unmount(diskName)`
 
-Named **disks** — AdonisJS/Edge `edge.mount(name, dir)` parity. Mount a second templates directory under a namespace, then address its templates as `diskName::template`:
+Named **disks**. Mount a second templates directory under a namespace, then address its templates as `diskName::template`:
 
 ```ts
 templates.mount('admin', '/abs/path/to/admin-templates')
@@ -364,7 +363,7 @@ await templates.render('admin::dashboard')   // <admin>/dashboard.inker
 await templates.render('home')                // <default root>/home.inker
 ```
 
-A **bare** name resolves against the default disk — the constructor `root`, until `templates.mount(dir)` (or `mount('default', dir)`) re-points it; `templates.mounted.default` reports the root in force. A `disk::name` name resolves against the mounted disk — exactly like Edge. An in-memory template (`registerTemplate`) answers only the name it was registered under, disk prefix included. References inside a template resolve the same way, so cross-disk composition is explicit:
+A **bare** name resolves against the default disk — the constructor `root`, until `templates.mount(dir)` (or `mount('default', dir)`) re-points it; `templates.mounted.default` reports the root in force. A `disk::name` name resolves against the mounted disk. An in-memory template (`registerTemplate`) answers only the name it was registered under, disk prefix included. References inside a template resolve the same way, so cross-disk composition is explicit:
 
 ```inker
 @layout('admin::layout')

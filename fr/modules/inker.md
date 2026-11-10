@@ -1,19 +1,19 @@
 # Inker — Templates côté serveur
 
-Inker est le module de templating côté serveur de l'écosystème Ream (`@c9up/inker`). C'est un clone hand-rolled d'**AdonisJS Edge** : la même syntaxe à directives `@`, la même interpolation `{{ }}`, les mêmes layouts / sections / composants / slots — avec un lexer et un parser en Rust et un évaluateur en Node.
+Inker est le module de templating côté serveur de l'écosystème Ream (`@c9up/inker`). Les templates s'écrivent avec des directives `@`, l'interpolation `{{ }}`, des layouts / sections / composants / slots — analysés par un lexer et un parser en Rust, rendus par un évaluateur en Node.
 
-> Statut : moteur à parité Edge complète. L'interpolation `{{ }}` évalue de vraies expressions JavaScript ; `@if`/`@elseif`/`@else`/`@unless`, `@each`, `@let`, `@layout` + `@section`/`@super`, `@include`/`@includeIf`, `@component` + `@slot` avec `$props`/`$slots`, les globals du cœur, les helpers enregistrés, `@eval`/`@dump`, et les tags personnalisés (`registerTag`) sont tous livrés. Le provider Ream et le sous-chemin agnostique `@c9up/inker/testing` sont câblés.
+> Statut : complet. L'interpolation `{{ }}` évalue de vraies expressions JavaScript ; `@if`/`@elseif`/`@else`/`@unless`, `@each`, `@let`, `@layout` + `@section`/`@super`, `@include`/`@includeIf`, `@component` + `@slot` avec `$props`/`$slots`, les globals du cœur, les helpers enregistrés, `@eval`/`@dump`, et les tags personnalisés (`registerTag`) sont tous livrés. Le provider Ream et le sous-chemin agnostique `@c9up/inker/testing` sont câblés.
 
-## Architecture — Rust parse, Node évalue (le modèle Edge)
+## Architecture — Rust parse, Node évalue
 
-L'epic interdit de tirer une dépendance de templating (Handlebars, Mustache, Eta, EJS, Pug, Nunjucks, et même Edge.js). Inker est hand-rolled, réparti entre un cœur Rust et un renderer Node :
+Inker ne tire aucune dépendance de templating. Il est hand-rolled, réparti entre un cœur Rust et un renderer Node :
 
 - **Rust (`inker-engine`)** — un lexer à balayage avant unique et un parser linéaire transforment une source `.inker` en un **AST JSON** (`parseTemplate` / `parseTemplateJson` via NAPI). C'est le travail CPU-bound ; chaque nœud porte la *source verbatim* de ses expressions.
-- **Node (`renderNode.ts`)** — parcourt l'AST JSON et évalue la source de chaque expression dans le **V8** de Node, avec les helpers enregistrés, les globals du cœur et le scope de rendu tous en portée lexicale — exactement comme Edge (un seul runtime ; les helpers sont de simples fonctions appelables partout, y compris dans des arrow functions et des arguments scopés à une boucle).
+- **Node (`renderNode.ts`)** — parcourt l'AST JSON et évalue la source de chaque expression dans le **V8** de Node, avec les helpers enregistrés, les globals du cœur et le scope de rendu tous en portée lexicale (un seul runtime ; les helpers sont de simples fonctions appelables partout, y compris dans des arrow functions et des arguments scopés à une boucle).
 
-> La source des expressions est contrôlée par l'auteur (fichiers `.inker`) — le même niveau de confiance que le reste du code de l'app. C'est le modèle d'Edge, et c'est pourquoi un helper peut être appelé *à l'intérieur* d'une expression riche (`{{ users.filter(u => can(u)).map(u => u.name).join(', ') }}`).
+> La source des expressions est contrôlée par l'auteur (fichiers `.inker`) — le même niveau de confiance que le reste du code de l'app. C'est pourquoi un helper peut être appelé *à l'intérieur* d'une expression riche (`{{ users.filter(u => can(u)).map(u => u.name).join(', ') }}`).
 
-> **Frontière de confiance (sécurité).** Comme les expressions tournent dans V8, un template *est du code*. Ne passe jamais d'entrée non fiable à `renderString`, et ne charge jamais de template `.inker` depuis une source non fiable (un champ CMS, un upload utilisateur) — ce serait de l'exécution de code arbitraire, exactement comme dans Edge. En durcissement (une déviation nommée de la parité Edge stricte), les globals Node dangereux — `process`, `globalThis`, `global`, `require`, `module`, `exports`, `Function`, `eval` — sont masqués à `undefined` dans le scope d'expression, donc `{{ process.env.SECRET }}` ou `@eval(require('child_process')…)` échouent. Ce n'est **pas** un sandbox : un échappement déterminé par chaîne de propriétés (`({}).constructor.constructor(…)`) n'est pas bloqué. Traite les templates comme du code de confiance.
+> **Frontière de confiance (sécurité).** Comme les expressions tournent dans V8, un template *est du code*. Ne passe jamais d'entrée non fiable à `renderString`, et ne charge jamais de template `.inker` depuis une source non fiable (un champ CMS, un upload utilisateur) — ce serait de l'exécution de code arbitraire. En durcissement, les globals Node dangereux — `process`, `globalThis`, `global`, `require`, `module`, `exports`, `Function`, `eval` — sont masqués à `undefined` dans le scope d'expression, donc `{{ process.env.SECRET }}` ou `@eval(require('child_process')…)` échouent. Ce n'est **pas** un sandbox : un échappement déterminé par chaîne de propriétés (`({}).constructor.constructor(…)`) n'est pas bloqué. Traite les templates comme du code de confiance.
 
 Le package reste ainsi sans dépendance runtime, agnostique par construction, et exempt de toute VM JS embarquée (un spike QuickJS antérieur a été abandonné : deux runtimes impliquaient un pont FFI sujet aux crashs, et V8-dans-Node est à la fois plus simple et plus rapide).
 
@@ -53,14 +53,13 @@ try {
 }
 ```
 
-> **Déviation inker (nommée) :** le `compile` d'Edge renvoie la fonction
-> JavaScript compilée. Le compilateur d'inker est en Rust et produit un handle
+> **Pourquoi rien n'est renvoyé :** le compilateur d'inker est en Rust et produit un handle
 > d'AST natif opaque, sans signification de ce côté du pont — ces méthodes
 > indiquent donc si le template s'analyse, au lieu de rendre l'artefact.
 
 ## Interpolation & expressions
 
-Inker calque Adonis Edge pour la sortie :
+La sortie prend deux formes :
 
 ```inker
 <!-- Échappé (HTML-safe par défaut — défend contre le XSS stocké) -->
@@ -84,7 +83,7 @@ Une valeur qui est une `SafeString` est émise brute (même dans la forme échap
 
 ### Caractères d'échappement, commentaires, espaces
 
-Utilisez `\{{` / `\}}` pour émettre des accolades littérales (le backslash est consommé). Les commentaires façon Edge sont supportés et retirés entièrement — ils n'émettent rien, et leur contenu n'est jamais parsé :
+Utilisez `\{{` / `\}}` pour émettre des accolades littérales (le backslash est consommé). Les commentaires de template sont supportés et retirés entièrement — ils n'émettent rien, et leur contenu n'est jamais parsé :
 
 ```inker
 Use \{{ name \}} to interpolate.     →   Use {{ name }} to interpolate.
@@ -95,7 +94,7 @@ Un `{{--` non terminé est une erreur de lex dure, afin qu'une ouverture de comm
 
 ## Contrôle de flux
 
-Des block tags façon Adonis. `@if` / `@elseif` / `@else` / `@endif`, sa négation `@unless`, et `@each` / `@endeach` :
+Les block tags : `@if` / `@elseif` / `@else` / `@endif`, sa négation `@unless`, et `@each` / `@endeach` :
 
 ```inker
 @if(cart.items.length > 0)
@@ -113,13 +112,13 @@ Des block tags façon Adonis. `@if` / `@elseif` / `@else` / `@endif`, sa négati
 
 Tout bloc se ferme aussi avec le `@end` générique, qui ferme le bloc le plus intérieur (`@if(x)…@end`, `@each(…)…@end`, `@component(…)…@end`, `@slot(…)…@end`, les tags de bloc personnalisés). Terminer une ligne de tag par `~` (`@if(x)~`, `@end~`) supprime le saut de ligne qui mène à la ligne suivante de la sortie : une boucle peut ainsi émettre des `<li>` sans retour à la ligne entre eux.
 
-Les sauts de ligne suivent le modèle par lignes d'Edge, si bien qu'un template rend octet pour octet ce qu'il rend dans Edge :
+Les sauts de ligne suivent un modèle par lignes fixe :
 
 - Un tag écrit en début de ligne (indentation permise, et supprimée) ne produit pas de saut de ligne à lui. Le saut de ligne avant une ligne de contenu est gardé ; celui avant une ligne de tag ne l'est que si la ligne précédente était aussi une ligne de tag ; une ligne de tag fermant n'en a jamais.
 - `@let`, `@assign`, `@eval`, `@inject`, `@slot`, `@pushTo`, `@pushOnceTo`, `@debugger`, `@newError` et `@layout` suppriment aussi le saut de ligne suivant, comme un tag enregistré avec `noNewLine: true`.
 - Le slot par défaut d'un composant ignore son premier saut de ligne. Une page perd un saut de ligne à son tout début et un à sa toute fin ; les partials et les composants gardent les leurs.
 - Une stack joint les contenus qu'on y pousse par un saut de ligne.
-- Un tag écrit au milieu d'une ligne est une extension d'inker (Edge le traite comme du texte) : il ne touche pas aux sauts de ligne de la ligne.
+- Un tag écrit au milieu d'une ligne reste un tag : il ne touche pas aux sauts de ligne de la ligne.
 
 `@each` itère les tableaux, les chaînes (un caractère par point de code), les objets (chaque clé propre), les `Map` et les `Set`, avec un `@else` optionnel pour le cas vide :
 
@@ -144,7 +143,7 @@ Les sauts de ligne suivent le modèle par lignes d'Edge, si bien qu'un template 
 <p>Total: {{ total }}</p>
 ```
 
-Il prend aussi en charge la déstructuration d'objets et de tableaux, y compris le renommage, les valeurs par défaut et le rest — exactement comme Edge :
+Il prend aussi en charge la déstructuration d'objets et de tableaux, y compris le renommage, les valeurs par défaut et le rest :
 
 ```inker
 @let({ name, email } = user)
@@ -219,7 +218,7 @@ Les props sont n'importe quelle expression JavaScript — un objet littéral ave
 
 Deux couches de fonctions sont toujours en portée d'expression :
 
-- **Globals du cœur** — casse de chaînes (`camelCase`, `pascalCase`, `snakeCase`, `dashCase`, `titleCase`), texte (`truncate` garde les balises d'une entrée HTML et ferme celles qu'il coupe, `excerpt` les retire et compte chaque fin de paragraphe comme une espace — tous deux en mots entiers avec un suffixe `...` par défaut, `{ strict: true }` pour couper exactement à la longueur — et `nl2br`), `pluralize`, formatage (`prettyBytes`, `prettyMs`, `ordinal`), `inspect`, et les helpers `html` (`html.attrs`, `html.classNames`, `html.safe`). Ils calquent les globals intégrés d'Edge. Inker ajoute `html.jsonLd(data, cspNonce())`, qui écrit les données structurées d'une page en `<script type="application/ld+json">` — la valeur échappée comme le fait `js.stringify`, pour qu'aucune valeur ne ferme la balise, et le nonce sur la balise. Une valeur que JSON ne sait pas tenir (une fonction, un symbole, un bigint, `NaN`/`Infinity`, un cycle) est refusée avec `E_INKER_INVALID_JSON_LD` plutôt qu'écrite en données structurées invalides.
+- **Globals du cœur** — casse de chaînes (`camelCase`, `pascalCase`, `snakeCase`, `dashCase`, `titleCase`), texte (`truncate` garde les balises d'une entrée HTML et ferme celles qu'il coupe, `excerpt` les retire et compte chaque fin de paragraphe comme une espace — tous deux en mots entiers avec un suffixe `...` par défaut, `{ strict: true }` pour couper exactement à la longueur — et `nl2br`), `pluralize`, formatage (`prettyBytes`, `prettyMs`, `ordinal`), `inspect`, et les helpers `html` (`html.attrs`, `html.classNames`, `html.safe`). S'y ajoute `html.jsonLd(data, cspNonce())`, qui écrit les données structurées d'une page en `<script type="application/ld+json">` — la valeur échappée comme le fait `js.stringify`, pour qu'aucune valeur ne ferme la balise, et le nonce sur la balise. Une valeur que JSON ne sait pas tenir (une fonction, un symbole, un bigint, `NaN`/`Infinity`, un cycle) est refusée avec `E_INKER_INVALID_JSON_LD` plutôt qu'écrite en données structurées invalides.
 - **Helpers enregistrés** — passés au constructeur (option `helpers`) ou câblés par le provider : `t()` (i18n), `route`/`urlFor` et `signedUrlFor`, `asset`, `csrfField` / `csrfMeta`, etc. Un nom enregistré surcharge un global du cœur de même nom.
 
 ```ts
@@ -285,7 +284,7 @@ Rendre avant le démarrage d'`InkerProvider` lève `E_INKER_ENGINE_MISSING`.
 
 ## Tags personnalisés — `registerTag`
 
-Enregistrez un `@`-tag personnalisé (parité `edge.registerTag` d'AdonisJS/Edge). La définition est un objet — `{ tagName, block, seekable, compile(parser, buffer, token) }` — et elle fait reconnaître par le parser `@<tagName>(jsArg)` dans chaque template :
+Enregistrez un `@`-tag personnalisé. La définition est un objet — `{ tagName, block, seekable, compile(parser, buffer, token) }` — et elle fait reconnaître par le parser `@<tagName>(jsArg)` dans chaque template :
 
 ```ts
 import fs from 'node:fs'
@@ -313,7 +312,7 @@ templates.registerTag({
 - `buffer.outputExpression(jsExpression, filename, line, escape)` évalue une expression du template (une chaîne source JS) dans le scope de rendu et émet sa valeur — échappée lorsque `escape` vaut `true`.
 - Un tag `seekable: false` rejette tout argument ; `block: true` est rejeté (seuls les tags inline sont livrés pour l'instant).
 
-> **Déviation Inker (nommée) :** Edge exécute `compile` une seule fois à la *compilation* du template (il émet du JS). Inker parse en Rust et rend en parcourant l'AST JSON, donc `compile` s'exécute au moment du **rendu** — le modèle d'écriture est identique, il n'y a simplement pas de phase de compilation à imiter. Comme un nom de tag change la façon dont un template *parse*, `registerTag` vide le cache d'AST ; enregistrez vos tags au démarrage, avant tout rendu. Enregistrer un nom qui entre en collision avec une directive intégrée, ou un identifiant invalide, lève `E_INKER_INVALID_PATH` ; un `@word` non enregistré est inerte (rendu comme texte littéral, parité Edge).
+> **Quand `compile` s'exécute :** inker parse en Rust et rend en parcourant l'AST JSON, donc le `compile` d'un tag s'exécute au moment du **rendu**. Comme un nom de tag change la façon dont un template *parse*, `registerTag` vide le cache d'AST ; enregistrez vos tags au démarrage, avant tout rendu. Enregistrer un nom qui entre en collision avec une directive intégrée, ou un identifiant invalide, lève `E_INKER_INVALID_PATH` ; un `@word` non enregistré est inerte (rendu comme texte littéral).
 
 Les types `InkerTag`, `InkerTagBuffer`, `InkerTagToken`, `InkerTagParser` sont exportés depuis `@c9up/inker`.
 
@@ -355,7 +354,7 @@ Sync. Rend une chaîne en mémoire. Il ne peut pas résoudre les directives ados
 
 ### `mount(diskName, dir)` / `unmount(diskName)`
 
-**Disques** nommés — parité `edge.mount(name, dir)` d'AdonisJS/Edge. Montez un second répertoire de templates sous un namespace, puis adressez ses templates comme `diskName::template` :
+**Disques** nommés. Montez un second répertoire de templates sous un namespace, puis adressez ses templates comme `diskName::template` :
 
 ```ts
 templates.mount('admin', '/abs/path/to/admin-templates')
@@ -364,7 +363,7 @@ await templates.render('admin::dashboard')   // <admin>/dashboard.inker
 await templates.render('home')                // <root par défaut>/home.inker
 ```
 
-Un nom **nu** se résout contre le disque par défaut — le `root` du constructeur, jusqu'à ce que `templates.mount(dir)` (ou `mount('default', dir)`) le redirige ; `templates.mounted.default` indique la racine en vigueur. Un nom `disk::name` se résout contre le disque monté — exactement comme Edge. Un template en mémoire (`registerTemplate`) ne répond qu'au nom sous lequel il a été enregistré, préfixe de disque compris. Les références à l'intérieur d'un template se résolvent de la même façon, donc la composition inter-disques est explicite :
+Un nom **nu** se résout contre le disque par défaut — le `root` du constructeur, jusqu'à ce que `templates.mount(dir)` (ou `mount('default', dir)`) le redirige ; `templates.mounted.default` indique la racine en vigueur. Un nom `disk::name` se résout contre le disque monté. Un template en mémoire (`registerTemplate`) ne répond qu'au nom sous lequel il a été enregistré, préfixe de disque compris. Les références à l'intérieur d'un template se résolvent de la même façon, donc la composition inter-disques est explicite :
 
 ```inker
 @layout('admin::layout')
