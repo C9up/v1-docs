@@ -802,8 +802,19 @@ import { createRpcClient } from '@c9up/aurora/rpc'
 const rpc = createRpcClient()                  // POST /rpc, même origine
 // ou : createRpcClient({ url: '/api/rpc', http: httpClientExistant })
 
-// Appel simple — typé via call<T>() ; lève RpcError sur une erreur JSON-RPC.
-const result = await rpc.call<{ valid: boolean }>('task.validate', { id: 7 })
+// Appel simple — lève RpcError sur une erreur JSON-RPC. Le résultat est
+// `unknown`, sauf si un validateur `parse` le vérifie et lui donne son type.
+const result = await rpc.call('task.validate', { id: 7 }, {
+  parse: (data) => {
+    if (typeof data !== 'object' || data === null || !('valid' in data)) {
+      throw new TypeError('not a validation result')
+    }
+    return { valid: data.valid === true }
+  },
+})
+
+// Notification — sans id, aucune réponse attendue.
+await rpc.notify('audit.log', { event: 'login' })
 ```
 
 ### CSRF — `X-XSRF-TOKEN` automatique
