@@ -141,7 +141,12 @@ commands: [
 - `reset()` annule tous les batchs.
 - `refresh()` = reset puis migrate.
 - `fresh()` alias actuel de `refresh()`.
-- `dryRun()` retourne le SQL qui serait exécuté.
+- `dryRun()` retourne le SQL qui serait exécuté. Il n'écrit jamais : pendant
+  chaque `up()`, toute écriture tentée par n'importe quelle connexion (query
+  builder, instruction brute, `execute`, transaction) échoue avec
+  `E_ATLAS_DRY_RUN_WRITE` ; les lectures du catalogue comme
+  `this.schema.hasTable()` fonctionnent toujours. Tester `this.dryRun` dans `up()`
+  pour sauter ces effets de bord.
 
 ## Atomicité
 
