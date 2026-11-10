@@ -256,9 +256,8 @@ class Prefixed extends CamelCaseNamingStrategy {
 
 ::: tip Ce qu'il faut renvoyer
 `relationForeignKey` rend l'**attribut** du modèle, en camelCase — `userId`, pas
-`user_id` — exactement comme celle d'amont. Atlas en dérive la colonne en
-passant votre réponse dans le `columnName()` de la même stratégie, si bien
-qu'une stratégie reprise d'amont fonctionne telle quelle. Renvoyez un nom de
+`user_id`. Atlas en dérive la colonne en passant votre réponse dans le
+`columnName()` de la même stratégie. Renvoyez un nom de
 colonne et il traverse cette conversion deux fois.
 :::
 

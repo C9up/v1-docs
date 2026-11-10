@@ -253,9 +253,8 @@ class Prefixed extends CamelCaseNamingStrategy {
 
 ::: tip What to return
 `relationForeignKey` returns the model **attribute**, camelCase — `userId`, not
-`user_id` — exactly as upstream's does. Atlas derives the column by running your
-answer through the same strategy's `columnName()`, so a strategy ported from
-upstream keeps working unchanged. Return a column name and it goes through that
+`user_id`. Atlas derives the column by running your answer through the same
+strategy's `columnName()`. Return a column name and it goes through that
 conversion twice.
 :::
 

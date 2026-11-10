@@ -16,7 +16,7 @@ await runner.migrate()
 ## When migrations run
 
 Booting an application does not migrate it. `migration:run` does, and nothing
-else — the same rule upstream follows, for two reasons that are not ceremony:
+else, for two reasons that are not ceremony:
 the boot path also runs under an inspection (`ream inspect`, a route listing, a
 codegen pass), so a read-only command mutated the schema; and every replica of a
 rolling deploy boots at once, so they raced each other over the same database.

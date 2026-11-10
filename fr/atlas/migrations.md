@@ -16,7 +16,7 @@ await runner.migrate()
 ## Quand les migrations tournent
 
 Démarrer une application ne la migre pas. `migration:run` le fait, et rien
-d'autre — la même règle qu'en amont, pour deux raisons qui ne sont pas de la
+d'autre, pour deux raisons qui ne sont pas de la
 cérémonie : le chemin de démarrage tourne aussi lors d'une inspection
 (`ream inspect`, un listing de routes, une passe de codegen), donc une commande
 en lecture seule mutait le schéma ; et toutes les répliques d'un déploiement
