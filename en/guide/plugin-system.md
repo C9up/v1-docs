@@ -11,22 +11,64 @@ When a user runs `pnpm ream add @community/your-plugin`, the CLI:
 1. Auto-detects the project package manager from the lockfile (`pnpm-lock.yaml` > `yarn.lock` > `package-lock.json`).
 2. Runs `<pm> add [-D] @community/your-plugin` to install the package.
 3. Imports your `configure` hook — first from the lightweight `@community/your-plugin/configure` subpath, falling back to the root `@community/your-plugin` if the subpath is not exported.
-4. Calls `await configure(codemods, flags)` inside a `node --import @swc-node/register/esm-register` child process.
+4. Calls `await configure(command, flags)` inside a `node --import @swc-node/register/esm-register` child process.
 
 The subpath form is loaded under `@swc-node/register`, so authoring `configure.ts` directly (no build step) works out of the box per ADR-003 — Package Publish Strategy (source-first).
 
 ## The `configure()` hook
 
 ```typescript title="src/configure.ts"
-import type { Codemods } from '@c9up/ream'
+import type { Codemods, Prompt } from '@c9up/ream'
 
-export async function configure(
-  codemods: Codemods,
-  flags?: Record<string, string[]>,
-): Promise<void> {
+interface ConfigureCommand {
+  name: string
+  force: boolean
+  parsedFlags: Record<string, string | number | boolean | Array<string | number | boolean>>
+  parsedArgs: string[]
+  prompt: Prompt
+  logger: { success(m: string): void; info(m: string): void; warning(m: string): void; error(m: string): void }
+  exitCode?: number
+  stubsRoot?: string
+  createCodemods(): Promise<Codemods>
+}
+
+export async function configure(command: ConfigureCommand): Promise<void> {
+  const codemods = await command.createCodemods()
   // ...
 }
 ```
+
+The first argument is the command running the hook. It also exposes every `Codemods` method directly, and the raw flags arrive as the second argument (see [The `flags` parameter](#the-flags-parameter)), so a hook written as `configure(codemods, flags)` keeps working.
+
+| Property | What it holds |
+|---|---|
+| `name` | The package being configured. |
+| `force` | `true` under `--force`; the codemods then overwrite existing files. |
+| `parsedFlags` | The unknown flags, parsed: `--store=redis` → `'redis'`, `--ssl` → `true`, `--no-ssl` → `ssl: false`, `--retries=3` → `3`, a repeated flag → an array. `force` is present when it was passed. |
+| `parsedArgs` | Always `[]`: positionals are refused before the hook runs. |
+| `prompt` | Asks the user: `ask`, `secure`, `confirm`, `toggle`, `choice`, `multiple`, `autocomplete`. |
+| `logger`, `ui`, `colors` | Terminal output. |
+| `exitCode` | Set it to a non-zero value to make the command fail without throwing. |
+| `stubsRoot` | The `stubsRoot` your module exports, if any. |
+| `createCodemods()` | The codemods, bound to the project and to `--force`. |
+
+### Asking the user
+
+Read the flag first, and prompt only when it is absent, so the same hook works in a terminal and in a script:
+
+```typescript
+let store = command.parsedFlags.store
+if (!store) {
+  store = await command.prompt.choice('Select the lock store', ['redis', 'memory'], { default: 0 })
+}
+if (store !== 'redis' && store !== 'memory') {
+  command.logger.error(`Invalid lock store "${store}"`)
+  command.exitCode = 1
+  return
+}
+```
+
+A run without a terminal on stdin, or with `CI` set, never waits for an answer. A prompt that has a `default` returns it (through its `validate` and `result`), and one without a default fails at once with `E_CONSOLE_NOT_INTERACTIVE`, naming the question. For `choice`, `autocomplete` and `multiple` the default is an index (an array of indexes for `multiple`).
 
 The hook is async and returns `Promise<void>`. Throw to abort: any error escaping the function exits `ream add` with code 1 (and `ream configure` with code 1). The CLI does not catch and continue — a failed configure leaves the package installed but the project unconfigured.
 
@@ -34,7 +76,7 @@ The hook runs once per `ream add` / `ream configure` invocation. It MUST be idem
 
 ## The `Codemods` API
 
-The `Codemods` interface is the only argument you operate on. Its methods cover the recurring patterns: register a provider or a preload, seed environment variables and their validation rules, scaffold config or migration files from a stub, register a CLI command, and register HTTP middleware. The live source is at `packages/ream/src/Codemods.ts:4`.
+`await command.createCodemods()` returns the `Codemods`, which change the project. Its methods cover the recurring patterns: register a provider or a preload, seed environment variables and their validation rules, scaffold config or migration files from a stub, register a CLI command, and register HTTP middleware. The live source is at `packages/ream/src/Codemods.ts:4`.
 
 ```typescript
 interface Codemods {
@@ -260,7 +302,7 @@ If you prefer to publish a built `dist/` (for example because your runtime depen
 
 ## The `flags` parameter
 
-`ream add @community/your-plugin --foo=bar --foo=baz --queue=redis` forwards the unknown flags to your hook as:
+The hook's second argument carries the unknown flags unparsed. `command.parsedFlags` holds the same flags parsed (see above). `ream add @community/your-plugin --foo=bar --foo=baz --queue=redis` forwards them as:
 
 ```typescript
 flags = {
