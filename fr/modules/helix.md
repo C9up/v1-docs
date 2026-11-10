@@ -65,8 +65,7 @@ JWT sign laisse de la marge.
 ## Applications Ream : le pont `@c9up/helix-plugin-ream`
 
 helix ne connaît pas Ream, et Ream ne connaît pas helix. Le plugin qui les relie
-est publié à part — la même séparation qu'AdonisJS applique entre son propre
-lanceur de tests et le framework :
+est publié à part :
 
 ```sh
 pnpm add -D @c9up/helix-plugin-ream

@@ -506,7 +506,7 @@ const data = await UserSchema.validateOrThrowAsync(body)
 `validateResultAsync` runs the sync rules first, then awaits the async rules for each
 field. An async rule only runs when the field **passed its sync rules** and has a
 present, non-null value — a DB lookup is skipped for an already-invalid or absent
-field (Lucid parity).
+field.
 
 > The synchronous `validateResult()` **throws** on a schema that has async
 > rules rather than silently skipping them:

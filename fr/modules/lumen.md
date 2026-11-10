@@ -222,9 +222,8 @@ Chaque `Task` porte `getState()`, `getDuration()`, `getError()`,
 largeur plus petite que le contenu est respectée — l'appelant a demandé une
 forme.
 
-DÉVIATION NOMMÉE — en amont un widget se construit nu (`new Table()`) puis on
-lui branche les couleurs et le renderer après coup, ce qui fait d'un oubli une
-panne silencieuse. Ici `ui.table()` les fournit à la construction ;
+`ui.table()` fournit les couleurs et le renderer à la construction, si bien
+qu'un oubli ne peut pas devenir une panne silencieuse ;
 `useColors()` et `useRenderer()` les remplacent toujours sur un widget
 construit à la main.
 

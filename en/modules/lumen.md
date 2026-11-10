@@ -214,9 +214,8 @@ tasks.getState()   // 'idle' | 'running' | 'succeeded' | 'failed'
 `table.columnWidths([10, 20])` fixes the widths instead of measuring, and a
 width smaller than the content is honoured — the caller asked for a shape.
 
-NAMED DEVIATION — upstream builds a widget bare (`new Table()`) and wires the
-colours and the renderer onto it afterwards, which makes forgetting either a
-silent failure. Here `ui.table()` hands both over at construction;
+`ui.table()` hands the colours and the renderer over at construction, so
+forgetting either cannot fail silently;
 `useColors()` and `useRenderer()` still swap them on a widget built by hand.
 
 ## Colours on their own

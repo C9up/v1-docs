@@ -479,8 +479,7 @@ const data = await UserSchema.validateOrThrowAsync(body)
 `validateResultAsync` exécute d'abord les règles synchrones, puis attend les règles
 asynchrones de chaque champ. Une règle asynchrone ne s'exécute que lorsque le
 champ **a passé ses règles synchrones** et possède une valeur présente et non
-nulle — une requête en base est ignorée pour un champ déjà invalide ou absent
-(parité Lucid).
+nulle — une requête en base est ignorée pour un champ déjà invalide ou absent.
 
 > Le `validate()` synchrone **lève une erreur** sur un schéma qui contient des
 > règles asynchrones plutôt que de les ignorer silencieusement :
