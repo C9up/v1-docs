@@ -16,6 +16,16 @@ The server finds the project root by walking up from the working directory, chec
 
 `REAM_PROJECT_ROOT=/path/to/project` overrides it.
 
+`ream mcp install` registers it in the project's `.mcp.json`, a file meant to be
+committed, so the entry is the same on every machine: `npx --no @c9up/ream-mcp`,
+with no absolute path. `--no` runs the version the project's lockfile pins and
+never downloads one, so add the server as a dependency first:
+
+```sh
+ream add -D @c9up/ream-mcp
+ream mcp install
+```
+
 ## The tools
 
 Call `tools/list` for the authoritative descriptors — they track the package. The current categories:

@@ -16,6 +16,17 @@ Le serveur détecte la racine du projet en remontant depuis le répertoire coura
 
 `REAM_PROJECT_ROOT=/chemin/du/projet` force la racine.
 
+`ream mcp install` l'enregistre dans le `.mcp.json` du projet, un fichier fait
+pour être commité : l'entrée est donc la même sur chaque machine,
+`npx --no @c9up/ream-mcp`, sans chemin absolu. `--no` lance la version que le
+lockfile du projet fixe et n'en télécharge jamais : ajoutez d'abord le serveur
+en dépendance.
+
+```sh
+ream add -D @c9up/ream-mcp
+ream mcp install
+```
+
 ## Les outils
 
 Appelez `tools/list` pour les descripteurs faisant foi — ils suivent le paquet. Les catégories actuelles :
