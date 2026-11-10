@@ -1,6 +1,6 @@
 # Rosetta — I18n
 
-Status: **Present (Adonis-like manager architecture, still evolving)**.
+Status: **Present (manager architecture, still evolving)**.
 
 - Package: `@c9up/rosetta`
 - Role: single i18n source for the ecosystem (`ream`, `rune`, etc.)
@@ -48,7 +48,7 @@ Main methods:
 
 ## Config
 
-Author the i18n config with the `defineConfig` helper in `config/i18n.ts` (AdonisJS config-helper parity):
+Author the i18n config with the `defineConfig` helper in `config/i18n.ts`:
 
 ```ts
 import { defineConfig } from '@c9up/rosetta'

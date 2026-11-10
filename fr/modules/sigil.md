@@ -3,7 +3,7 @@
 Statut: **Présent (TS + Rust N-API)**.
 
 - Package: `@c9up/sigil`
-- Objectif: hachage de mots de passe canonique multi-driver pour l'écosystème Ream (argon2id, bcrypt, scrypt). Implémentation unique, NAPI uniquement, calqué sur `@adonisjs/hash` (v9).
+- Objectif: hachage de mots de passe canonique multi-driver pour l'écosystème Ream (argon2id, bcrypt, scrypt). Implémentation unique, NAPI uniquement.
 
 ## Exemples rapides
 
@@ -24,7 +24,7 @@ await hash.verify(hashed, 'correct horse battery staple') // true
 await hash.verify(hashed, 'mauvais-mot-de-passe')         // false
 ```
 
-`verify` prend le **hash en premier, la valeur en clair en second** — `verify(hashedValue, plainValue)`, aligné sur AdonisJS (`@adonisjs/hash`).
+`verify` prend le **hash en premier, la valeur en clair en second** — `verify(hashedValue, plainValue)`.
 
 Choisir un driver à la volée :
 
@@ -263,7 +263,7 @@ Chacune est buildée via `pnpm build:napi` sur un runner natif (pas de cross-com
 
 > La story 40.2 (initialement « ream/crypto délègue à Sigil ») est en ré-évaluation : 40.1 a supprimé les stubs au lieu de les convertir en façades. Le chemin argon2 dupliqué dans `@c9up/warden` est indépendant et reste tracé par la story 40.3.
 
-## Forme de config AdonisJS
+## Fichier de config
 
 ```ts
 import { defineConfig, drivers } from '@c9up/sigil'
@@ -277,13 +277,9 @@ export default defineConfig({
 })
 ```
 
-> **Les noms sont inversés.** Le `Hash` d'AdonisJS enveloppe UN pilote — sigil
-> l'appelle `Hasher` — et son `HashManager` est le multi-pilotes, que sigil
-> appelle `Hash`. `HashManager` est exporté en alias pour qu'un
-> `import { HashManager }` migré résolve vers la classe qui gère les pilotes.
+> **`Hash` et `Hasher`.** Un `Hasher` enveloppe UN pilote ; `Hash` en gère
+> plusieurs. `HashManager` est exporté en alias de `Hash`.
 
-Déviation nommée : `drivers.*` renvoie un descripteur brut plutôt qu'un
-fournisseur de config paresseux. Le site d'appel est identique, et il n'y a rien
-à importer paresseusement puisqu'un seul moteur Rust porte tous les pilotes. Les
-empreintes sont au format PHC et se vérifient de part et d'autre avec
-`@adonisjs/hash` : les mots de passe existants continuent de fonctionner.
+`drivers.*` renvoie un descripteur brut : il n'y a rien à importer
+paresseusement, puisqu'un seul moteur Rust porte tous les pilotes. Les
+empreintes sont des chaînes PHC standard.

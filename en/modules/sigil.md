@@ -3,7 +3,7 @@
 Status: **Present (TS + Rust N-API)**.
 
 - Package: `@c9up/sigil`
-- Goal: canonical multi-driver password hashing for the Ream ecosystem (argon2id, bcrypt, scrypt). Single implementation, NAPI-only, modeled after `@adonisjs/hash` (v9).
+- Goal: canonical multi-driver password hashing for the Ream ecosystem (argon2id, bcrypt, scrypt). Single implementation, NAPI-only.
 
 ## Quick Examples
 
@@ -24,7 +24,7 @@ await hash.verify(hashed, 'correct horse battery staple') // true
 await hash.verify(hashed, 'wrong-password')               // false
 ```
 
-`verify` takes the **hash first, the plain value second** — `verify(hashedValue, plainValue)`, aligned with AdonisJS (`@adonisjs/hash`).
+`verify` takes the **hash first, the plain value second** — `verify(hashedValue, plainValue)`.
 
 Per-call driver override:
 
@@ -257,7 +257,7 @@ Each is built via `pnpm build:napi` on a native runner (no cross-compilation) an
 
 > Story 40.2 (originally scoped as "ream/crypto delegates to Sigil") is being re-evaluated: 40.1 deleted the stubs outright instead of converting them to facades. The duplicate argon2 path in `@c9up/warden` is independent and is still tracked by story 40.3.
 
-## AdonisJS config shape
+## Config file
 
 ```ts
 import { defineConfig, drivers } from '@c9up/sigil'
@@ -271,12 +271,8 @@ export default defineConfig({
 })
 ```
 
-> **The names are swapped.** AdonisJS's `Hash` wraps ONE driver — sigil calls
-> that `Hasher` — and its `HashManager` is the multi-driver one, which sigil
-> calls `Hash`. `HashManager` is exported as an alias so a migrated
-> `import { HashManager }` resolves to the class that manages drivers.
+> **`Hash` and `Hasher`.** A `Hasher` wraps ONE driver; `Hash` manages several.
+> `HashManager` is exported as an alias of `Hash`.
 
-Named deviation: `drivers.*` returns a plain descriptor rather than a lazy config
-provider. The call site is identical, and there is nothing to import lazily since
-one Rust engine holds every driver. Hashes are PHC-formatted and cross-verify
-with `@adonisjs/hash`, so existing password hashes keep working.
+`drivers.*` returns a plain descriptor: there is nothing to import lazily, since
+one Rust engine holds every driver. Hashes are standard PHC strings.
