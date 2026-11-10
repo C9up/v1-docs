@@ -1004,6 +1004,9 @@ ctx.photon.flash(() => ctx.session.flashMessages.all())
 
 `clearHistory` matters at logout: without it the back button replays pages built
 from the previous session's data, straight out of the client's own cache.
+A logout usually redirects, and a redirect carries no page: when the request has
+a session, the instruction is stored there and the next page built — after the
+redirect — carries it, once.
 
 The router keeps each page in `history.state`. With `encryptHistory` that copy is
 AES-GCM ciphertext under a key kept in `sessionStorage`; `clearHistory` deletes

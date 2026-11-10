@@ -1020,6 +1020,9 @@ ctx.photon.flash(() => ctx.session.flashMessages.all())
 
 `clearHistory` compte au logout : sans lui, le bouton retour rejoue des pages
 construites avec les données de la session précédente, depuis le cache du client.
+Un logout redirige en général, et une redirection ne porte aucune page : quand la
+requête a une session, l'instruction y est rangée et la page suivante — après la
+redirection — la porte, une seule fois.
 
 Le routeur garde chaque page dans `history.state`. Avec `encryptHistory`, cette
 copie est chiffrée en AES-GCM sous une clé gardée dans `sessionStorage` ;
