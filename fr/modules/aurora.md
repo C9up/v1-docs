@@ -398,6 +398,18 @@ export default component((props) => {
 })
 ```
 
+`relay()` ouvre un seul flux par page. Son uid ne vient que de la première trame
+`connected` du flux — une suivante sur le même flux est ignorée — et, après une
+coupure, de celle du flux reconnecté. Le relay lie un flux à l'utilisateur et à
+la session qui l'ont ouvert : un flux ouvert avant une connexion est refusé
+(`E_RELAY_NOT_OWNER`), et le client ouvre alors un nouveau flux puis réabonne
+ses canaux, une fois. Une connexion refusée pour un plafond
+(`E_RELAY_MAX_CLIENTS`, `E_RELAY_MAX_CLIENTS_PER_OWNER`) compte pour une
+tentative de reconnexion échouée, dans la limite de
+`configureRelay({ maxReconnectAttempts })`. Une charge diffusée est du JSON —
+une chaîne arrive telle quelle — et une charge qui n'en est pas est écartée
+avec un avertissement.
+
 ### La rendre depuis un contrôleur
 
 ```ts

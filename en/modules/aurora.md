@@ -387,6 +387,16 @@ export default component((props) => {
 })
 ```
 
+`relay()` is one stream per page. Its uid comes from the stream's first
+`connected` frame only — a later one on the same stream is ignored — and after a
+drop the reconnected stream's own. The relay binds a stream to the user and
+session that opened it, so a stream opened before a login is refused
+(`E_RELAY_NOT_OWNER`): the client then opens a new stream and subscribes its
+channels again, once. A connection refused for a cap (`E_RELAY_MAX_CLIENTS`,
+`E_RELAY_MAX_CLIENTS_PER_OWNER`) counts as one failed reconnect attempt, within
+`configureRelay({ maxReconnectAttempts })`. A broadcast payload is JSON — a
+string arrives as the string — and one that is not is dropped with a warning.
+
 ### Render it from a controller
 
 ```ts
