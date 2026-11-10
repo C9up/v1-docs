@@ -324,7 +324,7 @@ The SSR walker is synchronous, allocates one string, and never touches a DOM. It
 
 ## Shared pages — `aurora.render()`
 
-The Adonis-Inertia shape, adapted to aurora. One file per page, **same source on the server and in the browser** (plain ESM JS, no compile step).
+One file per page, **same source on the server and in the browser** (plain ESM JS, no compile step).
 
 ### Wire it up
 
@@ -341,8 +341,7 @@ That's it. Aurora's provider:
 - serves `/__assets/pages/*` (your pages directory);
 - serves `/__assets/<package>/dist/*` for every entry in `browserPackages`.
 
-Those are **server middleware**, not routes — the same tier `@adonisjs/static`
-registers on. A page ships unbundled, so one page load is dozens of `.js`
+Those are **server middleware**, not routes, served ahead of routing. A page ships unbundled, so one page load is dozens of `.js`
 requests: as routes they each traversed your middleware stack, and an
 application that resolves a user from a session cookie paid a `SELECT` per file
 for bytes that are identical for every visitor. Served ahead of routing, they
@@ -423,7 +422,7 @@ Browser-side, aurora adopts the SSR DOM in place, attaches signals + event liste
 
 ### Context-bound — `ctx.aurora.render(name, props)`
 
-`ctx.aurora.render(name, props)` is the ctx-bound sugar — Ream's analog of AdonisJS's `ctx.view` / `ctx.inertia`. The `ctx` is already captured, so a controller renders a page without threading it through:
+`ctx.aurora.render(name, props)` is the ctx-bound sugar. The `ctx` is already captured, so a controller renders a page without threading it through:
 
 ```ts
 async show({ aurora }) {
@@ -471,7 +470,7 @@ The requested module './services/portfolio.js' does not provide an export named 
 
 The export is right there in the file. The page was re-read; the module it imports was not. If your e2e suite passes on the same code — it starts a fresh process each run — that is the confirmation. Restart, or wire hot-hook below.
 
-This is the same gap AdonisJS closes with [`hot-hook`](https://github.com/Julien-R44/hot-hook) — a Node loader-hook that tracks the ESM graph and invalidates a boundary's **entire subtree** on change. Wire it into your app; aurora itself needs no change (its computed `import()` is already graph-aware compatible, and its dev `?v=` mtime bust coexists with hot-hook's own versioning):
+[`hot-hook`](https://github.com/Julien-R44/hot-hook) closes this gap — a Node loader-hook that tracks the ESM graph and invalidates a boundary's **entire subtree** on change. Wire it into your app; aurora itself needs no change (its computed `import()` is already graph-aware compatible, and its dev `?v=` mtime bust coexists with hot-hook's own versioning):
 
 ```bash
 pnpm add -D hot-hook @hot-hook/runner
@@ -608,7 +607,7 @@ hydrate(
 
 The factory **must produce the same `TemplateResult` shape** the server rendered — same slots, same order. Aurora walks the SSR tree along the parsed template path; a mismatch falls back to a console warning but the page stays functional.
 
-The pre-`aurora.render()` `auroraRoute()` helper is still exported for backwards compatibility; new apps should prefer the Inertia-shape API.
+The pre-`aurora.render()` `auroraRoute()` helper is still exported for backwards compatibility; new apps should prefer `aurora.render()`.
 
 ## Browser & storage helpers
 
@@ -1118,7 +1117,7 @@ The two coexist — aurora for everything that doesn't need React's ecosystem, p
 
 ## Reference end-to-end
 
-The kitchen-sink demo wires the full stack with the Inertia-shape API:
+The kitchen-sink demo wires the full stack with `aurora.render()`:
 
 - `reamrc.ts` — registers `@c9up/aurora/provider`
 - `config/aurora.ts` — points the provider at `resources/pages/`
