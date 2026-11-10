@@ -1,11 +1,11 @@
 # Archive — Stockage de fichiers
 
-Archive est le module de stockage de fichiers de l'ecosysteme Ream (`@c9up/archive`), calqué sur AdonisJS Drive.
+Archive est le module de stockage de fichiers de l'écosystème Ream (`@c9up/archive`).
 
 ## Configuration
 
 Déclarez vos disques avec `defineConfig` dans `config/archive.ts` — c'est ce
-qu'écrit `node ace configure @c9up/archive` :
+qu'écrit `ream configure @c9up/archive` :
 
 ```ts
 // config/archive.ts
@@ -36,8 +36,7 @@ await drive.use().put('a.txt', bytes)         // disque par défaut
 await drive.use('s3').put('a.txt', bytes)     // un tout autre disque
 ```
 
-Trois drivers sont livrés : `services.fs`, `services.s3` et `services.gcs`,
-la forme utilisée par AdonisJS Drive.
+Trois drivers sont livrés : `services.fs`, `services.s3` et `services.gcs`.
 
 ## API principale
 
@@ -48,10 +47,9 @@ const exists = await storage.exists('avatars/1.png')
 await storage.delete('avatars/1.png')
 ```
 
-### Alias AdonisJS Drive
+### Alias de méthodes
 
-Pour la parité avec AdonisJS Drive, Archive expose les noms de méthodes Adonis à
-côté des siens :
+Deux méthodes répondent aussi à un second nom :
 
 - `storage.getUrl(path)` — alias de `storage.url(path)`
 - `storage.getMetaData(path)` — alias de `storage.getMetadata(path)`
