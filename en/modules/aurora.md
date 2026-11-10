@@ -1224,7 +1224,7 @@ const presence = liveStore(() => {
 }, relay, 'room/lobby')
 ```
 
-Gate the channel with `relay.authorize('room/*', …)`. **Caveat**: `relay.broadcast` is in-process; scaling across nodes needs a backplane (Redis) — the same constraint as Phoenix LiveView. Single-process: nothing to do.
+Gate the channel with `relay.authorize('room/*', …)`. **Caveat**: `relay.broadcast` is in-process; scaling across nodes needs a backplane (Redis). Single-process: nothing to do.
 
 ## Next Steps
 

@@ -18,7 +18,7 @@ logger.error('Connection failed', { host: 'db.example.com' })
 logger.fatal('Out of memory')
 ```
 
-The signature is **message-first**: the message string comes first, the structured data object second — `logger.info('user logged in', { userId })`. This deviates from pino's object-first convention (`logger.info({ userId }, 'user logged in')`); Spectrum reads left-to-right for ergonomics.
+The signature is **message-first**: the message string comes first, the structured data object second — `logger.info('user logged in', { userId })`. A call reads left to right.
 
 ### Error Serialization
 

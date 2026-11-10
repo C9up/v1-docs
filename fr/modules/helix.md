@@ -2,7 +2,7 @@
 
 Helix est la boîte à outils de tests unifiée de Ream (`@c9up/helix`) :
 fakes bus / HTTP / DB, assertions fluides, overrides du container,
-voyage dans le temps, et un test-runner CLI compatible Vitest. Les
+voyage dans le temps, et un test-runner CLI. Les
 applis qui suivent la convention pilotent chaque test d'intégration
 cross-module via Helix au lieu de bricoler des fixtures par package.
 
@@ -27,7 +27,7 @@ pnpm ream add -D @c9up/helix
 | `@c9up/helix/storage` | Driver `Archive` en mémoire + assertions. |
 | `@c9up/helix/logger` | Assertions sur les logs capturés de `@c9up/spectrum`. |
 | `@c9up/helix/time` | `time.freeze()` / `travel()` au-dessus de Chronos. |
-| `@c9up/helix/runtime` | DSL Vitest-compatible standalone si vous voulez l'importer explicitement. |
+| `@c9up/helix/runtime` | DSL d'exécution standalone si vous voulez l'importer explicitement. |
 | `@c9up/helix/container` | `helix.override(token, value)` pour stubber l'IoC par test. |
 | `@c9up/helix/fixtures` | Factories + seeders. |
 
