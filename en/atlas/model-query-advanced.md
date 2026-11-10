@@ -62,7 +62,7 @@ const rows = repo.query()
 ```
 
 Inside the callback: `on` / `andOn` / `orOn` join two **columns**; `onVal` /
-`andOnVal` / `orOnVal` join a column to a **bound value** (AdonisJS/Knex parity) —
+`andOnVal` / `orOnVal` join a column to a **bound value** —
 the value is parameterised (never inlined) and threaded through the compiler ahead
 of the `WHERE` params. `joinRaw(fragment, bindings?)` accepts its own `?` bindings.
 Use `joinOn(table, left, right)` for simple join-on-column cases.
@@ -109,7 +109,7 @@ On a `@SoftDeletes` model, bulk DML honours the soft-delete scope just like read
 
 ## Transactions
 
-Atlas mirrors Lucid's transaction API. Either way the transaction is **pinned to
+Either way the transaction is **pinned to
 a single connection**, so a read-then-decide-then-write is genuinely atomic, and
 the connection is only returned to the pool on commit/rollback.
 
@@ -127,7 +127,7 @@ const next = await transaction(db, async (trx) => {
   return value // committed; throw to roll the whole thing back
 })
 
-// Same thing as a method (Lucid parity):
+// Same thing as a method:
 await db.transaction(async (trx) => { /* … */ })
 ```
 
@@ -156,8 +156,8 @@ Nested `transaction()` calls reuse the same connection via `SAVEPOINT` (partial
 rollback). Hand the active `trx` to a repository with `repo.useTransaction(trx)`.
 
 **After-commit hooks.** `trx.after('commit', cb)` / `trx.after('rollback', cb)`
-register side effects that run only once the transaction is durable (AdonisJS
-Lucid parity); hook errors are swallowed so a post-commit side effect can't
+register side effects that run only once the transaction is durable;
+hook errors are swallowed so a post-commit side effect can't
 surface a failure on a transaction the caller already saw succeed. Inside a
 nested (SAVEPOINT) transaction a `commit` hook is forwarded to the parent, so it
 fires only when the ROOT commits — and is discarded if the outer transaction
@@ -187,7 +187,7 @@ For a fixed list of statements you don't need to read between, use
 repo.query().where('id', id).forUpdate().first()
 repo.query().where('id', id).forShare().first()
 
-// Postgres-only weaker locks (mirror AdonisJS/Knex):
+// Postgres-only weaker locks:
 repo.query().where('id', id).forNoKeyUpdate().first()
 repo.query().where('id', id).forKeyShare().first()
 
@@ -219,30 +219,28 @@ like.
 
 Skip model hydration entirely — no `BaseEntity` instances, no dirty-tracking, no
 `@column({ consume })`, no preloads. Returns the raw snake_case DB rows. A fast
-read path for reports and exports (AdonisJS Lucid `pojo()`):
+read path for reports and exports:
 
 ```ts
 const rows = await User.query().where('active', true).pojo()
 // rows: Array<{ id: number; full_name: string; ... }>
 ```
 
-`pojo()` is chainable into `first()`, which is how Lucid's own code uses it:
+`pojo()` is chainable into `first()`:
 
 ```ts
 const row = await User.query().where('email', email).pojo().first()
 // row: { id: number; full_name: string; ... } | null
 ```
 
-::: tip Named deviation
-Lucid's `pojo()` is a flag on the builder, so the whole builder surface stays
-available after it. `ModelQuery<T>` is constrained to `T extends BaseEntity` and
-cannot be re-parametrised to a plain record, so ours is a terminal view: it is
-awaitable for the rows and chainable into `first()`.
+::: tip `pojo()` ends the chain
+`ModelQuery<T>` is constrained to `T extends BaseEntity` and cannot be
+re-parametrised to a plain record, so `pojo()` returns a terminal view: it is
+awaitable for the rows and chainable into `first()`. Put it last in the chain.
 :::
 
 For a single column, `pluck()` skips hydration the same way and returns the
-values rather than the rows. It rejects object and relation columns, which
-Knex's does not:
+values rather than the rows. It rejects object and relation columns:
 
 ```ts
 const emails = await User.query().where('active', true).pluck<string>('email')
@@ -257,14 +255,13 @@ use `pojo()`. Operations premised on an existing row (`delete()`, `forceDelete()
 they throw `E_MODEL_NOT_PERSISTED` on a local instance (even with a hand-set PK —
 it isn't a row) and `E_MISSING_PRIMARY_KEY` on a persisted projection with no PK.
 `save()` also throws `E_MISSING_PRIMARY_KEY` on such a projection. `related().create/save`
-**persists the parent first** inside a managed transaction (AdonisJS/Lucid parity),
+**persists the parent first** inside a managed transaction,
 sets the child FK, then writes the child — atomic, rolled back on failure; a parent
 from a projection with no PK is rejected (`E_MISSING_PRIMARY_KEY`).
 
 ## Sideloaded context
 
-Thread arbitrary context onto every instance a query hydrates (AdonisJS Lucid
-`sideload`) — e.g. the current tenant/user, readable from hooks or computed
+Thread arbitrary context onto every instance a query hydrates — e.g. the current tenant/user, readable from hooks or computed
 properties via `entity.$sideloaded`:
 
 ```ts
@@ -294,7 +291,7 @@ repo.query().whereJsonSubsetOf('scopes', ['read', 'write', 'admin'])
 Each has the full `and*` / `or*` / `whereNot*` family: `andWhereJsonPath`,
 `orWhereJsonPath`; `whereJson` / `andWhereJson` / `orWhereJson` / `whereNotJson` /
 `andWhereNotJson` / `orWhereNotJson`; and for containment both the `*Of` spelling
-and Lucid's bare spelling — `whereJsonSuperset` / `whereJsonSubset` and their
+and the bare spelling — `whereJsonSuperset` / `whereJsonSubset` and their
 `and*` / `or*` / `whereNot*` / `orWhereNot*` variants.
 
 > Containment is Postgres/MySQL only — SQLite has no JSON containment operator, so
@@ -413,7 +410,7 @@ repo.query().fullOuterJoin('audits', 'users.id', 'audits.user_id') // Postgres
 `leftOuterJoin` / `rightOuterJoin` are aliases of `leftJoin` / `rightJoin`.
 `fullOuterJoin` is Postgres — MySQL and SQLite lack `FULL OUTER JOIN`.
 
-The callback `ON` builder carries the full Lucid/Knex constraint set alongside
+The callback `ON` builder carries the full constraint set alongside
 `on` / `andOn` / `orOn` and `onVal` / `andOnVal` / `orOnVal`:
 
 ```ts
@@ -445,12 +442,12 @@ const rows = await User.query().whereRaw(suspect).catch(() => [])
 
 `await query` worked while `query.catch(fn)` and `query.finally(fn)` threw "not
 a function". A value that answers to `then` and nothing else surprises anyone
-treating it as the promise it looks like, and Lucid's builder carries all three.
+treating it as the promise it looks like, so the builder carries all three.
 
 `exec()` memoizes, so awaiting the same builder twice shares one round-trip.
 Call `clone()` for a fresh one.
 
-## Lucid-parity helpers
+## More query helpers
 
 ```ts
 // Exactly one row, or throw — a second match is a bug first() would hide.
@@ -497,7 +494,7 @@ elsewhere rather than return a silently different result set). `comment()` rejec
 
 ```ts
 // Client-side race only: the awaiter rejects after 2s; the driver still finishes
-// the query server-side (Lucid's default timeout semantics).
+// the query server-side (the default).
 await repo.query().where('active', true).timeout(2000).exec()
 
 // { cancel: true } ALSO aborts the query server-side.
@@ -515,8 +512,8 @@ statement timeout. Calling `timeout()` with no argument clears it.
 ## Connection-level writes and upserts
 
 `db.table()` / `db.from()` (the connection-level builder, not a model query) exposes
-Lucid's insert / upsert surface. The builders are lazy and chainable — the statement
-runs on `await` / `.exec()`, so the Lucid clause order works:
+an insert / upsert surface. The builders are lazy and chainable — the statement
+runs on `await` / `.exec()`, so the clauses read in SQL order:
 
 ```ts
 // Insert one row, upsert on a conflict target.
@@ -528,7 +525,7 @@ await db.table('users')
 
 await db.table('users').insert({ email, name }).onConflict('email').ignore() // … or do nothing
 
-// Insert many in one statement — missing keys are filled with NULL (Lucid semantics).
+// Insert many in one statement — missing keys are filled with NULL.
 await db.table('audit_logs').multiInsert([
   { user_id: 1, action: 'login' },
   { user_id: 2, action: 'logout' },
@@ -548,7 +545,7 @@ names the columns to return. On a model query, `update()` / `delete()` /
 ## The paginator result
 
 `repo.query().paginate(page, perPage)` resolves to a `Paginator<T>` — the items plus
-Lucid-parity metadata and page-URL helpers.
+pagination metadata and page-URL helpers.
 
 ```ts
 const page = await repo.query().orderBy('id').paginate(2, 20)

@@ -1,7 +1,7 @@
 # Atlas - Observabilité
 
 Atlas expose chaque instruction exécutée via une petite couche d'observabilité des
-requêtes — son équivalent de l'événement `db:query` de Lucid. Utilise-la pour
+requêtes. Utilise-la pour
 journaliser les requêtes lentes, tracer ce qu'une requête HTTP a réellement exécuté,
 ou brancher atlas sur la télémétrie de ton application.
 
@@ -40,8 +40,7 @@ afterEach(() => clearDbQueryListeners())
 
 ## La forme de `DbQueryEvent`
 
-Chaque écouteur reçoit un `DbQueryEvent`, qui reflète la charge utile `db:query`
-de Lucid :
+Chaque écouteur reçoit un `DbQueryEvent` :
 
 ```ts
 interface DbQueryEvent {
@@ -75,8 +74,7 @@ les couvrent.
 
 ## Impression lisible
 
-`prettyPrintQuery(event)` rend un événement sous forme d'une seule ligne de journal
-(le `prettyPrint` de Lucid) :
+`prettyPrintQuery(event)` rend un événement sous forme d'une seule ligne de journal :
 
 ```ts
 import { onDbQuery, prettyPrintQuery } from '@c9up/atlas'

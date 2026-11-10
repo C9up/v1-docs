@@ -1,7 +1,7 @@
 # Atlas - Hooks de cycle de vie
 
-Atlas déclenche des **hooks de cycle de vie** à chaque étape du pipeline CRUD,
-sur le modèle de la surface de hooks d'AdonisJS Lucid. Décorez une méthode
+Atlas déclenche des **hooks de cycle de vie** à chaque étape du pipeline CRUD.
+Décorez une méthode
 **statique** de votre entité et Atlas l'invoque au moment correspondant — avant
 ou après un save, un create, un update, un delete, un find, un fetch ou une
 pagination.
@@ -68,7 +68,7 @@ l'opération entière est abandonnée et l'erreur est propagée à l'appelant.
 ## Ordre
 
 Le hook **spécifique** s'exécute avant le hook **général** `beforeSave`, et le
-`afterSave` général s'exécute après le after-hook spécifique (ordre Lucid) :
+`afterSave` général s'exécute après le after-hook spécifique :
 
 ```
 create()  →  beforeCreate → beforeSave → INSERT → afterCreate → afterSave
@@ -102,8 +102,8 @@ place un scoping ou des valeurs par défaut que l'enfant affine ensuite.
 ## Museler les hooks : les variantes `Quietly`
 
 Chaque méthode de dépôt (« repository ») mutante possède une jumelle `…Quietly`
-qui effectue l'écriture identique **sans déclencher aucun hook** (parité AdonisJS
-Lucid). Utilisez-les dans les seeders, les back-fills ou les migrations où les
+qui effectue l'écriture identique **sans déclencher aucun hook**.
+Utilisez-les dans les seeders, les back-fills ou les migrations où les
 effets de bord seraient erronés ou redondants :
 
 ```ts

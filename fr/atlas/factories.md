@@ -1,6 +1,6 @@
 # Atlas - Factories de modèles
 
-Les factories génèrent des données de test — compatibles Lucid. Elles
+Les factories génèrent des données de test. Elles
 construisent des instances de modèle à partir d'un callback de valeurs par
 défaut, superposent des états nommés, surchargent des champs à la volée et (sur
 le chemin de persistance) créent des lignes liées. `faker` est câblé pour les
@@ -9,8 +9,7 @@ fausses données.
 ## Définir une factory
 
 Deux points d'entrée équivalents. Le raccourci en un appel
-`factory(Model, defaults)`, ou la forme `Factory.define(Model, defaults).build()`
-(parité AdonisJS Lucid) :
+`factory(Model, defaults)`, ou la forme `Factory.define(Model, defaults).build()` :
 
 ```ts
 import { factory, Factory } from '@c9up/atlas'
@@ -23,7 +22,7 @@ const UserFactory = factory(User, ({ faker }) => ({
   role: 'member',
 }))
 
-// Forme Lucid `define().build()` — résultat identique.
+// Forme `define().build()` — résultat identique.
 const UserFactory2 = Factory.define(User, ({ faker }) => ({
   email: faker.internet.email(),
 })).build()
@@ -104,7 +103,7 @@ après consommation). Il accepte trois formes :
 // Objet — fusion superficielle sur les attributs résolus.
 UserFactory.merge({ name: 'Alice' }).create(db)
 
-// Callback — muter l'instance construite de façon impérative (Lucid `merge`).
+// Callback — muter l'instance construite de façon impérative.
 UserFactory.merge((user, attributes) => { user.name = attributes.name }).make()
 
 // Tableau — surcharge par ligne sur makeMany/createMany (index i → ligne i).
@@ -112,7 +111,7 @@ UserFactory.merge([{ role: 'admin' }, { role: 'member' }]).createMany(2, db)
 ```
 
 `mergeRecursive()` fusionne en profondeur les objets simples imbriqués clé par
-clé au lieu de les remplacer entièrement (Lucid `mergeRecursive`) ; les tableaux
+clé au lieu de les remplacer entièrement ; les tableaux
 et les valeurs non simples remplacent toujours. Sur un graphe `.with()`, un merge
 récursif se propage en cascade sur chaque factory liée.
 
@@ -220,8 +219,8 @@ UserFactory.tap((user, { faker }) => { user.token = faker.string.uuid() }).make(
 
 ## Instanciation personnalisée — `newUp`
 
-Remplacer le `new Model()` par défaut et l'assignation de propriétés (Lucid
-`.newUp`). Le callback reçoit les attributs résolus et le contexte et retourne
+Remplacer le `new Model()` par défaut et l'assignation de propriétés.
+Le callback reçoit les attributs résolus et le contexte et retourne
 l'instance à utiliser pour chaque construction suivante :
 
 ```ts
@@ -239,13 +238,13 @@ un pour que les appels qui l'omettent utilisent la liaison (idéal pour l'isolat
 des tests avec une transaction) :
 
 ```ts
-// Lier directement une transaction/connexion (Lucid `.client`).
+// Lier directement une transaction/connexion.
 UserFactory.client(trx).create()
 
-// Résoudre une connexion enregistrée par son nom (Lucid `.connection`).
+// Résoudre une connexion enregistrée par son nom.
 UserFactory.connection('primary').create()
 
-// Sucre syntaxique via objet d'options (Lucid `.query({ client }) / .query({ connection })`) ;
+// Sucre syntaxique via objet d'options (`.query({ client })` / `.query({ connection })`) ;
 // `client` l'emporte sur `connection`.
 UserFactory.query({ client: trx }).createMany(5)
 ```

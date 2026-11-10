@@ -1,11 +1,11 @@
 # Atlas - Seeders
 
 Les seeders remplissent la base de données avec des données par défaut, de
-référence ou de test. Atlas reprend l'API des seeders d'Adonis Lucid — une
+référence ou de test. Atlas fournit une API de seeders — une
 classe de base à étendre, un runner de répertoire et deux commandes console
 (`make:seeder` / `db:seed`).
 
-Atlas n'a pas de registre de configuration global (parité Lucid) : on passe
+Atlas n'a pas de registre de configuration global : on passe
 toujours ses propres chemins et sa connexion, donc rien n'est découvert
 implicitement.
 
@@ -13,7 +13,7 @@ implicitement.
 
 Étendre `BaseSeeder` et implémenter `run()`. La connexion à la base est injectée
 via le constructeur et exposée à la fois comme `this.db` et `this.client`
-(l'alias Lucid), ce qui permet de construire des repositories à l'intérieur de
+(un alias), ce qui permet de construire des repositories à l'intérieur de
 `run()` sans recourir à des globals.
 
 Rendre le corps idempotent — un `upsert` clé sur une colonne unique est le
@@ -102,9 +102,9 @@ Options :
 - `files` — n'exécute que ces seeders, appariés par nom de base
   (`CountrySeeder`) ou par chemin de fichier complet / relatif
   (`database/seeders/CountrySeeder.ts`) ; le runner compare le nom de base sans
-  extension. Reprend le `--files` de Lucid.
+  extension.
 - `naturalSort` — trie les fichiers numériquement (`2_x` avant `10_x`) au lieu de
-  l'ordre lexicographique par défaut. Reprend le `naturalSort` de Lucid.
+  l'ordre lexicographique par défaut.
 - `environment` — l'environnement courant ; ignore tout seeder dont le
   `environment` statique l'exclut.
 
@@ -180,15 +180,14 @@ ream db:seed
 Flags :
 
 - `--files=A,B` — n'exécute que les seeders nommés (séparés par des virgules).
-  Reprend le `--files` de Lucid.
 - `--connection=name` — exécute sur une connexion enregistrée précise au lieu de
-  celle par défaut. Reprend le `--connection` de Lucid.
+  celle par défaut.
 - `--environment=name` — surcharge l'environnement utilisé pour le filtrage
   `static environment` ; retombe sur l'`environment` de la factory, puis sur
   `NODE_ENV`.
 - `--compact-output` — affiche une seule ligne de résumé (`Seeded N seeder(s)`)
   au lieu de lister chaque seeder.
-- `--interactive` — accepté uniquement pour compatibilité Lucid. Le kernel
+- `--interactive` — accepté, mais sans effet. Le kernel
   console est non interactif : il affiche un avertissement et exécute tous les
   seeders sélectionnés sans demander de confirmation.
 

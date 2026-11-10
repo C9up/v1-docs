@@ -1,6 +1,6 @@
 # Atlas - Connexions
 
-Atlas expose un singleton `db` — le service `Database` de Lucid (AdonisJS) — ainsi
+Atlas expose un singleton `db` — le service `Database` — ainsi
 qu'un `ConnectionManager` (`db.manager`) qui détient la table des connexions
 nommées. Le singleton est peuplé par `AtlasProvider.boot()` à partir des connexions
 de votre `config/database.ts`.
@@ -70,7 +70,7 @@ db.modelQuery(User)           // builder pour un modèle résolu à l'exécution
 - `insertQuery(options?)` reflète `query` pour le chemin d'insertion (accepte les
   mêmes options `{ client }` / `{ mode }`).
 - `modelQuery(Model)` construit une requête pour une classe de modèle résolue à
-  l'exécution (Lucid `db.modelQuery`). Pour du code statique, préférez
+  l'exécution. Pour du code statique, préférez
   `Model.query()` directement.
 
 ## SQL brut et références
@@ -201,8 +201,8 @@ await db.truncateAllTables(['audit_log'])
 ## Verrous consultatifs (advisory locks)
 
 Les verrous consultatifs au niveau de la session permettent à des processus
-coopérants de se sérialiser autour d'une clé partagée sans verrou de table — Atlas
-reflète les méthodes `getAdvisoryLock` / `releaseAdvisoryLock` de Lucid.
+coopérants de se sérialiser autour d'une clé partagée sans verrou de table, grâce à
+`getAdvisoryLock` / `releaseAdvisoryLock`.
 
 ```ts
 const key = 'nightly-report'
@@ -222,8 +222,8 @@ if (await db.getAdvisoryLock(key)) {
 - La clé peut être une `string` ou un `number`. Une clé de type chaîne est hachée
   de façon déterministe vers l'entier requis par Postgres, afin que le verrouillage
   et le déverrouillage concordent au sein d'un processus.
-- **Les deux lèvent une erreur sur SQLite** — SQLite n'a pas de verrous consultatifs
-  (parité Lucid). Protégez-vous par dialecte si votre code s'exécute aussi sur
+- **Les deux lèvent une erreur sur SQLite** — SQLite n'a pas de verrous consultatifs.
+  Protégez-vous par dialecte si votre code s'exécute aussi sur
   SQLite.
 
 ## Le gestionnaire de connexions

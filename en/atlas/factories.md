@@ -1,13 +1,13 @@
 # Atlas - Model Factories
 
-Factories generate test data — Lucid-compatible. They build model instances from
+Factories generate test data. They build model instances from
 a defaults callback, layer on named states, override fields ad-hoc, and (on the
 persistence path) create related rows. `faker` is wired in for fake data.
 
 ## Defining a factory
 
 Two equivalent entry points. The one-call `factory(Model, defaults)` shorthand,
-or the `Factory.define(Model, defaults).build()` form (AdonisJS Lucid parity):
+or the `Factory.define(Model, defaults).build()` form:
 
 ```ts
 import { factory, Factory } from '@c9up/atlas'
@@ -20,7 +20,7 @@ const UserFactory = factory(User, ({ faker }) => ({
   role: 'member',
 }))
 
-// Lucid `define().build()` form — identical result.
+// `define().build()` form — identical result.
 const UserFactory2 = Factory.define(User, ({ faker }) => ({
   email: faker.internet.email(),
 })).build()
@@ -97,7 +97,7 @@ accepts three shapes:
 // Object — shallow-merge onto the resolved attributes.
 UserFactory.merge({ name: 'Alice' }).create(db)
 
-// Callback — mutate the built instance imperatively (Lucid `merge`).
+// Callback — mutate the built instance imperatively.
 UserFactory.merge((user, attributes) => { user.name = attributes.name }).make()
 
 // Array — per-row override on makeMany/createMany (index i → row i).
@@ -105,7 +105,7 @@ UserFactory.merge([{ role: 'admin' }, { role: 'member' }]).createMany(2, db)
 ```
 
 `mergeRecursive()` deep-merges nested plain objects key by key instead of
-replacing them wholesale (Lucid `mergeRecursive`); arrays and non-plain values
+replacing them wholesale; arrays and non-plain values
 still replace. On a `.with()` graph, a recursive merge cascades onto every related
 factory.
 
@@ -207,7 +207,7 @@ UserFactory.tap((user, { faker }) => { user.token = faker.string.uuid() }).make(
 
 ## Custom instantiation — `newUp`
 
-Replace the default `new Model()` + property assignment (Lucid `.newUp`). The
+Replace the default `new Model()` + property assignment. The
 callback receives the resolved attributes and the context and returns the instance
 to use for every subsequent build:
 
@@ -225,13 +225,13 @@ UserFactory.newUp((attributes) => {
 that omit it use the binding (ideal for test isolation with a transaction):
 
 ```ts
-// Bind a transaction/connection directly (Lucid `.client`).
+// Bind a transaction/connection directly.
 UserFactory.client(trx).create()
 
-// Resolve a registered connection by name (Lucid `.connection`).
+// Resolve a registered connection by name.
 UserFactory.connection('primary').create()
 
-// Options-object sugar (Lucid `.query({ client }) / .query({ connection })`);
+// Options-object sugar (`.query({ client })` / `.query({ connection })`);
 // `client` wins over `connection`.
 UserFactory.query({ client: trx }).createMany(5)
 ```

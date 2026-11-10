@@ -1,7 +1,7 @@
 # Atlas - Observability
 
-Atlas exposes every executed statement through a small query-observability layer —
-its equivalent of Lucid's `db:query` event. Use it to log slow queries, trace what
+Atlas exposes every executed statement through a small query-observability layer.
+Use it to log slow queries, trace what
 a request actually ran, or bridge atlas into your app's telemetry.
 
 Emission is **opt-in and free when unused**. A statement is only timed when its
@@ -37,7 +37,7 @@ afterEach(() => clearDbQueryListeners())
 
 ## The `DbQueryEvent` shape
 
-Each listener receives one `DbQueryEvent`, mirroring Lucid's `db:query` payload:
+Each listener receives one `DbQueryEvent`:
 
 ```ts
 interface DbQueryEvent {
@@ -69,8 +69,7 @@ transaction client's `commit` / `rollback` events cover them.
 
 ## Pretty-printing
 
-`prettyPrintQuery(event)` renders an event as a single log line (Lucid's
-`prettyPrint`):
+`prettyPrintQuery(event)` renders an event as a single log line:
 
 ```ts
 import { onDbQuery, prettyPrintQuery } from '@c9up/atlas'

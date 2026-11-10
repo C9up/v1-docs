@@ -1,6 +1,6 @@
 # Atlas - Connections
 
-Atlas exposes a `db` singleton — AdonisJS Lucid's `Database` service — plus a
+Atlas exposes a `db` singleton — the `Database` service — plus a
 `ConnectionManager` (`db.manager`) that owns the map of named connections. The
 singleton is populated by `AtlasProvider.boot()` from your
 `config/database.ts` connections.
@@ -69,7 +69,7 @@ db.modelQuery(User)           // builder for a model resolved at runtime
 - `insertQuery(options?)` mirrors `query` for the insert path (accepts the same
   `{ client }` / `{ mode }` options).
 - `modelQuery(Model)` builds a query for a model class resolved at runtime
-  (Lucid `db.modelQuery`). For static code prefer `Model.query()` directly.
+  For static code prefer `Model.query()` directly.
 
 ## Raw SQL and references
 
@@ -190,8 +190,7 @@ await db.truncateAllTables(['audit_log'])
 ## Advisory locks
 
 Session-level advisory locks let cooperating processes serialise around a shared
-key without a table lock — Atlas mirrors Lucid's `getAdvisoryLock` /
-`releaseAdvisoryLock`.
+key without a table lock, through `getAdvisoryLock` / `releaseAdvisoryLock`.
 
 ```ts
 const key = 'nightly-report'
@@ -210,7 +209,7 @@ if (await db.getAdvisoryLock(key)) {
   `releaseAdvisoryLock` returns whether it was released.
 - The key may be a `string` or a `number`. A string key is hashed deterministically
   to the integer Postgres requires, so lock and unlock agree within a process.
-- **Both throw on SQLite** — SQLite has no advisory locks (Lucid parity). Guard by
+- **Both throw on SQLite** — SQLite has no advisory locks. Guard by
   dialect if your code runs on SQLite too.
 
 ## The connection manager

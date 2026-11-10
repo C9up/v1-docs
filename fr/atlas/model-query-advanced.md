@@ -62,8 +62,7 @@ const rows = repo.query()
 ```
 
 Dans le callback : `on` / `andOn` / `orOn` joignent deux **colonnes** ; `onVal` /
-`andOnVal` / `orOnVal` joignent une colonne à une **valeur bindée** (parité
-AdonisJS/Knex) — la valeur est paramétrée (jamais inline) et threadée dans le
+`andOnVal` / `orOnVal` joignent une colonne à une **valeur bindée** — la valeur est paramétrée (jamais inline) et threadée dans le
 compilateur avant les params du `WHERE`. `joinRaw(fragment, bindings?)` accepte ses
 propres bindings `?`. Utiliser `joinOn(table, left, right)` pour les cas simples join-on-column.
 
@@ -110,7 +109,7 @@ mutation.
 
 ## Transactions
 
-Atlas reprend l'API de transactions de Lucid. Dans les deux cas la transaction
+Dans les deux cas la transaction
 est **épinglée à une seule connexion**, donc un lire-puis-décider-puis-écrire est
 réellement atomique, et la connexion n'est rendue au pool qu'au commit/rollback.
 
@@ -128,7 +127,7 @@ const next = await transaction(db, async (trx) => {
   return value // committé ; lever une erreur ici annule tout
 })
 
-// La même chose en méthode (parité Lucid) :
+// La même chose en méthode :
 await db.transaction(async (trx) => { /* … */ })
 ```
 
@@ -159,7 +158,7 @@ Les appels `transaction()` imbriqués réutilisent la même connexion via
 
 **Hooks après-commit.** `trx.after('commit', cb)` / `trx.after('rollback', cb)`
 enregistrent des effets de bord qui ne s'exécutent qu'une fois la transaction
-durable (parité AdonisJS Lucid) ; les erreurs d'un hook sont avalées pour qu'un
+durable ; les erreurs d'un hook sont avalées pour qu'un
 effet post-commit ne puisse pas faire remonter un échec sur une transaction que
 l'appelant a déjà vue réussir. Dans une transaction imbriquée (SAVEPOINT), un
 hook `commit` est transféré au parent, donc il ne se déclenche qu'au commit
@@ -192,7 +191,7 @@ migrations).
 repo.query().where('id', id).forUpdate().first()
 repo.query().where('id', id).forShare().first()
 
-// Verrous plus faibles, Postgres uniquement (parité AdonisJS/Knex) :
+// Verrous plus faibles, Postgres uniquement :
 repo.query().where('id', id).forNoKeyUpdate().first()
 repo.query().where('id', id).forKeyShare().first()
 
@@ -225,31 +224,28 @@ et à rien d'autre piège quiconque le traite comme la promesse dont il a l'air.
 Court-circuite entièrement l'hydratation des modèles — aucune instance
 `BaseEntity`, aucun suivi des changements, aucun `@column({ consume })`, aucun
 preload. Retourne les lignes brutes de la base (colonnes snake_case). Chemin de
-lecture rapide pour les rapports et exports (parité AdonisJS Lucid `pojo()`) :
+lecture rapide pour les rapports et exports :
 
 ```ts
 const rows = await User.query().where('active', true).pojo()
 // rows : Array<{ id: number; full_name: string; ... }>
 ```
 
-`pojo()` s'enchaîne avec `first()`, ce que fait le code de Lucid lui-même :
+`pojo()` s'enchaîne avec `first()` :
 
 ```ts
 const row = await User.query().where('email', email).pojo().first()
 // row : { id: number; full_name: string; ... } | null
 ```
 
-::: tip Écart nommé
-Chez Lucid, `pojo()` est un drapeau posé sur le constructeur de requête, donc
-toute sa surface reste disponible ensuite. `ModelQuery<T>` est contraint à
-`T extends BaseEntity` et ne peut pas être re-paramétré vers un enregistrement
-brut : le nôtre est donc une vue terminale, attendable pour les lignes et
-enchaînable avec `first()`.
+::: tip `pojo()` termine la chaîne
+`ModelQuery<T>` est contraint à `T extends BaseEntity` et ne peut pas être
+re-paramétré vers un enregistrement brut : `pojo()` rend donc une vue terminale,
+attendable pour les lignes et enchaînable avec `first()`. Placez-le en dernier.
 :::
 
 Pour une seule colonne, `pluck()` saute l'hydratation de la même façon et rend
-les valeurs plutôt que les lignes. Il refuse les colonnes objet et relation, ce
-que celui de Knex ne fait pas :
+les valeurs plutôt que les lignes. Il refuse les colonnes objet et relation :
 
 ```ts
 const emails = await User.query().where('active', true).pluck<string>('email')
@@ -266,14 +262,13 @@ elles lèvent `E_MODEL_NOT_PERSISTED` sur une instance locale (même avec une PK
 posée à la main — ce n'est pas une row) et `E_MISSING_PRIMARY_KEY` sur une
 projection persistée sans PK. `save()` lève aussi `E_MISSING_PRIMARY_KEY` sur une
 telle projection. `related().create/save` **persiste le parent d'abord** dans une
-transaction managée (parité AdonisJS/Lucid), pose le FK sur l'enfant, puis l'écrit —
+transaction managée, pose le FK sur l'enfant, puis l'écrit —
 atomique, rollback en cas d'échec ; un parent issu d'une projection sans PK est
 rejeté (`E_MISSING_PRIMARY_KEY`).
 
 ## Contexte sideloaded
 
-Attache un contexte arbitraire à chaque instance hydratée par une requête (parité
-AdonisJS Lucid `sideload`) — p. ex. le tenant/utilisateur courant, lisible depuis
+Attache un contexte arbitraire à chaque instance hydratée par une requête — p. ex. le tenant/utilisateur courant, lisible depuis
 les hooks ou les propriétés calculées via `entity.$sideloaded` :
 
 ```ts
@@ -303,7 +298,7 @@ repo.query().whereJsonSubsetOf('scopes', ['read', 'write', 'admin'])
 Chacun expose la famille complète `and*` / `or*` / `whereNot*` : `andWhereJsonPath`,
 `orWhereJsonPath` ; `whereJson` / `andWhereJson` / `orWhereJson` / `whereNotJson` /
 `andWhereNotJson` / `orWhereNotJson` ; et pour l'inclusion à la fois l'orthographe
-`*Of` et l'orthographe nue de Lucid — `whereJsonSuperset` / `whereJsonSubset` et
+`*Of` et l'orthographe nue — `whereJsonSuperset` / `whereJsonSubset` et
 leurs variantes `and*` / `or*` / `whereNot*` / `orWhereNot*`.
 
 > L'inclusion est réservée à Postgres/MySQL — SQLite n'a pas d'opérateur d'inclusion
@@ -425,7 +420,7 @@ repo.query().fullOuterJoin('audits', 'users.id', 'audits.user_id') // Postgres
 `fullOuterJoin` est réservé à Postgres — MySQL et SQLite n'ont pas de
 `FULL OUTER JOIN`.
 
-Le builder `ON` en callback porte l'ensemble complet des contraintes Lucid/Knex à
+Le builder `ON` en callback porte l'ensemble complet des contraintes à
 côté de `on` / `andOn` / `orOn` et `onVal` / `andOnVal` / `orOnVal` :
 
 ```ts
@@ -457,13 +452,13 @@ const rows = await User.query().whereRaw(suspect).catch(() => [])
 
 `await query` marchait pendant que `query.catch(fn)` et `query.finally(fn)`
 levaient « not a function ». Un objet qui répond à `then` et à rien d'autre
-piège quiconque le traite comme la promesse dont il a l'air, et le constructeur
-de Lucid porte bien les trois.
+piège quiconque le traite comme la promesse dont il a l'air : le constructeur
+porte donc les trois.
 
 `exec()` mémoïse : attendre deux fois le même constructeur partage un seul
 aller-retour. `clone()` en donne un neuf.
 
-## Helpers de parité Lucid
+## Autres helpers de requête
 
 ```ts
 // Exactement une ligne, sinon erreur — un second match est un bug que first() cacherait.
@@ -511,7 +506,7 @@ jamais s'échapper du wrapper `/* … */`.
 
 ```ts
 // Course côté client seulement : l'awaiter rejette après 2s ; le driver termine
-// quand même la requête côté serveur (sémantique par défaut de Lucid).
+// quand même la requête côté serveur (comportement par défaut).
 await repo.query().where('active', true).timeout(2000).exec()
 
 // { cancel: true } annule AUSSI la requête côté serveur.
@@ -530,9 +525,9 @@ sans argument le supprime.
 ## Écritures et upserts au niveau connexion
 
 `db.table()` / `db.from()` (le builder de niveau connexion, pas une requête de
-modèle) expose la surface insert / upsert de Lucid. Les builders sont paresseux et
-chaînables — l'instruction s'exécute au `await` / `.exec()`, donc l'ordre des clauses
-Lucid fonctionne :
+modèle) expose une surface insert / upsert. Les builders sont paresseux et
+chaînables — l'instruction s'exécute au `await` / `.exec()`, donc les clauses se
+lisent dans l'ordre SQL :
 
 ```ts
 // Insérer une ligne, upsert sur une cible de conflit.
@@ -544,7 +539,7 @@ await db.table('users')
 
 await db.table('users').insert({ email, name }).onConflict('email').ignore() // … ou ne rien faire
 
-// Insérer plusieurs lignes en une instruction — les clés manquantes sont mises à NULL (sémantique Lucid).
+// Insérer plusieurs lignes en une instruction — les clés manquantes sont mises à NULL.
 await db.table('audit_logs').multiInsert([
   { user_id: 1, action: 'login' },
   { user_id: 2, action: 'logout' },
@@ -564,7 +559,7 @@ modèle, `update()` / `delete()` / `forceDelete()` / `restore()` renvoient le m�
 ## L'objet résultat du paginateur
 
 `repo.query().paginate(page, perPage)` résout vers un `Paginator<T>` — les items plus
-les métadonnées de parité Lucid et les helpers d'URL de page.
+les métadonnées de pagination et les helpers d'URL de page.
 
 ```ts
 const page = await repo.query().orderBy('id').paginate(2, 20)

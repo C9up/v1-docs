@@ -125,13 +125,13 @@ await user.related('orders').attach({
 
 **Reserved keys.** Pivot extras MUST NOT use the FK column names (`foreignKey`/`otherKey`) or the timestamp column names from `pivotTimestamps`. atlas throws at `attach()` time when a caller passes one of those keys in extras (silent FK override / duplicate timestamp column would otherwise corrupt the row).
 
-**Atomic writes (Adonis Lucid parity).** `related('skills').create/save/createMany/saveMany`
+**Atomic writes.** `related('skills').create/save/createMany/saveMany`
 run the whole chain — persist an unsaved parent, write the related row(s), insert
 the pivot row(s) — inside ONE transaction. Any failure rolls the whole thing back:
 no orphan related row, no pivot pointing at a missing parent. Domain events are
 flushed only after the transaction commits.
 
-**`sync()` semantics (Adonis Lucid parity).** `sync(target)` reconciles the pivot to exactly `target`: missing rows are attached, rows absent from the target are detached, and **already-attached rows whose pivot attributes changed are UPDATED in place** (only the changed rows, only `updated_at` bumped — a no-op `sync` writes nothing). Pass `sync(target, true)` for an additive sync (attach + update, never detach). The read and all three writes run inside a **single managed transaction** — atomic, rolled back on any failure, so a concurrent writer can't wedge the pivot into a half-synced state. Object-form keys (`sync({ 1: {...} })`) arrive as strings from JS; a canonical integer is coerced back to a number before binding and the diff compares by string identity, so an integer related PK never gets a `text` bind (which Postgres rejects) and never churns.
+**`sync()` semantics.** `sync(target)` reconciles the pivot to exactly `target`: missing rows are attached, rows absent from the target are detached, and **already-attached rows whose pivot attributes changed are UPDATED in place** (only the changed rows, only `updated_at` bumped — a no-op `sync` writes nothing). Pass `sync(target, true)` for an additive sync (attach + update, never detach). The read and all three writes run inside a **single managed transaction** — atomic, rolled back on any failure, so a concurrent writer can't wedge the pivot into a half-synced state. Object-form keys (`sync({ 1: {...} })`) arrive as strings from JS; a canonical integer is coerced back to a number before binding and the diff compares by string identity, so an integer related PK never gets a `text` bind (which Postgres rejects) and never churns.
 
 ## `@HasOne` — single related row
 
@@ -190,8 +190,8 @@ On a `@BelongsTo` relation the FK lives on **this** model, so the only writes ar
 linking and unlinking an owner. `related(rel).associate(owner)` sets
 `this.<fk> = owner.<ownerKey>` and saves this model; `dissociate()` clears the FK
 and saves. `create` / `save` / `createMany` / `saveMany` are NOT valid on a
-belongsTo proxy (they throw and are typed `Promise<never>`) — mirroring Adonis
-Lucid, whose belongsTo client exposes only `associate` / `dissociate`.
+belongsTo proxy (they throw and are typed `Promise<never>`): a belongsTo proxy exposes only
+`associate` / `dissociate`.
 
 ```ts
 const post = await postRepo.query().where('id', 10).first()
@@ -219,8 +219,8 @@ options object:
 ## Default foreign keys
 
 Every relation whose foreign key you do not name derives it from the model's
-naming strategy and its **real primary key**, snake-cased — Lucid's
-`relationForeignKey` / `relationPivotForeignKey`:
+naming strategy and its **real primary key**, snake-cased — through the
+strategy's `relationForeignKey` / `relationPivotForeignKey`:
 
 ```ts
 @Entity('users')
@@ -295,17 +295,17 @@ const countries = await repo.query().preload('posts').exec()
 await country.load('latestPost')
 ```
 
-> Through relations are **read-only**. Lucid does not expose persistence on a
-> through relation — you write through the intermediate model instead.
+> Through relations are **read-only**: there is no persistence on a through
+> relation — you write through the intermediate model instead.
 > `related(rel).query()` traverses the two hops; `create` / `save` / `createMany`
-> / `saveMany` throw at runtime and are typed `Promise<never>`. `@HasManyThrough`
-> is Lucid parity; `@HasOneThrough` is an atlas addition (Lucid has no such
-> relation) — the identical two-hop traversal returning one row instead of an array.
+> / `saveMany` throw at runtime and are typed `Promise<never>`. `@HasOneThrough`
+> is the same two-hop traversal as `@HasManyThrough`, returning one row instead
+> of an array.
 
 ## `loadOnce` — idempotent lazy load
 
 `entity.loadOnce(relationName, callback?)` is like `load()` but a no-op when the
-relation is already populated on the instance (AdonisJS Lucid `loadOnce`). Useful
+relation is already populated on the instance. Useful
 in shared code paths where you can't be sure whether a caller already preloaded
 the relation. Chainable.
 
@@ -318,7 +318,7 @@ await user.loadOnce('profile')   // second call does nothing
 
 Beyond `attach` / `detach` / `sync`, a `@ManyToMany` proxy exposes `pivotQuery()`
 — a connection-level query builder on the **pivot table itself**, already scoped
-to this parent (AdonisJS Lucid `pivotQuery`). Use it to read or update pivot rows
+to this parent. Use it to read or update pivot rows
 directly.
 
 ```ts

@@ -3,8 +3,7 @@
 Atlas can serialise a live database's structure to a portable dump, generate
 model classes from an existing database, and reconcile your models against the
 real schema. All three read the **actual** database via catalog introspection —
-Atlas never shells out to `pg_dump`/`mysqldump` (it introspects the connection,
-like AdonisJS Lucid).
+Atlas never shells out to `pg_dump`/`mysqldump` (it introspects the connection).
 
 ## Console commands
 
@@ -19,7 +18,7 @@ commands: [() => import('@c9up/atlas/commands')]
 They read what they need from `config/database.ts`: `schemaGeneration.outputPath`
 for the generated file, `migrations.paths` for the dump's `--prune`, and
 `verifySchema.entities` for the models `atlas:check` reconciles (Atlas has no
-global entity registry — you list your models, as in Lucid).
+global entity registry — you list your models).
 
 | Command | What it does |
 | --- | --- |
@@ -73,7 +72,7 @@ console.log(dumper.result?.metaPath)   // database/schema/default-schema.meta.js
 console.log(dumper.result?.tableCount) // number of CREATE TABLE statements
 ```
 
-Errors are captured on `.error` (Lucid parity) rather than thrown, so a CLI can
+Errors are captured on `.error` rather than thrown, so a CLI can
 report cleanly; `.result` holds the output paths on success.
 
 `SchemaDumperOptions`:
@@ -81,7 +80,7 @@ report cleanly; `.result` holds the output paths on success.
 | Option | Default | Meaning |
 | --- | --- | --- |
 | `connectionName` | `"default"` | Logical connection name, used in the default file names. |
-| `dumpPath` | — | Explicit SQL dump **file** path (Lucid `--path`); wins over `outputDir`/`connectionName`. |
+| `dumpPath` | — | Explicit SQL dump **file** path (`--path`); wins over `outputDir`/`connectionName`. |
 | `outputDir` | `"database/schema"` | Directory for the default `{connection}-schema.sql`. |
 | `migrationsDir` | `""` | Migration directory; required for `--prune`. |
 | `schemaTableName` | `"ream_migrations"` | Migration bookkeeping table name. |
@@ -111,7 +110,7 @@ const manifest = await readSchemaDumpManifest('database/schema/default-schema.sq
 ## `schema:generate` — database-first codegen
 
 Introspect the live database and write a `schema.ts` with one `BaseModel`
-subclass per table (Lucid `schema:generate` parity). Manual edits to the output
+subclass per table. Manual edits to the output
 are lost on regeneration.
 
 ```ts
@@ -188,7 +187,7 @@ console.log(formatSchemaFindings(findings))
 `SchemaFinding` fields: `entity`, `table`, `kind`, `column`, `detail`, and an
 optional `suggestion` (a close DB column name for typo diagnostics). An empty
 array means the models and schema agree. `formatSchemaFindings` renders a
-didactic, Adonis-style diff grouped per table:
+didactic diff grouped per table:
 
 ```
 [atlas:check] 2 schema issue(s) found:

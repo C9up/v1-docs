@@ -37,7 +37,7 @@ this.schema.dropTable('accounts')          // errors if missing
 this.schema.dropTableIfExists('accounts')  // no-op when missing
 ```
 
-`createTableLike` copies a table's structure (Lucid/Knex `createTableLike`). Its
+`createTableLike` copies a table's structure. Its
 optional callback adds columns to the copy as a follow-up `ALTER TABLE`:
 
 ```ts
@@ -47,8 +47,7 @@ this.schema.createTableLike('users_archive', 'users', (t) => {
 ```
 
 > Portability: Postgres copies everything (`INCLUDING ALL`), MySQL uses `LIKE`,
-> and SQLite copies **columns only** — no constraints or indexes, the same
-> limitation Knex documents.
+> and SQLite copies **columns only** — no constraints or indexes.
 
 ## Altering a table
 
@@ -99,7 +98,7 @@ The alter-only helpers (`alter`, `dropColumn(s)`, `renameColumn`,
 
 ## Existence checks
 
-`hasTable` / `hasColumn` run a live catalog query (Lucid/Knex parity), so they
+`hasTable` / `hasColumn` run a live catalog query, so they
 reflect migrations already applied. They are `async` and need the connection the
 runner binds inside a migration — calling them on a standalone `Schema` throws
 `E_NO_CONNECTION`.
@@ -163,8 +162,8 @@ this.schema.dropSchemaIfExists('reporting', true)
 `CREATE SCHEMA` targets Postgres and MySQL (where a schema is a database); it is
 rejected on SQLite, which has no schemas. `CASCADE` is Postgres-only.
 
-`withSchema` qualifies every subsequent table-taking method until changed
-(Lucid/Knex parity). It is chainable:
+`withSchema` qualifies every subsequent table-taking method until changed.
+It is chainable:
 
 ```ts
 this.schema
@@ -238,7 +237,7 @@ t.specificType('location', 'geometry(Point, 4326)')
 t.specificType('search', 'tsvector')
 ```
 
-> Unlike Knex's straight pass-through, the type lands verbatim in DDL, so the
+> The type lands verbatim in DDL, so the
 > compiler validates it against a narrow grammar (letters, digits, spaces, `_`,
 > and one parenthesised argument list) and rejects anything else with
 > `E_UNSAFE_SQL`.
@@ -256,7 +255,7 @@ t.string('mi').after('first_name')           // MySQL-only column position
 t.string('id_col').first()                    // MySQL-only: place first
 ```
 
-`defaultTo` quotes/escapes JS literals (Lucid/Knex semantics). For a SQL
+`defaultTo` quotes/escapes JS literals. For a SQL
 expression wrap it in `this.raw(...)` or use `this.now()`:
 
 ```ts
@@ -269,8 +268,8 @@ t.timestamp('created_at').notNullable().defaultTo(this.now())
 >
 > `comment` and `collate` here are the **column** modifiers, reached off the
 > column builder a type method hands back. The table-level forms carry the same
-> names on the table builder — `t.comment(...)`, `t.collate(...)` — exactly as in
-> Lucid/Knex: the receiver tells them apart.
+> names on the table builder — `t.comment(...)`, `t.collate(...)`: the receiver
+> tells them apart.
 
 ## Shortcuts
 
@@ -316,14 +315,14 @@ t.uuid('author_id')
   .onDelete('cascade')
   .onUpdate('restrict')
 
-t.uuid('author_id').references('users.id')  // Lucid/Knex dotted shorthand
+t.uuid('author_id').references('users.id')  // dotted shorthand
 ```
 
 A single argument without a dot is the table name (column defaults to `id`).
 
 ### Foreign keys — composite chain
 
-`foreign(...)` returns a chainable that reads in Knex order:
+`foreign(...)` returns a chainable that reads foreign columns, referenced columns, table, then actions:
 
 ```ts
 t.foreign(['tenant_id', 'user_id'])
@@ -369,7 +368,7 @@ this.schema.alterTable('products', (t) => t.dropChecks('chk_margin'))
 
 > `checkRegex` is `~` on Postgres and `REGEXP` on MySQL/SQLite. SQLite parses
 > `REGEXP` but ships no implementation — the constraint only works if the
-> connection registers a `regexp` function (same as Knex).
+> connection registers a `regexp` function.
 
 ## Dropping constraints (alter mode)
 
@@ -382,7 +381,7 @@ this.schema.alterTable('accounts', (t) => {
 })
 ```
 
-Dropping by column list uses Knex's `<table>_<columns>_<suffix>` naming
+Dropping by column list uses the `<table>_<columns>_<suffix>` naming
 convention, so `unique([...])` / `dropUnique([...])` (and the foreign pair) agree
 without naming anything.
 
@@ -413,4 +412,4 @@ this.schema.createTable('events', (t) => {
 
 `collate` / `comment` on the **table** builder are the table options; the same
 names on a **column** builder (`t.string('x').comment(...)`) are the column
-modifiers. Lucid/Knex draw the line the same way.
+modifiers.

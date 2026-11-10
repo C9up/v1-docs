@@ -4,7 +4,7 @@ Atlas peut sérialiser la structure d'une base de données en un dump portable,
 générer des classes de modèles à partir d'une base existante, et réconcilier vos
 modèles avec le schéma réel. Ces trois opérations lisent la **vraie** base via
 l'introspection du catalogue — Atlas ne délègue jamais à `pg_dump`/`mysqldump`
-(il introspecte la connexion, comme AdonisJS Lucid).
+(il introspecte la connexion).
 
 ## Commandes console
 
@@ -20,7 +20,7 @@ Elles lisent ce dont elles ont besoin dans `config/database.ts` :
 `schemaGeneration.outputPath` pour le fichier généré, `migrations.paths` pour le
 `--prune` du dump, et `verifySchema.entities` pour les modèles qu'`atlas:check`
 réconcilie (Atlas n'a pas de registre global d'entités — vous listez vos
-modèles, comme dans Lucid).
+modèles).
 
 | Commande | Rôle |
 | --- | --- |
@@ -76,7 +76,7 @@ console.log(dumper.result?.metaPath)   // database/schema/default-schema.meta.js
 console.log(dumper.result?.tableCount) // nombre d'instructions CREATE TABLE
 ```
 
-Les erreurs sont capturées sur `.error` (parité Lucid) plutôt que levées, pour
+Les erreurs sont capturées sur `.error` plutôt que levées, pour
 qu'une CLI puisse les rapporter proprement ; `.result` contient les chemins de
 sortie en cas de succès.
 
@@ -85,7 +85,7 @@ sortie en cas de succès.
 | Option | Défaut | Signification |
 | --- | --- | --- |
 | `connectionName` | `"default"` | Nom logique de connexion, utilisé dans les noms de fichiers par défaut. |
-| `dumpPath` | — | Chemin **fichier** explicite du dump SQL (Lucid `--path`) ; prime sur `outputDir`/`connectionName`. |
+| `dumpPath` | — | Chemin **fichier** explicite du dump SQL (`--path`) ; prime sur `outputDir`/`connectionName`. |
 | `outputDir` | `"database/schema"` | Répertoire pour le `{connection}-schema.sql` par défaut. |
 | `migrationsDir` | `""` | Répertoire des migrations ; requis pour `--prune`. |
 | `schemaTableName` | `"ream_migrations"` | Nom de la table de suivi des migrations. |
@@ -116,7 +116,7 @@ const manifest = await readSchemaDumpManifest('database/schema/default-schema.sq
 ## `schema:generate` — codegen database-first
 
 Introspecte la base vivante et écrit un `schema.ts` avec une sous-classe
-`BaseModel` par table (parité Lucid `schema:generate`). Les modifications
+`BaseModel` par table. Les modifications
 manuelles de la sortie sont perdues à la régénération.
 
 ```ts
@@ -196,7 +196,7 @@ console.log(formatSchemaFindings(findings))
 Champs de `SchemaFinding` : `entity`, `table`, `kind`, `column`, `detail`, et un
 `suggestion` optionnel (un nom de colonne DB proche pour le diagnostic de typo).
 Un tableau vide signifie que les modèles et le schéma concordent.
-`formatSchemaFindings` rend un diff didactique de style Adonis groupé par table :
+`formatSchemaFindings` rend un diff didactique groupé par table :
 
 ```
 [atlas:check] 2 schema issue(s) found:

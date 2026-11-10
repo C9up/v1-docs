@@ -70,7 +70,7 @@ question is declined applies nothing.
 
 ### Where the paths come from
 
-The connection's own config, the way Lucid keeps it — so a command reads what
+The connection's own config — so a command reads what
 the application booted with, and there is nothing to repeat:
 
 ```ts
@@ -103,10 +103,9 @@ per connection does not drop a `tableName` set beside them.
 the boot-time check uses. With no models listed it says so and exits non-zero
 rather than reporting a clean run it never performed.
 
-::: tip `factories.path` is not a Lucid key
-Lucid resolves the factories directory from the application layout. Atlas does
-not depend on the framework, so the directory is configured here — defaulting
-to the same `database/factories`.
+::: tip Where `factories.path` comes from
+Atlas does not depend on the framework's application layout, so the factories
+directory is configured here — defaulting to `database/factories`.
 :::
 
 ### Commands with different options

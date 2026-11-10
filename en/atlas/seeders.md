@@ -1,17 +1,17 @@
 # Atlas - Seeders
 
 Seeders populate the database with default, reference, or test data. Atlas
-mirrors Adonis Lucid's seeder API — a base class you extend, a directory runner,
+provides a seeder API — a base class you extend, a directory runner,
 and two console commands (`make:seeder` / `db:seed`).
 
-Atlas has no global config registry (Lucid parity): you always pass your own
+Atlas has no global config registry: you always pass your own
 paths and connection, so nothing is discovered implicitly.
 
 ## Writing a seeder
 
 Extend `BaseSeeder` and implement `run()`. The database connection is injected
-through the constructor and exposed as both `this.db` and `this.client` (the
-Lucid alias), so you can build repositories inside `run()` without reaching for
+through the constructor and exposed as both `this.db` and `this.client` (an
+alias), so you can build repositories inside `run()` without reaching for
 globals.
 
 Make the body idempotent — `upsert` keyed on a unique column is the recommended
@@ -97,9 +97,9 @@ Options:
 
 - `files` — run only these seeders, matched by base name (`CountrySeeder`) or by
   a full / relative file path (`database/seeders/CountrySeeder.ts`); the runner
-  compares the basename without extension. Mirrors Lucid `--files`.
+  compares the basename without extension.
 - `naturalSort` — sort files numerically (`2_x` before `10_x`) instead of the
-  default lexicographic order. Mirrors Lucid `naturalSort`.
+  default lexicographic order.
 - `environment` — the current environment; skips any seeder whose static
   `environment` excludes it.
 
@@ -173,15 +173,14 @@ ream db:seed
 
 Flags:
 
-- `--files=A,B` — run only the named seeders (comma-separated). Mirrors Lucid
-  `--files`.
+- `--files=A,B` — run only the named seeders (comma-separated).
 - `--connection=name` — run against a specific registered connection instead of
-  the default. Mirrors Lucid `--connection`.
+  the default.
 - `--environment=name` — override the environment used for `static environment`
   gating; falls back to the factory's `environment`, then `NODE_ENV`.
 - `--compact-output` — print a single summary line (`Seeded N seeder(s)`)
   instead of listing each seeder.
-- `--interactive` — accepted for Lucid compatibility only. The console kernel is
+- `--interactive` — accepted, but has no effect. The console kernel is
   non-interactive, so it prints a warning and runs every selected seeder without
   prompting.
 

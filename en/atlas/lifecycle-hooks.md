@@ -1,7 +1,7 @@
 # Atlas - Lifecycle Hooks
 
-Atlas fires **model lifecycle hooks** at each point of the CRUD pipeline, mirroring
-AdonisJS Lucid's hook surface. Decorate a **static** method on your entity and
+Atlas fires **model lifecycle hooks** at each point of the CRUD pipeline.
+Decorate a **static** method on your entity and
 Atlas invokes it at the matching moment — before/after a save, create, update,
 delete, find, fetch or paginate.
 
@@ -66,7 +66,7 @@ error propagates to the caller.
 ## Ordering
 
 The **specific** hook runs before the **general** `beforeSave`, and the general
-`afterSave` runs after the specific after-hook (Lucid order):
+`afterSave` runs after the specific after-hook:
 
 ```
 create()  →  beforeCreate → beforeSave → INSERT → afterCreate → afterSave
@@ -97,7 +97,7 @@ scoping or defaults that the child then refines.
 ## Muting hooks: the `Quietly` variants
 
 Every mutating repository method has a `…Quietly` twin that performs the identical
-write **without firing any hook** (AdonisJS Lucid parity). Reach for these in
+write **without firing any hook**. Reach for these in
 seeders, back-fills or migrations where the side effects would be wrong or
 redundant:
 

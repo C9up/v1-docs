@@ -75,7 +75,7 @@ ce soit ; `--force` évite la question. Un run qui ne peut pas poser la question
 
 ### D'où viennent les chemins
 
-De la config de la connexion, là où Lucid les garde — la commande lit donc ce
+De la config de la connexion — la commande lit donc ce
 avec quoi l'application a démarré, et il n'y a rien à répéter :
 
 ```ts
@@ -109,10 +109,9 @@ côté.
 celle de la vérification au démarrage. Sans modèle listé, la commande le dit et
 sort en erreur plutôt que d'annoncer un contrôle qu'elle n'a pas fait.
 
-::: tip `factories.path` n'est pas une clé Lucid
-Lucid résout le dossier des factories depuis l'arborescence de l'application.
-Atlas ne dépend pas du framework : le dossier se configure ici, avec le même
-`database/factories` par défaut.
+::: tip D'où vient `factories.path`
+Atlas ne dépend pas de l'arborescence de l'application du framework : le dossier
+des factories se configure ici, avec `database/factories` par défaut.
 :::
 
 ### Une commande avec d'autres options
