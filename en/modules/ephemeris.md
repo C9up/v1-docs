@@ -164,8 +164,17 @@ Every helper also holds what it is given to the form Google reads, and
 refuses rather than converts:
 
 - text is under 10,000 characters, a breadcrumb under 32 items;
-- a URL (`url`, `sameAs`, `logo`, `image`, `item`…) is absolute http(s) —
-  `javascript:` and `data:` are refused;
+- a URL is absolute http(s) — `javascript:` and `data:` are refused — in
+  every property schema.org ranges over URL alone (`url`, `sameAs`, `logo`,
+  `image`, `codeRepository`, `isPartOf`…, the list generated from the
+  vocabulary), and in `item`, `target` and `urlTemplate`;
+- where a property takes a URL or text (`keywords`, `additionalType`…), text
+  stays text, but a `javascript:`, `vbscript:`, `data:`, `file:` or `blob:`
+  URL is refused;
+- an `@id` is relative, or an `http(s):`, `urn:`, `mailto:` or `tel:` IRI;
+- a value is checked as it will be written: a `URL` instance, a `Date` or
+  anything with `toJSON` is held to the same forms as the string it gives,
+  and an object JSON would write as `{}` (a `Map`, a class) is refused;
 - a price is a number or decimal digits with a `.`: `'CHF 12'`, `'1,234.50'`
   and `-1` are refused;
 - a currency is an ISO 4217 code, from the maintenance agency's list;

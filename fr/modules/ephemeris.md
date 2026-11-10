@@ -172,8 +172,18 @@ refuse plutôt que de convertir :
 
 - un texte fait moins de 10 000 caractères, un fil d'Ariane moins de 32
   éléments ;
-- une URL (`url`, `sameAs`, `logo`, `image`, `item`…) est absolue en http(s) —
-  `javascript:` et `data:` sont refusées ;
+- une URL est absolue en http(s) — `javascript:` et `data:` sont refusées —
+  dans toute propriété que schema.org n'accepte qu'en URL (`url`, `sameAs`,
+  `logo`, `image`, `codeRepository`, `isPartOf`…, liste générée depuis le
+  vocabulaire), ainsi que dans `item`, `target` et `urlTemplate` ;
+- là où une propriété accepte une URL ou du texte (`keywords`,
+  `additionalType`…), le texte reste du texte, mais une URL `javascript:`,
+  `vbscript:`, `data:`, `file:` ou `blob:` est refusée ;
+- un `@id` est relatif, ou un IRI `http(s):`, `urn:`, `mailto:` ou `tel:` ;
+- une valeur est vérifiée telle qu'elle sera écrite : une instance de `URL`,
+  une `Date` ou tout ce qui a un `toJSON` est tenu aux mêmes formes que la
+  chaîne qu'il donne, et un objet que JSON écrirait `{}` (une `Map`, une
+  classe) est refusé ;
 - un prix est un nombre, ou des chiffres avec un point décimal : `'CHF 12'`,
   `'1,234.50'` et `-1` sont refusés ;
 - une devise est un code ISO 4217, d'après la liste de l'agence de maintenance ;
