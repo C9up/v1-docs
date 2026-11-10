@@ -358,10 +358,17 @@ export default defineConfig({
 })
 ```
 
-Quand `viteDevUrl` est defini (developpement), Photon :
-- Charge les assets depuis le serveur Vite en cours d'execution
-- Injecte le client HMR Vite dans les reponses SSR
-- Retombe sur le manifest de production hors developpement
+En développement, Photon :
+- Charge les assets depuis le serveur de dev Vite à `viteDevUrl`
+- Injecte le client HMR Vite dans les réponses SSR
+
+Le développement n'est jamais supposé. Il s'applique sous `ream dev` (qui pose
+`REAM_DEV=true`), quand `NODE_ENV` désigne le développement ou les tests
+(`development`, `dev`, `develop`, `test`, `testing`, quelle que soit la casse),
+ou quand la config dit `dev: true`. Tout le reste — `NODE_ENV` absent, `prod`,
+`staging` — sert les assets construits depuis le manifest : un déploiement qui
+n'a jamais posé `NODE_ENV` ne charge pas ses scripts depuis `localhost`.
+`dev: false` force le build.
 
 ### Rendu serveur en développement
 
@@ -749,6 +756,7 @@ Chaque valeur textuelle (`title`, `description`, og:*, twitter:*, `content` cust
 | `assetsUrl` | `string` | `'/build'` | URL d'où le build client est servi (chemin depuis la racine ou URL http(s)) |
 | `ssrBuildDir` | `string` | `'build/ssr'` | Où le bundle SSR est écrit ; refusé dans `buildDir` ou `public/` |
 | `viteDevUrl` | `string` | `'http://localhost:5173'` | URL du serveur de dev Vite (developpement uniquement) |
+| `dev` | `boolean` | selon l'environnement | Servir via le serveur de dev Vite ; non défini, seuls `ream dev` ou un `NODE_ENV` de développement/test l'activent |
 | `defaultMeta` | `MetaTags` | — | Tags `<head>` par defaut a l'echelle de l'app (44.2) |
 | `ssr.enabled` | `boolean` | `false` | Rendre les pages côté serveur |
 | `ssr.entrypoint` | `string` | `'resources/ssr.tsx'` | Chemin vers le point d'entrée SSR |

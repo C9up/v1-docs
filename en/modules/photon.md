@@ -354,10 +354,16 @@ export default defineConfig({
 })
 ```
 
-When `viteDevUrl` is set (development), Photon:
-- Loads assets from the running Vite dev server URL
+In development, Photon:
+- Loads assets from the Vite dev server at `viteDevUrl`
 - Injects the Vite HMR client into SSR responses
-- Falls back to the production manifest when not in dev
+
+Development is never assumed. It applies under `ream dev` (which sets
+`REAM_DEV=true`), when `NODE_ENV` names development or test (`development`,
+`dev`, `develop`, `test`, `testing`, in any case), or when the config says
+`dev: true`. Anything else — `NODE_ENV` unset, `prod`, `staging` — serves the
+built assets from the manifest, so a deployment that never set `NODE_ENV` does
+not load its scripts from `localhost`. `dev: false` forces the build.
 
 ### Server rendering in development
 
@@ -740,6 +746,7 @@ Every text value (`title`, `description`, og:*, twitter:*, custom `content`) pas
 | `assetsUrl` | `string` | `'/build'` | URL the client build is served from (a root-relative path or an http(s) URL) |
 | `ssrBuildDir` | `string` | `'build/ssr'` | Where the SSR bundle is written; refused inside `buildDir` or `public/` |
 | `viteDevUrl` | `string` | `'http://localhost:5173'` | Vite dev server URL (dev only) |
+| `dev` | `boolean` | from the environment | Serve through the Vite dev server; unset, only `ream dev` or a development/test `NODE_ENV` turns it on |
 | `defaultMeta` | `MetaTags` | — | Application-wide default `<head>` tags (44.2) |
 | `ssr.enabled` | `boolean` | `false` | Server-render pages |
 | `ssr.entrypoint` | `string` | `'resources/ssr.tsx'` | Path to the SSR render entry |
