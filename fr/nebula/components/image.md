@@ -20,7 +20,7 @@ Image({ src: '/photos/hero.jpg', alt: "L'atelier à l'aube", width: 1200, height
 
 ```html
 <img data-slot="image" data-layout="constrained"
-     src="/__image?src=%2Fphotos%2Fhero.jpg&w=1280&f=webp"
+     src="/__image?src=photos%2Fhero.jpg&w=1280&f=webp"
      srcset="/__image?src=…&w=640&f=webp 640w, … /__image?src=…&w=2560&f=webp 2560w"
      sizes="(min-width: 1200px) 1200px, 100vw"
      alt="L'atelier à l'aube" width="1200" height="800"
@@ -196,7 +196,7 @@ Pour garder le résolveur par défaut et ne déplacer que sa route : `setImageEn
 | `setImageEndpoint(path: string): void` | Déplace le résolveur par défaut hors de `/__image`. |
 | `getImageResolver(): ImageUrlResolver` | Le résolveur installé. |
 | `imageUrl(src: string, transform: ImageTransform): string` | Une URL à travers le résolveur installé — pour un `background-image`, un `og:image`. |
-| `defaultImageResolver` | `/__image?src=…&w=…&f=…&q=…`, paramètres d'une lettre parce qu'ils se répètent dans chaque entrée de `srcset`. `f` et `q` sont omis quand ils ne sont pas demandés ; `w` est arrondi. |
+| `defaultImageResolver` | `/__image?src=…&w=…&f=…&q=…`, paramètres d'une lettre parce qu'ils se répètent dans chaque entrée de `srcset`. `f` et `q` sont omis quand ils ne sont pas demandés ; `w` est arrondi. `src` désigne un fichier sous les racines publiques de Prism : la barre initiale d'un chemin relatif à la racine (`/photos/hero.jpg`) est retirée, car l'endpoint refuse un chemin absolu. Une URL relative au protocole `//hôte/…` passe inchangée et demande votre propre résolveur. |
 
 `ImageUrlResolver` vaut `(src: string, transform: ImageTransform) => string`, et `ImageTransform` vaut `{ width: number; format?: ImageFormat; quality?: number }`.
 

@@ -20,7 +20,7 @@ Image({ src: '/photos/hero.jpg', alt: 'The workshop at dawn', width: 1200, heigh
 
 ```html
 <img data-slot="image" data-layout="constrained"
-     src="/__image?src=%2Fphotos%2Fhero.jpg&w=1280&f=webp"
+     src="/__image?src=photos%2Fhero.jpg&w=1280&f=webp"
      srcset="/__image?src=…&w=640&f=webp 640w, … /__image?src=…&w=2560&f=webp 2560w"
      sizes="(min-width: 1200px) 1200px, 100vw"
      alt="The workshop at dawn" width="1200" height="800"
@@ -196,7 +196,7 @@ To keep the default resolver and only move its route, `setImageEndpoint('/media/
 | `setImageEndpoint(path: string): void` | Moves the default resolver off `/__image`. |
 | `getImageResolver(): ImageUrlResolver` | The resolver currently installed. |
 | `imageUrl(src: string, transform: ImageTransform): string` | One URL through the installed resolver — for a `background-image`, an `og:image`. |
-| `defaultImageResolver` | `/__image?src=…&w=…&f=…&q=…`, one-letter parameters because they repeat in every `srcset` entry. `f` and `q` are left out when not asked for; `w` is rounded. |
+| `defaultImageResolver` | `/__image?src=…&w=…&f=…&q=…`, one-letter parameters because they repeat in every `srcset` entry. `f` and `q` are left out when not asked for; `w` is rounded. `src` names a file under Prism's public roots: the leading slash of a root-relative path (`/photos/hero.jpg`) is dropped, since the endpoint refuses an absolute path. A protocol-relative `//host/…` is passed unchanged and needs a resolver of your own. |
 
 `ImageUrlResolver` is `(src: string, transform: ImageTransform) => string`, and `ImageTransform` is `{ width: number; format?: ImageFormat; quality?: number }`.
 
