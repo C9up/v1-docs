@@ -25,9 +25,11 @@ ream add @c9up/atlas                                  # install + configure in o
 ream add @c9up/photon --dev                           # devDependency
 ream add @c9up/atlas --force                          # overwrite existing config files
 ream add @c9up/some-pkg --transports=smtp --queue=redis  # forward flags to configure()
+ream add @c9up/atlas @c9up/warden                     # several packages, one install
+ream add @c9up/atlas --package-manager npm            # choose the package manager
 ```
 
-`ream add` auto-detects your package manager from the lockfile (`pnpm-lock.yaml` > `yarn.lock` > `package-lock.json`), runs the install (`<pm> add [-D] <pkg>`), then dispatches to `ream configure <pkg>`. Unknown flags after the package name are forwarded to the package's `configure()` hook, parsed in `command.parsedFlags` and raw as its second argument (`Record<string, string[]>`). A hook may ask questions through `command.prompt`; without a terminal (or under `CI`) a question takes its default, or the command fails with `E_CONSOLE_NOT_INTERACTIVE` — pass the answer as a flag instead. If the package has no configure hook, the install still succeeds and `ream add` exits 0 with a one-line note — see the FAQ in the [installation guide](/en/guide/installation#adding-a-ream-package).
+`ream add` installs every package it is given in one command, then runs each configure hook in turn, with the same flags; a hook that fails does not stop the next one, and the command fails at the end naming them. `--package-manager <pnpm|npm|yarn>` skips the detection. Otherwise it auto-detects your package manager from the lockfile (`pnpm-lock.yaml` > `yarn.lock` > `package-lock.json`), runs the install (`<pm> add [-D] <pkg>`), then dispatches to `ream configure <pkg>`. Unknown flags after the package name are forwarded to the package's `configure()` hook, parsed in `command.parsedFlags` and raw as its second argument (`Record<string, string[]>`). A hook may ask questions through `command.prompt`; without a terminal (or under `CI`) a question takes its default, or the command fails with `E_CONSOLE_NOT_INTERACTIVE` — pass the answer as a flag instead. If the package has no configure hook, the install still succeeds and `ream add` exits 0 with a one-line note — see the FAQ in the [installation guide](/en/guide/installation#adding-a-ream-package).
 
 If multiple lockfiles coexist (e.g. a stale `package-lock.json` next to `pnpm-lock.yaml`), the precedence wins and a warning naming the ignored lockfile is printed to stderr. If no lockfile is present, `ream add` exits non-zero with a clear error and the manual two-step fallback (`pnpm add <pkg> && ream configure <pkg>`).
 
@@ -258,6 +260,13 @@ ream new my-app --template slim --yes          # slim + postgres
 | `--template` | `api`, `web`, `microservice`, `slim` | `api` |
 | `--db` | `postgres`, `sqlite` | `postgres` |
 | `--yes`, `-y` | — | take the defaults for anything not passed |
+| `--pkg` | `pnpm`, `npm`, `yarn` | the one that launched `ream` (`pnpm dlx`, `npx`, `yarn dlx`), else `pnpm` |
+| `--git-init` | — | run `git init` in the project before the install |
+
+The destination is a path: `ream new apps/api` creates `apps/api` (and its
+parents) and names the package `api`; `ream new .` fills the directory you
+stand in. An existing directory is accepted only when empty. `pnpm-workspace.yaml`
+is written for pnpm alone.
 
 An unknown value is rejected before any prompt runs, so a typo reports itself
 as a command-line error rather than as a missing terminal.
@@ -295,6 +304,8 @@ ream make:command app:provision   # commands/app-provision.ts, discovered automa
 ```bash
 ream dev            # server + whatever builds the assets, under one Ctrl-C
 ream build          # assets first, then TypeScript
+ream build --ignore-ts-errors           # keep and finish the output despite type errors
+ream build --tsconfig tsconfig.build.json
 ream start          # node dist/bin/server.js
 ream test           # the suites declared in reamrc.ts
 ream test unit --bail --reporters spec,json --threads 4
@@ -305,7 +316,8 @@ ream inspect        # routes, providers, container bindings
 ### What `ream build` does
 
 The output directory is emptied, the assets pipeline named in `reamrc.ts` runs,
-`tsc` compiles, and the manifest, the lockfile and whatever `metaFiles` names
+the project's own `tsc` compiles (`node_modules/.bin`, up to a workspace root,
+then `PATH` — never a download), and the manifest, the lockfile and whatever `metaFiles` names
 are copied in beside the output. That last step is not a convenience:
 `dist/reamrc.js` imports `#providers/AppProvider.js`, and Node resolves a `#`
 specifier against the `package.json` governing the importing file — without one
@@ -315,7 +327,7 @@ Emptied **first**, because `tsc` overwrites what it emits and never removes what
 it no longer emits: a renamed or deleted module left its old `.js` behind, and
 the next `ream start` went on importing it. A build that fails type-checking
 takes its own output with it, so there is nothing half-compiled to start by
-mistake.
+mistake — unless `--ignore-ts-errors` says to keep it.
 
 Nothing is stripped. The development-only surface — the reload client, the
 debug toolbar, the profiler routes — is gated on `NODE_ENV` at runtime, not at

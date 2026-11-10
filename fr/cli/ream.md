@@ -25,9 +25,11 @@ ream add @c9up/atlas                                  # installation + configure
 ream add @c9up/photon --dev                           # devDependency
 ream add @c9up/atlas --force                          # écraser les fichiers de configuration existants
 ream add @c9up/some-pkg --transports=smtp --queue=redis  # transmettre des drapeaux à configure()
+ream add @c9up/atlas @c9up/warden                     # plusieurs paquets, une installation
+ream add @c9up/atlas --package-manager npm            # choisir le gestionnaire de paquets
 ```
 
-`ream add` détecte automatiquement votre gestionnaire de paquets à partir du lockfile (`pnpm-lock.yaml` > `yarn.lock` > `package-lock.json`), exécute l'installation (`<pm> add [-D] <pkg>`), puis enchaîne sur `ream configure <pkg>`. Les drapeaux inconnus placés après le nom du paquet sont transmis au hook `configure()` du paquet, analysés dans `command.parsedFlags` et bruts en second argument (`Record<string, string[]>`). Un hook peut poser des questions avec `command.prompt` ; sans terminal (ou sous `CI`), une question prend sa valeur par défaut, sinon la commande échoue avec `E_CONSOLE_NOT_INTERACTIVE` — passez alors la réponse en drapeau. Si le paquet n'a pas de hook configure, l'installation réussit quand même et `ream add` retourne 0 avec une note d'une ligne — voir la mini-FAQ dans le [guide d'installation](/fr/guide/installation#ajouter-un-paquet-ream).
+`ream add` installe tous les paquets donnés en une commande, puis exécute chaque hook configure à tour de rôle, avec les mêmes drapeaux ; un hook qui échoue n'arrête pas le suivant, et la commande échoue à la fin en les nommant. `--package-manager <pnpm|npm|yarn>` saute la détection. Sinon, il détecte automatiquement votre gestionnaire de paquets à partir du lockfile (`pnpm-lock.yaml` > `yarn.lock` > `package-lock.json`), exécute l'installation (`<pm> add [-D] <pkg>`), puis enchaîne sur `ream configure <pkg>`. Les drapeaux inconnus placés après le nom du paquet sont transmis au hook `configure()` du paquet, analysés dans `command.parsedFlags` et bruts en second argument (`Record<string, string[]>`). Un hook peut poser des questions avec `command.prompt` ; sans terminal (ou sous `CI`), une question prend sa valeur par défaut, sinon la commande échoue avec `E_CONSOLE_NOT_INTERACTIVE` — passez alors la réponse en drapeau. Si le paquet n'a pas de hook configure, l'installation réussit quand même et `ream add` retourne 0 avec une note d'une ligne — voir la mini-FAQ dans le [guide d'installation](/fr/guide/installation#ajouter-un-paquet-ream).
 
 Si plusieurs lockfiles coexistent (par exemple un `package-lock.json` obsolète à côté d'un `pnpm-lock.yaml`), la précédence l'emporte et un avertissement nommant le lockfile ignoré est affiché sur stderr. En l'absence de tout lockfile, `ream add` retourne un code non-zéro avec une erreur explicite et la procédure manuelle de repli (`pnpm add <pkg> && ream configure <pkg>`).
 
@@ -263,6 +265,13 @@ ream new my-app --template slim --yes          # slim + postgres
 | `--template` | `api`, `web`, `microservice`, `slim` | `api` |
 | `--db` | `postgres`, `sqlite` | `postgres` |
 | `--yes`, `-y` | — | prend les défauts pour ce qui n'est pas passé |
+| `--pkg` | `pnpm`, `npm`, `yarn` | celui qui a lancé `ream` (`pnpm dlx`, `npx`, `yarn dlx`), sinon `pnpm` |
+| `--git-init` | — | lance `git init` dans le projet avant l'installation |
+
+La destination est un chemin : `ream new apps/api` crée `apps/api` (et ses
+parents) et nomme le paquet `api` ; `ream new .` remplit le dossier où vous
+êtes. Un dossier existant n'est accepté que vide. `pnpm-workspace.yaml` n'est
+écrit que pour pnpm.
 
 Une valeur inconnue est rejetée **avant** toute question : une faute de frappe
 se signale comme une erreur de ligne de commande, pas comme un terminal absent.
@@ -301,6 +310,8 @@ ream make:command app:provision   # commands/app-provision.ts, découverte autom
 ```bash
 ream dev            # le serveur et ce qui construit les assets, sous un seul Ctrl-C
 ream build          # les assets d'abord, puis TypeScript
+ream build --ignore-ts-errors           # garder et terminer la sortie malgré les erreurs de types
+ream build --tsconfig tsconfig.build.json
 ream start          # node dist/bin/server.js
 ream test           # les suites déclarées dans reamrc.ts
 ream test unit --bail --reporters spec,json --threads 4
@@ -311,7 +322,8 @@ ream inspect        # routes, providers, liaisons du conteneur
 ### Ce que fait `ream build`
 
 Le dossier de sortie est vidé, le pipeline d'assets déclaré dans `reamrc.ts`
-tourne, `tsc` compile, puis le manifeste, le lockfile et ce que `metaFiles`
+tourne, le `tsc` du projet compile (`node_modules/.bin`, jusqu'à la racine d'un
+workspace, puis `PATH` — jamais un téléchargement), puis le manifeste, le lockfile et ce que `metaFiles`
 désigne sont copiés à côté de la sortie. Cette dernière étape n'est pas du
 confort : `dist/reamrc.js` importe `#providers/AppProvider.js`, et Node résout
 un specifier `#` contre le `package.json` qui gouverne le fichier importateur —
@@ -322,7 +334,8 @@ Vidé **en premier**, parce que `tsc` écrase ce qu'il émet mais n'enlève jama
 ce qu'il n'émet plus : un module renommé ou supprimé laissait son ancien `.js`
 derrière lui, et le `ream start` suivant continuait de l'importer. Un build qui
 échoue au typage emporte sa propre sortie, pour qu'il n'y ait rien de
-à-moitié-compilé à démarrer par erreur.
+à-moitié-compilé à démarrer par erreur — sauf si `--ignore-ts-errors` demande
+de la garder.
 
 Rien n'est strippé. La surface réservée au développement — le client de reload,
 la barre de debug, les routes du profiler — est conditionnée à `NODE_ENV` à
