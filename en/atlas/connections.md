@@ -101,9 +101,14 @@ Every raw entry point (`rawQuery`, `raw`, `whereRaw`, `havingRaw`, `orderByRaw`,
 - `$1`, `$2`… address the bindings by position, which is what `RawSql.sql`
   produces. A fragment uses one notation or the other, never both.
 - `:name` and `:name:` (named bindings) are rewritten to `?` and `??`. A `:word`
-  that is not a key of the bindings object stays as written, so `'10:30:00'`
-  is left alone; `\:` escapes a colon.
-- Placeholders inside string literals, quoted identifiers and comments are text.
+  that is not a key of the bindings object stays as written, a `::` cast is
+  never a binding, and `\:` escapes a colon. A fragment with named bindings
+  cannot also use a bare `?`: write a literal one as `\?`.
+- Placeholders, named ones included, are text inside string literals, quoted
+  identifiers (`"…"`, `` `…` `` on MySQL and SQLite, `[…]` on SQLite), comments
+  and Postgres dollar-quoted bodies: `rawQuery("SELECT ':id' AS label, :id AS
+  value", { id: 7 })` binds only the second `:id`. Named bindings given to
+  `db.raw()` are read with the dialect of the connection it is called on.
 - The number of bindings must match the placeholders, and an `undefined` binding
   is refused: a missing value is an error, never a silent `NULL`.
 

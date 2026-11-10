@@ -106,10 +106,16 @@ Tous les points d'entrée bruts (`rawQuery`, `raw`, `whereRaw`, `havingRaw`,
 - `$1`, `$2`… désignent les liaisons par leur position, ce que produit
   `RawSql.sql`. Un fragment utilise l'une ou l'autre notation, jamais les deux.
 - `:name` et `:name:` (liaisons nommées) deviennent `?` et `??`. Un `:mot` qui
-  n'est pas une clé de l'objet de liaisons reste tel quel : `'10:30:00'` n'est
-  pas touché ; `\:` échappe un deux-points.
-- Un paramètre placé dans une chaîne littérale, un identifiant entre guillemets
-  ou un commentaire est du texte.
+  n'est pas une clé de l'objet de liaisons reste tel quel, un transtypage `::`
+  n'est jamais une liaison, et `\:` échappe un deux-points. Un fragment à
+  liaisons nommées ne peut pas contenir aussi un `?` nu : écrivez un `?`
+  littéral `\?`.
+- Un paramètre, nommé ou non, est du texte dans une chaîne littérale, un
+  identifiant entre guillemets (`"…"`, `` `…` `` sur MySQL et SQLite, `[…]` sur
+  SQLite), un commentaire ou un corps entre dollars Postgres :
+  `rawQuery("SELECT ':id' AS label, :id AS value", { id: 7 })` ne lie que le
+  second `:id`. Les liaisons nommées passées à `db.raw()` sont lues avec le
+  dialecte de la connexion sur laquelle il est appelé.
 - Le nombre de liaisons doit correspondre aux paramètres, et une liaison
   `undefined` est refusée : une valeur manquante est une erreur, jamais un
   `NULL` silencieux.
