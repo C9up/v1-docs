@@ -335,6 +335,11 @@ for bytes that are identical for every visitor. Served ahead of routing, they
 never reach your kernel — and you never have to write the exemption yourself.
 Only `GET` and `HEAD` are claimed; anything else falls through to your routes.
 
+A path with a segment that starts with `.` — `.env`, `.git/config`, an editor's
+swap file — is a 404 on every mount, a link that points at one included: the
+pages mount is your source directory. `serveAssets({ root, dotFiles: "allow" })`
+serves them on a mount of your own.
+
 To use a different folder, create `config/aurora.ts`:
 
 ```ts

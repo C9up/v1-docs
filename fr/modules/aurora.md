@@ -344,6 +344,11 @@ identiques pour tout le monde. Servies avant le routage, elles n'atteignent
 jamais ton kernel — et tu n'as pas à écrire l'exemption toi-même. Seuls `GET`
 et `HEAD` sont captés ; le reste retombe sur tes routes.
 
+Un chemin dont un segment commence par `.` — `.env`, `.git/config`, le fichier
+d'échange d'un éditeur — répond 404 sur chaque montage, lien qui y pointe compris :
+le montage des pages est ton dossier de sources. `serveAssets({ root, dotFiles: "allow" })`
+les sert sur un montage à toi.
+
 Pour utiliser un autre dossier, crée `config/aurora.ts` :
 
 ```ts
