@@ -196,7 +196,7 @@ session : le token y est signé mais lié à rien, et c'est le contrôle de
 l'origine ci-dessous qui arrête un token rejoué.
 
 ::: warning Nécessite un secret (breaking)
-Quand le CSRF est activé, un `secret` est **obligatoire**. `createBlackhole({ csrf: true })` sans secret **throw** — il n'y a aucun fallback silencieux vers un token non signé. Passe `secret: env.get('APP_KEY')` dans `config/blackhole.ts` (le provider retombe aussi sur `process.env.APP_KEY`). Le secret doit être une valeur stable à haute entropie (utilise ton `APP_KEY`) et **partagée entre les instances** — un token signé par une instance doit se vérifier sur une autre.
+Quand le CSRF est activé, un `secret` est **obligatoire**. `createBlackhole({ csrf: true })` sans secret **throw** — il n'y a aucun fallback silencieux vers un token non signé. Passe `secret: env.get('APP_KEY').release()` dans `config/blackhole.ts` (le provider retombe aussi sur `process.env.APP_KEY`). Le secret doit être une valeur stable à haute entropie (utilise ton `APP_KEY`) et **partagée entre les instances** — un token signé par une instance doit se vérifier sur une autre.
 :::
 
 ### Fonctionnement
@@ -243,7 +243,7 @@ import env from '#start/env'
 import { defineConfig } from '@c9up/blackhole'
 
 export default defineConfig({
-  secret: env.get('APP_KEY'),                   // clé HMAC — OBLIGATOIRE quand csrf est actif
+  secret: env.get('APP_KEY').release(),         // clé HMAC — OBLIGATOIRE quand csrf est actif
   csrf: {
     exceptRoutes: ['/webhooks/:provider', '/api/hooks/*'], // motifs de route, ou chemins
     methods: ['POST', 'PUT', 'PATCH', 'DELETE'], // verbes protégés (défaut affiché)
