@@ -78,6 +78,33 @@ Combobox({
 })
 ```
 
+### Le nommer
+
+Le seul texte du combobox est la valeur qu'il affiche : donnez-lui un nom. Son `id` va sur le déclencheur, que nomme alors le `for` d'un [Label](/fr/nebula/components/label) ou le `FieldLabel` d'un [Field](/fr/nebula/components/field) :
+
+```ts
+import { html } from '@c9up/aurora'
+import { Combobox, Field, FieldDescription, FieldLabel, fieldIds } from '@c9up/nebula'
+
+const ids = fieldIds()
+
+Field({
+  ids,
+  children: () => html`
+    ${FieldLabel({ children: 'Pays' })}
+    ${Combobox({ id: ids.control, describedBy: ids.describedBy, options: countries })}
+    ${FieldDescription({ children: 'Où chercher les mots-clés.' })}
+  `,
+})
+```
+
+Sans libellé à côté, `label` pose `aria-label` ; `labelledBy` désigne un élément déjà présent dans la page, un titre par exemple :
+
+```ts
+Combobox({ label: 'Pays', options: countries })
+Combobox({ labelledBy: 'seo-heading', options: countries })
+```
+
 ### Dans une autre langue
 
 Chaque texte qu'écrit le combobox a sa prop :
@@ -98,6 +125,10 @@ Combobox({
 | Prop | Type | Défaut | Description |
 |---|---|---|---|
 | `options` | `readonly ComboboxOption[]` | — | Obligatoire. Lue à chaque ouverture du panneau. |
+| `id` | `string` | un id fabriqué | L'`id` du déclencheur — ce que vise un `<label for>` ou un `FieldLabel`. |
+| `label` | `Reactive<string \| undefined>` | — | Pose `aria-label`, pour un combobox qu'aucun `<label>` ne nomme. |
+| `labelledBy` | `Reactive<string \| undefined>` | — | Pose `aria-labelledby` : l'id du ou des éléments qui le nomment. |
+| `describedBy` | `Reactive<string \| undefined>` | — | Pose `aria-describedby`. |
 | `value` | `Reactive<string \| undefined>` | — | Contrôle le choix. Présente, le déclencheur la suit. |
 | `defaultValue` | `string` | — | Le choix de départ quand `value` est absente. |
 | `onValueChange` | `(value: string) => void` | — | Chaque choix. |
@@ -122,7 +153,7 @@ Combobox({
 
 ## Accessibilité
 
-Le déclencheur est un `<button>` avec `role="combobox"`, `aria-haspopup="listbox"`, `aria-expanded`, `aria-controls` tant que le panneau est ouvert, et `aria-invalid` avec `invalid`. Dans le panneau, le champ de recherche et la liste sont [ceux de Command](/fr/nebula/components/command#accessibilite) : un champ `combobox` qui désigne l'`option` surlignée via `aria-activedescendant`.
+Le déclencheur est un `<button>` avec `role="combobox"`, `aria-haspopup="listbox"`, `aria-expanded`, `aria-controls` tant que le panneau est ouvert, et `aria-invalid` avec `invalid`. Son nom vient du `<label>` qui vise son `id`, de `label` ou de `labelledBy`. Dans le panneau, le champ de recherche et la liste sont [ceux de Command](/fr/nebula/components/command#accessibilite) : un champ `combobox` qui désigne l'`option` surlignée via `aria-activedescendant`.
 
 À l'ouverture, le focus passe dans le champ de recherche et reste piégé dans le panneau. Choisir une option ferme le panneau et rend le focus au déclencheur, et Échap fait de même. Un clic à l'extérieur le ferme aussi.
 

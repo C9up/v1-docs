@@ -78,6 +78,33 @@ Combobox({
 })
 ```
 
+### Naming it
+
+The combobox's only text is the value it shows, so give it a name. Its `id` goes on the trigger, which a [Label](/en/nebula/components/label)'s `for` or a [Field](/en/nebula/components/field)'s `FieldLabel` then names:
+
+```ts
+import { html } from '@c9up/aurora'
+import { Combobox, Field, FieldDescription, FieldLabel, fieldIds } from '@c9up/nebula'
+
+const ids = fieldIds()
+
+Field({
+  ids,
+  children: () => html`
+    ${FieldLabel({ children: 'Country' })}
+    ${Combobox({ id: ids.control, describedBy: ids.describedBy, options: countries })}
+    ${FieldDescription({ children: 'Where to look for keywords.' })}
+  `,
+})
+```
+
+With no label beside it, `label` sets `aria-label`; `labelledBy` points at an element already on the page, such as a heading:
+
+```ts
+Combobox({ label: 'Country', options: countries })
+Combobox({ labelledBy: 'seo-heading', options: countries })
+```
+
 ### In another language
 
 Every text the combobox writes has a prop:
@@ -98,6 +125,10 @@ Combobox({
 | Prop | Type | Default | Description |
 |---|---|---|---|
 | `options` | `readonly ComboboxOption[]` | — | Required. Read each time the panel opens. |
+| `id` | `string` | a minted id | The trigger's `id` — what a `<label for>` or a `FieldLabel` points at. |
+| `label` | `Reactive<string \| undefined>` | — | Sets `aria-label`, for a combobox no `<label>` names. |
+| `labelledBy` | `Reactive<string \| undefined>` | — | Sets `aria-labelledby`: the id(s) of the element(s) that name it. |
+| `describedBy` | `Reactive<string \| undefined>` | — | Sets `aria-describedby`. |
 | `value` | `Reactive<string \| undefined>` | — | Controls the choice. Present means the trigger follows it. |
 | `defaultValue` | `string` | — | The starting choice when `value` is absent. |
 | `onValueChange` | `(value: string) => void` | — | Each pick. |
@@ -122,7 +153,7 @@ Combobox({
 
 ## Accessibility
 
-The trigger is a `<button>` with `role="combobox"`, `aria-haspopup="listbox"`, `aria-expanded`, `aria-controls` while the panel is open, and `aria-invalid` when `invalid`. Inside the panel, the search field and the list are [Command's](/en/nebula/components/command#accessibility): a `combobox` field pointing at the highlighted `option` through `aria-activedescendant`.
+The trigger is a `<button>` with `role="combobox"`, `aria-haspopup="listbox"`, `aria-expanded`, `aria-controls` while the panel is open, and `aria-invalid` when `invalid`. Its name comes from the `<label>` pointing at its `id`, from `label` or from `labelledBy`. Inside the panel, the search field and the list are [Command's](/en/nebula/components/command#accessibility): a `combobox` field pointing at the highlighted `option` through `aria-activedescendant`.
 
 On open, focus moves to the search field and is held inside the panel. Choosing an option closes the panel and puts focus back on the trigger, and so does Escape. A click outside closes it too.
 
