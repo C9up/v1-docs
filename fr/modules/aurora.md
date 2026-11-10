@@ -107,6 +107,22 @@ Une liaison `.prop` reçoit le même contrôle : `.href`, `.src`, `.action`,
 `.formAction` et `.data` sont neutralisés partout où l'attribut qu'ils écrivent le
 serait.
 
+Deux autres positions naviguent sans `href` :
+
+- `to`, `from`, `by` et `values` sur un `<set>` ou un `<animate>` SVG —
+  `<set attributeName="href" to="javascript:…">` donne à un lien une cible
+  qu'aucun `href` ne portait. Ils sont contrôlés quoi que l'animation modifie,
+  `attributeName` pouvant venir plus loin dans la balise ; dans `values`, chaque
+  élément séparé par `;` l'est.
+- `content` sur une `<meta>`, quand il se lit comme un rafraîchissement
+  (`0;url=…`) : la cible est contrôlée et la valeur entière préfixée, ce qui
+  arrête le rafraîchissement. Une description ou un viewport ne sont pas touchés.
+
+Un slot dans `<base href>` (ou `.href` sur une `<base>`) est refusé avec
+`E_AURORA_SLOT_IN_BASE_URL` : il rebase toutes les URL relatives de la page,
+scripts chargés compris, et aucun contrôle de schéma ne couvre une base sur une
+autre origine.
+
 ## Signaux — `signal`, `effect`, `memo`
 
 ```ts

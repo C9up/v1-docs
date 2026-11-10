@@ -104,6 +104,20 @@ image is written and that position runs nothing.
 A `.prop` binding gets the same check: `.href`, `.src`, `.action`, `.formAction`
 and `.data` are neutralised wherever the attribute they write would be.
 
+Two more positions navigate without an `href`:
+
+- `to`, `from`, `by` and `values` on an SVG `<set>` or `<animate>` —
+  `<set attributeName="href" to="javascript:…">` gives a link a target no `href`
+  held. They are checked whatever the animation sets, since `attributeName` may
+  come later in the tag; in `values`, each `;`-separated item is.
+- `content` on a `<meta>`, when it reads as a refresh (`0;url=…`): the target is
+  checked and the whole value prefixed, which stops the refresh. A description or
+  a viewport is left alone.
+
+A slot in `<base href>` (or `.href` on a `<base>`) is refused with
+`E_AURORA_SLOT_IN_BASE_URL`: it rebases every relative URL on the page, the
+scripts it loads included, and no scheme check covers a base on another origin.
+
 ## Signals — `signal`, `effect`, `memo`
 
 ```ts
