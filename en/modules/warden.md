@@ -206,7 +206,7 @@ authorization check (coarse helpers, the middleware gate, and policy evaluation)
 consults that one point.
 
 This is **Layer 1** of Warden's authorization model: the data and its
-resolution. The policy-based evaluation layer (a Bouncer-shaped `allows` /
+resolution. The policy-based evaluation layer (the `Bouncer`'s `allows` /
 `denies` / `authorize`) builds on top of it and is documented separately.
 
 ### Scope
@@ -342,18 +342,17 @@ migrations or an admin UI — and is deliberately outside the read contract.
 
 ---
 
-## Authorization (Bouncer-shaped evaluation)
+## Authorization (Bouncer evaluation)
 
 Warden's authorization is two layers. Layer 1 — **Rights Resolution** above —
 answers *what permissions does this user have?*. Layer 2 — the **Bouncer** —
-answers *is this user allowed to do this thing?*, with a surface faithful to
-AdonisJS Bouncer: standalone abilities, class-based policies with `before` /
+answers *is this user allowed to do this thing?*, through standalone abilities, class-based policies with `before` /
 `after` hooks, the `@allowGuest` / `@action` decorators, an
 `AuthorizationResponse` value type, and the four verbs `allows` / `denies` /
 `authorize` / `execute`.
 
 The standalone-ability examples here write their predicates directly against
-`(user, resource)`, exactly as Adonis does. The two layers connect through
+`(user, resource)`. The two layers connect through
 **policies**: a Bouncer can carry a scope + a Layer-1 resolver, and a policy
 then reads the resolved permissions via `this.permissions` — see **Multi-tenant
 scope** below.
@@ -448,7 +447,7 @@ registered: `new Bouncer(user, abilities, { Post: PostPolicy })` →
 
 ### before / after hooks
 
-The optional `before` and `after` hooks run around every action in the Adonis
+The optional `before` and `after` hooks run around every action in this
 order — **before → guest-deny → action → after**:
 
 - `before(user, action, ...args)` runs first. A non-`undefined` return
@@ -717,7 +716,7 @@ Configure it from `config/auth.ts` with a `session` block — supply `findUser` 
 ```typescript
 // config/auth.ts
 export default {
-  defaultStrategy: 'session',          // session-first (AdonisJS web kit)
+  defaultStrategy: 'session',          // session-first (web app)
   session: {
     findUser: async (id) => /* resolve your user by the stored id */ null,
   },
@@ -795,15 +794,14 @@ session store can pass `sessionAge` (seconds) instead; the default is two hours.
 `MemoryBlacklistDriver` works for one process; several instances need a shared
 store such as `RedisBlacklistDriver`.
 
-The `SessionStore` interface is intentionally minimal — `get(key)`, `put(key, value)`, `forget(key)`, `regenerate()`. The method names mirror the **AdonisJS `Session` API** (`put`, not `set`), so Ream's `Session` — exposed on `ctx.session` by `SessionMiddleware` — satisfies the contract structurally with no adapter. (If you hand-rolled a `SessionStore` against the old `set()` name, rename it to `put()`.)
+The `SessionStore` interface is intentionally minimal — `get(key)`, `put(key, value)`, `forget(key)`, `regenerate()`. The method names match Ream's **`Session` API** (`put`, not `set`), so Ream's `Session` — exposed on `ctx.session` by `SessionMiddleware` — satisfies the contract structurally with no adapter. (If you hand-rolled a `SessionStore` against the old `set()` name, rename it to `put()`.)
 
-> **`ctx.session`.** The request session lives on `ctx.session` (AdonisJS parity), populated by Ream's `SessionMiddleware`. Register that middleware **before** the auth middleware so `ctx.session` is set when the session strategy resolves the user.
+> **`ctx.session`.** The request session lives on `ctx.session`, populated by Ream's `SessionMiddleware`. Register that middleware **before** the auth middleware so `ctx.session` is set when the session strategy resolves the user.
 
 ### Remember me
 
-"Keep me signed in" — a credential that outlives the session cookie. Adonis
-calls the flag `useRememberMeTokens`; here, wiring a token driver **is** the
-opt-in:
+"Keep me signed in" — a credential that outlives the session cookie. Wiring
+a token driver **is** the opt-in:
 
 ```ts
 import { MemoryRememberMeTokenDriver, SessionStrategy } from '@c9up/warden'
@@ -811,8 +809,8 @@ import { MemoryRememberMeTokenDriver, SessionStrategy } from '@c9up/warden'
 new SessionStrategy({
   findUser: (id) => User.find(id),
   rememberMeTokens: new MemoryRememberMeTokenDriver(), // your own driver in production
-  rememberMeAge: 63_072_000,                           // seconds; 2 years, Adonis' default
-  rememberMeCookieName: 'remember_web',                // Adonis' `remember_<guard>`
+  rememberMeAge: 63_072_000,                           // seconds; 2 years, the default
+  rememberMeCookieName: 'remember_web',                // `remember_<guard>`
   rememberMeCookie: { sameSite: 'strict' },            // optional overrides, see below
 })
 ```
@@ -896,7 +894,7 @@ actually been given.
 #### The `RememberMeToken` class
 
 For code that handles tokens directly — a custom driver, a migration, an admin
-screen — the AdonisJS class is exported alongside the functions the guard uses.
+screen — the `RememberMeToken` class is exported alongside the functions the guard uses.
 Both sit on the same encoding and the same hashing, so they cannot disagree
 about what a token is:
 
@@ -916,7 +914,7 @@ token.verify(decoded.secret)                           // constant-time
 token.toStored()                                       // back to the driver shape
 ```
 
-Secrets come back wrapped in `Secret`, as upstream wraps them, so one cannot
+Secrets come back wrapped in `Secret`, so one cannot
 reach a log by being interpolated into a string:
 
 ```ts
@@ -926,13 +924,13 @@ decoded.secret.release()     // the real value, deliberately
 ```
 
 `expiresIn` takes either seconds or a duration string — `3600`, `'1h'`,
-`'7 days'` — so a config carried over from an AdonisJS app works as written. A
+`'7 days'`. A
 bare number is always **seconds**, as everywhere else in this module. The
 seconds-only `expiresInSeconds` warden shipped first still works; when a config
 sets both, `expiresIn` wins. A lifetime is a whole number of seconds: `'500ms'`
 is refused, since a token's `exp` cannot hold a fraction.
 
-::: tip Named deviation
+::: tip Why warden has its own `Secret`
 warden ships its own `Secret` rather than importing `@c9up/ream`: it has no
 runtime dependencies and a standalone entry point, so a peer import would break
 the framework-free mode.
@@ -942,7 +940,7 @@ the framework-free mode.
 
 ## BasicAuthStrategy
 
-HTTP Basic (AdonisJS's `basic_auth` guard). The browser prompts, then resends
+HTTP Basic (the `basic_auth` driver). The browser prompts, then resends
 the credentials on **every** request — which is why it fits a machine-to-machine
 endpoint or an internal tool behind TLS, and does not fit a user-facing login.
 
@@ -1120,7 +1118,7 @@ such bound.
 ## Authenticating a test client
 
 Every guard answers `authenticateAsClient(...)` with what a client must send to
-be that user (AdonisJS's test seam). The test client's `loginAs()` applies it:
+be that user. The test client's `loginAs()` applies it:
 
 ```ts
 await client.get('/dashboard').loginAs(sessionGuard, user)
@@ -1148,7 +1146,7 @@ one, `loginAs()` throws instead of sending the request unauthenticated.
 
 ## Dual-guard: session for the web, JWT for the API
 
-`AuthManager` holds a **map** of named strategies and picks one **per route**, so a single app can serve a cookie-authenticated web surface and a Bearer-token API side by side. This mirrors the two AdonisJS starter kits — `session` ≈ the **web** kit, `jwt` (access tokens) ≈ the **api** kit.
+`AuthManager` holds a **map** of named strategies and picks one **per route**, so a single app can serve a cookie-authenticated web surface and a Bearer-token API side by side. Typically `session` serves the **web** side and `jwt` (access tokens) the **api** side.
 
 ```typescript
 // config/auth.ts
@@ -1635,7 +1633,7 @@ request, for a console command or a job that has no request around it.
 ## Auth events
 
 Wire an emitter and every authentication decision is announced. The event name
-is namespaced by the guard's **driver**, as AdonisJS does — so an app auditing
+is namespaced by the guard's **driver** — so an app auditing
 session logins is not also told about bearer-token traffic under the same name:
 
 | Driver | Event prefix |
@@ -1653,9 +1651,9 @@ emitter.on('jwt_auth:authentication_failed', ({ guardName, error }) => alert(err
 ```
 
 The prefix comes from the strategy's driver, not the guard's config key: a guard
-called `web` running a `SessionStrategy` is still the session driver, exactly as
-upstream. `authEventPrefix(driverName)` is exported if you need to build a name
-yourself. `jwt` has no upstream equivalent and becomes `jwt_auth`.
+called `web` running a `SessionStrategy` is still the session driver.
+`authEventPrefix(driverName)` is exported if you need to build a name
+yourself. `jwt` becomes `jwt_auth`.
 
 Events: `login_attempted`, `login_succeeded`, `logged_out` (stateful guards
 only), plus `authentication_attempted`, `authentication_succeeded` and

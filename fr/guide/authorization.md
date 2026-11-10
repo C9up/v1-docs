@@ -20,7 +20,7 @@ Couche 1 — DONNÉES DE DROITS (résolution)
   le tout clé par scope : global | tenant:X (multi-tenant)
   resolve(user, scope) → permissions effectives   ← le point d'unification unique
 
-Couche 2 — ÉVALUATION (façon Bouncer, consulte la Couche 1)
+Couche 2 — ÉVALUATION (Bouncer, consulte la Couche 1)
   ability(user, ...args) / Policy.method(user, resource)
       resolved(user, scope).has("post.edit")   // données : rôle ∪ grant direct
    || user.id === resource.authorId             // ownership
@@ -45,13 +45,12 @@ Une requête circule de haut en bas :
    `ctx.bouncer` par requête ; un refus lève `WARDEN_AUTHORIZATION_FAILURE`, que
    Ream mappe sur un **403**.
 
-La couche d'évaluation est fidèle à AdonisJS Bouncer — le contrat est familier —
-mais c'est une implémentation Ream indépendante, **sans dépendance
-`@adonisjs/bouncer`**.
+La couche d'évaluation est implémentée par Warden lui-même, **sans dépendance
+tierce**.
 
 La référence de chaque pièce vit dans la page du module Warden :
 [Résolution des droits](/fr/modules/warden#resolution-des-droits-rbac-acl),
-[Autorisation](/fr/modules/warden#autorisation-evaluation-facon-bouncer) et
+[Autorisation](/fr/modules/warden#autorisation-evaluation-par-le-bouncer) et
 [Intégration HTTP](/fr/modules/warden#integration-http).
 
 ## Un exemple complet
