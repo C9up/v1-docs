@@ -288,7 +288,7 @@ correctement : c'est le chemin à utiliser pour ces super-tables.
 
 ## Requêtes séries temporelles
 
-`repo.query()` renvoie un `TimeSeriesQuery` — un builder fluide calqué sur le **sous-ensemble** pertinent de `ModelQuery` d'Atlas (lui-même une parité de Lucid/AdonisJS). Les noms de filtrage/tri/pagination (`where` / `orderBy` / `limit` / `offset` / `first` / le thenable `then`) sont ceux de Lucid ; les méthodes de fenêtre (`interval` / `sliding` / `fill` / `partitionBy`) n'ont pas d'analogue Lucid et portent le nom des clauses SQL TDengine.
+`repo.query()` renvoie un `TimeSeriesQuery` — un builder fluide calqué sur le **sous-ensemble** pertinent de `ModelQuery` d'Atlas. Les noms de filtrage/tri/pagination (`where` / `orderBy` / `limit` / `offset` / `first` / le thenable `then`) sont ceux d'Atlas ; les méthodes de fenêtre (`interval` / `sliding` / `fill` / `partitionBy`) portent le nom des clauses SQL TDengine.
 
 ```typescript
 const rows = await repo
@@ -304,7 +304,7 @@ const rows = await repo
 //   INTERVAL(1m) SLIDING(30s) FILL(PREV) ORDER BY _wstart ASC LIMIT 100
 ```
 
-Le builder est **thenable** (`await query` ≡ `await query.exec()`, parité Lucid/atlas), avec aussi `.exec()` / `.all()` / `.first()` (row-ou-null, `LIMIT 1` implicite) et `.toSQL()` (`{ sql, params }` pour le debug). `.exec()` est mémoïsé : plusieurs `await` partagent un seul aller-retour.
+Le builder est **thenable** (`await query` ≡ `await query.exec()`, comme dans atlas), avec aussi `.exec()` / `.all()` / `.first()` (row-ou-null, `LIMIT 1` implicite) et `.toSQL()` (`{ sql, params }` pour le debug). `.exec()` est mémoïsé : plusieurs `await` partagent un seul aller-retour.
 
 Un callback regroupe des prédicats entre parenthèses, si bien qu'un `orWhere` ne peut pas s'échapper des filtres qui l'entourent : `.where('tenant_id', 42).where((q) => q.where('level', 'alarm').orWhere('sensor', 7))` compile en `` `tenant_id` = 42 AND (`level` = 'alarm' OR `sensor` = 7) ``. `andWhere` / `orWhere` acceptent aussi un callback, les groupes s'imbriquent, et un groupe vide est refusé (`E_EON_EMPTY_WHERE_GROUP`).
 
@@ -338,7 +338,7 @@ const series = await repo
 ## Migrations & gestion du schéma
 
 Faites évoluer un schéma de séries temporelles avec la même rigueur suivie que les
-migrations atlas/Lucid. Étendez `Migration`, pilotez le `EonSchema` fluide, puis
+migrations atlas. Étendez `Migration`, pilotez le `EonSchema` fluide, puis
 exécutez les fichiers via un `EonMigrationRunner`.
 
 ```typescript
@@ -427,7 +427,7 @@ que là où des exécutions concurrentes sont impossibles par construction.
    le supprimer par cette clé temporelle unique (TDengine n'autorise un prédicat
    `DELETE` que sur la colonne timestamp primaire).
 3. **Le verrou est l'existence d'une table, pas la valeur d'une ligne.** atlas
-   (parité Lucid/Knex) sérialise les runners avec un `UPDATE … WHERE is_locked = 0`
+   sérialise les runners avec un `UPDATE … WHERE is_locked = 0`
    conditionnel. TDengine n'a pas d'`UPDATE` conditionnel : cette forme exacte est
    impossible — mais la garantie, elle, ne l'est pas. `CREATE TABLE` **sans**
    `IF NOT EXISTS` est un compare-and-swap atomique : le mnode sérialise les

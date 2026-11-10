@@ -285,7 +285,7 @@ correctly and is the path to use for those super-tables.
 
 ## Time-series queries
 
-`SuperTableRepository.query()` returns a fluent `TimeSeriesQuery` — a Lucid-shaped builder for windowed reads, mirroring the Atlas `ModelQuery` subset. It compiles through the same Rust `eon-query` core and runs over the injected connection.
+`SuperTableRepository.query()` returns a fluent `TimeSeriesQuery` — a builder for windowed reads, mirroring the Atlas `ModelQuery` subset. It compiles through the same Rust `eon-query` core and runs over the injected connection.
 
 ```typescript
 const rows = await repo.query()
@@ -304,7 +304,7 @@ const rows = await repo.query()
   .limit(100)
 ```
 
-- **Filters** — `where(col, value)` / `where(col, op, value)`, `andWhere` / `orWhere`, `whereNull` / `whereNotNull`, `whereBetween(col, [lo, hi])` (the idiomatic time-range helper). `where(col, null)` folds to `IS NULL` (Knex/Lucid parity). A callback groups predicates in parentheses, so an `orWhere` cannot escape the filters around it: `.where('tenant_id', 42).where((q) => q.where('level', 'alarm').orWhere('sensor', 7))` compiles to `` `tenant_id` = 42 AND (`level` = 'alarm' OR `sensor` = 7) ``. `andWhere` / `orWhere` take a callback too, groups nest, and an empty group is refused (`E_EON_EMPTY_WHERE_GROUP`).
+- **Filters** — `where(col, value)` / `where(col, op, value)`, `andWhere` / `orWhere`, `whereNull` / `whereNotNull`, `whereBetween(col, [lo, hi])` (the idiomatic time-range helper). `where(col, null)` folds to `IS NULL`. A callback groups predicates in parentheses, so an `orWhere` cannot escape the filters around it: `.where('tenant_id', 42).where((q) => q.where('level', 'alarm').orWhere('sensor', 7))` compiles to `` `tenant_id` = 42 AND (`level` = 'alarm' OR `sensor` = 7) ``. `andWhere` / `orWhere` take a callback too, groups nest, and an empty group is refused (`E_EON_EMPTY_WHERE_GROUP`).
 - **Projection** — bare columns (`'ts'`), aggregate/selector functions (`{ function, column, alias? }` — `avg` / `last` / `last_row` / `first` / `count` / `min` / `max` / `sum` / `spread` / `twa`), and window pseudo-columns (`{ pseudo: '_wstart' }`). Every name is allowlisted and quoted in Rust — no raw passthrough.
 - **Window** — `interval(val, offset?)`, `sliding(val)`, `fill(mode, ...values)`, `partitionBy(...cols)`. TDengine's canonical clause order (`WHERE` → `PARTITION BY` → `INTERVAL(SLIDING)(FILL)` → `ORDER BY` → `LIMIT/OFFSET`) is emitted verbatim; `sliding` / `fill` without `interval`, or `offset` without `limit`, are typed errors.
 - **Terminals** — `exec()` / `all()` (all rows, memoised), `first()` (row-or-null), `toSQL()` (`{ sql, params }`); the builder is **thenable**, so `await query` runs `exec()`.
@@ -326,7 +326,7 @@ const series = await repo
 
 ## Migrations & schema management
 
-Evolve a time-series schema the same disciplined, tracked way you run atlas/Lucid
+Evolve a time-series schema the same disciplined, tracked way you run atlas
 migrations. Extend `Migration`, drive the fluent `EonSchema`, and run the files
 through an `EonMigrationRunner`.
 
@@ -413,8 +413,7 @@ construction.
    strictly-increasing `executed_at` so rollback can delete it by that unique
    timestamp key (TDengine only allows a `DELETE` predicate on the primary
    timestamp column).
-3. **The lock is a table's existence, not a row's value.** atlas (Lucid/Knex
-   parity) serialises runners with a conditional `UPDATE … WHERE is_locked = 0`.
+3. **The lock is a table's existence, not a row's value.** atlas serialises runners with a conditional `UPDATE … WHERE is_locked = 0`.
    TDengine has no conditional `UPDATE`, so that exact shape is impossible — but
    the guarantee is not. `CREATE TABLE` **without** `IF NOT EXISTS` is an atomic
    compare-and-swap: the mnode serialises metadata, so of N concurrent creators
