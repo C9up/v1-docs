@@ -1,6 +1,6 @@
 # Envoi de fichiers
 
-Ream analyse les requêtes `multipart/form-data` grâce au middleware BodyParser et expose les fichiers envoyés sur l'objet request sous forme d'instances `MultipartFile`. L'API reflète AdonisJS : vous lisez un fichier, le validez contre une liste blanche de taille et d'extensions, puis le déplacez sur le disque.
+Ream analyse les requêtes `multipart/form-data` grâce au middleware BodyParser et expose les fichiers envoyés sur l'objet request sous forme d'instances `MultipartFile`. Vous lisez un fichier, le validez contre une liste blanche de taille et d'extensions, puis le déplacez sur le disque.
 
 ## Activer le parser
 
@@ -30,7 +30,7 @@ const bodyParser = new BodyParserMiddleware({
 })
 ```
 
-`allowedMethods` décide quelles requêtes voient leur corps parsé — AdonisJS
+`allowedMethods` décide quelles requêtes voient leur corps parsé — il
 prend les quatre ci-dessus par défaut, si bien qu'un GET portant un
 content-type JSON est laissé intact. Une requête dont le `content-length` dit
 qu'il n'y a pas de corps est sautée aussi.
@@ -71,11 +71,10 @@ un parser que tu avais coupé :
 new BodyParserMiddleware({ raw: { types: [] } })   // aucun parsing raw
 ```
 
-::: tip maxFiles est à nous
-AdonisJS ne borne un corps multipart que par la taille totale et le nombre de
-champs : dix mille fichiers d'un octet passent. `maxFiles` est une borne
-anti-déni-de-service, à la même échelle que `maxFields`, pour ne jamais rejeter
-un envoi qu'AdonisJS aurait accepté.
+::: tip Pourquoi maxFiles
+Borner un corps multipart par la seule taille totale et le nombre de champs
+laisse passer dix mille fichiers d'un octet. `maxFiles` est une borne
+anti-déni-de-service, à la même échelle que `maxFields`.
 :::
 
 ::: warning Pas de `multipart.tmpDir`
@@ -140,7 +139,7 @@ Passez les contraintes directement à `request.file()` pour valider au moment de
 const avatar = request.file('avatar', { size: '2mb', extnames: ['jpg', 'png'] })
 ```
 
-`extnames` est validé contre le type DÉTECTÉ à partir des magic bytes, pas contre le nom de fichier du client. Un binaire renommé `evil.png` est donc rejeté — c'est la parité avec AdonisJS, implémentée via la bibliothèque [`file-type`](https://github.com/sindresorhus/file-type).
+`extnames` est validé contre le type DÉTECTÉ à partir des magic bytes, pas contre le nom de fichier du client. Un binaire renommé `evil.png` est donc rejeté — la détection passe par la bibliothèque [`file-type`](https://github.com/sindresorhus/file-type).
 
 Le garde-fou canonique dans un contrôleur vérifie les trois modes d'échec :
 
@@ -152,7 +151,7 @@ if (file.size === 0) return response.unprocessableEntity('Uploaded file is empty
 ```
 
 ::: tip
-Rejeter les envois vides (0 octet) est une décision applicative (`422`). Ni Ream ni AdonisJS ne les rejettent automatiquement, alors ajoutez vous-même la vérification `file.size === 0` lorsqu'un fichier vide n'a aucun sens pour votre handler.
+Rejeter les envois vides (0 octet) est une décision applicative (`422`). Ream ne les rejette pas automatiquement, alors ajoutez vous-même la vérification `file.size === 0` lorsqu'un fichier vide n'a aucun sens pour votre handler.
 :::
 
 ## Servir les fichiers envoyés
@@ -245,10 +244,10 @@ directement dans le stockage, et les octets ne passent jamais par le serveur.
 
 
 ::: danger `type` a changé de sens
-Il portait `image/png` en entier ; il porte désormais `image`, comme chez
-AdonisJS, avec `subtype` à côté. TypeScript ne peut rien y faire : une
+Il portait `image/png` en entier ; il porte désormais `image`, avec
+`subtype` à côté. TypeScript ne peut rien y faire : une
 comparaison telle que `file.type === 'image/png'` ne casse pas à la
-compilation, elle cesse simplement de correspondre. Cherche-la dans ton code.
+compilation, elle cesse simplement de correspondre.
 Cherche-la dans ton code, et utilise **`file.mime`** pour une liste blanche.
 
 Une app a vécu exactement ça : `if (!ALLOWED_MIME.has(file.type)) reject()`
@@ -261,15 +260,14 @@ seule.
 ::: tip Ces champs lisent les octets, pas l'en-tête
 `mime`, `type` et `subtype` sont dérivés des octets magiques du fichier, avec
 repli sur l'en-tête `Content-Type` seulement pour un contenu sans signature (les
-formats texte). C'est la précédence d'amont, et c'est celle qui compte :
+formats texte). C'est cette précédence qui compte :
 l'en-tête est écrit par le client, donc un `.exe` annoncé `image/png` passerait
 sinon une liste blanche de mimes. Un fichier renommé rapporte ce qu'il est
 vraiment. L'en-tête tel qu'envoyé reste sur `file.headers['content-type']`.
 :::
 
 ::: tip Pas de fichier temporaire
-AdonisJS écrit l'envoi dans un fichier temporaire et `move()` le renomme. Ream
-garde les octets en mémoire — `multipart.tmpDir` est refusé à la construction —
+Ream garde les octets en mémoire — `multipart.tmpDir` est refusé à la construction —
 donc `move()` écrit le tampon. Il n'y a pas de `E_MISSING_FILE_TMP_PATH` ici :
 il n'y a aucun fichier temporaire qui pourrait manquer.
 :::

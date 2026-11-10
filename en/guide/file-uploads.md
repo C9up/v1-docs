@@ -1,6 +1,6 @@
 # File uploads
 
-Ream parses `multipart/form-data` requests through the BodyParser middleware and exposes uploaded files on the request object as `MultipartFile` instances. The API mirrors AdonisJS: you read a file, validate it against a size and extension allowlist, then move it to disk.
+Ream parses `multipart/form-data` requests through the BodyParser middleware and exposes uploaded files on the request object as `MultipartFile` instances. You read a file, validate it against a size and extension allowlist, then move it to disk.
 
 ## Enabling the parser
 
@@ -30,7 +30,7 @@ const bodyParser = new BodyParserMiddleware({
 })
 ```
 
-`allowedMethods` decides which requests get a body parsed at all — AdonisJS
+`allowedMethods` decides which requests get a body parsed at all — it
 defaults to the four above, so a GET carrying a JSON content-type is left
 untouched. A request whose `content-length` says there is no body is skipped too.
 
@@ -69,10 +69,10 @@ off:
 new BodyParserMiddleware({ raw: { types: [] } })   // no raw parsing
 ```
 
-::: tip maxFiles is ours
-AdonisJS bounds a multipart body by total size and field count only, so ten
-thousand one-byte files pass. `maxFiles` is a denial-of-service bound at the same
-scale as `maxFields`, so it never rejects an upload AdonisJS would have accepted.
+::: tip Why maxFiles
+A bound on total size and field count alone lets ten thousand one-byte files
+through. `maxFiles` is a denial-of-service bound at the same scale as
+`maxFields`.
 :::
 
 ::: warning No `multipart.tmpDir`
@@ -119,7 +119,7 @@ Every uploaded file is a `MultipartFile` with the following properties:
 | `sizeLimit` / `allowedExtensions` | Rules a bare `validate()` will apply. |
 
 ::: danger `type` changed meaning in 0.2.0
-It used to hold the whole `image/png`; it now holds `image`, matching AdonisJS,
+It used to hold the whole `image/png`; it now holds `image`,
 with `subtype` alongside. TypeScript cannot catch this — a comparison like
 `file.type === 'image/png'` does not fail to compile, it simply never matches
 again. Search your code for it, and use **`file.mime`** for an allowlist.
@@ -133,7 +133,7 @@ a gate that can close on its own.
 ::: tip These read the bytes, not the header
 `mime`, `type` and `subtype` are derived from the file's magic bytes, falling
 back to the `Content-Type` header only for content that has no signature (text
-formats). That is upstream's precedence and the one that matters: the header is
+formats). That precedence is the one that matters: the header is
 written by the client, so a `.exe` announced as `image/png` would otherwise walk
 through a mime allowlist. A renamed file reports what it actually is. The
 header as sent is still on `file.headers['content-type']`.
@@ -155,8 +155,7 @@ file.clientName })`, where a client name of `../../etc/passwd` would otherwise
 walk out of the directory.
 
 ::: tip No temporary file
-AdonisJS streams an upload to a temporary path and `move()` renames it. Ream
-holds the bytes in memory — `multipart.tmpDir` is refused at construction — so
+Ream holds the bytes in memory — `multipart.tmpDir` is refused at construction — so
 `move()` writes the buffer. There is no `E_MISSING_FILE_TMP_PATH` here: there
 is no temporary file to be missing.
 :::
@@ -169,7 +168,7 @@ Pass constraints directly to `request.file()` to validate as you read:
 const avatar = request.file('avatar', { size: '2mb', extnames: ['jpg', 'png'] })
 ```
 
-`extnames` is validated against the magic-byte-DETECTED type, not the client filename. A binary renamed `evil.png` is therefore caught — this is AdonisJS parity, implemented via the [`file-type`](https://github.com/sindresorhus/file-type) library.
+`extnames` is validated against the magic-byte-DETECTED type, not the client filename. A binary renamed `evil.png` is therefore caught — detection uses the [`file-type`](https://github.com/sindresorhus/file-type) library.
 
 The canonical controller guard checks all three failure modes:
 
@@ -181,7 +180,7 @@ if (file.size === 0) return response.unprocessableEntity('Uploaded file is empty
 ```
 
 ::: tip
-Rejecting empty (0-byte) uploads is an app-level decision (`422`). Neither Ream nor AdonisJS auto-rejects them, so add the `file.size === 0` check yourself when an empty file is meaningless to your handler.
+Rejecting empty (0-byte) uploads is an app-level decision (`422`). Ream does not auto-reject them, so add the `file.size === 0` check yourself when an empty file is meaningless to your handler.
 :::
 
 ## Serving uploaded files
