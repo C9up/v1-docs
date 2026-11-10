@@ -120,7 +120,11 @@ html`${() => {
 |---|---|---|---|
 | `src` | `Reactive<string \| undefined>` | — | `undefined` or `''` is no image: the fallback shows at once. |
 | `alt` | `Reactive<string>` | `''` | The person's name. Left empty, the image is decorative. |
+| `referrerPolicy` | `ReferrerPolicy` | — | Sent with the request for the picture. `'no-referrer'` keeps the page's URL from another host, such as an avatar URL a user supplied. |
+| `crossOrigin` | `'anonymous' \| 'use-credentials'` | — | The CORS mode of that request. |
 | `class` | `Reactive<string>` | — | Merged into the `<img>`'s classes. |
+
+The picture is loaded in the background first, and the `<img>` appears only once it has loaded, so a broken picture is never shown. When `src` changes the load starts over: a new picture replaces a broken one.
 
 ### AvatarFallback
 

@@ -120,7 +120,11 @@ html`${() => {
 |---|---|---|---|
 | `src` | `Reactive<string \| undefined>` | — | `undefined` ou `''` vaut absence d'image : le repli s'affiche d'emblée. |
 | `alt` | `Reactive<string>` | `''` | Le nom de la personne. Laissé vide, l'image est décorative. |
+| `referrerPolicy` | `ReferrerPolicy` | — | Envoyée avec la requête de l'image. `'no-referrer'` cache l'URL de la page à un autre hôte, comme celui d'une URL d'avatar fournie par un utilisateur. |
+| `crossOrigin` | `'anonymous' \| 'use-credentials'` | — | Le mode CORS de cette requête. |
 | `class` | `Reactive<string>` | — | Fusionnée dans les classes de l'`<img>`. |
+
+L'image est d'abord chargée en arrière-plan, et l'`<img>` n'apparaît qu'une fois chargée : une image cassée n'est jamais affichée. Quand `src` change, le chargement reprend : une nouvelle image remplace une image cassée.
 
 ### AvatarFallback
 
