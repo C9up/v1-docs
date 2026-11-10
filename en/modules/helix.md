@@ -158,7 +158,9 @@ their test's deadline and fail that test, named, when they hang.
 A separate per-file deadline (`--file-timeout`, `fileTimeout`, 10 minutes by
 default) kills a worker stuck where no test timeout reaches, such as a
 synchronous loop. Killing a worker kills its whole process group, so what
-its tests spawned does not outlive it.
+its tests spawned does not outlive it. A worker whose CLI dies without
+cleaning up (SIGKILL, an out-of-memory kill) notices and exits with its
+process group too.
 
 `helix test` sets `NODE_ENV=test` before it reads the config or runs the
 bootstrap's `runnerHooks`, and the suites resolve their files before

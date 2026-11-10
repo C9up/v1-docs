@@ -163,7 +163,9 @@ se nommant, s'ils restent bloqués.
 Une échéance par fichier, distincte (`--file-timeout`, `fileTimeout`,
 10 minutes par défaut), tue un worker bloqué là où aucun timeout de test
 n'arrive, comme une boucle synchrone. Tuer un worker tue tout son groupe de
-processus : ce que ses tests ont lancé ne lui survit pas.
+processus : ce que ses tests ont lancé ne lui survit pas. Un worker dont la CLI
+meurt sans pouvoir nettoyer (SIGKILL, manque de mémoire) le remarque et sort
+lui aussi avec son groupe de processus.
 
 `helix test` fixe `NODE_ENV=test` avant de lire la config ou de lancer les
 `runnerHooks` du bootstrap, et les suites résolvent leurs fichiers avant que
