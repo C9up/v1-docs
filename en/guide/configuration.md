@@ -78,7 +78,7 @@ through routing without its body, and reading that body answers
 
 ## Environment variables
 
-Define and **validate** your environment in `start/env.ts` with `Env.create`, then read variables anywhere through the typed `env.get()`. This mirrors AdonisJS: the schema loads the `.env*` files at import time and refuses to boot if a required variable is missing or malformed, so a typo surfaces immediately instead of as a runtime `undefined`.
+Define and **validate** your environment in `start/env.ts` with `Env.create`, then read variables anywhere through the typed `env.get()`. The schema loads the `.env*` files at import time and refuses to boot if a required variable is missing or malformed, so a typo surfaces immediately instead of as a runtime `undefined`.
 
 ```typescript
 // start/env.ts
@@ -134,8 +134,7 @@ app.tmpPath('uploads')           // <root>/tmp/uploads
 app.publicPath('style.css')      // <root>/public/style.css
 ```
 
-There is one helper per conventional directory, the AdonisJS layout directory
-for directory:
+There is one helper per conventional directory:
 
 ```typescript
 app.httpControllersPath()   // app/controllers      app.modelsPath()        // app/models
@@ -172,10 +171,8 @@ Only what you name changes; the rest keep their defaults. The overrides reach
 the application as soon as the rc file loads, so a provider calling a path
 helper from `register()` already sees them.
 
-::: tip `.ream/`, not `.adonisjs/`
-`generatedClientPath()` and `generatedServerPath()` write under `.ream/`. A
-dot-directory in your project is product identity, so this is one of the few
-places Ream deliberately does not copy the upstream name.
+::: tip Generated files live in `.ream/`
+`generatedClientPath()` and `generatedServerPath()` write under `.ream/`.
 :::
 
 ## Accessing config

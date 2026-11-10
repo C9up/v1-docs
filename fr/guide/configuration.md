@@ -37,8 +37,7 @@ export default {
 }
 ```
 
-Il y a une aide par répertoire conventionnel, la disposition d'AdonisJS
-répertoire pour répertoire :
+Il y a une aide par répertoire conventionnel :
 
 ```typescript
 app.httpControllersPath()   // app/controllers      app.modelsPath()        // app/models
@@ -75,11 +74,8 @@ Seul ce qui est nommé change ; le reste garde ses valeurs par défaut. Les
 surcharges atteignent l'application dès le chargement du fichier rc, de sorte
 qu'un provider appelant une aide depuis `register()` les voit déjà.
 
-::: tip `.ream/`, pas `.adonisjs/`
-`generatedClientPath()` et `generatedServerPath()` écrivent sous `.ream/`. Un
-répertoire caché dans le projet de l'utilisateur relève de l'identité produit :
-c'est l'un des rares endroits où Ream ne reprend délibérément pas le nom
-d'amont.
+::: tip Les fichiers générés vivent dans `.ream/`
+`generatedClientPath()` et `generatedServerPath()` écrivent sous `.ream/`.
 :::
 
 ### config/auth.ts
@@ -123,7 +119,7 @@ passe quand même par le routage, sans son corps, et lire ce corps répond
 
 ## Variables d'environnement
 
-Définissez et **validez** votre environnement dans `start/env.ts` avec `Env.create`, puis lisez les variables n'importe où via le `env.get()` typé. Cela reflète AdonisJS : le schéma charge les fichiers `.env*` au moment de l'import et refuse de démarrer si une variable requise est absente ou mal formée, de sorte qu'une faute de frappe apparaît immédiatement plutôt que sous la forme d'un `undefined` à l'exécution.
+Définissez et **validez** votre environnement dans `start/env.ts` avec `Env.create`, puis lisez les variables n'importe où via le `env.get()` typé. Le schéma charge les fichiers `.env*` au moment de l'import et refuse de démarrer si une variable requise est absente ou mal formée, de sorte qu'une faute de frappe apparaît immédiatement plutôt que sous la forme d'un `undefined` à l'exécution.
 
 ```typescript
 // start/env.ts
