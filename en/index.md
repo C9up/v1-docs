@@ -3,7 +3,7 @@ layout: home
 hero:
   name: Ream
   text: Rust-powered Node.js framework
-  tagline: The comfort of AdonisJS. The power of Rust. The freedom to choose.
+  tagline: The comfort of a full-stack framework. The power of Rust. The freedom to choose.
   actions:
     - theme: brand
       text: Get Started
