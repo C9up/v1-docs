@@ -25,7 +25,7 @@ import { defineConfig, stores } from '@c9up/eclipse'
 import env from '#start/env'
 
 export default defineConfig({
-  default: env.get('LOCK_STORE', 'memory'),
+  default: env.get('LOCK_STORE'),
 
   stores: {
     memory: stores.memory(),
@@ -39,7 +39,9 @@ export default defineConfig({
 providers: [() => import('@c9up/eclipse/provider')]
 ```
 
-`ream configure @c9up/eclipse` writes both files and declares `LOCK_STORE`.
+`ream configure @c9up/eclipse` writes both files, sets `LOCK_STORE=redis` and declares its validation in `start/env.ts` (`redis` or `memory`), so a typo fails at env validation rather than at boot.
+
+There is no in-process fallback: the provider refuses to boot without `config/lock.ts` (`E_ECLIPSE_MISSING_CONFIG`), and `defineConfig` refuses a config whose `default` is unset or names no declared store. An application that really runs as one process says so with `LOCK_STORE=memory`.
 
 ## Main API
 
@@ -96,7 +98,9 @@ const taken = await lock.acquire({
 })
 ```
 
-`acquire()` without options waits indefinitely. `timeout: 0` means "do not wait".
+`acquire()` without options waits indefinitely. `timeout: 0` means "do not wait", and `timeout: null` means "no deadline".
+
+The options are checked before the store is asked anything (`E_ECLIPSE_INVALID_RETRY`): `attempts` is a positive integer or `Infinity`, `delay` a duration from 0 to about 24.8 days, `timeout` a duration of 0 or more. A `NaN` from an unset environment variable would otherwise remove the deadline and poll the store every millisecond.
 
 ### Across a process boundary
 
@@ -141,7 +145,9 @@ Every lease carries a random owner token, and release and extend compare it **in
 
 Without that, work that outlives its own TTL deletes the lease a *different* instance has since taken, freeing the name while work is still running under it.
 
-Losing a lease is reported as `E_LOCK_NOT_OWNED`, uniformly across stores — whether the key is gone or held by someone else, the caller no longer owns what it thought it owned. `Lock.run` absorbs it on the way out so it cannot replace whatever your callback was throwing; a direct `release()` reports it.
+Losing a lease is reported as `E_LOCK_NOT_OWNED`, uniformly across stores — whether the key is gone or held by someone else, the caller no longer owns what it thought it owned.
+
+`run` and `runImmediately` reject with it when the callback succeeded but the lease lapsed while it ran: another holder may have run at the same time, and a clean `[true, result]` would hide it. When the callback itself threw, that error is rethrown unchanged, and a failed release (lost lease or store failure) does not replace it.
 
 ## With the scheduler
 
@@ -156,23 +162,39 @@ export default defineConfig({ lock: schedulerBackend(() => locks) })
 
 `@c9up/ream` does not depend on eclipse. The scheduler declares a narrow two-method contract and eclipse satisfies it, so the core works with no lock package installed. This is for the application that wants **one** lock layer behind both its schedule and its own code, rather than two that expire independently.
 
+The lease is renewed every third of its TTL while the task runs, so a task longer than the TTL never runs on two instances at once. The TTL then only bounds how long the name stays taken after an instance dies holding it.
+
+```ts
+schedulerBackend(() => locks, {
+  ttl: '2m', // overrides the single TTL the scheduler passes for every task
+  onLeaseLost: (name, error) => logger.error({ err: error }, `lease lost: ${name}`),
+})
+```
+
+`onLeaseLost` is called when a running task's lease turns out to be held by someone else; without it the loss is emitted as a process warning.
+
 ## Errors
 
 | Code | Raised when |
 |---|---|
 | `E_LOCK_NOT_OWNED` | release or extend by something that no longer holds the lease |
 | `E_LOCK_STORAGE_ERROR` | the store failed while saving, reading or deleting |
-| `E_ECLIPSE_INVALID_TTL` | a TTL that is not a finite positive number of milliseconds |
-| `E_ECLIPSE_UNKNOWN_STORE` | a config naming a store that is not declared |
+| `E_ECLIPSE_INVALID_TTL` | a TTL that is not a positive number of milliseconds up to `Number.MAX_SAFE_INTEGER` |
+| `E_ECLIPSE_INVALID_RETRY` | a retry `attempts`, `delay` or `timeout` that cannot bound the wait |
+| `E_ECLIPSE_UNKNOWN_STORE` | a config or `use()` naming a store that is not declared |
+| `E_ECLIPSE_INVALID_CONFIG` | a lock config without `stores` or `default` |
+| `E_ECLIPSE_MISSING_CONFIG` | the provider is registered but `config/lock.ts` is missing |
 
 ## Testing
 
 ```ts
 import { fakeLocks } from '@c9up/eclipse/testing'
 
-const restore = fakeLocks()
+const restore = fakeLocks(app.container)
 afterEach(restore)
 ```
+
+The teardown puts back the manager the fake replaced. Given the container, the fake also stands behind its `LockManager`, `lock` and `eclipse.lock` bindings, so code that resolves the manager from the container gets it too.
 
 ## Production checklist
 

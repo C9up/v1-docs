@@ -25,7 +25,7 @@ import { defineConfig, stores } from '@c9up/eclipse'
 import env from '#start/env'
 
 export default defineConfig({
-  default: env.get('LOCK_STORE', 'memory'),
+  default: env.get('LOCK_STORE'),
 
   stores: {
     memory: stores.memory(),
@@ -39,7 +39,9 @@ export default defineConfig({
 providers: [() => import('@c9up/eclipse/provider')]
 ```
 
-`ream configure @c9up/eclipse` écrit les deux fichiers et déclare `LOCK_STORE`.
+`ream configure @c9up/eclipse` écrit les deux fichiers, pose `LOCK_STORE=redis` et déclare sa validation dans `start/env.ts` (`redis` ou `memory`) : une faute de frappe échoue à la validation de l'environnement plutôt qu'au démarrage.
+
+Il n'y a pas de repli en mémoire : le provider refuse de démarrer sans `config/lock.ts` (`E_ECLIPSE_MISSING_CONFIG`), et `defineConfig` refuse une config dont le `default` est absent ou ne nomme aucun store déclaré. Une application qui tourne vraiment dans un seul processus le dit avec `LOCK_STORE=memory`.
 
 ## API principale
 
@@ -96,7 +98,9 @@ const taken = await lock.acquire({
 })
 ```
 
-`acquire()` sans options attend indéfiniment. `timeout: 0` signifie « ne pas attendre ».
+`acquire()` sans options attend indéfiniment. `timeout: 0` signifie « ne pas attendre », et `timeout: null` « pas d'échéance ».
+
+Les options sont vérifiées avant toute question au store (`E_ECLIPSE_INVALID_RETRY`) : `attempts` est un entier positif ou `Infinity`, `delay` une durée de 0 à environ 24,8 jours, `timeout` une durée de 0 ou plus. Sinon, un `NaN` venu d'une variable d'environnement absente supprimerait l'échéance et interrogerait le store à chaque milliseconde.
 
 ### D'un processus à l'autre
 
@@ -141,7 +145,9 @@ Chaque bail porte un jeton de propriétaire aléatoire, et le relâchement comme
 
 Sans cela, un travail qui dépasse son propre TTL supprime le bail qu'une *autre* instance a pris entre-temps, libérant le nom alors qu'un travail tourne encore dessous.
 
-La perte d'un bail est signalée par `E_LOCK_NOT_OWNED`, uniformément quel que soit le store — que la clé ait disparu ou qu'un autre la détienne, l'appelant ne détient plus ce qu'il croyait détenir. `Lock.run` l'absorbe à la sortie pour qu'elle ne remplace pas l'erreur que votre callback était en train de lever ; un `release()` direct la signale.
+La perte d'un bail est signalée par `E_LOCK_NOT_OWNED`, uniformément quel que soit le store — que la clé ait disparu ou qu'un autre la détienne, l'appelant ne détient plus ce qu'il croyait détenir.
+
+`run` et `runImmediately` la lèvent quand le callback a réussi mais que le bail a expiré pendant qu'il tournait : un autre détenteur a pu tourner en même temps, et un `[true, résultat]` propre le cacherait. Quand le callback lui-même a levé une erreur, c'est elle qui ressort, inchangée, et un relâchement raté (bail perdu ou panne du store) ne la remplace pas.
 
 ## Avec le scheduler
 
@@ -156,23 +162,39 @@ export default defineConfig({ lock: schedulerBackend(() => locks) })
 
 `@c9up/ream` ne dépend pas d'eclipse. Le scheduler déclare un contrat étroit à deux méthodes qu'eclipse satisfait, donc le cœur fonctionne sans aucun paquet de verrous installé. C'est pour l'application qui veut **une seule** couche de verrous derrière son planificateur et son propre code, plutôt que deux qui expirent indépendamment.
 
+Le bail est renouvelé tous les tiers de son TTL tant que la tâche tourne : une tâche plus longue que le TTL ne tourne jamais sur deux instances à la fois. Le TTL ne borne alors que la durée pendant laquelle le nom reste pris après la mort d'une instance qui le détenait.
+
+```ts
+schedulerBackend(() => locks, {
+  ttl: '2m', // remplace le TTL unique que le scheduler passe pour toutes les tâches
+  onLeaseLost: (name, error) => logger.error({ err: error }, `bail perdu : ${name}`),
+})
+```
+
+`onLeaseLost` est appelé quand le bail d'une tâche en cours se révèle détenu par un autre ; sans lui, la perte est émise comme avertissement du processus.
+
 ## Erreurs
 
 | Code | Levée quand |
 |---|---|
 | `E_LOCK_NOT_OWNED` | relâchement ou prolongation par ce qui ne détient plus le bail |
 | `E_LOCK_STORAGE_ERROR` | le store a échoué à l'écriture, la lecture ou la suppression |
-| `E_ECLIPSE_INVALID_TTL` | un TTL qui n'est pas un nombre fini positif de millisecondes |
-| `E_ECLIPSE_UNKNOWN_STORE` | une config nommant un store non déclaré |
+| `E_ECLIPSE_INVALID_TTL` | un TTL qui n'est pas un nombre positif de millisecondes jusqu'à `Number.MAX_SAFE_INTEGER` |
+| `E_ECLIPSE_INVALID_RETRY` | un `attempts`, `delay` ou `timeout` de retry qui ne peut pas borner l'attente |
+| `E_ECLIPSE_UNKNOWN_STORE` | une config ou un `use()` nommant un store non déclaré |
+| `E_ECLIPSE_INVALID_CONFIG` | une config de verrous sans `stores` ou sans `default` |
+| `E_ECLIPSE_MISSING_CONFIG` | le provider est enregistré mais `config/lock.ts` manque |
 
 ## Tests
 
 ```ts
 import { fakeLocks } from '@c9up/eclipse/testing'
 
-const restore = fakeLocks()
+const restore = fakeLocks(app.container)
 afterEach(restore)
 ```
+
+Le teardown remet en place le manager que le fake a remplacé. Avec le conteneur, le fake se place aussi derrière ses liaisons `LockManager`, `lock` et `eclipse.lock` : le code qui résout le manager depuis le conteneur le reçoit aussi.
 
 ## Checklist de production
 
