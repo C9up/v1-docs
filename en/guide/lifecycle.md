@@ -1,6 +1,6 @@
 # Application Lifecycle
 
-Ream follows a four-phase startup sequence inspired by AdonisJS. Every provider, preload file, and module route file has a defined moment when it runs. Understanding this sequence tells you exactly where to put initialization code.
+Ream follows a four-phase startup sequence. Every provider, preload file, and module route file has a defined moment when it runs. Understanding this sequence tells you exactly where to put initialization code.
 
 ```
 REGISTER → BOOT → START → READY → [running] → SHUTDOWN

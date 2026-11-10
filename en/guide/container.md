@@ -1,6 +1,6 @@
 # IoC Container
 
-The IoC (Inversion of Control) container is the backbone of a Ream application. It auto-constructs classes, manages dependency lifetimes, and provides a testing seam via swaps. The design is AdonisJS Fold-compatible.
+The IoC (Inversion of Control) container is the backbone of a Ream application. It auto-constructs classes, manages dependency lifetimes, and provides a testing seam via swaps.
 
 ## Auto-construction with `make()`
 
@@ -21,7 +21,7 @@ class UserService {
 const service = await container.make(UserService)
 ```
 
-`make()` and `resolve()` are **async** — they return `Promise<T>` and must be `await`ed (AdonisJS Fold parity). Forgetting the `await` hands you a pending `Promise`, not the instance, and the next method call fails with `X is not a function`. Pass a type argument — `make<T>()` — instead of casting the result with `as T`.
+`make()` and `resolve()` are **async** — they return `Promise<T>` and must be `await`ed. Forgetting the `await` hands you a pending `Promise`, not the instance, and the next method call fails with `X is not a function`. Pass a type argument — `make<T>()` — instead of casting the result with `as T`.
 
 `make()` is an alias for `resolve()`. Both are interchangeable.
 
@@ -31,7 +31,7 @@ Use explicit bindings when you need to control how an instance is created — fo
 
 ### `singleton(token, factory)`
 
-The factory runs once. Every subsequent call returns the same cached instance. The factory receives a `resolver` (AdonisJS Fold parity) and may be `async` — the container `await`s it. When a factory resolves another binding, make it `async` and `await` the nested `make()`.
+The factory runs once. Every subsequent call returns the same cached instance. The factory receives a `resolver` and may be `async` — the container `await`s it. When a factory resolves another binding, make it `async` and `await` the nested `make()`.
 
 ```typescript
 container.singleton('db', () => {
@@ -253,7 +253,7 @@ export default class UsersController {
 }
 ```
 
-The shape must match `{ _constructor: { dependencies: ServiceToken[] } }`. This is the AdonisJS Fold convention and works in any runtime.
+The shape must match `{ _constructor: { dependencies: ServiceToken[] } }`. This convention works in any runtime.
 
 ## Testing — `swap()` and `restore()`
 

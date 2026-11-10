@@ -1,6 +1,6 @@
 # Cycle de vie de l'application
 
-Ream suit une séquence de démarrage en quatre phases inspirée d'AdonisJS. Chaque provider, fichier de préchargement et fichier de routes de module dispose d'un moment précis où il s'exécute. Comprendre cette séquence vous indique exactement où placer le code d'initialisation.
+Ream suit une séquence de démarrage en quatre phases. Chaque provider, fichier de préchargement et fichier de routes de module dispose d'un moment précis où il s'exécute. Comprendre cette séquence vous indique exactement où placer le code d'initialisation.
 
 ```
 REGISTER → BOOT → START → READY → [en cours d'exécution] → SHUTDOWN

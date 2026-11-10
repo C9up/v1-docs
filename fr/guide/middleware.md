@@ -128,7 +128,7 @@ ctx.is('http')            // true pour les requêtes HTTP
 ctx.is('event')           // true pour les events du bus
 ctx.auth                  // { authenticated, user?, roles?, permissions? }
 ctx.locale                // Locale détectée (défaut 'en')
-ctx.containerResolver     // Résolveur IoC par requête (idiome Adonis) : ctx.containerResolver?.make(Service)
+ctx.containerResolver     // Résolveur IoC par requête : ctx.containerResolver?.make(Service)
 
 // Spécifique HTTP
 ctx.request?.method       // 'GET', 'POST', etc.
@@ -149,7 +149,7 @@ ctx.event?.correlationId  // ID de traçage de chaîne
 
 ## Résoudre un service dans un middleware
 
-Un middleware résout les services enregistrés dans le conteneur via `ctx.containerResolver` (idiome AdonisJS), plutôt qu'en important le singleton applicatif. C'est ce qui permet à un middleware — surtout livré comme package autonome — de rester sans import runtime de `@c9up/ream` :
+Un middleware résout les services enregistrés dans le conteneur via `ctx.containerResolver`, plutôt qu'en important le singleton applicatif. C'est ce qui permet à un middleware — surtout livré comme package autonome — de rester sans import runtime de `@c9up/ream` :
 
 ```typescript
 import type { HttpContext } from '@c9up/ream'
@@ -164,9 +164,9 @@ export default class WardenMiddleware {
 }
 ```
 
-`ctx.containerResolver` est le résolveur par requête que Ream construit avec `container.createResolver()` (AdonisJS Fold) ; `.make(token)` résout une classe, une string ou un symbol. C'est ainsi que `@c9up/warden` et `@c9up/blackhole` consomment les services de l'hôte tout en restant agnostiques du framework.
+`ctx.containerResolver` est le résolveur par requête que Ream construit avec `container.createResolver()` ; `.make(token)` résout une classe, une string ou un symbol. C'est ainsi que `@c9up/warden` et `@c9up/blackhole` consomment les services de l'hôte tout en restant agnostiques du framework.
 
-Il porte aussi le reste de la surface du résolveur AdonisJS — `call()`, `hasBinding()`, `hasAllBindings()` et `bindValue()` :
+Il porte aussi le reste de la surface du résolveur — `call()`, `hasBinding()`, `hasAllBindings()` et `bindValue()` :
 
 ```typescript
 // Lié à CETTE requête uniquement — aucune autre ne le voit

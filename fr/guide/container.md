@@ -1,6 +1,6 @@
 # Conteneur IoC
 
-Le conteneur IoC (Inversion of Control) est la colonne vertébrale d'une application Ream. Il construit les classes automatiquement, gère la durée de vie des dépendances et fournit un point de substitution pour les tests via les swaps. La conception est compatible avec AdonisJS Fold.
+Le conteneur IoC (Inversion of Control) est la colonne vertébrale d'une application Ream. Il construit les classes automatiquement, gère la durée de vie des dépendances et fournit un point de substitution pour les tests via les swaps.
 
 ## Construction automatique avec `make()`
 
@@ -21,7 +21,7 @@ class UserService {
 const service = await container.make(UserService)
 ```
 
-`make()` et `resolve()` sont **asynchrones** — ils retournent `Promise<T>` et doivent être `await`és (parité AdonisJS Fold). Oublier le `await` vous rend une `Promise` en attente, et non l'instance ; l'appel de méthode suivant échoue avec `X is not a function`. Passez un argument de type — `make<T>()` — au lieu de caster le résultat avec `as T`.
+`make()` et `resolve()` sont **asynchrones** — ils retournent `Promise<T>` et doivent être `await`és. Oublier le `await` vous rend une `Promise` en attente, et non l'instance ; l'appel de méthode suivant échoue avec `X is not a function`. Passez un argument de type — `make<T>()` — au lieu de caster le résultat avec `as T`.
 
 `make()` est un alias de `resolve()`. Les deux sont interchangeables.
 
@@ -31,7 +31,7 @@ Utilisez les liaisons explicites lorsque vous devez contrôler la façon dont un
 
 ### `singleton(token, factory)`
 
-La factory s'exécute une seule fois. Chaque appel suivant retourne la même instance mise en cache. La factory reçoit un `resolver` (parité AdonisJS Fold) et peut être `async` — le conteneur l'`await`e. Lorsqu'une factory résout une autre liaison, rendez-la `async` et `await`ez le `make()` imbriqué.
+La factory s'exécute une seule fois. Chaque appel suivant retourne la même instance mise en cache. La factory reçoit un `resolver` et peut être `async` — le conteneur l'`await`e. Lorsqu'une factory résout une autre liaison, rendez-la `async` et `await`ez le `make()` imbriqué.
 
 ```typescript
 container.singleton('db', () => {
@@ -253,7 +253,7 @@ export default class UsersController {
 }
 ```
 
-La structure doit correspondre à `{ _constructor: { dependencies: ServiceToken[] } }`. C'est la convention AdonisJS Fold et elle fonctionne dans n'importe quel environnement d'exécution.
+La structure doit correspondre à `{ _constructor: { dependencies: ServiceToken[] } }`. Cette convention fonctionne dans n'importe quel environnement d'exécution.
 
 ## Tests — `swap()` et `restore()`
 

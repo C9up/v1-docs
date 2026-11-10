@@ -263,7 +263,7 @@ ctx.containerResolver        // Per-request IoC resolver: ctx.containerResolver?
 
 ### Resolving services in middleware
 
-Resolve container-registered services through `ctx.containerResolver` (the AdonisJS idiom) instead of importing the application singleton. This keeps a middleware — especially one shipped as a standalone package — free of any `@c9up/ream` runtime import:
+Resolve container-registered services through `ctx.containerResolver` instead of importing the application singleton. This keeps a middleware — especially one shipped as a standalone package — free of any `@c9up/ream` runtime import:
 
 ```typescript
 import type { HttpContext } from '@c9up/ream'
@@ -278,9 +278,9 @@ export default class WardenMiddleware {
 }
 ```
 
-`ctx.containerResolver` is the per-request resolver Ream builds with `container.createResolver()` (AdonisJS Fold); `.make(token)` resolves a class, string, or symbol token. This is how `@c9up/warden` and `@c9up/blackhole` consume host services while staying framework-agnostic.
+`ctx.containerResolver` is the per-request resolver Ream builds with `container.createResolver()`; `.make(token)` resolves a class, string, or symbol token. This is how `@c9up/warden` and `@c9up/blackhole` consume host services while staying framework-agnostic.
 
-It carries the rest of the AdonisJS resolver surface too — `call()`, `hasBinding()`, `hasAllBindings()`, and `bindValue()`:
+It carries the rest of the resolver surface too — `call()`, `hasBinding()`, `hasAllBindings()`, and `bindValue()`:
 
 ```typescript
 // Bound for THIS request only — no other request can see it
