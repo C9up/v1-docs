@@ -504,7 +504,7 @@ fonctionner. Pour la passer à `createPhotonApp` :
 
 ### Navigation SPA
 
-Photon intercepte les clics gauches sur les `<a>` internes, fetch la destination avec le header `X-Photon: true`, parse la réponse JSON props-only et permute la racine montée. Les boutons précédent/suivant du navigateur restaurent les pages précédentes depuis `history.state`.
+Les composants `Link` des frameworks naviguent sans rechargement de page. Un `<a>` simple est laissé au navigateur, sauf s'il s'inscrit avec `data-photon` : Photon intercepte alors le clic gauche, fetch la destination avec le header `X-Photon: true`, parse la réponse JSON props-only et permute la racine montée. Les boutons précédent/suivant du navigateur restaurent les pages précédentes depuis `history.state`.
 
 Un clic est intercepté **uniquement** quand TOUTES ces conditions tiennent :
 
@@ -512,15 +512,17 @@ Un clic est intercepté **uniquement** quand TOUTES ces conditions tiennent :
 - Aucune touche modificatrice (Ctrl, Cmd, Shift, Alt) — sinon le comportement par défaut du navigateur (nouvel onglet / sauvegarder le lien) gagne.
 - L'ancre a un `href`, pas d'attribut `download`, et pas de `target` autre que `_self` / `''`.
 - L'URL résolue est **same-origin** avec un protocole `http:` / `https:` (pas `mailto:`, `tel:`, `javascript:`, `blob:`, `data:`).
-- L'ancre n'est PAS opt-out via `data-photon="external"`.
+- L'ancre porte `data-photon` (toute valeur sauf `external`).
 
-Opt-out par lien :
+Inscription par lien :
 
 ```html
-<a href="/une-page-interne" data-photon="external">Forcer un rechargement complet</a>
+<a href="/orders" data-photon>Commandes</a>
 ```
 
-Si le fetch SPA-nav échoue (réponse non-2xx, mauvais `Content-Type`, JSON malformé, URL cross-origin retournée par le serveur, adapteur qui throw), Photon retombe sur `location.href = url` — l'utilisateur arrive toujours sur la page cliquée, même si l'interactivité est cassée.
+Les ancres sont à inscrire parce qu'un lien simple peut mener n'importe où — un lien magique à usage unique, un export, une page qui n'est pas une page Photon. Le fetcher d'abord puis le recharger quand la réponse n'est pas une page demanderait deux fois la même URL ; n'inscris que les ancres qui mènent à des pages Photon.
+
+Si le fetch SPA-nav d'une ancre inscrite échoue (réponse non-2xx, mauvais `Content-Type`, JSON malformé, URL cross-origin retournée par le serveur, adapteur qui throw), Photon retombe sur `location.href = url` — l'utilisateur arrive toujours sur la page cliquée, même si l'interactivité est cassée. Ce repli demande l'URL une deuxième fois : c'est pourquoi seules les ancres vers des pages Photon s'inscrivent.
 
 **Navigation concurrente :** les double-clics rapides (lien A puis lien B avant que la réponse de A arrive) sont dédupliqués — seule la dernière navigation gagne ; les réponses obsolètes sont jetées.
 

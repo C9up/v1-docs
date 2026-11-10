@@ -495,7 +495,7 @@ To move it:
 
 ### SPA navigation
 
-Photon intercepts left-clicks on internal `<a>` elements, fetches the destination with the `X-Photon: true` header, parses the props-only JSON response, and swaps the mounted root. The browser back/forward buttons restore previous pages from `history.state`.
+The framework `Link` components navigate without a page load. A plain `<a>` is left to the browser unless it opts in with `data-photon`: then Photon intercepts the left-click, fetches the destination with the `X-Photon: true` header, parses the props-only JSON response, and swaps the mounted root. The browser back/forward buttons restore previous pages from `history.state`.
 
 A click is intercepted only when ALL of these hold:
 
@@ -503,15 +503,17 @@ A click is intercepted only when ALL of these hold:
 - No modifier keys (Ctrl, Cmd, Shift, Alt) — otherwise the browser's default new-tab / save-link behavior wins.
 - The anchor has an `href`, no `download` attribute, and no `target` other than `_self` / `''`.
 - The resolved URL is **same-origin** with a `http:` / `https:` protocol (no `mailto:`, `tel:`, `javascript:`, `blob:`, `data:`).
-- The anchor is NOT opted out via `data-photon="external"`.
+- The anchor carries `data-photon` (any value but `external`).
 
-Opt out per-link:
+Opt in per-link:
 
 ```html
-<a href="/some-internal-page" data-photon="external">Force a full page reload</a>
+<a href="/orders" data-photon>Orders</a>
 ```
 
-If the SPA-nav fetch fails (non-2xx response, wrong `Content-Type`, malformed JSON, server-supplied URL is cross-origin, adapter render throws), Photon falls back to `location.href = url` — the user always gets to the page they clicked, even when interactivity is broken.
+Anchors are opt-in because a plain one may lead anywhere — a single-use magic link, an export, a page that is not Photon's. Fetching it first and then reloading it when the answer is not a page would request the same URL twice; only mark the anchors that lead to Photon pages.
+
+If the SPA-nav fetch of an opted-in anchor fails (non-2xx response, wrong `Content-Type`, malformed JSON, server-supplied URL is cross-origin, adapter render throws), Photon falls back to `location.href = url` — the user always gets to the page they clicked, even when interactivity is broken. That fallback requests the URL a second time, which is why only anchors to Photon pages opt in.
 
 **Concurrent navigation:** rapid double-clicks (link A then link B before A's response arrives) are deduped — only the latest navigation wins; stale responses are dropped.
 
