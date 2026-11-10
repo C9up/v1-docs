@@ -98,6 +98,13 @@ l'emporte. Rien n'est inventé, les valeurs vides (`undefined`, `null`, `''`,
 `[]`, `{}`) sont retirées, et les clés sont triées : une page donne les mêmes
 octets à chaque rendu.
 
+Chaque nœud est normalisé à l'ajout : une `Date` devient sa chaîne ISO, une
+valeur avec `toJSON` ce qu'elle donne, et une valeur que JSON ne sait pas
+tenir (`NaN`, `Infinity`, une `Map`, une instance de classe, une fonction) est
+refusée (`E_EPHEMERIS_INVALID_VALUE`). `toJsonLd()` rend donc des données
+simples que n'importe quel `JSON.stringify` — celui de Photon, d'Inker,
+d'Aurora — écrit fidèlement.
+
 ## La balise script
 
 ```ts

@@ -93,6 +93,12 @@ A layout and a page may describe the same node: the declarations merge, the
 empty values (`undefined`, `null`, `''`, `[]`, `{}`) are dropped, and keys are
 ordered, so a page renders the same bytes every time.
 
+Each node is normalized as it is added: a `Date` becomes its ISO string, a
+value with `toJSON` what it gives, and a value JSON cannot hold (`NaN`,
+`Infinity`, a `Map`, a class instance, a function) is refused
+(`E_EPHEMERIS_INVALID_VALUE`). `toJsonLd()` therefore returns plain data that
+any `JSON.stringify` — Photon's, Inker's, Aurora's — writes faithfully.
+
 ## The script tag
 
 ```ts
