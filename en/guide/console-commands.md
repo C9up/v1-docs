@@ -84,8 +84,8 @@ static options: CommandOptions = { startApp: true }
 
 ## Dependency injection
 
-A command declaring `startApp: true` is built **by the container**. The form
-Adonis documents is injection into the lifecycle methods:
+A command declaring `startApp: true` is built **by the container**. Dependencies
+can be injected into the lifecycle methods:
 
 ```ts
 export default class Notify extends BaseCommand {
@@ -103,9 +103,7 @@ export default class Notify extends BaseCommand {
 }
 ```
 
-**A Ream extension, not parity:** constructor injection also works here. Adonis's
-examples only ever use method injection, so a command written with an injected
-constructor ports *to* Ream, not necessarily the other way round.
+Constructor injection works too:
 
 ```ts
 constructor(@Inject('mailer') private mailer: Mailer) {
@@ -475,7 +473,7 @@ display. Use `result` to transform. (Live echo formatting needs raw mode, so
 here `format` only shapes the default that is shown.)
 
 For `choice`, `multiple` and `autocomplete`, `default` is an **index** (or a
-list of indexes), as in Adonis — an empty answer selects that option, and the
+list of indexes) — an empty answer selects that option, and the
 label shows its name.
 
 `multiple()` receives the **whole selection** in `validate` and `result`, not
@@ -584,18 +582,15 @@ ream make:listener sendMail --event=orderShipped  # app/listeners/send_mail.ts, 
 key there invalidates every session and signed URL in circulation. Use `--show`
 for a secrets manager, or `--force` deliberately.
 
-Suffixes follow Adonis: `Middleware` for middleware (which they document), none
-for events and listeners.
+Middleware files take the `Middleware` suffix; events and listeners take none.
 
-### File conventions — a deliberate difference from Adonis
+### File conventions — organised by module
 
 Ream's generators are organised **by module**, not by type:
-`ream make:controller billing Invoice` writes `app/billing/InvoiceController.ts`,
-where Adonis would write `app/controllers/invoices_controller.ts`. That is a
-deliberate choice: module boundaries are structural in Ream, and matching Adonis
-would break existing projects.
+`ream make:controller billing Invoice` writes `app/billing/InvoiceController.ts`.
+Module boundaries are structural in Ream.
 
-Artifacts that belong to no module do follow Adonis's locations:
+Artifacts that belong to no module go to fixed locations:
 `app/middleware/`, `app/events/`, `app/listeners/`, `providers/`,
 `database/migrations/`, `database/seeders/`, `commands/`.
 
@@ -722,9 +717,8 @@ replaces the full stack with a summary.
 
 `exec()`, the programmatic path, is the one that rejects.
 
-`Kernel.commandExecutor` is the build-and-run seam — the very one AdonisJS
-replaces to add dependency injection. In Ream the default executor already does
-it: the container builds the command and calls its hooks. To replace it:
+`Kernel.commandExecutor` is the build-and-run seam. The default executor
+already injects dependencies: the container builds the command and calls its hooks. To replace it:
 
 ```ts
 class MyKernel extends Kernel {
@@ -883,8 +877,7 @@ Ream ships some too — `migrate`, `migrate:rollback`, `migrate:status`,
 `@c9up/ream/commands`. The difference is that nobody registers them: the
 Ignitor loads that loader first, before discovery and before `reamrc.commands`.
 
-That is a deviation from AdonisJS, where the starter kit lists
-`@adonisjs/core/commands` in the rc file. These were subcommands of the `ream`
+These were subcommands of the `ream`
 binary before they were classes, and an application that upgrades must not
 silently lose them. Loading them first also means an application that defines a
 command of the same name in `commands/` wins — the later registration replaces

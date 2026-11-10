@@ -85,8 +85,7 @@ static options: CommandOptions = { startApp: true }
 ## Injection de dépendances
 
 Une commande qui déclare `startApp: true` est construite **par le conteneur**.
-La forme documentée par Adonis est l'injection dans les méthodes du cycle de
-vie :
+Les dépendances peuvent être injectées dans les méthodes du cycle de vie :
 
 ```ts
 export default class Notify extends BaseCommand {
@@ -104,10 +103,7 @@ export default class Notify extends BaseCommand {
 }
 ```
 
-**Extension Ream, pas parité :** l'injection dans le constructeur fonctionne
-aussi ici. Les exemples d'Adonis n'utilisent que l'injection de méthode, donc
-une commande écrite avec un constructeur injecté est portable *vers* Ream, pas
-nécessairement l'inverse.
+L'injection dans le constructeur fonctionne aussi :
 
 ```ts
 constructor(@Inject('mailer') private mailer: Mailer) {
@@ -485,7 +481,7 @@ que l'affichage. Utilisez `result` pour transformer. (Le formatage à la frappe
 demande le mode raw ; ici `format` ne s'applique donc qu'au défaut affiché.)
 
 Pour `choice`, `multiple` et `autocomplete`, `default` est un **index** (ou une
-liste d'index), comme chez Adonis — une saisie vide sélectionne cette option, et
+liste d'index) — une saisie vide sélectionne cette option, et
 le libellé affiche son nom.
 
 `multiple()` reçoit la **sélection entière** dans `validate` et `result`, pas
@@ -595,19 +591,17 @@ ream make:listener sendMail --event=orderShipped  # app/listeners/send_mail.ts, 
 la clé y invaliderait toutes les sessions et URLs signées en circulation. Utilisez
 `--show` pour un gestionnaire de secrets, ou `--force` en connaissance de cause.
 
-Le suffixe suit Adonis : `Middleware` pour les middlewares (documenté chez eux),
-aucun pour les events et listeners.
+Les fichiers de middleware prennent le suffixe `Middleware` ; les events et
+listeners n'en prennent aucun.
 
-### Conventions de fichiers — écart assumé avec Adonis
+### Conventions de fichiers — organisées par module
 
 Les générateurs de Ream sont organisés **par module**, pas par type :
-`ream make:controller billing Invoice` écrit `app/billing/InvoiceController.ts`,
-là où Adonis écrirait `app/controllers/invoices_controller.ts`. C'est un choix
-délibéré : le découpage par module est structurant dans Ream, et s'aligner sur
-Adonis casserait les projets existants.
+`ream make:controller billing Invoice` écrit `app/billing/InvoiceController.ts`.
+Le découpage par module est structurant dans Ream.
 
-Les artefacts qui n'appartiennent à aucun module suivent en revanche les mêmes
-emplacements qu'Adonis : `app/middleware/`, `app/events/`, `app/listeners/`,
+Les artefacts qui n'appartiennent à aucun module vont à des emplacements fixes :
+`app/middleware/`, `app/events/`, `app/listeners/`,
 `providers/`, `database/migrations/`, `database/seeders/`, `commands/`.
 
 ### Redéfinir une commande du CLI
@@ -736,9 +730,8 @@ kernel.errorHandler = new MonHandler()
 
 C'est `exec()`, le chemin programmatique, qui rejette.
 
-`Kernel.commandExecutor` est le seam de construction et d'exécution — celui
-qu'AdonisJS remplace justement pour ajouter l'injection de dépendances. Chez
-Ream elle est déjà dans l'exécuteur par défaut : le conteneur construit la
+`Kernel.commandExecutor` est le seam de construction et d'exécution.
+L'exécuteur par défaut injecte déjà les dépendances : le conteneur construit la
 commande et appelle ses hooks. Pour le remplacer :
 
 ```ts
@@ -902,8 +895,7 @@ Ream en livre aussi — `migrate`, `migrate:rollback`, `migrate:status`,
 `@c9up/ream/commands`. La différence : personne ne les enregistre. L'Ignitor
 charge ce chargeur en premier, avant la découverte et avant `reamrc.commands`.
 
-C'est un écart avec AdonisJS, où le starter kit liste `@adonisjs/core/commands`
-dans le fichier rc. Ces commandes étaient des sous-commandes du binaire `ream`
+Ces commandes étaient des sous-commandes du binaire `ream`
 avant d'être des classes, et une application qui monte de version ne doit pas
 les perdre en silence. Les charger en premier signifie aussi qu'une application
 qui définit le même nom dans `commands/` l'emporte — l'enregistrement suivant
