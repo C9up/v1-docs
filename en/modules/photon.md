@@ -999,7 +999,9 @@ validation against a Laravel endpoint), and upload `progress`, which stays
 
 `props.errors` is shared with every page, so a form component can read
 `errors.email` unconditionally. The `x-photon-error-bag` header scopes them,
-which is how two forms on one page keep their messages apart.
+which is how two forms on one page keep their messages apart. With no errors
+there is no bag either: `errors` stays `{}`, because any key in it reads as a
+failed submission.
 
 ## Response-level fields
 

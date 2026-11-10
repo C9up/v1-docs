@@ -1016,7 +1016,9 @@ Precognition (validation en direct contre un endpoint Laravel), et la
 
 `props.errors` est partagé avec chaque page, pour qu'un composant de formulaire
 lise `errors.email` sans garde. L'en-tête `x-photon-error-bag` les cadre, ce qui
-permet à deux formulaires d'une même page de garder leurs messages séparés.
+permet à deux formulaires d'une même page de garder leurs messages séparés. Sans
+erreur, pas de sac non plus : `errors` reste `{}`, car toute clé y est lue comme
+un envoi échoué.
 
 ## Champs au niveau réponse
 
