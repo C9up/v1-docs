@@ -67,8 +67,7 @@ container.
 
 ### Wildcard subscriptions
 
-`onAny()` hands back the unsubscribe function AdonisJS returns; `offAny()` takes
-the listener:
+`onAny()` hands back an unsubscribe function; `offAny()` takes the listener:
 
 ```ts
 const unsubscribe = await emitter.onAny(audit)              // every event
@@ -78,11 +77,11 @@ await unsubscribe()
 await emitter.offAny(audit)                                 // or by listener
 ```
 
-::: tip Named deviation
+::: tip Why they are promises
 Both are promises, and the unsubscribe function is `() => Promise<void>` rather
 than `() => void`. Subscribing and unsubscribing cross the NAPI boundary into
 the Rust bus, and returning before the call lands would drop events. It is
-assignable wherever AdonisJS expects the synchronous form — await it when the
+assignable wherever a `() => void` is expected — await it when the
 next assertion depends on the subscription actually being gone.
 :::
 
@@ -101,7 +100,7 @@ const emitter = await app.container.make('events')   // or 'emitter'
 ```
 
 The provider binds three tokens to the same emitter — `events` (primary),
-`emitter` (AdonisJS-style), and `bus` (the low-level native `EventBus`).
+`emitter` (an alias), and `bus` (the low-level native `EventBus`).
 
 ## In a request handler — `ctx.events`
 
@@ -190,7 +189,7 @@ helpers (`collect`, `waitForEvent`, `assertEmitted`) via `@c9up/ream/events/heli
 
 `fake()` stops the named events reaching their listeners **and** the bus, and
 collects them instead — so a test asserts what an action announced without also
-running every reaction to it (AdonisJS `Emitter.fake`):
+running every reaction to it:
 
 ```ts
 const events = emitter.fake(['user:registered'])

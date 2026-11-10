@@ -69,8 +69,7 @@ toujours, même sans container.
 
 ### Souscriptions joker
 
-`onAny()` rend la fonction de désabonnement que rend AdonisJS ; `offAny()` prend
-le listener :
+`onAny()` rend une fonction de désabonnement ; `offAny()` prend le listener :
 
 ```ts
 const unsubscribe = await emitter.onAny(audit)              // tous les events
@@ -80,12 +79,12 @@ await unsubscribe()
 await emitter.offAny(audit)                                 // ou par listener
 ```
 
-::: tip Écart nommé
+::: tip Pourquoi des promesses
 Les deux sont des promesses, et la fonction de désabonnement est
 `() => Promise<void>` plutôt que `() => void`. S'abonner et se désabonner
 traversent la frontière NAPI vers le bus Rust, et rendre la main avant que
 l'appel n'atterrisse perdrait des events. Elle reste assignable partout où
-AdonisJS attend la forme synchrone — attends-la quand l'assertion suivante
+un `() => void` est attendu — attends-la quand l'assertion suivante
 dépend de la souscription réellement disparue.
 :::
 
@@ -104,7 +103,7 @@ const emitter = await app.container.make('events')   // ou 'emitter'
 ```
 
 Le provider binde trois tokens vers le même emitter — `events` (principal),
-`emitter` (style AdonisJS), et `bus` (le `EventBus` natif bas niveau).
+`emitter` (un alias), et `bus` (le `EventBus` natif bas niveau).
 
 ## Dans un handler — `ctx.events`
 
@@ -197,7 +196,7 @@ observateurs (`collect`, `waitForEvent`, `assertEmitted`) via
 
 `fake()` empêche les events nommés d'atteindre leurs écouteurs **et** le bus, et
 les collecte à la place — un test vérifie donc ce qu'une action a annoncé sans
-exécuter toute la réaction qui s'ensuit (AdonisJS `Emitter.fake`) :
+exécuter toute la réaction qui s'ensuit :
 
 ```ts
 const events = emitter.fake(['user:registered'])
