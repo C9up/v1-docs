@@ -198,11 +198,10 @@ A stub is not limited to placeholders. The full grammar is there:
 {{/each}}
 ```
 
-**Named deviation.** `{{ }}` does NOT escape HTML. Upstream's templates are web
-pages; a stub is a source file, and turning `"` into `&quot;` there produces
-code that does not parse — silently. `{{{ }}}` means the same thing, so a stub
-written for upstream keeps working, and `escape` turns escaping back on for
-anyone templating markup.
+**No HTML escaping.** `{{ }}` does NOT escape HTML. A stub is a source file, and
+turning `"` into `&quot;` there produces code that does not parse — silently.
+`{{{ }}}` means the same thing, and `escape` turns escaping back on for anyone
+templating markup.
 
 A value a stub reads and the caller did not pass is an error naming it, not a
 `{{ missing }}` travelling into the generated file.

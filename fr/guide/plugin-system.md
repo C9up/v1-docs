@@ -201,11 +201,10 @@ Un stub ne se limite pas aux placeholders. La grammaire complète est là :
 {{/each}}
 ```
 
-**Déviation nommée.** `{{ }}` n'échappe PAS le HTML. En amont les templates
-sont des pages web ; un stub est un fichier source, et y transformer `"` en
-`&quot;` produit du code qui ne compile pas — en silence. `{{{ }}}` veut dire la
-même chose, donc un stub écrit pour l'amont continue de marcher, et l'option
-`escape` réactive l'échappement pour qui template du markup.
+**Pas d'échappement HTML.** `{{ }}` n'échappe PAS le HTML. Un stub est un
+fichier source, et y transformer `"` en `&quot;` produit du code qui ne compile
+pas — en silence. `{{{ }}}` veut dire la même chose, et l'option `escape`
+réactive l'échappement pour qui template du markup.
 
 Une valeur qu'un stub lit et que l'appelant n'a pas passée est une erreur qui la
 nomme, pas un `{{ missing }}` qui voyage dans le fichier généré.
