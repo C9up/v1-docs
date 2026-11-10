@@ -460,7 +460,10 @@ for (const signature of await vellum.verifySignatures(mandat)) {
 `coversWholeDocument` attrape le piège que tout le monde rencontre en premier :
 **du contenu ajouté après une signature n'est pas couvert par elle**, et le
 calcul sur la partie couverte reste juste. Une visionneuse qui ne vérifie que
-l'empreinte déclarera ce document signé.
+l'empreinte déclarera ce document signé. Il vaut aussi `false` quand la seule
+zone que la signature laisse de côté est autre chose que sa propre valeur,
+l'entrée `/Contents` de son propre dictionnaire de signature : toute autre zone
+serait faite d'octets que personne n'a signés.
 
 Le rapport nomme aussi le signataire, l'instant qu'il a déclaré, et dit si une
 autorité l'a horodaté. Un document sans signature n'en rapporte aucune — c'est

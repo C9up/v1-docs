@@ -443,7 +443,9 @@ for (const signature of await vellum.verifySignatures(mandate)) {
 `coversWholeDocument` catches the trap everybody meets first: **content
 appended after a signature is not covered by it**, and the arithmetic over the
 covered part still checks out. A reader that verifies only the digest will
-happily call such a document signed.
+happily call such a document signed. It is false as well when the one region
+the signature leaves out is anything but its own value, the `/Contents` entry
+of its own signature dictionary: any other region would be bytes nobody signed.
 
 The report also names the signer, the time they stated, and whether an
 authority has timestamped it. A document with no signatures reports none —
