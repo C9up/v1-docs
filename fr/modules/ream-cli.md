@@ -29,7 +29,7 @@ ream doctor
 
 - **`api`** — minimal : point d'entrée serveur, une route racine, un kernel de timing. Pas d'auth.
 - **`web`** — le squelette api plus un kit d'auth session/cookie pré-câblé. Une app `web` fraîche démarre authentifiée par cookie d'emblée :
-  - un kernel enchaînant blackhole (CSRF signé + en-têtes de sécurité) → body parser → `SessionMiddleware` cookie → middleware d'auth ;
+  - un kernel enchaînant body parser → `SessionMiddleware` cookie → blackhole (CSRF signé + en-têtes de sécurité) → middleware d'auth. L'ordre est porteur : blackhole passe après le body parser parce qu'un formulaire envoie son token CSRF dans le corps, et après la session parce que le token lui est lié (avec une config de session, blackhole avant la session refuse chaque requête avec `E_BLACKHOLE_SESSION_NOT_READY`) ; la session passe avant l'auth pour que `ctx.session` soit peuplé quand le guard session résout l'utilisateur ;
   - `config/auth.ts` par défaut sur la stratégie session (`defaultStrategy: 'session'`, avec un `findUser` en stub TODO) ;
   - `config/blackhole.ts` avec le CSRF signé activé (`secret` lu depuis `APP_KEY`) ;
   - `app/middleware/auth_middleware.ts` qui peuple `ctx.auth` depuis `ctx.session` ;
