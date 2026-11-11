@@ -255,10 +255,14 @@ import { registerTransport } from '@c9up/rover'
 import type { MailTransport, MailMessage } from '@c9up/rover'
 
 class ResendTransport implements MailTransport {
-  constructor(private config: Record<string, unknown>) {}
+  readonly #config: Record<string, unknown>
+
+  constructor(config: Record<string, unknown>) {
+    this.#config = config
+  }
 
   async send(message: MailMessage): Promise<void> {
-    // call Resend API using this.config.apiKey
+    // call Resend API using this.#config.apiKey
   }
 }
 
@@ -267,6 +271,10 @@ registerTransport('resend', (config) => new ResendTransport(config))
 // Now you can reference `transport: 'resend'` in your mail config:
 // mailers: { resend: { transport: 'resend', apiKey: process.env.RESEND_KEY } }
 ```
+
+A config that names a transport nobody registered fails when `Mail` is
+constructed (`E_MAIL_UNKNOWN_TRANSPORT`), with a hint to call `registerTransport()` first: register it before
+the provider builds the mailers (at the top of a preload file, for instance).
 
 ## Standalone Usage
 

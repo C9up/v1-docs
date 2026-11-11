@@ -254,17 +254,34 @@ Le provider refuse de démarrer quand aucun `config/mail.ts` n'est enregistré (
 
 ### Transports personnalises
 
-Implementez l'interface `MailTransport` :
+Implementez l'interface `MailTransport` et enregistrez une factory via `registerTransport()` :
 
 ```typescript
+import { registerTransport } from '@c9up/rover'
 import type { MailTransport, MailMessage } from '@c9up/rover'
 
 class ResendTransport implements MailTransport {
+  readonly #config: Record<string, unknown>
+
+  constructor(config: Record<string, unknown>) {
+    this.#config = config
+  }
+
   async send(message: MailMessage): Promise<void> {
-    // appel API Resend
+    // appel API Resend avec this.#config.apiKey
   }
 }
+
+registerTransport('resend', (config) => new ResendTransport(config))
+
+// `transport: 'resend'` peut maintenant figurer dans la config mail :
+// mailers: { resend: { transport: 'resend', apiKey: process.env.RESEND_KEY } }
 ```
+
+Une config qui nomme un transport que personne n'a enregistré échoue à la
+construction de `Mail` (`E_MAIL_UNKNOWN_TRANSPORT`), avec une indication d'appeler `registerTransport()`
+d'abord : enregistrez-le avant que le provider construise les mailers (en tête
+d'un fichier de preload, par exemple).
 
 ## Utilisation autonome
 
