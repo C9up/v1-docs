@@ -1442,7 +1442,7 @@ export default class AuthMiddleware {
     }
 
     ctx.auth = {
-      authenticated: true,
+      isAuthenticated: true,
       user: result.user,
       roles: result.user.roles ?? [],
       permissions: result.user.permissions ?? [],
