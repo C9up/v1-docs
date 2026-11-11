@@ -151,7 +151,7 @@ export default class Provision extends BaseCommand {
   async completed(): Promise<boolean> {
     // s'exécute MÊME si une étape précédente a levé : l'erreur est dans
     // `this.error`. Retourner `true` la marque comme traitée.
-    if (this.error) this.logger.error(this.error as Error)
+    if (this.error) this.logger.error(this.error instanceof Error ? this.error : String(this.error))
     return true
   }
 }

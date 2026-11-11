@@ -344,10 +344,12 @@ One file per concern, each exporting a plain object as its default export. The f
 
 ```typescript
 // config/auth.ts
+import env from '#start/env.js'
+
 export default {
   defaultStrategy: 'jwt',
   jwt: {
-    secret: process.env.JWT_SECRET!,
+    secret: env.get('JWT_SECRET').release(),
     expiresInSeconds: 3600,
   },
 }

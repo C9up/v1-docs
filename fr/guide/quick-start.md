@@ -278,11 +278,13 @@ export default class AuthMiddleware {
 }
 ```
 
-À l'intérieur d'un contrôleur guardé, on peut déréférencer `auth.user!.id` directement — le guard a déjà rejeté les requêtes anonymes :
+À l'intérieur d'un contrôleur guardé, le guard a déjà rejeté les requêtes anonymes, mais `auth.user` reste optionnel dans le type : réduisez-le une fois et la suite du handler le lit comme présent :
 
 ```typescript
 async store({ request, response, auth }: HttpContext) {
-  const userId = auth.user!.id as string
+  const user = auth.user
+  if (!user) return response.unauthorized({ error: 'Unauthorized' }) // inatteignable derrière .guard('jwt')
+  const userId = user.id
   // …
 }
 ```
@@ -328,7 +330,8 @@ export default class AppProvider extends Provider {
       const authConfig = this.app.config.get<{
         defaultStrategy: string
         jwt: { secret: string; expiresInSeconds: number }
-      }>('auth')!
+      }>('auth')
+      if (!authConfig) throw new Error('config/auth.ts is missing')
 
       const jwtStrategy = new JwtStrategy({
         secret: authConfig.jwt.secret,

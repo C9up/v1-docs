@@ -94,18 +94,23 @@ export default class UsersController {
   }
 
   async show({ request, response }: HttpContext) {
-    const user = await this.userService.findById(request.param('id')!)
+    const id = request.param('id')
+    const user = id ? await this.userService.findById(id) : null
     if (!user) return response.status(404).json({ error: 'Not found' })
     response.json({ data: user })
   }
 
   async update({ request, response }: HttpContext) {
-    const user = await this.userService.update(request.param('id')!, request.all())
+    const id = request.param('id')
+    if (!id) return response.status(404).json({ error: 'Not found' })
+    const user = await this.userService.update(id, request.all())
     response.json({ data: user })
   }
 
   async destroy({ request, response }: HttpContext) {
-    await this.userService.delete(request.param('id')!)
+    const id = request.param('id')
+    if (!id) return response.status(404).json({ error: 'Not found' })
+    await this.userService.delete(id)
     response.noContent()
   }
 }

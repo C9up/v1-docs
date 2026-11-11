@@ -181,7 +181,8 @@ export default class AppProvider extends Provider {
     // Enregistrer les services applicatifs dans le conteneur
     this.app.container.singleton('mail', () => {
       const config = this.app.config.get<{ apiKey: string }>('mail')
-      return new MailService(config!.apiKey)
+      if (!config) throw new Error('config/mail.ts is missing')
+      return new MailService(config.apiKey)
     })
   }
 
@@ -214,7 +215,8 @@ interface RedisConfig {
 export default class CacheProvider extends Provider {
   register(): void {
     this.app.container.singleton('cache', () => {
-      const config = this.app.config.get<RedisConfig>('redis')!
+      const config = this.app.config.get<RedisConfig>('redis')
+      if (!config) throw new Error('config/redis.ts is missing')
       return new RedisCache(config)
     })
   }
@@ -279,12 +281,13 @@ déclarés.
 
 ```typescript
 // config/transit.ts
+import env from '#start/env.js'
 import { defineConfig, socials } from '@c9up/transit'
 
 export default defineConfig({
   google: socials.google({
-    clientId: process.env.GOOGLE_CLIENT_ID!,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+    clientId: env.get('GOOGLE_CLIENT_ID'),
+    clientSecret: env.get('GOOGLE_CLIENT_SECRET').release(),
     callbackUrl: 'https://acme.test/auth/google/callback',
   }),
 })

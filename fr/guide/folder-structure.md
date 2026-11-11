@@ -331,10 +331,12 @@ Un fichier par préoccupation, chacun exportant un objet simple comme export par
 
 ```typescript
 // config/auth.ts
+import env from '#start/env.js'
+
 export default {
   defaultStrategy: 'jwt',
   jwt: {
-    secret: process.env.JWT_SECRET!,
+    secret: env.get('JWT_SECRET').release(),
     expiresInSeconds: 3600,
   },
 }

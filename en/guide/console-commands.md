@@ -150,7 +150,7 @@ export default class Provision extends BaseCommand {
   async completed(): Promise<boolean> {
     // runs EVEN IF an earlier stage threw: the error is on `this.error`.
     // Returning `true` marks it handled.
-    if (this.error) this.logger.error(this.error as Error)
+    if (this.error) this.logger.error(this.error instanceof Error ? this.error : String(this.error))
     return true
   }
 }

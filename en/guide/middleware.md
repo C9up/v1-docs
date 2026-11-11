@@ -240,8 +240,9 @@ Every middleware receives the same `HttpContext` that flows through the full pip
 // Upstream middleware sets a value
 ctx.store.set('tenant-id', resolveTenant(ctx.request))
 
-// Downstream middleware or handler reads it
-const tenantId = ctx.store.get('tenant-id') as string
+// Downstream middleware or handler reads it — the store holds `unknown`, so narrow it
+const tenantId = ctx.store.get('tenant-id')
+if (typeof tenantId !== 'string') throw new Error('The tenant middleware did not run')
 ```
 
 Key properties available in every middleware:
