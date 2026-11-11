@@ -8,7 +8,7 @@ Inker is the server-side templating module in the Ream ecosystem (`@c9up/inker`)
 
 Inker pulls in no templating dependency. It is hand-rolled, split across a Rust core and a Node renderer:
 
-- **Rust (`inker-engine`)** — a single forward-scan lexer and a linear parser turn a `.inker` source into a **JSON AST** (`parseTemplate` / `parseTemplateJson` over NAPI). This is the CPU-bound work; each node carries the *verbatim source* of its expressions.
+- **Rust (`inker-engine`)** — a single forward-scan lexer and a linear parser turn a `.inker` source into a **JSON AST** (`parseTemplate` over NAPI, serialised by `astToJson`). This is the CPU-bound work; each node carries the *verbatim source* of its expressions.
 - **Node (`renderNode.ts`)** — walks the JSON AST and evaluates each expression's source in Node's own **V8**, with the registered helpers, core globals, and the render scope all in lexical scope (one runtime; helpers are plain functions callable anywhere, including inside arrow functions and loop-scoped arguments).
 
 > The expression source is author-controlled (`.inker` files) — the same trust level as the rest of the app's code. That is why a helper can be called *inside* a rich expression (`{{ users.filter(u => can(u)).map(u => u.name).join(', ') }}`).
@@ -391,7 +391,7 @@ await templates.render('admin::dashboard')   // <admin>/dashboard.inker
 await templates.render('home')                // <default root>/home.inker
 ```
 
-A **bare** name resolves against the default disk — the constructor `root`, until `templates.mount(dir)` (or `mount('default', dir)`) re-points it; `templates.mounted.default` reports the root in force. A `disk::name` name resolves against the mounted disk. An in-memory template (`registerTemplate`) answers only the name it was registered under, disk prefix included. References inside a template resolve the same way, so cross-disk composition is explicit:
+A **bare** name resolves against the default disk — the constructor `root`, until `templates.mount(dir)` (or `mount('default', dir)`) re-points it; `templates.mounted.default` reports the root in force. A `disk::name` name resolves against the mounted disk. An in-memory template (`registerTemplate`) answers only the name it was registered under, disk prefix included. A name already registered is refused with `E_INKER_TEMPLATE_COLLISION` rather than replaced — two packages shipping a template under one name would otherwise render each other's markup; `removeTemplate(name)` first is the explicit replace. References inside a template resolve the same way, so cross-disk composition is explicit:
 
 ```inker
 @layout('admin::layout')
@@ -446,6 +446,7 @@ try {
 | `E_INKER_UNKNOWN_TAG`             | A `@tag` was parsed as a custom tag but no handler is registered.                         |
 | `E_INKER_DISK_REQUIRED`          | A disk-backed directive (`@layout`/`@include`/`@component`) was used from `renderString`. |
 | `E_INKER_INVALID_PATH`            | Invalid constructor `root`, disk name, or `registerTag` definition.                      |
+| `E_INKER_TEMPLATE_COLLISION`      | `registerTemplate` was given a name already registered (`removeTemplate` it first).      |
 | `E_INKER_UNCLOSED_INTERPOLATION` / `E_INKER_UNCLOSED_BLOCK` / `E_INKER_MISMATCHED_BLOCK_END` | Structural source errors (unbalanced braces / block tags). |
 
 All errors include `context.line` / `context.column` (1-based) when the failure is source-locatable.

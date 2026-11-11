@@ -8,7 +8,7 @@ Inker est le module de templating côté serveur de l'écosystème Ream (`@c9up/
 
 Inker ne tire aucune dépendance de templating. Il est hand-rolled, réparti entre un cœur Rust et un renderer Node :
 
-- **Rust (`inker-engine`)** — un lexer à balayage avant unique et un parser linéaire transforment une source `.inker` en un **AST JSON** (`parseTemplate` / `parseTemplateJson` via NAPI). C'est le travail CPU-bound ; chaque nœud porte la *source verbatim* de ses expressions.
+- **Rust (`inker-engine`)** — un lexer à balayage avant unique et un parser linéaire transforment une source `.inker` en un **AST JSON** (`parseTemplate` via NAPI, sérialisé par `astToJson`). C'est le travail CPU-bound ; chaque nœud porte la *source verbatim* de ses expressions.
 - **Node (`renderNode.ts`)** — parcourt l'AST JSON et évalue la source de chaque expression dans le **V8** de Node, avec les helpers enregistrés, les globals du cœur et le scope de rendu tous en portée lexicale (un seul runtime ; les helpers sont de simples fonctions appelables partout, y compris dans des arrow functions et des arguments scopés à une boucle).
 
 > La source des expressions est contrôlée par l'auteur (fichiers `.inker`) — le même niveau de confiance que le reste du code de l'app. C'est pourquoi un helper peut être appelé *à l'intérieur* d'une expression riche (`{{ users.filter(u => can(u)).map(u => u.name).join(', ') }}`).
@@ -391,7 +391,7 @@ await templates.render('admin::dashboard')   // <admin>/dashboard.inker
 await templates.render('home')                // <root par défaut>/home.inker
 ```
 
-Un nom **nu** se résout contre le disque par défaut — le `root` du constructeur, jusqu'à ce que `templates.mount(dir)` (ou `mount('default', dir)`) le redirige ; `templates.mounted.default` indique la racine en vigueur. Un nom `disk::name` se résout contre le disque monté. Un template en mémoire (`registerTemplate`) ne répond qu'au nom sous lequel il a été enregistré, préfixe de disque compris. Les références à l'intérieur d'un template se résolvent de la même façon, donc la composition inter-disques est explicite :
+Un nom **nu** se résout contre le disque par défaut — le `root` du constructeur, jusqu'à ce que `templates.mount(dir)` (ou `mount('default', dir)`) le redirige ; `templates.mounted.default` indique la racine en vigueur. Un nom `disk::name` se résout contre le disque monté. Un template en mémoire (`registerTemplate`) ne répond qu'au nom sous lequel il a été enregistré, préfixe de disque compris. Un nom déjà enregistré est refusé avec `E_INKER_TEMPLATE_COLLISION` au lieu d'être remplacé — deux paquets livrant un template sous le même nom rendraient sinon le balisage l'un de l'autre ; `removeTemplate(name)` d'abord est le remplacement explicite. Les références à l'intérieur d'un template se résolvent de la même façon, donc la composition inter-disques est explicite :
 
 ```inker
 @layout('admin::layout')
@@ -446,6 +446,7 @@ try {
 | `E_INKER_UNKNOWN_TAG`             | Un `@tag` a été parsé comme tag personnalisé mais aucun handler n'est enregistré.        |
 | `E_INKER_DISK_REQUIRED`          | Une directive disque (`@layout`/`@include`/`@component`) a été utilisée depuis `renderString`. |
 | `E_INKER_INVALID_PATH`            | `root`, nom de disque, ou définition `registerTag` invalide.                             |
+| `E_INKER_TEMPLATE_COLLISION`      | `registerTemplate` a reçu un nom déjà enregistré (le `removeTemplate` d'abord).          |
 | `E_INKER_UNCLOSED_INTERPOLATION` / `E_INKER_UNCLOSED_BLOCK` / `E_INKER_MISMATCHED_BLOCK_END` | Erreurs structurelles de source (accolades / block tags déséquilibrés). |
 
 Toutes les erreurs incluent `context.line` / `context.column` (base 1) lorsque l'échec est localisable dans la source.
