@@ -30,7 +30,7 @@ This page lists the current status of ecosystem modules.
 | Atom | `@c9up/atom` | Present | Exact decimal arithmetic (TS + Rust N-API) |
 | Station | `@c9up/station` | Present | Admin panel — consumes the Ream universe through the container |
 | Inker | `@c9up/inker` | Present | Template engine |
-| Archive | `@c9up/archive` | Present | Blob storage with S3 + memory drivers |
+| Archive | `@c9up/archive` | Present | File storage: `fs`, `s3` and `gcs` drivers, signed URLs |
 | Nova | `@c9up/nova` | Present | Web Push (VAPID + subscription + `nova.push()` delivery via `web-push` + durable-storage migration template + Atlas driver snippet in docs + Service Worker scaffold + `helix.nova.fake` test integration) |
 | Helix | `@c9up/helix` | Present | Test runner — `TestClient`, parallel workers (`--threads`), used by every kitchen-sink e2e |
 | Neutrino | `@c9up/neutrino` | Present | Protocol Buffers and gRPC — compiled schemas, unary gRPC services on the HTTP port, interceptors for authentication and rate limiting |
