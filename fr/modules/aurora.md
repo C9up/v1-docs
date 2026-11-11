@@ -625,7 +625,24 @@ hydrate(
 
 La factory **doit produire la même forme de `TemplateResult`** que celle rendue par le serveur — mêmes slots, même ordre. Aurora parcourt l'arbre SSR le long du chemin du template parsé ; un mismatch tombe en warning console mais la page reste fonctionnelle.
 
-L'helper `auroraRoute()` antérieur à `aurora.render()` reste exporté pour compatibilité ; les nouvelles apps doivent préférer `aurora.render()`.
+`auroraRoute()` est le handler de route bas niveau sous les mêmes primitives. Il
+appelle `render(ctx)`, rend le résultat avec `renderToString`, enveloppe le
+balisage dans `shell(body, entry)` et l'envoie en `text/html` :
+
+```js
+import { auroraRoute } from '@c9up/aurora'
+
+router.get('/dashboard', auroraRoute({
+  render: () => Dashboard({ status }),
+  entry: '/dashboard.client.js',   // par défaut : '/aurora-client.js'
+}))
+```
+
+Le shell par défaut est un document minimal avec une `<div id="aurora-root">`
+autour du balisage et un `<script type="module" src="…">` pour `entry`. Il
+n'apporte ni importmap ni données de page : le module `entry` est à servir par
+toi, et il appelle `hydrate()` lui-même. Dans une application à contrôleurs,
+`aurora.render()` / `ctx.aurora.render()` fait tout cela pour toi.
 
 ## Helpers navigateur & stockage
 
