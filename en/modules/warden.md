@@ -27,10 +27,12 @@ Warden reads its configuration from `config/auth.ts`. The file is auto-loaded by
 
 ```typescript
 // config/auth.ts
+import env from '#start/env.js'
+
 export default {
   defaultStrategy: 'jwt',
   jwt: {
-    secret: process.env.JWT_SECRET!, // minimum 32 characters
+    secret: env.get('JWT_SECRET'), // minimum 32 characters
     expiresIn: '1h',                 // or 3600
   },
 }
@@ -135,7 +137,10 @@ const result = await auth.authenticate({ email: 'user@example.com', password: 's
 
 if (result.authenticated) {
   // result.user contains id, roles, permissions, and token (for JwtStrategy)
-  const { token } = result.user as { token: string }
+  const token = result.user?.token
+  if (typeof token === 'string') {
+    // hand the token to the client
+  }
 } else {
   console.error(result.error) // 'Invalid credentials'
 }
@@ -654,10 +659,11 @@ shares the result across every check in that request (memoised on the instance).
 
 ```typescript
 import { JwtStrategy } from '@c9up/warden'
+import env from '#start/env.js'
 
 const jwt = new JwtStrategy({
   // Required: minimum 32 characters, throws at construction if shorter
-  secret: process.env.JWT_SECRET!,
+  secret: env.get('JWT_SECRET'),
 
   // Optional: token lifetime in seconds (default: 3600)
   expiresIn: '2h',
@@ -774,7 +780,10 @@ await strategy.login({ id: user.id, roles: user.roles }, ctx.session)
 
 // Subsequent requests
 const result = await strategy.verifyWithContext('unused', { session: ctx.session })
-if (result.authenticated) ctx.auth = { authenticated: true, user: result.user!, roles: result.user!.roles ?? [], permissions: result.user!.permissions ?? [] }
+if (result.authenticated && result.user) {
+  const { user } = result
+  ctx.auth = { isAuthenticated: true, user, roles: user.roles ?? [], permissions: user.permissions ?? [] }
+}
 
 // Logout
 await strategy.logout(ctx.session)
