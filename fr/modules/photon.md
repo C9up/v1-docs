@@ -446,13 +446,13 @@ et monte lui-même le composant de page. Utilise-le quand tu n'as pas besoin de
 // resources/app.tsx (React)
 import { hydrate } from '@c9up/photon/client'
 
-const pages = import.meta.glob('./pages/*.tsx')
+const pages = import.meta.glob<{ default: unknown }>('./pages/*.tsx')
 
 hydrate({
   resolveComponent: async (name) => {
     const loader = pages[`./pages/${name}.tsx`]
     if (!loader) throw new Error(`Page inconnue : ${name}`)
-    return (await loader()) as { default: unknown }
+    return loader()
   },
 })
 ```
