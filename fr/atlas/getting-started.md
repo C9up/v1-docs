@@ -89,7 +89,7 @@ un autre encodage ; les vôtres l'emportent sur l'automatique :
 ```ts
 @Column.json({
   prepare: (value) => encrypt(JSON.stringify(value)),
-  consume: (value) => JSON.parse(decrypt(value as string)),
+  consume: (value) => JSON.parse(decrypt(String(value))),
 })
 declare secrets: Record<string, string>
 ```
