@@ -21,8 +21,8 @@ the boot path also runs under an inspection (`ream inspect`, a route listing, a
 codegen pass), so a read-only command mutated the schema; and every replica of a
 rolling deploy boots at once, so they raced each other over the same database.
 
-A host that genuinely owns its database alone — a single-process dev box, an
-embedded app on a file database — can ask for the old behaviour:
+A host that genuinely owns its database alone — a container that starts once, an
+embedded app on a file database — can ask for pending migrations to run at boot:
 
 ```ts
 // config/database.ts

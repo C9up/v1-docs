@@ -23,9 +23,9 @@ en lecture seule mutait le schéma ; et toutes les répliques d'un déploiement
 progressif démarrent en même temps, donc elles se couraient dessus sur la même
 base.
 
-Un hôte qui possède réellement sa base à lui seul — un poste de dev
-mono-processus, une application embarquée sur une base fichier — peut demander
-l'ancien comportement :
+Un hôte qui possède réellement sa base à lui seul — un conteneur qui démarre une
+fois, une application embarquée sur une base fichier — peut demander que les
+migrations en attente s'exécutent au démarrage :
 
 ```ts
 // config/database.ts
