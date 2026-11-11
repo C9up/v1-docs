@@ -2,7 +2,7 @@
 
 ## Requirements
 
-- **Node.js 22+** (LTS) — required for NAPI stability
+- **Node.js 24+** — ream's `engines` floor: the request context runs on `AsyncLocalStorage`, which Node 24 makes cheap by default
 - **pnpm** — recommended package manager (npm/yarn also work)
 - **@swc/core + @swc-node/register** — for TypeScript decorator metadata support
 - No Rust toolchain needed — NAPI binaries are prebuilt
@@ -44,9 +44,8 @@ pnpm add -D @swc/core @swc-node/register typescript @c9up/ream-cli @c9up/helix
 Each module is an independent package. Add only what you need:
 
 ```bash
-# ORM (SQLite/PostgreSQL)
-pnpm add @c9up/atlas better-sqlite3
-pnpm add -D @types/better-sqlite3
+# ORM (SQLite, PostgreSQL, MySQL)
+pnpm add @c9up/atlas
 
 # Authentication (JWT, guards)
 pnpm add @c9up/warden
@@ -140,6 +139,17 @@ new Ignitor(APP_ROOT, { port: 3000 })
     process.exitCode = 1
     prettyPrintError(error)
   })
+```
+
+A first route — every module's `routes.ts` under `app/modules/` is loaded at start:
+
+```typescript
+// app/modules/home/routes.ts
+import router from '@c9up/ream/services/router'
+
+router.get('/', async ({ response }) => {
+  response.send('Hello from Ream!')
+})
 ```
 
 ## SWC Configuration

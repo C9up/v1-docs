@@ -2,8 +2,9 @@
 
 ## Prérequis
 
-- **Node.js 22+** (LTS) — requis pour le support `require(esm)` et la stabilité NAPI
+- **Node.js 24+** — le plancher `engines` de ream : le contexte de requête repose sur `AsyncLocalStorage`, que Node 24 rend peu coûteux par défaut
 - **pnpm** — gestionnaire de paquets recommandé (npm/yarn fonctionnent aussi)
+- **@swc/core + @swc-node/register** — pour les métadonnées de décorateurs TypeScript
 - Pas besoin de toolchain Rust — les binaires NAPI sont précompilés
 
 ## Créer un nouveau projet
@@ -24,68 +25,43 @@ ream dev
 
 ## Installation manuelle
 
-Si vous préférez configurer manuellement :
+Pour monter un projet à la main :
 
 ```bash
 mkdir my-app && cd my-app
 pnpm init
-pnpm add @c9up/ream
 ```
 
-Créez le point d'entrée :
-
-```typescript
-// app.ts
-import { Ignitor } from '@c9up/ream'
-
-const app = new Ignitor({ port: 3000 })
-  .httpServer()
-  .routes((router) => {
-    router.get('/', async (ctx) => {
-      ctx.response!.body = 'Hello from Ream!'
-    })
-  })
-
-await app.start()
-```
-
-Lancez-le :
+Installez le framework et son environnement d'exécution :
 
 ```bash
-npx tsx app.ts
+pnpm add @c9up/ream reflect-metadata
+pnpm add -D @swc/core @swc-node/register typescript @c9up/ream-cli @c9up/helix
 ```
 
 ## Ajouter des modules
 
-Chaque module est un package npm indépendant avec son propre [dépôt](https://github.com/C9up). Ajoutez seulement ce dont vous avez besoin :
+Chaque module est un paquet indépendant. Ajoutez seulement ce dont vous avez besoin :
 
 ```bash
-# ORM
+# ORM (SQLite, PostgreSQL, MySQL)
 pnpm add @c9up/atlas
 
-# Validation
-pnpm add @c9up/rune
-
-# Authentification
+# Authentification (JWT, guards)
 pnpm add @c9up/warden
 
 # Connexion sociale (Google, GitHub, ...)
 pnpm add @c9up/transit
 
+# Validation
+pnpm add @c9up/rune
+
 # Logging
 pnpm add @c9up/spectrum
 ```
 
-::: tip Configuration automatique
-Apres avoir installe un module, lancez `ream configure` pour configurer automatiquement son provider, son fichier de configuration et ses variables d'environnement :
-
-```bash
-pnpm add @c9up/atlas
-ream configure @c9up/atlas  # auto-setup : config, env, provider
-```
-
-Voir [ream CLI](/fr/cli/ream) pour plus de details.
-:::
+> Le bus d'événements fait partie du cœur de ream — rien à installer. Voir
+> [Bus d'événements](/fr/ream/events).
 
 ### Ajouter un paquet Ream
 
@@ -118,9 +94,80 @@ Au moment de la publication sur npm, le champ `publishConfig` de chaque paquet r
 
 Pourquoi ce double mode plutôt que publier uniquement la source : un consommateur Node hors écosystème Ream (sans `@swc-node/register`) ne pourrait pas importer un paquet `src/*.ts`. Pourquoi ne pas publier uniquement `dist/` : on garderait alors le coût d'un build watch permanent dans le dev loop du monorepo. Le `publishConfig` capture les deux besoins sans imposer l'un à l'autre. Les `sourceMap` + `declarationMap` émis par le build préservent les stack traces vers les vraies lignes source côté consommateur.
 
-## Configuration TypeScript
+## Mise en place du projet
 
-Ream requiert le mode strict TypeScript et les décorateurs expérimentaux :
+Créez la configuration du framework :
+
+```typescript
+// reamrc.ts
+import { defineConfig } from '@c9up/ream'
+
+export default defineConfig({
+  providers: [
+    () => import('@c9up/spectrum/provider'),
+    () => import('@c9up/atlas/provider'),
+    () => import('@c9up/warden/provider'),
+    () => import('./providers/AppProvider.ts'),
+  ],
+  preloads: [
+    () => import('./start/kernel.ts'),
+  ],
+  modules: {
+    path: './app/modules',
+  },
+})
+```
+
+Créez le point d'entrée du serveur :
+
+```typescript
+// bin/server.ts
+import 'reflect-metadata'
+import { Ignitor, prettyPrintError } from '@c9up/ream'
+
+const APP_ROOT = new URL('../', import.meta.url)
+
+new Ignitor(APP_ROOT, { port: 3000 })
+  .tap((app) => {
+    app.listen('SIGTERM', () => app.terminate())
+    app.listenIf(app.managedByPm2, 'SIGINT', () => app.terminate())
+  })
+  .useRcFile((await import('../reamrc.js')).default)
+  .httpServer()
+  .start()
+  .catch((error) => {
+    process.exitCode = 1
+    prettyPrintError(error)
+  })
+```
+
+Une première route — le `routes.ts` de chaque module sous `app/modules/` est chargé au démarrage :
+
+```typescript
+// app/modules/home/routes.ts
+import router from '@c9up/ream/services/router'
+
+router.get('/', async ({ response }) => {
+  response.send('Hello from Ream!')
+})
+```
+
+## Configuration SWC
+
+Créez `.swcrc` à la racine du projet pour les métadonnées de décorateurs :
+
+```json
+{
+  "jsc": {
+    "parser": { "syntax": "typescript", "decorators": true },
+    "transform": { "legacyDecorator": true, "decoratorMetadata": true },
+    "target": "es2022"
+  },
+  "module": { "type": "es6" }
+}
+```
+
+## Configuration TypeScript
 
 ```json
 {
@@ -130,14 +177,30 @@ Ream requiert le mode strict TypeScript et les décorateurs expérimentaux :
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "emitDecoratorMetadata": true,
+    "skipLibCheck": true
   }
 }
 ```
 
-## Compatibilité Bun
+## Scripts du paquet
 
-Ream cible Node.js 22+ comme runtime principal. Bun est supporté au mieux via sa couche de compatibilité NAPI. La plupart des fonctionnalités marchent, mais certains cas limites peuvent différer.
+```json
+{
+  "scripts": {
+    "dev": "node --import @swc-node/register/esm-register --watch bin/server.ts",
+    "start": "node --import @swc-node/register/esm-register bin/server.ts",
+    "build": "tsc",
+    "test": "ream test"
+  }
+}
+```
+
+## Lancer
+
+```bash
+pnpm dev
+```
 
 ## Étapes suivantes
 
