@@ -126,7 +126,7 @@ ctx.id                    // ID de corrélation (depuis le header x-request-id o
 ctx.type                  // 'http' ou 'event'
 ctx.is('http')            // true pour les requêtes HTTP
 ctx.is('event')           // true pour les events du bus
-ctx.auth                  // { authenticated, user?, roles?, permissions? }
+ctx.auth                  // { isAuthenticated, user?, roles?, permissions? }
 ctx.locale                // Locale détectée (défaut 'en')
 ctx.containerResolver     // Résolveur IoC par requête : ctx.containerResolver?.make(Service)
 

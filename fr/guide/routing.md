@@ -392,7 +392,7 @@ router.get('/example', async ({ request, response, params, auth, id }: HttpConte
   // request  — Request typé (method, path, params, body, headers, qs)
   // response — builder Response typé (json, send, status, header, redirect, noContent)
   // params   — paramètres de route extraits du modèle d'URL { id: '...' }
-  // auth     — { authenticated, user?, roles?, permissions? }
+  // auth     — { isAuthenticated, user?, roles?, permissions? }
   // id       — identifiant de corrélation (depuis l'en-tête x-request-id ou UUID auto-généré)
 })
 ```

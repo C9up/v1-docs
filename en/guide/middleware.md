@@ -217,7 +217,7 @@ export default class AuthMiddleware {
       const payload = await TokenService.verify(token)
       if (payload) {
         ctx.auth = {
-          authenticated: true,
+          isAuthenticated: true,
           user: { id: payload.sub, email: payload.email },
           roles: payload.roles ?? [],
           permissions: payload.permissions ?? [],
@@ -252,7 +252,7 @@ ctx.request.method()        // 'GET' | 'POST' | ...
 ctx.request.path()          // '/api/users'
 ctx.request.header('key')   // Single header value
 ctx.request.ip()            // Client IP
-ctx.auth                    // { authenticated, user?, roles?, permissions? }
+ctx.auth                    // { isAuthenticated, user?, roles?, permissions? }
 ctx.params                  // Route params { id: '...' }
 ctx.response.status(code)   // Set response status (chainable)
 ctx.response.header(k, v)   // Set response header (chainable)

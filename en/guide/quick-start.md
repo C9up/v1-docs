@@ -246,7 +246,7 @@ router.put('/api/tasks/:id', [TasksController, 'update']).guard('jwt')
 router.delete('/api/tasks/:id', [TasksController, 'destroy']).guard('jwt')
 ```
 
-Routes that need authentication call `.guard('jwt')`. The guard is fed by the global `AuthMiddleware` (registered in `start/kernel.ts`) which best-effort populates `ctx.auth` — the guard itself enforces `ctx.auth.authenticated === true` and emits a 401 when missing.
+Routes that need authentication call `.guard('jwt')`. The guard is fed by the global `AuthMiddleware` (registered in `start/kernel.ts`) which best-effort populates `ctx.auth` — the guard itself enforces `ctx.auth.isAuthenticated === true` and emits a 401 when missing.
 
 ### Module Events
 
@@ -321,7 +321,7 @@ export default class AuthMiddleware {
       const result = await auth.verify(token)
       if (result.authenticated && result.user) {
         ctx.auth = {
-          authenticated: true,
+          isAuthenticated: true,
           user: result.user,
           roles: result.user.roles ?? [],
           permissions: result.user.permissions ?? [],

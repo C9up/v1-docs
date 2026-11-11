@@ -286,7 +286,7 @@ export default class AuthMiddleware {
     if (!token) throw new E_UNAUTHORIZED()
 
     // Vérification et population de ctx.auth
-    ctx.auth = { authenticated: true, user: { id: 'user-1' } }
+    ctx.auth = { isAuthenticated: true, user: { id: 'user-1' } }
     await next()
   }
 }
