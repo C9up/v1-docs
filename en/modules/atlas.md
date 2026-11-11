@@ -827,29 +827,33 @@ const status = await runner.status()
 
 ### Custom tracking-table name
 
-By default Atlas tracks applied migrations in a table called `_migrations`. You can rename it via `database.migrations.table` (or the `tableName` ctor option on `MigrationRunner`) when sharing a database with another framework that already owns `_migrations`, or when a naming convention mandates `schema_versions`, `flyway_schema_history`, etc.
+By default Atlas tracks applied migrations in a table called `ream_migrations`. You can rename it with `migrations.tableName` in `config/database.ts` (or the `tableName` option of the `MigrationRunner` constructor) when sharing a database with another application that already owns that name, or when a naming convention mandates `schema_versions`, `flyway_schema_history`, etc.
 
 ```typescript
-// reamrc.ts
-export default {
-  database: {
-    default: 'primary',
-    connections: {
-      primary: { url: 'postgres://localhost/myapp' },
-    },
-    migrations: {
-      path: 'database/migrations',
-      table: 'schema_versions',   // ← custom tracking-table
+// config/database.ts
+import { defineConfig } from '@c9up/atlas'
+
+export default defineConfig({
+  connection: 'primary',
+  connections: {
+    primary: {
+      url: 'postgres://localhost/myapp',
+      migrations: {
+        paths: ['database/migrations'],
+        tableName: 'schema_versions',   // ← custom tracking table
+      },
     },
   },
-}
+})
 ```
 
-The MCP bridge (`ream-mcp migration.*` tools) reads the same key. You can also override at runtime via the `REAM_MIGRATIONS_TABLE` environment variable.
+The `migration:*` commands and `AtlasProvider` read the same key, so they all see one history.
 
-`table` must match `/^[A-Za-z_][A-Za-z0-9_]*$/` — letters, digits, and underscores only, and must not start with a digit. Invalid names throw `AtlasError("E_MIGRATION_INVALID_TABLE_NAME")` synchronously from the `MigrationRunner` constructor; the Rust query compiler enforces the same shape as a second defense layer.
+`tableName` must match `/^[A-Za-z_][A-Za-z0-9_]*$/` — letters, digits, and underscores only, and must not start with a digit. An invalid name throws an `AtlasError` with code `E_ATLAS_MIGRATION_INVALID_TABLE_NAME` synchronously from the `MigrationRunner` constructor; the Rust query compiler enforces the same shape as a second defense layer.
 
-**Cleanup-helper coupling.** `DatabaseCleanup.truncateAll` skips tables whose name starts with `_`. The default `_migrations` is therefore protected from `truncateAll` out of the box. A custom name like `schema_versions` does NOT start with `_`, so `truncateAll` will wipe it — that is by design (opt-out of auto-exclusion). Pick an `_`-prefixed custom name (e.g. `_my_migrations`) if you want to keep the exclusion.
+Renaming does not move the history: the runner creates the new table empty, sees no applied migration and replays every one. Copy the rows first (`INSERT INTO schema_versions SELECT * FROM ream_migrations`), then switch.
+
+**Cleanup-helper coupling.** `truncateAll(db, ignoreTables?)` (from `@c9up/atlas/testing`) empties every user table and skips the framework tables, whose name starts with `ream_`. The default `ream_migrations` and its `ream_migrations_lock` are therefore protected out of the box. A custom name without that prefix, like `schema_versions`, is a user table to `truncateAll`, which empties it and forces every migration to replay on the next run. Keep the `ream_` prefix (e.g. `ream_schema_versions`), or pass the name in `ignoreTables`: `truncateAll(db, ['schema_versions', 'schema_versions_lock'])`.
 
 ## Migration template authoring checklist
 
