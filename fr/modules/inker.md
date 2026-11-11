@@ -291,7 +291,7 @@ import fs from 'node:fs'
 
 templates.registerTag({
   tagName: 'svg',
-  block: false,     // tag inline (les block tags ne sont pas encore supportés)
+  block: false,     // tag inline : pas de corps
   seekable: true,   // accepte un argument entre parenthèses
   compile(parser, buffer, token) {
     const name = token.properties.jsArg.trim().replace(/['"]/g, '')
@@ -305,12 +305,40 @@ templates.registerTag({
 <p>Rendered: @time()</p>
 ```
 
+Un tag enregistré avec `block: true` prend un corps, fermé par `@end<tagName>`
+— ou aucun corps quand il est écrit auto-fermé, `@!<tagName>(…)`. Son `compile`
+reçoit le corps déjà rendu, à la demande, par `token.renderBody()` :
+
+```ts
+templates.registerTag({
+  tagName: 'card',
+  block: true,
+  seekable: true,
+  async compile(parser, buffer, token) {
+    buffer.writeRaw('<section class="card"><h2>')
+    buffer.outputExpression(token.properties.jsArg, token.filename, token.loc.start.line, true)
+    buffer.writeRaw('</h2>')
+    buffer.writeRaw(await token.renderBody())
+    buffer.writeRaw('</section>')
+  },
+})
+```
+
+```inker
+@card(invoice.title)
+  <p>{{ invoice.total }}</p>
+@endcard
+```
+
 À l'intérieur de `compile` :
 
 - `token.properties.jsArg` est la source **verbatim** des arguments entre les parenthèses.
 - `buffer.writeRaw(text)` émet du markup verbatim.
 - `buffer.outputExpression(jsExpression, filename, line, escape)` évalue une expression du template (une chaîne source JS) dans le scope de rendu et émet sa valeur — échappée lorsque `escape` vaut `true`.
-- Un tag `seekable: false` rejette tout argument ; `block: true` est rejeté (seuls les tags inline sont livrés pour l'instant).
+- `token.renderBody(locals?)` rend le corps d'un tag de bloc dans le scope du tag, plus les `locals` que vous lui passez, et renvoie le HTML (une chaîne, ou une promesse quand le corps a attendu quelque chose) ; le corps d'un tag inline vaut `""`. Un tag qui ne l'appelle jamais ne paie jamais son corps.
+- `token.evaluate(expression)` évalue une expression du template dans le scope où le tag a été atteint.
+- `compile` peut être `async` : le rendu l'attend, et ce qu'il a écrit arrive dans l'ordre.
+- Un tag `seekable: false` rejette tout argument (`E_INKER_INVALID_EXPRESSION`).
 
 > **Quand `compile` s'exécute :** inker parse en Rust et rend en parcourant l'AST JSON, donc le `compile` d'un tag s'exécute au moment du **rendu**. Comme un nom de tag change la façon dont un template *parse*, `registerTag` vide le cache d'AST ; enregistrez vos tags au démarrage, avant tout rendu. Enregistrer un nom qui entre en collision avec une directive intégrée, ou un identifiant invalide, lève `E_INKER_INVALID_PATH` ; un `@word` non enregistré est inerte (rendu comme texte littéral).
 

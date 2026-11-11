@@ -291,7 +291,7 @@ import fs from 'node:fs'
 
 templates.registerTag({
   tagName: 'svg',
-  block: false,     // inline tag (block tags are not supported yet)
+  block: false,     // inline tag: no body
   seekable: true,   // accepts an argument between parens
   compile(parser, buffer, token) {
     const name = token.properties.jsArg.trim().replace(/['"]/g, '')
@@ -305,12 +305,40 @@ templates.registerTag({
 <p>Rendered: @time()</p>
 ```
 
+A tag registered with `block: true` takes a body, closed by `@end<tagName>` —
+or no body at all when written self-closed, `@!<tagName>(…)`. Its `compile`
+gets the body already rendered, on demand, from `token.renderBody()`:
+
+```ts
+templates.registerTag({
+  tagName: 'card',
+  block: true,
+  seekable: true,
+  async compile(parser, buffer, token) {
+    buffer.writeRaw('<section class="card"><h2>')
+    buffer.outputExpression(token.properties.jsArg, token.filename, token.loc.start.line, true)
+    buffer.writeRaw('</h2>')
+    buffer.writeRaw(await token.renderBody())
+    buffer.writeRaw('</section>')
+  },
+})
+```
+
+```inker
+@card(invoice.title)
+  <p>{{ invoice.total }}</p>
+@endcard
+```
+
 Inside `compile`:
 
 - `token.properties.jsArg` is the **verbatim** argument source between the parens.
 - `buffer.writeRaw(text)` emits verbatim markup.
 - `buffer.outputExpression(jsExpression, filename, line, escape)` evaluates a template expression (a JS source string) in the render scope and emits its value — escaped when `escape` is `true`.
-- A `seekable: false` tag rejects any argument; `block: true` is rejected (only inline tags ship for now).
+- `token.renderBody(locals?)` renders a block tag's body in the tag's scope, plus any `locals` you hand it, and returns the HTML (a string, or a promise when the body awaited something); an inline tag's body is `""`. A tag that never calls it never pays for its body.
+- `token.evaluate(expression)` evaluates a template expression in the scope the tag was reached in.
+- `compile` may be `async`: the render waits for it, and what it wrote lands in order.
+- A `seekable: false` tag rejects any argument (`E_INKER_INVALID_EXPRESSION`).
 
 > **When `compile` runs:** inker parses in Rust and renders by walking the JSON AST, so a tag's `compile` runs at **render** time. Because a tag name changes how a template *parses*, `registerTag` clears the AST cache; register your tags during boot, before rendering. Registering a name that collides with a built-in directive, or an invalid identifier, throws `E_INKER_INVALID_PATH`; an unregistered `@word` is inert (rendered as literal text).
 
