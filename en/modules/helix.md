@@ -1,8 +1,8 @@
 # Helix — Testing Toolkit
 
-Helix is Ream's unified testing toolkit (`@c9up/helix`): bus / HTTP / DB
-fakes, fluent assertions, container overrides, time-travel, and a
-test runner CLI. Apps that follow the convention can
+Helix is Ream's unified testing toolkit (`@c9up/helix`): a test runner CLI,
+fluent assertions, container overrides, time-travel, and the plugin contract
+through which each package ships its own fakes. Apps that follow the convention can
 drive every cross-module integration test through Helix instead of
 hand-rolling fixtures per package.
 
@@ -12,24 +12,29 @@ hand-rolling fixtures per package.
 pnpm ream add -D @c9up/helix
 ```
 
-## Sub-barrels
+## Entry points
 
 | Import path | Purpose |
 |---|---|
-| `@c9up/helix` | Re-exports the runtime DSL (`test`, `describe`, `expect`, `vi`, lifecycle hooks) and the most-used helpers. |
-| `@c9up/helix/bus` | Event bus assertions — captured-event listings, ack-chain matchers. |
-| `@c9up/helix/http` | Fluent HTTP `TestClient` with auth + assertion helpers. |
-| `@c9up/helix/db` | Factory + `useTransaction` + `truncateAll` + in-memory SQLite. |
-| `@c9up/helix/mail` | `MailFake` for `@c9up/rover` capture / assert. |
-| `@c9up/helix/nova` | `NovaFake` for `@c9up/nova` capture / assert. |
-| `@c9up/helix/queue` | `QueueFake` for `@c9up/bay` capture / assert. |
-| `@c9up/helix/relay` | `RelayFake` for `@c9up/relay` broadcast capture. |
-| `@c9up/helix/storage` | In-memory `Archive` driver + assertions. |
-| `@c9up/helix/logger` | Captured-log assertions for `@c9up/spectrum`. |
-| `@c9up/helix/time` | `time.freeze()` / `travel()` over Chronos. |
-| `@c9up/helix/runtime` | Standalone runtime DSL when you want it explicitly. |
-| `@c9up/helix/container` | `helix.override(token, value)` for per-test IoC stubs. |
-| `@c9up/helix/fixtures` | Factories + seeders. |
+| `@c9up/helix` | The runtime DSL (`test`, `describe`, `it`, `expect`, `vi`, lifecycle hooks, `configure`), the container facade and `time`. |
+| `@c9up/helix/runtime` | The runtime DSL alone. |
+| `@c9up/helix/container` | The container facade alone: `override`, `overrideOn`, `useContainer`, `spy`. |
+| `@c9up/helix/time` | `freeze`, `travel`, `travelTo`, `unfreeze`, `frozenAt` — the clock pinned through `vi.setSystemTime`. |
+| `@c9up/helix/runner` | The programmatic runner a host framework drives from its own config file. |
+
+helix itself fakes nothing from the ecosystem: each package ships its fakes and
+helpers under its own `/testing` entry, as plugins for `configure({ plugins })`.
+
+| Import path | What it gives a test |
+|---|---|
+| `@c9up/ream/testing` | `TestClient`, the fluent HTTP client (below). |
+| `@c9up/atlas/testing` | `factory`, `useTransaction`, `truncateAll`. |
+| `@c9up/rover/testing` | `FakeMail`, `mailFake`. |
+| `@c9up/nova/testing` | `FakeNova`. |
+| `@c9up/bay/testing` | `FakeQueue`. |
+| `@c9up/relay/testing` | `FakeRelay`. |
+| `@c9up/archive/testing` | `FakeStorage`, `driveFake`. |
+| `@c9up/spectrum/testing` | `FakeLogger`. |
 
 ## TestClient (HTTP)
 
