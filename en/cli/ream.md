@@ -568,7 +568,7 @@ Binary size: ~700KB.
 
 ### Cadence
 
-Publishing is manual. Maintainers trigger a release via the GitHub Actions UI (Actions → Build & Publish CLI → Run workflow) on the ream-cli repository — no tag-push auto-publish. This matches ADR-006's "trigger-only-via-UI" gate so a stray local tag push never reaches npm.
+Publishing is manual. Maintainers trigger a release via the GitHub Actions UI (Actions → Build & Publish CLI → Run workflow) on the ream-cli repository — no tag-push auto-publish. Only a deliberate run from the UI publishes, so a stray local tag push never reaches npm.
 
 ### Version-bump sequence
 
@@ -600,4 +600,4 @@ The drift gate refuses to publish when the npm registry already has a version gr
 
 Any other failure (no tag on HEAD, tag-vs-`Cargo.toml` mismatch, npm registry unreachable) is fail-closed: there is no override.
 
-See ADR-006 (internal planning artifact) for the full rationale and gate semantics.
+The gates exist for two reasons: a release only happens when someone asks for it, and what reaches npm is exactly the tagged commit, never a version older than or equal to the one already published unless `confirm_overwrite: YES` says so.

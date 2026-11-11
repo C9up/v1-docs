@@ -584,7 +584,7 @@ Taille du binaire : ~700KB.
 
 ### Cadence
 
-La publication est manuelle. Les mainteneurs déclenchent une release via l'interface GitHub Actions (Actions → Build & Publish CLI → Run workflow) sur le dépôt ream-cli — pas de publication automatique sur push de tag. Cela suit la règle « trigger-only-via-UI » d'ADR-006 pour qu'un tag local poussé par erreur n'atteigne jamais npm.
+La publication est manuelle. Les mainteneurs déclenchent une release via l'interface GitHub Actions (Actions → Build & Publish CLI → Run workflow) sur le dépôt ream-cli — pas de publication automatique sur push de tag. Seul un lancement délibéré depuis l'interface publie, si bien qu'un tag local poussé par erreur n'atteint jamais npm.
 
 ### Séquence de bump de version
 
@@ -616,4 +616,4 @@ Le gate de dérive refuse la publication quand la registre npm contient déjà u
 
 Toute autre erreur (pas de tag sur HEAD, mismatch tag-vs-`Cargo.toml`, registre npm injoignable) est fail-closed : aucun override possible.
 
-Voir ADR-006 (artefact de planification interne) pour la justification complète et la sémantique des gates.
+Les gates existent pour deux raisons : une release n'a lieu que quand quelqu'un la demande, et ce qui atteint npm est exactement le commit tagué, jamais une version inférieure ou égale à celle déjà publiée sauf si `confirm_overwrite: YES` le demande.
