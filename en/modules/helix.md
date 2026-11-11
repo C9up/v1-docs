@@ -206,14 +206,23 @@ Only **fully disjoint** trees are refused (silent 0% overlay otherwise).
 ## Container overrides
 
 ```ts
-import { helix } from '@c9up/helix'
+import { override, test, useContainer } from '@c9up/helix'
+import { FakeMail } from '@c9up/rover/testing'
 
-helix.override(MailManager, new MailFake())
-helix.override('logger', captureLogger)
+test('sends the welcome mail', async () => {
+  useContainer(container)              // your app's container, once per test file or in a hook
+  override('mail', new FakeMail())
+  override('logger', captureLogger)
+  // ...
+})
 ```
 
-Overrides reset per test via `beforeEach` when configured through the
-runtime DSL.
+`override(token, value)` replaces a binding on the container `useContainer`
+made active, and undoes itself at the end of the test — the restore is queued on
+the test's cleanup, so it runs even when the test body never asks for it. It
+throws outside a test (a restore queued there would never run) and when no
+container is active. `overrideOn(container, token, value)` targets a container
+explicitly.
 
 ## Time-travel
 

@@ -213,14 +213,23 @@ Seuls les arbres **entièrement disjoints** sont refusés (sinon overlay
 ## Overrides du container
 
 ```ts
-import { helix } from '@c9up/helix'
+import { override, test, useContainer } from '@c9up/helix'
+import { FakeMail } from '@c9up/rover/testing'
 
-helix.override(MailManager, new MailFake())
-helix.override('logger', captureLogger)
+test('sends the welcome mail', async () => {
+  useContainer(container)              // le container de ton app, une fois par fichier de test ou dans un hook
+  override('mail', new FakeMail())
+  override('logger', captureLogger)
+  // ...
+})
 ```
 
-Les overrides se reset par test via `beforeEach` quand configurés via
-la DSL runtime.
+`override(token, value)` remplace une liaison du container que `useContainer` a
+rendu actif, et s'annule de lui-même à la fin du test — la restauration est
+mise dans le cleanup du test, donc elle s'exécute même si le corps du test ne
+la demande jamais. Il lève hors d'un test (une restauration mise en file à cet
+endroit ne s'exécuterait jamais) et quand aucun container n'est actif.
+`overrideOn(container, token, value)` vise un container explicitement.
 
 ## Voyage dans le temps
 
