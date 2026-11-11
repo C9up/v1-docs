@@ -66,6 +66,21 @@ hard to notice — a server showing no consent screen grants silently.
   "wrong client" all read `invalid_grant: The code is not valid.` — telling
   them apart is how a code space gets probed.
 
+### Lifetimes
+
+How long a leaked credential stays usable is configuration, in seconds:
+
+| Key | Default | What it bounds |
+|---|---|---|
+| `accessTokenTtlSeconds` | `3600` (an hour) | An access token, and the `expires_in` the token response carries. `ream configure` writes it explicitly. |
+| `refreshTokenTtlSeconds` | `2592000` (30 days) | A refresh token. Rotation mints a new one on every use. |
+| `codeTtlSeconds` | `30` | An authorization code: it is exchanged in milliseconds. |
+| `issueRefreshTokens` | `true` | Whether refresh tokens exist at all. `false` and every session ends with its access token. |
+
+A refresh token is issued only to a client whose `grantTypes` include
+`refresh_token`, and never on the `client_credentials` grant, where no user
+consented to anything.
+
 ## Wiring `/authorize`
 
 The decision is visa's; the page is yours. The consent page is the one place a

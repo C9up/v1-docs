@@ -70,6 +70,22 @@ serait fausse d'une manière difficile à voir — un serveur qui n'affiche aucu
   utilisé » et « mauvais client » donnent tous `invalid_grant: The code is not
   valid.` — les distinguer, c'est ainsi qu'on sonde un espace de codes.
 
+### Durées de vie
+
+Combien de temps un identifiant qui a fuité reste utilisable est une affaire de
+configuration, en secondes :
+
+| Clé | Défaut | Ce qu'elle borne |
+|---|---|---|
+| `accessTokenTtlSeconds` | `3600` (une heure) | Un jeton d'accès, et l'`expires_in` de la réponse. `ream configure` l'écrit explicitement. |
+| `refreshTokenTtlSeconds` | `2592000` (30 jours) | Un refresh token. La rotation en frappe un nouveau à chaque usage. |
+| `codeTtlSeconds` | `30` | Un code d'autorisation : il s'échange en quelques millisecondes. |
+| `issueRefreshTokens` | `true` | Si des refresh tokens existent tout court. À `false`, chaque session se termine avec son jeton d'accès. |
+
+Un refresh token n'est émis qu'à un client dont les `grantTypes` contiennent
+`refresh_token`, et jamais sur le grant `client_credentials`, où aucun
+utilisateur n'a consenti à quoi que ce soit.
+
 ## Câbler `/authorize`
 
 La décision est celle de visa ; la page est la tienne. La page de consentement
