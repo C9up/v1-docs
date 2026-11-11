@@ -86,13 +86,13 @@ Some packages (typically community ones) ship without a `configure` export. In t
 
 Authors: see [Plugin System](./plugin-system) for how to ship a configurable plugin.
 
-## Source-first publishing convention
+## Publishing convention: source in development, `dist/` on npm
 
-Ream packages publish their TypeScript source (`src/**/*.ts`) directly — they do NOT ship a pre-built `dist/` directory. Your project compiles them via `@swc-node/register` (already required for decorator metadata, see [Requirements](#requirements)).
+Inside the Ream monorepo and during development, packages run **straight from their TypeScript source** (`src/**/*.ts`): every `package.json`'s `exports` points at `src/`, so an edit to `packages/*/src` is picked up immediately, with no build step, through `@swc-node/register`. No `--conditions` flag is needed.
 
-This is a deliberate framework convention. It keeps stack traces in production pointing at real source line numbers, avoids a stale-artifact class of bug where a published `dist/` drifts from its source, and lets you patch a dependency in-place during development by editing files inside `node_modules/@c9up/<pkg>/src/`. The trade-off is that consumers carry the SWC compile cost; in practice this is negligible because `@swc-node/register` caches and decorator-using projects already pay it.
+At publish time, each package's `publishConfig` redirects `main` / `types` / `exports` to `dist/`: pnpm substitutes those values in the tarball, so consumers without a TypeScript transform receive compiled JavaScript (`dist/*.js` + `.d.ts`), while the committed `package.json` stays source-first. `dist/` is produced by `pnpm build` just before `pnpm publish` (and is never committed — it is in `.gitignore`).
 
-The single exception is `@c9up/ream-mcp`, which publishes a built `dist/` because it's a developer tool spawned outside the framework's runtime context — its consumers (editor agents, MCP clients) don't run under `@swc-node/register` and need a self-contained artifact.
+Why both rather than publishing only the source: a Node consumer outside the Ream toolchain (without `@swc-node/register`) could not import a `src/*.ts` package. Why not only `dist/`: the monorepo's dev loop would then pay for a permanent watch build. `publishConfig` covers both needs without forcing one on the other. The `sourceMap` + `declarationMap` the build emits keep consumers' stack traces pointing at the real source lines.
 
 ## Project Setup
 

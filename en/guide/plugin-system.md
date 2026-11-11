@@ -13,7 +13,7 @@ When a user runs `pnpm ream add @community/your-plugin`, the CLI:
 3. Imports your `configure` hook — first from the lightweight `@community/your-plugin/configure` subpath, falling back to the root `@community/your-plugin` if the subpath is not exported.
 4. Calls `await configure(command, flags)` inside a `node --import @swc-node/register/esm-register` child process.
 
-The subpath form is loaded under `@swc-node/register`, so authoring `configure.ts` directly (no build step) works out of the box per ADR-003 — Package Publish Strategy (source-first).
+The subpath form is loaded under `@swc-node/register`, so a `configure.ts` loads without a build step while you develop the plugin (see [Publishing: source in development, `dist/` on npm](#publishing-source-in-development-dist-on-npm)).
 
 ## The `configure()` hook
 
@@ -291,13 +291,13 @@ A plugin is an ESM-only TypeScript package. The minimum `package.json`:
 | `type: "module"` | Required | Plugins are ESM-only — `ream-cli` loads them via dynamic `import()`. |
 | `exports["./configure"]` | Recommended | Lets `ream-cli` load the hook without pulling in your runtime. Falls back to the root export if absent. |
 | `peerDependencies["@c9up/ream"]` | Recommended | The `Codemods` interface is its public contract. Pin a SemVer range for the major version you support. |
-| `engines.node` | Recommended | Match `@c9up/ream` (currently `>=22.0.0`). |
+| `engines.node` | Recommended | Match `@c9up/ream` (currently `>=24.0.0`). |
 
-### Source-first authoring (ADR-003)
+### Publishing: source in development, `dist/` on npm
 
-The recommended shape is to ship `.ts` files verbatim and let the consumer's loader (`@swc-node/register`, `tsx`, Bun) compile them — no `dist/` build step. This matches how the first-party packages publish (see ADR-003 — Package Publish Strategy — for the full rationale).
+The first-party packages run from their TypeScript source while they are developed — the committed `exports` point at `src/` — and publish compiled JavaScript: their `publishConfig` redirects `main` / `types` / `exports` to `dist/`, so the tarball carries `dist/*.js` + `.d.ts` built just before `pnpm publish`. A consumer without a TypeScript loader can import them.
 
-If you prefer to publish a built `dist/` (for example because your runtime depends on tooling not available in TS-aware loaders), point `exports["./configure"]` at the compiled JS. The contract only requires that `<pkg>/configure` resolve to a module exporting a named `configure` function.
+Do the same for a plugin: develop against `src/`, and publish with `publishConfig` pointing `exports["./configure"]` (and the rest) at the compiled JS. The contract only requires that `<pkg>/configure` resolve to a module exporting a named `configure` function.
 
 ## The `flags` parameter
 

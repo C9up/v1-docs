@@ -88,7 +88,7 @@ Auteurs : voir [Système de plugins](./plugin-system) pour publier un plugin con
 
 ## Convention de publication : source en dev, `dist/` au publish
 
-Dans le monorepo Ream et pendant le développement, les paquets s'exécutent **directement depuis leur source TypeScript** (`src/**/*.ts`) : le champ `exports` de chaque `package.json` pointe sur `src/`, donc éditer `packages/*/src` est pris en compte immédiatement, sans étape de build, via `@swc-node/register` / `tsx`. Aucun drapeau `--conditions` n'est requis.
+Dans le monorepo Ream et pendant le développement, les paquets s'exécutent **directement depuis leur source TypeScript** (`src/**/*.ts`) : le champ `exports` de chaque `package.json` pointe sur `src/`, donc éditer `packages/*/src` est pris en compte immédiatement, sans étape de build, via `@swc-node/register`. Aucun drapeau `--conditions` n'est requis.
 
 Au moment de la publication sur npm, le champ `publishConfig` de chaque paquet redirige `main` / `types` / `exports` vers `dist/` : pnpm substitue ces valeurs dans le tarball, si bien que les consommateurs qui n'ont pas de transformation TypeScript reçoivent du JavaScript compilé (`dist/*.js` + `.d.ts`), tandis que le `package.json` versionné reste source-first. Le `dist/` est généré par `pnpm build` juste avant `pnpm publish` (et n'est jamais committé — il est dans `.gitignore`).
 

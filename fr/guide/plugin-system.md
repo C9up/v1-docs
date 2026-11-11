@@ -13,7 +13,7 @@ Quand un utilisateur exécute `pnpm ream add @community/your-plugin`, la CLI :
 3. Importe votre hook `configure` — d'abord depuis le sous-chemin léger `@community/your-plugin/configure`, puis fallback sur la racine `@community/your-plugin` si le sous-chemin n'est pas exporté.
 4. Appelle `await configure(command, flags)` dans un processus enfant `node --import @swc-node/register/esm-register`.
 
-Le sous-chemin est chargé via `@swc-node/register`, donc écrire `configure.ts` directement (sans étape de build) fonctionne d'emblée conformément à ADR-003 — Stratégie de publication des paquets (source-first).
+Le sous-chemin est chargé via `@swc-node/register`, donc un `configure.ts` se charge sans étape de build pendant le développement du plugin (voir [Publication : la source en développement, `dist/` sur npm](#publication-la-source-en-developpement-dist-sur-npm)).
 
 ## Le hook `configure()`
 
@@ -295,13 +295,13 @@ Un plugin est un paquet TypeScript ESM-only. Le `package.json` minimal :
 | `type: "module"` | Requis | Les plugins sont ESM-only — `ream-cli` les charge via un `import()` dynamique. |
 | `exports["./configure"]` | Recommandé | Permet à `ream-cli` de charger le hook sans tirer votre runtime. Fallback sur l'export racine si absent. |
 | `peerDependencies["@c9up/ream"]` | Recommandé | L'interface `Codemods` est son contrat public. Épinglez une plage SemVer pour la version majeure supportée. |
-| `engines.node` | Recommandé | Aligné sur `@c9up/ream` (actuellement `>=22.0.0`). |
+| `engines.node` | Recommandé | Aligné sur `@c9up/ream` (actuellement `>=24.0.0`). |
 
-### Authoring source-first (ADR-003)
+### Publication : la source en développement, `dist/` sur npm
 
-La forme recommandée est de publier les fichiers `.ts` tels quels et de laisser le loader du consommateur (`@swc-node/register`, `tsx`, Bun) les compiler — pas d'étape de build `dist/`. Cela correspond à la manière dont les paquets first-party publient (voir ADR-003 — Stratégie de publication des paquets — pour la justification complète).
+Les paquets first-party s'exécutent depuis leur source TypeScript pendant le développement — les `exports` versionnés pointent sur `src/` — et publient du JavaScript compilé : leur `publishConfig` redirige `main` / `types` / `exports` vers `dist/`, si bien que le tarball contient `dist/*.js` + `.d.ts`, construits juste avant `pnpm publish`. Un consommateur sans loader TypeScript peut les importer.
 
-Si vous préférez publier un `dist/` compilé (par exemple parce que votre runtime dépend d'outils non disponibles dans les loaders TS-aware), pointez `exports["./configure"]` vers le JS compilé. Le contrat exige seulement que `<pkg>/configure` résolve vers un module exportant une fonction nommée `configure`.
+Faites de même pour un plugin : développez contre `src/`, et publiez avec un `publishConfig` qui pointe `exports["./configure"]` (et le reste) vers le JS compilé. Le contrat exige seulement que `<pkg>/configure` résolve vers un module exportant une fonction nommée `configure`.
 
 ## Le paramètre `flags`
 
