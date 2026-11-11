@@ -328,7 +328,11 @@ router
   .where('id', router.matchers.uuid())
 ```
 
-`.permission()` checks the authenticated user's own permissions. When the
+`.permission()` checks the authenticated user's own permissions, as the auth
+layer resolves them: when `ctx.auth.hasAllPermissions()` exists (warden's
+authenticator provides it and asks its rights resolver), its answer decides and
+a stale `permissions` list on the payload is ignored; without it, the gate reads
+`ctx.auth.permissions` or `ctx.auth.user.permissions`. When the
 request was authenticated with a token (`ctx.auth.user.currentAccessToken`), the
 token must also allow each permission: a token scope never grants a permission
 the user lacks, and a narrow token does not carry every permission of its user.

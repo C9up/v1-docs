@@ -330,7 +330,12 @@ router
   .where('id', router.matchers.uuid())
 ```
 
-`.permission()` vérifie les permissions propres à l'utilisateur authentifié.
+`.permission()` vérifie les permissions propres à l'utilisateur authentifié,
+telles que la couche d'authentification les résout : quand
+`ctx.auth.hasAllPermissions()` existe (l'authentificateur de warden la fournit et
+interroge son résolveur de droits), sa réponse décide et une liste `permissions`
+périmée dans le payload est ignorée ; sans elle, le gate lit
+`ctx.auth.permissions` ou `ctx.auth.user.permissions`.
 Quand la requête s'est authentifiée avec un jeton
 (`ctx.auth.user.currentAccessToken`), le jeton doit aussi autoriser chaque
 permission : un scope de jeton n'accorde jamais une permission que l'utilisateur
