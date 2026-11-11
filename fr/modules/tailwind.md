@@ -52,9 +52,9 @@ Détails complets : [Aurora → Classes Tailwind (`cn`)](./aurora.md#classes-tai
 
 ## À propos de `@c9up/tailwind`
 
-Un package stub `@c9up/tailwind` existait dans le workspace ; il scaffoldait `tailwind.config.ts` + `postcss.config.js` + une entrée `app.css` via `ream configure @c9up/tailwind`. Il n'a jamais été publié sur npm, a été retiré le 2026-05-01 (Epic 41.1, décision : Kill), puis le dossier workspace a été supprimé le 2026-05-01 (Epic 41.5). Il n'y a pas de package Ream de remplacement — la recette ci-dessus est l'installation canonique de Tailwind dans Ream.
+Un package stub `@c9up/tailwind` existait dans le workspace ; il scaffoldait `tailwind.config.ts` + `postcss.config.js` + une entrée `app.css` via `ream configure @c9up/tailwind`. Il n'a jamais été publié sur npm, a été retiré et son dossier workspace supprimé le 2026-05-01. Il n'y a pas de package Ream de remplacement — la recette ci-dessus est l'installation canonique de Tailwind dans Ream.
 
-Raison : `@tailwindcss/vite` fait le travail et Photon couvre déjà le côté Vite. Un stub possédé par le framework n'apporte rien de plus que la recette ci-dessus. Survey complet + frame de décision : `_bmad-output/planning-artifacts/architecture.md` → "Tailwind integration decision (Epic 41.1)".
+Raison : `@tailwindcss/vite` fait le travail et Photon couvre déjà le côté Vite. Un stub possédé par le framework n'apporte rien de plus que la recette ci-dessus.
 
 ## Sans Vite
 
