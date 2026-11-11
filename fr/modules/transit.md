@@ -424,9 +424,19 @@ retenir l'identifiant. Le store Redis garde la clé une minute de plus encore,
 pour l'écart d'horloge entre la réplique qui l'a stockée et celle où arrive le
 rejeu.
 
-Le store par défaut mémorise dans la mémoire du processus, ce qui accepte la
-même assertion **une fois par réplique**. Passez
-`replayStores.redis({ connection })` dès qu'il y en a deux.
+Le store en processus mémorise dans la mémoire du processus, ce qui accepte la
+même assertion **une fois par réplique**. En production (`NODE_ENV` vaut
+`production` ou `prod`), le driver refuse donc de le choisir à votre place : un
+fournisseur SAML sans `replayStore` lève à la construction du driver, et
+l'application ne démarre pas. Dites quel store vous voulez :
+
+```ts
+replayStore: replayStores.redis({ connection: 'main' })  // partagé entre répliques
+replayStore: replayStores.memory()                       // un seul processus, délibérément
+```
+
+Hors production, le store en processus reste le défaut : un processus de
+développement unique est le cas pour lequel il est juste.
 
 ### L'email affirmé
 

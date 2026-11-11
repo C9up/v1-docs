@@ -417,9 +417,19 @@ replay store is asked to remember the id until. The Redis store keeps the key a
 minute longer still, for the clock difference between the replica that stored it
 and the one a replay lands on.
 
-The default store remembers in this process's memory, which accepts the same
-assertion **once per replica**. Pass `replayStores.redis({ connection })` as
-soon as there are two.
+The in-process store remembers in this process's memory, which accepts the same
+assertion **once per replica**. In production (`NODE_ENV` is `production` or
+`prod`) the driver therefore refuses to choose it for you: a SAML provider with
+no `replayStore` throws when the driver is built, and the application does not
+boot. Say which store you want:
+
+```ts
+replayStore: replayStores.redis({ connection: 'main' })  // shared across replicas
+replayStore: replayStores.memory()                       // a single process, deliberately
+```
+
+Outside production the in-process store remains the default: one dev process is
+the case it is correct for.
 
 ### The asserted email
 
