@@ -259,7 +259,7 @@ ctx.response.status(code)   // Set response status (chainable)
 ctx.response.header(k, v)   // Set response header (chainable)
 ctx.response.json(data)      // Send JSON response
 ctx.store                   // Per-request Map for passing data downstream
-ctx.containerResolver        // Per-request IoC resolver: ctx.containerResolver?.make(Service)
+ctx.containerResolver       // Per-request IoC resolver: await ctx.containerResolver?.make(Service)
 ```
 
 ### Resolving services in middleware
@@ -272,14 +272,14 @@ import { AuthManager } from '@c9up/warden'
 
 export default class WardenMiddleware {
   async handle(ctx: HttpContext, next: () => Promise<void>) {
-    const auth = ctx.containerResolver?.make(AuthManager)
+    const auth = await ctx.containerResolver?.make(AuthManager)
     // ...authenticate with `auth`, then:
     await next()
   }
 }
 ```
 
-`ctx.containerResolver` is the per-request resolver Ream builds with `container.createResolver()`; `.make(token)` resolves a class, string, or symbol token. This is how `@c9up/warden` and `@c9up/blackhole` consume host services while staying framework-agnostic.
+`ctx.containerResolver` is the per-request resolver Ream builds with `container.createResolver()`; `.make(token)` resolves a class, string, or symbol token and returns a promise. This is how `@c9up/warden` and `@c9up/blackhole` consume host services while staying framework-agnostic.
 
 It carries the rest of the resolver surface too — `call()`, `hasBinding()`, `hasAllBindings()`, and `bindValue()`:
 
