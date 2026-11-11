@@ -568,7 +568,7 @@ Binary size: ~700KB.
 
 ### Cadence
 
-Publishing is manual. Maintainers trigger a release via the GitHub Actions UI (Actions → Build & Publish CLI → Run workflow) on the ream-cli repository — no tag-push auto-publish. Only a deliberate run from the UI publishes, so a stray local tag push never reaches npm.
+Publishing is manual. Maintainers trigger a release via the GitHub Actions UI (Actions → ream-cli-ci → Run workflow) on the ream-cli repository — no tag-push auto-publish. Only a deliberate run from the UI publishes, so a stray local tag push never reaches npm.
 
 ### Version-bump sequence
 
@@ -581,7 +581,7 @@ git add Cargo.toml && git commit -m "release: ream-cli vX.Y.Z"
 git tag -a vX.Y.Z -m "ream-cli vX.Y.Z"
 git push origin vX.Y.Z
 
-# 3) Trigger publish from GHA UI → Actions → Build & Publish CLI → Run workflow
+# 3) Trigger publish from GHA UI → Actions → ream-cli-ci → Run workflow
 #    Select the vX.Y.Z tag as the ref (NOT main) so gates resolve the right tag.
 ```
 
@@ -593,11 +593,12 @@ git push origin vX.Y.Z
 
 ### Override (`confirm_overwrite: YES`)
 
-The drift gate refuses to publish when the npm registry already has a version greater than or equal to the local `Cargo.toml`. The `confirm_overwrite` workflow input (default `no`) accepts the literal string `YES` to bypass this guard. Use it only for:
+The drift gate compares the local `Cargo.toml` version with the one on npm:
 
-- Re-publishing the same version after a broken initial publish (registry has a tombstoned tarball but `Cargo.toml` was not yet bumped).
-- Deliberate rollback when the latest registry version is broken and the maintainer wants to ship an older local snapshot.
+- **Higher** than npm's: published under the `latest` dist-tag.
+- **Equal** to npm's: refused, and no input changes that. npm never accepts a version number twice, even after an unpublish, so the fix is to bump `Cargo.toml`.
+- **Lower** than npm's: refused unless the `confirm_overwrite` workflow input (default `no`) is the literal string `YES`. A confirmed run publishes it under the `backport` dist-tag, so `latest` stays on the newer version and a fresh install does not move back to the older line. Use it to ship a fix on an older release line.
 
 Any other failure (no tag on HEAD, tag-vs-`Cargo.toml` mismatch, npm registry unreachable) is fail-closed: there is no override.
 
-The gates exist for two reasons: a release only happens when someone asks for it, and what reaches npm is exactly the tagged commit, never a version older than or equal to the one already published unless `confirm_overwrite: YES` says so.
+The gates exist for two reasons: a release only happens when someone asks for it, and what reaches npm is exactly the tagged commit, never a version npm already holds, and never an older one unless `confirm_overwrite: YES` says so, under `backport`.
