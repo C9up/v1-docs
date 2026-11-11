@@ -25,7 +25,9 @@ ream configure @c9up/nova
 ream nova:vapid:generate
 ```
 
-Mints a P-256 key pair using Node's `crypto.generateKeyPairSync('ec')` (no `web-push` dependency) and upserts the three `NOVA_VAPID_*` env vars into `.env`. Edit `NOVA_VAPID_SUBJECT` to a real `mailto:` address before deploying — push services use it to contact you about subscription issues.
+Mints a P-256 key pair with Node's `crypto.generateKeyPairSync('ec')` and upserts the three `NOVA_VAPID_*` env vars into `.env`. Edit `NOVA_VAPID_SUBJECT` to a real `mailto:` address before deploying — push services use it to contact you about subscription issues.
+
+Only the key pair is minted with `node:crypto`. Delivery is built by `web-push`, a dependency of the package: `nova.push()` has it encrypt the payload and sign the VAPID headers, then sends the request through ream's `HttpClient` (`@c9up/ream/http-client`), which refuses non-public addresses.
 
 If `NOVA_VAPID_PRIVATE_KEY` is already set, the command refuses to overwrite. Pass `--force` to rotate.
 

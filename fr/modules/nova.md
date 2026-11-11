@@ -25,7 +25,9 @@ ream configure @c9up/nova
 ream nova:vapid:generate
 ```
 
-Frappe une paire P-256 via `crypto.generateKeyPairSync('ec')` de Node (sans dépendance `web-push`) et upserte les trois variables `NOVA_VAPID_*` dans `.env`. Remplace `NOVA_VAPID_SUBJECT` par une vraie adresse `mailto:` avant déploiement — les services push s'en servent pour te contacter en cas de souci d'abonnement.
+Frappe une paire P-256 via `crypto.generateKeyPairSync('ec')` de Node et upserte les trois variables `NOVA_VAPID_*` dans `.env`. Remplace `NOVA_VAPID_SUBJECT` par une vraie adresse `mailto:` avant déploiement — les services push s'en servent pour te contacter en cas de souci d'abonnement.
+
+Seule la paire de clés est frappée avec `node:crypto`. L'envoi est construit par `web-push`, une dépendance du paquet : `nova.push()` lui fait chiffrer le contenu et signer les en-têtes VAPID, puis envoie la requête par le `HttpClient` de ream (`@c9up/ream/http-client`), qui refuse les adresses non publiques.
 
 Si `NOVA_VAPID_PRIVATE_KEY` est déjà défini, la commande refuse d'écraser. Passe `--force` pour faire tourner la clé.
 
