@@ -757,6 +757,7 @@ Without a `session` block the strategy is unregistered and `@Guard('session')` t
 
 ```typescript
 import { Hash } from '@c9up/sigil'
+import { E_INVALID_CREDENTIALS } from '@c9up/warden'
 
 const hash = new Hash({
   default: 'argon2',
@@ -765,8 +766,9 @@ const hash = new Hash({
 
 // Login flow — the caller verifies the password, Warden mints the session
 const user = await db.users.findByEmail(email)
-const ok = user ? await hash.verify(user.passwordHash, password) : false
-if (!ok) throw new E_WARDEN_UNAUTHORIZED('Invalid credentials')
+if (!user || !(await hash.verify(user.passwordHash, password))) {
+  throw new E_INVALID_CREDENTIALS() // 400, code E_INVALID_CREDENTIALS
+}
 
 await strategy.login({ id: user.id, roles: user.roles }, ctx.session)
 
@@ -1393,7 +1395,7 @@ Create an `AuthMiddleware` class that calls `auth.verify()` and populates `ctx.a
 ```typescript
 // app/middleware/auth_middleware.ts
 import type { HttpContext } from '@c9up/ream'
-import { E_WARDEN_UNAUTHORIZED } from '@c9up/ream'
+import { E_UNAUTHORIZED } from '@c9up/ream'
 import { AuthManager } from '@c9up/warden'
 
 export default class AuthMiddleware {
@@ -1404,12 +1406,12 @@ export default class AuthMiddleware {
     const token = bearer?.startsWith('Bearer ') ? bearer.slice(7) : undefined
 
     if (!token) {
-      throw new E_WARDEN_UNAUTHORIZED('Bearer token required')
+      throw new E_UNAUTHORIZED('Bearer token required')
     }
 
     const result = await this.auth.verify(token)
     if (!result.authenticated || !result.user) {
-      throw new E_WARDEN_UNAUTHORIZED('Invalid or expired token')
+      throw new E_UNAUTHORIZED('Invalid or expired token')
     }
 
     ctx.auth = {
@@ -1469,31 +1471,40 @@ router.group(() => {
 
 ### Guard Enforcement Behaviour
 
-1. If the route has any guard, role, or permission and `ctx.auth.authenticated` is `false` — sends `401 { error: { code: 'E_WARDEN_UNAUTHORIZED', message: ... } }` and returns.
-2. If the route requires roles and `ctx.auth.roles` does not contain any of them — sends `403 { error: { code: 'E_WARDEN_FORBIDDEN', message: 'Missing roles: ...' } }` and returns.
-3. If the route requires permissions and the user does not hold all of them — or the request came with a token (`user.currentAccessToken`) that does not allow one of them — sends `403 { error: { code: 'E_WARDEN_FORBIDDEN', message: 'Missing permissions: ...' } }` and returns.
+The route builder's gate is Ream's, not Warden's. It throws Ream's own exceptions, which the exception handler renders:
 
-Guards are enforced by the middleware pipeline, not by Warden directly. `ctx.auth` must be populated before the guard check runs — that is the auth middleware's job.
+1. If the route has any guard, role, or permission and `ctx.auth.isAuthenticated` is `false`, it throws `E_UNAUTHORIZED`: `401 { error: { code: 'E_UNAUTHORIZED', message: 'Authentication required' } }`.
+2. If the route requires roles and the user holds **none** of them (`ctx.auth.roles`, or `ctx.auth.user.roles` where Warden puts them), it throws `E_FORBIDDEN`: `403 { error: { code: 'E_FORBIDDEN', message: 'Insufficient role', required: [...] } }`. `.role('a', 'b')` is any-of.
+3. If the route requires permissions and the user does not hold **all** of them, it throws `E_FORBIDDEN`: `403 { error: { code: 'E_FORBIDDEN', message: 'Insufficient permissions', required: [...] } }`. When `ctx.auth` offers `hasAllPermissions()` — Warden's authenticator does — that answer decides, through the rights resolver; otherwise the gate reads the payload's permissions. A request that came with a token (`user.currentAccessToken`) also needs the token to allow each one.
+
+`ctx.auth` must be populated before the gate runs — that is the auth middleware's job.
+
+### The decorator gate
+
+Warden's auth middleware (`@c9up/warden/middleware`) enforces the `@Guard`, `@Role` and `@Permission` decorators of the controller action and answers on its own, without the exception handler:
+
+- Authentication failure: `401 { error: { code: 'E_UNAUTHORIZED_ACCESS', message: ... } }` (an HTML request on a session guard with a login route is redirected instead).
+- Missing permissions or roles: `403 { error: { code: 'E_WARDEN_FORBIDDEN', message: 'Missing permissions: ...' } }` or `'Missing roles: ...'`. Here roles are **all-of**: `@Role('a', 'b')` requires both, and permissions are checked before roles.
 
 ---
 
-## E_WARDEN_UNAUTHORIZED and E_WARDEN_FORBIDDEN
+## E_UNAUTHORIZED and E_FORBIDDEN
 
-Both exceptions are defined in `@c9up/ream` and self-handle their HTTP responses:
+The route gate's two exceptions are exported by `@c9up/ream` and render their own HTTP responses. Throw them from your own middleware or controllers:
 
 ```typescript
-import { E_WARDEN_UNAUTHORIZED, E_WARDEN_FORBIDDEN } from '@c9up/ream'
+import { E_FORBIDDEN, E_UNAUTHORIZED } from '@c9up/ream'
 
-// 401 — thrown when ctx.auth.authenticated is false
-throw new E_WARDEN_UNAUTHORIZED('Bearer token required')
-// Response: { "error": { "code": "E_WARDEN_UNAUTHORIZED", "message": "Bearer token required" } }
+// 401
+throw new E_UNAUTHORIZED('Bearer token required')
+// Response: { "error": { "code": "E_UNAUTHORIZED", "message": "Bearer token required" } }
 
-// 403 — thrown when roles or permissions are insufficient
-throw new E_WARDEN_FORBIDDEN('Insufficient permissions', ['posts.create'])
-// Response: { "error": { "code": "E_WARDEN_FORBIDDEN", "message": "Insufficient permissions", "required": ["posts.create"] } }
+// 403
+throw new E_FORBIDDEN('Insufficient permissions', ['posts.create'])
+// Response: { "error": { "code": "E_FORBIDDEN", "message": "Insufficient permissions", "required": ["posts.create"] } }
 ```
 
-You can throw these manually in your own middleware or controllers — the global exception handler will handle them.
+Warden's own failures are `WardenError`s: `E_UNAUTHORIZED_ACCESS` (401) and `E_INVALID_CREDENTIALS` (400) are exported classes; `E_WARDEN_FORBIDDEN` is the code the decorator gate writes, not a class.
 
 ---
 

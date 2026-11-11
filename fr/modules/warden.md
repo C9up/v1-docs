@@ -777,6 +777,7 @@ Sans bloc `session`, la stratégie n'est pas enregistrée et `@Guard('session')`
 
 ```typescript
 import { Hash } from '@c9up/sigil'
+import { E_INVALID_CREDENTIALS } from '@c9up/warden'
 
 const hash = new Hash({
   default: 'argon2',
@@ -785,8 +786,9 @@ const hash = new Hash({
 
 // Flux de login — l'appelant vérifie le mot de passe, Warden mintie la session
 const user = await db.users.findByEmail(email)
-const ok = user ? await hash.verify(user.passwordHash, password) : false
-if (!ok) throw new E_WARDEN_UNAUTHORIZED('Identifiants invalides')
+if (!user || !(await hash.verify(user.passwordHash, password))) {
+  throw new E_INVALID_CREDENTIALS() // 400, code E_INVALID_CREDENTIALS
+}
 
 await strategy.login({ id: user.id, roles: user.roles }, ctx.session)
 
@@ -1436,7 +1438,7 @@ Créez une classe `AuthMiddleware` qui appelle `auth.verify()` et peuple `ctx.au
 ```typescript
 // app/middleware/auth_middleware.ts
 import type { HttpContext } from '@c9up/ream'
-import { E_WARDEN_UNAUTHORIZED } from '@c9up/ream'
+import { E_UNAUTHORIZED } from '@c9up/ream'
 import { AuthManager } from '@c9up/warden'
 
 export default class AuthMiddleware {
@@ -1447,12 +1449,12 @@ export default class AuthMiddleware {
     const token = bearer?.startsWith('Bearer ') ? bearer.slice(7) : undefined
 
     if (!token) {
-      throw new E_WARDEN_UNAUTHORIZED('Bearer token required')
+      throw new E_UNAUTHORIZED('Bearer token required')
     }
 
     const result = await this.auth.verify(token)
     if (!result.authenticated || !result.user) {
-      throw new E_WARDEN_UNAUTHORIZED('Invalid or expired token')
+      throw new E_UNAUTHORIZED('Invalid or expired token')
     }
 
     ctx.auth = {
@@ -1512,31 +1514,40 @@ router.group(() => {
 
 ### Comportement d'application des guards
 
-1. Si la route possède un guard, un rôle ou une permission quelconque et que `ctx.auth.authenticated` est `false` — lève `E_WARDEN_UNAUTHORIZED`.
-2. Si la route exige des rôles et que `ctx.auth.roles` n'en contient aucun — lève `E_WARDEN_FORBIDDEN`.
-3. Si la route exige des permissions et que l'utilisateur ne les détient pas toutes — ou que la requête est venue avec un jeton (`user.currentAccessToken`) qui n'en autorise pas une — lève `E_WARDEN_FORBIDDEN`.
+Le gate du constructeur de route appartient à Ream, pas à Warden. Il lève les exceptions de Ream, que le gestionnaire d'exceptions rend :
 
-Les guards sont appliqués par le pipeline de middlewares, pas par Warden directement. `ctx.auth` doit être peuplé avant l'exécution de la vérification du guard — c'est le rôle du middleware d'authentification.
+1. Si la route possède un guard, un rôle ou une permission quelconque et que `ctx.auth.isAuthenticated` est `false`, il lève `E_UNAUTHORIZED` : `401 { error: { code: 'E_UNAUTHORIZED', message: 'Authentication required' } }`.
+2. Si la route exige des rôles et que l'utilisateur n'en détient **aucun** (`ctx.auth.roles`, ou `ctx.auth.user.roles` où Warden les range), il lève `E_FORBIDDEN` : `403 { error: { code: 'E_FORBIDDEN', message: 'Insufficient role', required: [...] } }`. `.role('a', 'b')` vaut « l'un ou l'autre ».
+3. Si la route exige des permissions et que l'utilisateur ne les détient pas **toutes**, il lève `E_FORBIDDEN` : `403 { error: { code: 'E_FORBIDDEN', message: 'Insufficient permissions', required: [...] } }`. Quand `ctx.auth` offre `hasAllPermissions()` — c'est le cas de l'authenticator de Warden —, sa réponse décide, via le résolveur de droits ; sinon le gate lit les permissions du payload. Une requête venue avec un jeton (`user.currentAccessToken`) exige en plus que le jeton autorise chacune.
+
+`ctx.auth` doit être peuplé avant l'exécution du gate — c'est le rôle du middleware d'authentification.
+
+### Le gate des décorateurs
+
+Le middleware d'authentification de Warden (`@c9up/warden/middleware`) applique les décorateurs `@Guard`, `@Role` et `@Permission` de l'action du contrôleur et répond lui-même, sans passer par le gestionnaire d'exceptions :
+
+- Échec d'authentification : `401 { error: { code: 'E_UNAUTHORIZED_ACCESS', message: ... } }` (une requête HTML sur un guard session doté d'une route de login est redirigée à la place).
+- Permissions ou rôles manquants : `403 { error: { code: 'E_WARDEN_FORBIDDEN', message: 'Missing permissions: ...' } }` ou `'Missing roles: ...'`. Ici les rôles sont **tous requis** : `@Role('a', 'b')` exige les deux, et les permissions sont vérifiées avant les rôles.
 
 ---
 
-## E_WARDEN_UNAUTHORIZED et E_WARDEN_FORBIDDEN
+## E_UNAUTHORIZED et E_FORBIDDEN
 
-Les deux exceptions sont définies dans `@c9up/ream` et gèrent elles-mêmes leurs réponses HTTP :
+Les deux exceptions du gate de route sont exportées par `@c9up/ream` et rendent elles-mêmes leur réponse HTTP. Levez-les depuis vos propres middlewares ou contrôleurs :
 
 ```typescript
-import { E_WARDEN_UNAUTHORIZED, E_WARDEN_FORBIDDEN } from '@c9up/ream'
+import { E_FORBIDDEN, E_UNAUTHORIZED } from '@c9up/ream'
 
-// 401 — levée quand ctx.auth.authenticated est false
-throw new E_WARDEN_UNAUTHORIZED('Bearer token required')
-// Réponse : { "error": { "code": "E_WARDEN_UNAUTHORIZED", "message": "Bearer token required" } }
+// 401
+throw new E_UNAUTHORIZED('Bearer token required')
+// Réponse : { "error": { "code": "E_UNAUTHORIZED", "message": "Bearer token required" } }
 
-// 403 — levée quand les rôles ou permissions sont insuffisants
-throw new E_WARDEN_FORBIDDEN('Insufficient permissions', ['posts.create'])
-// Réponse : { "error": { "code": "E_WARDEN_FORBIDDEN", "message": "Insufficient permissions", "required": ["posts.create"] } }
+// 403
+throw new E_FORBIDDEN('Insufficient permissions', ['posts.create'])
+// Réponse : { "error": { "code": "E_FORBIDDEN", "message": "Insufficient permissions", "required": ["posts.create"] } }
 ```
 
-Vous pouvez lever ces exceptions manuellement dans vos propres middlewares ou contrôleurs — le gestionnaire global d'exceptions les traitera.
+Les échecs propres à Warden sont des `WardenError` : `E_UNAUTHORIZED_ACCESS` (401) et `E_INVALID_CREDENTIALS` (400) sont des classes exportées ; `E_WARDEN_FORBIDDEN` est le code qu'écrit le gate des décorateurs, pas une classe.
 
 ---
 
