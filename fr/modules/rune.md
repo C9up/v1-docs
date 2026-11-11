@@ -714,7 +714,7 @@ pour une forme que les options de `runRule` n'expriment pas.
 ## Le moteur Rust est requis
 
 Un schéma ne portant rien que le moteur ne sache exécuter **est exécuté par le
-moteur** — `RuneNativeRequiredError` (`RUNE_NAPI_REQUIRED`) est levée si le
+moteur** — `RuneNativeRequiredError` (`E_RUNE_NAPI_REQUIRED`) est levée si le
 binaire est absent, plutôt qu'un repli.
 
 Il existe un validateur TypeScript, et il prenait le relais avec un

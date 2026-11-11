@@ -733,7 +733,7 @@ for — `runRuleAsync` is the awaiting form, and it takes a sync rule too.
 ## The Rust engine is required
 
 A schema carrying nothing the engine cannot run **is run by the engine** —
-`RuneNativeRequiredError` (`RUNE_NAPI_REQUIRED`) is thrown when the binary is
+`RuneNativeRequiredError` (`E_RUNE_NAPI_REQUIRED`) is thrown when the binary is
 absent, rather than falling back.
 
 There is a TypeScript validator, and it used to take over with a one-time
