@@ -72,7 +72,7 @@ const meta = images.inspect(upload)
 |---|---|
 | `width` / `height` | as the header declares them |
 | `orientedWidth` / `orientedHeight` | after the EXIF rotation is applied |
-| `format` | `jpeg`, `png` or `webp`, read from the CONTENT |
+| `format` | the format read from the CONTENT, one of the fifteen names under [Formats](#formats); an image outside `allowedFormats` (by default `jpeg`, `png`, `webp`) throws `E_PRISM_FORMAT_NOT_ALLOWED` instead |
 | `orientation` | EXIF orientation 1-8; `1` when there is none |
 | `hasAlpha` | whether the format carries transparency |
 
@@ -570,7 +570,8 @@ when its output format is switched.
 | `E_PRISM_INPUT_TOO_LARGE` | over the byte ceiling |
 | `E_PRISM_TOO_MANY_PIXELS` | the header declares, or an operation would build, more pixels than allowed |
 | `E_PRISM_UNKNOWN_FORMAT` | the bytes are not an image |
-| `E_PRISM_UNSUPPORTED_FORMAT` | a real image, in a format not on the allowlist |
+| `E_PRISM_FORMAT_NOT_ALLOWED` | a real image, in a format not on `allowedFormats` |
+| `E_PRISM_UNSUPPORTED_FORMAT` | an output format the engine does not write (`dds`) |
 | `E_PRISM_INVALID_GEOMETRY` | a crop outside the image, a rotation off the right angles, a watermark text over 1024 characters |
 | `E_PRISM_INVALID_FONT` | the watermark font could not be read |
 | `E_PRISM_INVALID_OPERATION` | an operation missing a field it needs, or a size, quality or effort that is not an integer in range |

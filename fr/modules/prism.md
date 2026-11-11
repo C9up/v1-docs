@@ -74,7 +74,7 @@ const meta = images.inspect(upload)
 |---|---|
 | `width` / `height` | tels que l'en-tête les déclare |
 | `orientedWidth` / `orientedHeight` | après application de la rotation EXIF |
-| `format` | `jpeg`, `png` ou `webp`, lu depuis le CONTENU |
+| `format` | le format lu depuis le CONTENU, l'un des quinze noms de [Formats](#formats) ; une image hors de `allowedFormats` (par défaut `jpeg`, `png`, `webp`) lève `E_PRISM_FORMAT_NOT_ALLOWED` à la place |
 | `orientation` | orientation EXIF 1-8 ; `1` s'il n'y en a pas |
 | `hasAlpha` | si le format porte la transparence |
 
@@ -586,7 +586,8 @@ quand son format de sortie change.
 | `E_PRISM_INPUT_TOO_LARGE` | au-delà du plafond d'octets |
 | `E_PRISM_TOO_MANY_PIXELS` | l'en-tête déclare, ou une opération construirait, plus de pixels qu'autorisé |
 | `E_PRISM_UNKNOWN_FORMAT` | les octets ne sont pas une image |
-| `E_PRISM_UNSUPPORTED_FORMAT` | une vraie image, dans un format hors liste blanche |
+| `E_PRISM_FORMAT_NOT_ALLOWED` | une vraie image, dans un format absent de `allowedFormats` |
+| `E_PRISM_UNSUPPORTED_FORMAT` | un format de sortie que le moteur n'écrit pas (`dds`) |
 | `E_PRISM_INVALID_GEOMETRY` | recadrage hors image, rotation hors angles droits, texte de filigrane de plus de 1024 caractères |
 | `E_PRISM_INVALID_FONT` | la police du filigrane est illisible |
 | `E_PRISM_INVALID_OPERATION` | une opération à laquelle il manque un champ, ou une taille, une qualité ou un effort qui n'est pas un entier dans les bornes |
