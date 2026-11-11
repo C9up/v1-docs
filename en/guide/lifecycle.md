@@ -182,12 +182,14 @@ export default class AppProvider extends Provider {
 
 ## Shutdown
 
-Shutdown is triggered by `app.terminate()` (called from signal handlers) or by `ignitor.stop()`. The sequence is:
+Shutdown is triggered by `app.terminate()` (called from signal handlers) or by `ignitor.stop()`. `app.terminate()` runs the `terminating` hooks in reverse order, then shuts the providers down; the Ignitor that opened the HTTP server registers a `terminating` hook that calls `ignitor.stop()`, so every path drains the server. The `ignitor.stop()` sequence is:
 
 1. The hot-reload watcher is stopped.
 2. The HTTP server is closed (no new connections accepted, in-flight requests drain).
 3. The error boundary is uninstalled.
 4. `provider.shutdown()` is called on providers in **reverse** registration order.
+
+When it starts an HTTP server, the Ignitor installs its own `SIGTERM` / `SIGINT` handlers (pass `gracefulShutdown: false` in the Ignitor config to opt out). The first signal runs `app.terminate()` with a **30-second drain timeout**; the process then exits with `0`, or `1` when the shutdown threw or the drain ran out of time. A second signal during the drain exits with `1` at once.
 
 ```typescript
 export default class AtlasProvider extends Provider {
@@ -233,7 +235,11 @@ Same as `app.listen()`, but only attaches if `condition` is `true`. Used with `a
 
 ### `app.terminate()`
 
-Calls `app.shutdown()` (all providers in reverse order) then `process.exit(0)`.
+Runs the `terminating` hooks in reverse order (the HTTP server's close is one of them), then `app.shutdown()` (all providers in reverse order). A second call while one is running is ignored. It does not close the server itself and does not call `process.exit()`: the process ends when nothing holds the event loop any more, or when the Ignitor's signal handler finishes its drain (see [Shutdown](#shutdown)).
+
+### `app.terminating(callback)`
+
+Registers a hook that `app.terminate()` runs before shutting the providers down — last registered, first run. Whatever opens a socket or a long-lived handle registers the hook that closes it.
 
 ### `app.booting(callback)`
 

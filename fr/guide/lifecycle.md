@@ -182,12 +182,14 @@ export default class AppProvider extends Provider {
 
 ## Arrêt
 
-L'arrêt est déclenché par `app.terminate()` (appelé depuis les gestionnaires de signaux) ou par `ignitor.stop()`. La séquence est :
+L'arrêt est déclenché par `app.terminate()` (appelé depuis les gestionnaires de signaux) ou par `ignitor.stop()`. `app.terminate()` exécute les hooks `terminating` dans l'ordre inverse, puis arrête les providers ; l'Ignitor qui a ouvert le serveur HTTP enregistre un hook `terminating` qui appelle `ignitor.stop()`, si bien que tous les chemins vident le serveur. La séquence d'`ignitor.stop()` est :
 
 1. Le watcher de rechargement à chaud est arrêté.
 2. Le serveur HTTP est fermé (aucune nouvelle connexion acceptée, les requêtes en cours se terminent).
 3. Le gestionnaire d'erreurs global est désinstallé.
 4. `provider.shutdown()` est appelé sur les providers dans l'ordre d'enregistrement **inversé**.
+
+Quand il démarre un serveur HTTP, l'Ignitor installe ses propres gestionnaires `SIGTERM` / `SIGINT` (passez `gracefulShutdown: false` dans la config de l'Ignitor pour s'en passer). Le premier signal lance `app.terminate()` avec un **délai de vidage de 30 secondes** ; le processus sort ensuite avec `0`, ou `1` si l'arrêt a levé une erreur ou si le vidage a dépassé le délai. Un second signal pendant le vidage sort aussitôt avec `1`.
 
 ```typescript
 export default class AtlasProvider extends Provider {
@@ -233,7 +235,11 @@ Identique à `app.listen()`, mais ne s'attache que si `condition` est `true`. Ut
 
 ### `app.terminate()`
 
-Appelle `app.shutdown()` (tous les providers dans l'ordre inverse) puis `process.exit(0)`.
+Exécute les hooks `terminating` dans l'ordre inverse (la fermeture du serveur HTTP en fait partie), puis `app.shutdown()` (tous les providers dans l'ordre inverse). Un second appel pendant qu'un premier tourne est ignoré. Il ne ferme pas le serveur lui-même et n'appelle pas `process.exit()` : le processus se termine quand plus rien ne retient la boucle d'événements, ou quand le gestionnaire de signaux de l'Ignitor a fini son vidage (voir [Arrêt](#arret)).
+
+### `app.terminating(callback)`
+
+Enregistre un hook que `app.terminate()` exécute avant d'arrêter les providers — dernier enregistré, premier exécuté. Ce qui ouvre un socket ou une ressource durable enregistre le hook qui la ferme.
 
 ### `app.booting(callback)`
 
