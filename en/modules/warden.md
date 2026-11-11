@@ -219,6 +219,24 @@ so a token-carried role still satisfies it with no store config. When no `rights
 resolver is supplied, `AuthManager` defaults to an empty in-memory store — roles
 still fold in from the payload, permissions resolve empty.
 
+Inside a request, the same questions are asked of `ctx.auth`, without importing
+the manager:
+
+```typescript
+await ctx.auth.hasAllPermissions?.(['posts.create', 'posts.read'])    // the signed-in user
+await ctx.auth.hasAllPermissions?.(['posts.publish'], { tenant: 'acme' })
+```
+
+Warden's per-request authenticator has `hasPermission(permission, scope?)` and
+`hasAllPermissions(permissions, scope?)`. Both delegate to the manager's
+helpers above for the authenticated user, narrowed by the token the request
+came with; a guest holds nothing, not even an empty list. Ream's `ctx.auth`
+type declares `hasAllPermissions` only, as optional — an application without
+Warden has no such method, hence the `?.`. The route, RPC and GraphQL
+`.permission()` gates ask `ctx.auth.hasAllPermissions` when the auth layer
+provides it, so a permission granted by the rights store passes them and one
+present only in the token payload does not.
+
 > **Migration note.** Earlier releases read these helpers **synchronously**
 > straight off the token payload. They are now `async` and resolver-backed.
 > Permissions you previously stuffed into the JWT/api-key token are no longer

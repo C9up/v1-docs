@@ -222,6 +222,25 @@ satisfait toujours sans configuration de store. Sans resolver `rights` fourni,
 `AuthManager` retombe sur un store en mémoire vide — les rôles du payload comptent
 toujours, les permissions se résolvent à vide.
 
+Dans une requête, les mêmes questions se posent à `ctx.auth`, sans importer le
+manager :
+
+```typescript
+await ctx.auth.hasAllPermissions?.(['posts.create', 'posts.read'])    // l'utilisateur connecté
+await ctx.auth.hasAllPermissions?.(['posts.publish'], { tenant: 'acme' })
+```
+
+L'authenticator par requête de Warden a `hasPermission(permission, scope?)` et
+`hasAllPermissions(permissions, scope?)`. Les deux délèguent aux helpers du
+manager ci-dessus pour l'utilisateur authentifié, restreint par le jeton avec
+lequel la requête est venue ; un invité ne détient rien, pas même une liste
+vide. Le type `ctx.auth` de Ream ne déclare que `hasAllPermissions`, et comme
+facultative — une application sans Warden n'a pas cette méthode, d'où le `?.`.
+Les gates `.permission()` des routes, du RPC et de GraphQL interrogent
+`ctx.auth.hasAllPermissions` quand la couche d'authentification la fournit :
+une permission accordée par le store de droits les franchit, une permission
+présente seulement dans le payload du jeton non.
+
 > **Note de migration.** Les versions précédentes lisaient ces helpers de manière
 > **synchrone** directement sur le payload du token. Ils sont désormais `async` et
 > adossés au resolver. Les permissions que vous mettiez auparavant dans le token
