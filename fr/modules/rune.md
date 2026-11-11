@@ -496,10 +496,10 @@ asynchrones de chaque champ. Une règle asynchrone ne s'exécute que lorsque le
 champ **a passé ses règles synchrones** et possède une valeur présente et non
 nulle — une requête en base est ignorée pour un champ déjà invalide ou absent.
 
-> Le `validate()` synchrone **lève une erreur** sur un schéma qui contient des
-> règles asynchrones plutôt que de les ignorer silencieusement :
-> `rune: this schema has async rules (unique/exists/useAsync) — call validateResultAsync() instead of validate().`
-> Il en va de même pour `validateOrThrow()`, qui appelle `validate()` en interne.
+> Le `validateResult()` synchrone **lève une erreur** sur un schéma qui contient
+> des règles asynchrones plutôt que de les ignorer silencieusement :
+> `rune: this schema has async rules (unique/exists/useAsync) — call validateResultAsync() (result-based) or validate() (throwing) instead of validateResult().`
+> Il en va de même pour `validateOrThrow()`, qui appelle `validateResult()` en interne.
 
 ### Règles adossées à la base : `unique` / `exists`
 
