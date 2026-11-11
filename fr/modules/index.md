@@ -24,7 +24,7 @@ Cette page liste l'etat des modules de l'ecosysteme.
 | Echo | `@c9up/echo` | Présent | Cache — mémoire, fichier, Redis via Quasar |
 | Eclipse | `@c9up/eclipse` | Présent | Verrous distribués — baux vérifiés par propriétaire, stores mémoire + Redis, adaptateur scheduler |
 | Bay | `@c9up/bay` | Présent | Queue/Jobs — drivers mémoire / Redis + retry + lease |
-| Blackhole | `@c9up/blackhole` | Présent | Middleware d'assainissement XSS du body |
+| Blackhole | `@c9up/blackhole` | Présent | Filtre de sécurité — CSRF, limite de débit, CORS, en-têtes de protection, assainissement HTML des réponses sur option |
 | Rosetta | `@c9up/rosetta` | Présent | Module i18n dédié avec fallback de locale |
 | Chronos | `@c9up/chronos` | Présent | Date/Time + récurrence RRULE |
 | Atom | `@c9up/atom` | Présent | Arithmétique décimale exacte (TS + Rust N-API) |

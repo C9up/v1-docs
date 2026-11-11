@@ -24,7 +24,7 @@ This page lists the current status of ecosystem modules.
 | Echo | `@c9up/echo` | Present | Cache — memory, file, Redis through Quasar |
 | Eclipse | `@c9up/eclipse` | Present | Distributed locks — owner-checked leases, memory + Redis stores, scheduler adapter |
 | Bay | `@c9up/bay` | Present | Queue/Jobs — memory / Redis drivers + retry + lease |
-| Blackhole | `@c9up/blackhole` | Present | XSS-stripping body middleware |
+| Blackhole | `@c9up/blackhole` | Present | Security filter — CSRF, rate limit, CORS, protective headers, opt-in response HTML sanitisation |
 | Rosetta | `@c9up/rosetta` | Present | Dedicated i18n module with locale fallback |
 | Chronos | `@c9up/chronos` | Present | Date/Time + RRULE recurrence |
 | Atom | `@c9up/atom` | Present | Exact decimal arithmetic (TS + Rust N-API) |
