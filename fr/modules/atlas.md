@@ -523,6 +523,33 @@ const { sql } = new QueryBuilder('orders')
   .toSQL()
 ```
 
+#### Mode strict
+
+Le mode strict coupe l'injection de SQL brut pour tout le processus. Il est
+désactivé par défaut. Une fois activé, ces appels lèvent une erreur au lieu de
+s'exécuter :
+
+- toutes les méthodes `*Raw` de la requête de modèle et du builder `db.from()` /
+  `db.table()` (`whereRaw` et ses variantes `and`/`or`/`Not`, `joinRaw`,
+  `havingRaw`, `orderByRaw`, `groupByRaw`) ;
+- un fragment `db.raw()` passé à toute autre méthode du builder, ou écrit comme
+  valeur de colonne par un repository (`E_STRICT_MODE`) ;
+- le `raw()` du repository (`E_STRICT_MODE`).
+
+Un identifiant `db.ref()` est validé, ce n'est pas du SQL brut : il passe
+toujours. `db.rawQuery()` et les `query()` / `execute()` de la connexion, avec
+des paramètres liés, restent disponibles comme issue de secours explicite.
+
+```typescript
+import { setAtlasStrictMode } from '@c9up/atlas'
+
+setAtlasStrictMode(true)   // au démarrage
+```
+
+`ATLAS_STRICT=1` (ou `true`) dans l'environnement l'active aussi ; la variable est
+lue une fois, à la première vérification. `setAtlasStrictMode(false)` le
+désactive.
+
 ### Vider des clauses
 
 Un builder passé à un helper qui a ajouté un filtre, un tri ou une tranche se
@@ -832,6 +859,16 @@ const status = await runner.status()
 `MigrationRunner` requiert un `DatabaseAdapter` avec les méthodes `execute(sql, params?)` et `query(sql, params?)`. L'adaptateur renvoyé par `createNapiConnection()` (Rust `ream-db`) implémente cette interface, et tout le DDL/DML est compilé via `ream-query` — il n'y a aucune concaténation SQL brute dans le runner.
 
 Le runner ne lit pas le dialecte du module fixé par `setAtlasDialect()` : sans `dialect`, il compile chaque instruction pour SQLite (mapping de types, placeholders `?`, table de verrou), quelle que soit la base à laquelle parle l'adaptateur. Passez toujours le dialecte de la connexion quand vous en construisez un à la main ; les commandes `migration:*` le passent pour vous.
+
+### Options de sécurité du runner
+
+| Option | Défaut | Effet |
+|--------|--------|-------|
+| `disableRollbacksInProduction` | `true` | `rollback()`, `reset()`, `refresh()`, `fresh()` et `wipe()` lèvent `E_ROLLBACK_DISABLED_IN_PRODUCTION` quand `REAM_ENV` ou `NODE_ENV` indique la production, sauf appel avec `{ force: true }` (`--force` sur la commande correspondante). Clé de configuration `migrations.disableRollbacksInProduction`. |
+| `disableLocks` | `false` | Saute la table `<tableName>_lock` qui empêche deux exécutions de migrer la même base en même temps. Option du constructeur uniquement ; laissez-la désactivée partout où deux processus peuvent migrer. |
+| `disableTransactions` | `false` | Exécute chaque migration hors transaction, si bien qu'un échec laisse une migration à moitié appliquée. Une migration seule peut s'en exclure avec `static disableTransactions = true`. Clé de configuration `migrations.disableTransactions`. |
+
+`migration:run` lui-même demande une confirmation en production, sauf avec `--force`.
 
 ### Nom personnalisé pour la table de suivi
 

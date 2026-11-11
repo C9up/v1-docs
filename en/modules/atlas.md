@@ -519,6 +519,31 @@ const { sql } = new QueryBuilder('orders')
   .toSQL()
 ```
 
+#### Strict mode
+
+Strict mode turns raw-SQL splicing off for the whole process. It is off by default.
+Once on, these throw instead of running:
+
+- every `*Raw` method of the model query and of the `db.from()` / `db.table()`
+  builder (`whereRaw` and its `and`/`or`/`Not` variants, `joinRaw`, `havingRaw`,
+  `orderByRaw`, `groupByRaw`);
+- a `db.raw()` fragment handed to any other builder method, or written as a column
+  value by a repository (`E_STRICT_MODE`);
+- the repository's `raw()` (`E_STRICT_MODE`).
+
+A `db.ref()` identifier is validated, not raw SQL, and still passes. `db.rawQuery()`
+and the connection's `query()` / `execute()`, with bound parameters, stay available
+as the explicit break-glass.
+
+```typescript
+import { setAtlasStrictMode } from '@c9up/atlas'
+
+setAtlasStrictMode(true)   // at bootstrap
+```
+
+`ATLAS_STRICT=1` (or `true`) in the environment turns it on as well; the variable is
+read once, on the first check. `setAtlasStrictMode(false)` turns it off.
+
 ### Clearing clauses
 
 A builder handed to a helper that added a filter, an order or a slice can be
@@ -826,6 +851,16 @@ const status = await runner.status()
 `MigrationRunner` requires a `DatabaseAdapter` with `execute(sql, params?)` and `query(sql, params?)` methods. The adapter returned by `createNapiConnection()` (Rust `ream-db`) implements this interface, and all DDL/DML is compiled through `ream-query` — there is no raw SQL concatenation in the runner.
 
 The runner does not read the module dialect set by `setAtlasDialect()`: without `dialect` it compiles every statement for SQLite (type map, `?` placeholders, lock table), whatever database the adapter talks to. Always pass the connection's dialect when you build one by hand; the `migration:*` commands pass it for you.
+
+### Runner safety options
+
+| Option | Default | Effect |
+|--------|---------|--------|
+| `disableRollbacksInProduction` | `true` | `rollback()`, `reset()`, `refresh()`, `fresh()` and `wipe()` throw `E_ROLLBACK_DISABLED_IN_PRODUCTION` when `REAM_ENV` or `NODE_ENV` says production, unless called with `{ force: true }` (`--force` on the matching command). Config key `migrations.disableRollbacksInProduction`. |
+| `disableLocks` | `false` | Skips the `<tableName>_lock` table that stops two runs from migrating one database at once. Constructor option only; leave it off wherever two processes can migrate. |
+| `disableTransactions` | `false` | Runs every migration outside a transaction, so a failure leaves a half-applied migration behind. A single migration can opt out alone with `static disableTransactions = true`. Config key `migrations.disableTransactions`. |
+
+`migration:run` itself asks for confirmation in production, unless given `--force`.
 
 ### Custom tracking-table name
 
