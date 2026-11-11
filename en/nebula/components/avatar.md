@@ -90,18 +90,15 @@ AvatarGroup({
 
 ### Another person
 
-An `AvatarImage` reports its state when it is built, and a failed image stays failed. To show someone else, build a new avatar rather than handing the same one a new `src`:
+To show someone else, hand the same avatar a reactive `src`. Each change starts a new load: the state goes back to pending, a load still in flight for the previous picture no longer counts, and a new picture replaces a broken one — the fallback and any badge stay where they are:
 
 ```ts
-html`${() => {
-  const person = current()
-  return Avatar({
-    children: () => html`
-      ${AvatarImage({ src: person.photo, alt: person.name })}
-      ${AvatarFallback({ children: person.initials })}
-    `,
-  })
-}}`
+Avatar({
+  children: () => html`
+    ${AvatarImage({ src: () => current().photo, alt: () => current().name })}
+    ${AvatarFallback({ children: () => current().initials })}
+  `,
+})
 ```
 
 ## API
