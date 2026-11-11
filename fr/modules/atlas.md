@@ -9,13 +9,13 @@ import { Entity, Column, PrimaryKey, HasMany, BelongsTo, ManyToMany, BaseEntity 
 
 @Entity('orders')
 class Order extends BaseEntity {
-  @PrimaryKey() id!: string
-  @Column() status!: string
-  @Column({ type: 'decimal' }) total!: number
-  @Column() userId!: string
+  @PrimaryKey() declare id: string
+  @Column() declare status: string
+  @Column({ type: 'decimal' }) declare total: number
+  @Column() declare userId: string
 
-  @HasMany(() => OrderItem) items!: OrderItem[]
-  @BelongsTo(() => User)   user!: User
+  @HasMany(() => OrderItem) declare items: OrderItem[]
+  @BelongsTo(() => User)   declare user: User
 
   markAsPaid() {
     this.status = 'paid'
@@ -25,10 +25,10 @@ class Order extends BaseEntity {
 
 @Entity('order_items')
 class OrderItem extends BaseEntity {
-  @PrimaryKey() id!: string
-  @Column() orderId!: string
-  @Column() productName!: string
-  @Column() quantity!: number
+  @PrimaryKey() declare id: string
+  @Column() declare orderId: string
+  @Column() declare productName: string
+  @Column() declare quantity: number
 }
 ```
 
@@ -47,7 +47,7 @@ class OrderItem extends BaseEntity {
 
 ```typescript
 @Column({ type: 'decimal', nullable: true, default: 0 })
-total!: number
+declare total: number
 ```
 
 Par défaut une propriété est mappée sur sa colonne `snake_case` (`userId` →
@@ -80,13 +80,13 @@ m.startsAt.toISO()          // '2026-06-09T12:34:56Z'
 ```typescript
 @Entity('users')
 class User extends BaseEntity {
-  @PrimaryKey() id!: string
+  @PrimaryKey() declare id: string
   @ManyToMany(() => Role, {
     pivotTable: 'user_roles',
     foreignKey: 'user_id',    // optionnel, défaut : "${thisTable}_id"
     otherKey: 'role_id',      // optionnel, défaut : "${relatedTable}_id"
   })
-  roles!: Role[]
+  declare roles: Role[]
 }
 ```
 

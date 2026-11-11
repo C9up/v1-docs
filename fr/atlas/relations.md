@@ -13,27 +13,27 @@ import { BaseEntity, Entity, PrimaryKey, Column, HasMany, BelongsTo, ManyToMany 
 
 @Entity('users')
 class User extends BaseEntity {
-  @PrimaryKey() id!: string
-  @Column() email!: string
+  @PrimaryKey() declare id: string
+  @Column() declare email: string
 
   @HasMany(() => Post)
-  posts!: Post[]
+  declare posts: Post[]
 
   @ManyToMany(() => Role, {
     pivotTable: 'user_roles',
     foreignKey: 'user_id',
     otherKey: 'role_id',
   })
-  roles!: Role[]
+  declare roles: Role[]
 }
 
 @Entity('posts')
 class Post extends BaseEntity {
-  @PrimaryKey() id!: string
-  @Column() userId!: string
+  @PrimaryKey() declare id: string
+  @Column() declare userId: string
 
   @BelongsTo(() => User)
-  user!: User
+  declare user: User
 }
 ```
 
@@ -107,14 +107,14 @@ import { Decimal, decimalAtlasAdapter } from '@c9up/atom/atlas'
 
 @Entity('users')
 class User extends BaseEntity {
-  @PrimaryKey() id!: number
+  @PrimaryKey() declare id: number
 
   @ManyToMany(() => Order, {
     pivotTable: 'users_orders',
     pivotColumns: ['amount'],
     pivotColumnAdapters: { amount: decimalAtlasAdapter },
   })
-  orders!: Order[]
+  declare orders: Order[]
 }
 
 await user.related('orders').attach({

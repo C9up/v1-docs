@@ -13,9 +13,9 @@ import { BaseEntity, Entity, PrimaryKey, Column } from '@c9up/atlas'
 
 @Entity('users')
 export class User extends BaseEntity {
-  @PrimaryKey() id!: string
-  @Column() email!: string
-  @Column() status!: string
+  @PrimaryKey() declare id: string
+  @Column() declare email: string
+  @Column() declare status: string
 }
 ```
 
