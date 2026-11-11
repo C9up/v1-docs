@@ -83,7 +83,8 @@ répertoire temporaire — le parseur multipart Rust rend le corps d'un bloc.
 L'option était acceptée et lue par rien : une app la pointant vers un volume
 n'obtenait silencieusement rien. Elle est désormais refusée à la construction.
 Choisis la destination au moment de stocker le fichier :
-`await file.moveToDisk(directory)`.
+`await file.move(directory)` sur le système de fichiers local, ou
+`await file.moveToDisk(key)` dans un disque de stockage (voir plus bas).
 :::
 
 ## Lire les fichiers
@@ -149,8 +150,7 @@ Et des méthodes suivantes :
 | Méthode | Description |
 |---------|-------------|
 | `validate({ size?, extnames? })` | Relance la validation contre les contraintes données. |
-| `move(location, { name?, overwrite? })` | Écrit le fichier dans `location`. Crée le répertoire, écrase par défaut. |
-| `moveToDisk(directory, name?)` | La même chose, en renvoyant le chemin écrit. |
+| `move(location, { name?, overwrite? })` | Écrit le fichier dans le répertoire local `location`. Crée le répertoire ; sans `name` le fichier reçoit un nom aléatoire portant l'extension détectée ; écrase par défaut, et `overwrite: false` refuse un fichier existant de façon atomique. |
 | `markAsMoved(fileName, filePath)` | Enregistrer un déplacement fait soi-même. |
 | `stream()` | Obtient un flux lisible du contenu du fichier. |
 
@@ -158,6 +158,22 @@ Et des méthodes suivantes :
 séparateur, pas de `.` ni `..`. Le piège qu'il couvre est
 `await file.move(dir, { name: file.clientName })`, où un nom client
 `../../etc/passwd` sortirait du répertoire.
+
+`MultipartFile` est macroable : un paquet peut ajouter des méthodes à chaque
+fichier envoyé au démarrage. C'est de là que vient
+`moveToDisk(key, disk?, options?)` — la macro de `@c9up/archive`, posée par son
+provider, qui n'existe pas sans lui. Elle écrit le fichier dans un disque
+configuré (celui par défaut, ou celui nommé par `disk`) sous une clé normalisée,
+en flux par défaut (`moveAs: 'buffer'` l'écrit en un seul appel), accepte les
+options d'écriture du disque (`visibility`, `contentType`, `cacheControl`,
+`contentDisposition`), renseigne `file.meta.url` quand le disque sait nommer une
+URL, et marque le fichier comme déplacé sous sa clé. Une clé qui sort du disque
+est refusée avant toute écriture. Voir [Archive](/fr/modules/archive).
+
+```typescript
+await request.file('avatar')?.moveToDisk(`avatars/${user.id}.png`)
+await request.file('invoice')?.moveToDisk('invoices/a.pdf', 's3', { visibility: 'private' })
+```
 
 ::: tip Pas de fichier temporaire
 Ream garde les octets en mémoire — `multipart.tmpDir` est refusé à la construction —

@@ -80,7 +80,8 @@ Uploaded files are held in memory and never written to a temporary directory —
 the Rust multipart parser hands the body over whole. The option was accepted and
 read by nothing, so an app pointing it at a volume was silently getting nothing;
 it is now refused at construction. Choose the destination when you store the
-file: `await file.moveToDisk(directory)`.
+file: `await file.move(directory)` on the local filesystem, or
+`await file.moveToDisk(key)` into a storage disk (see below).
 :::
 
 ## Reading files
@@ -144,8 +145,7 @@ And the following methods:
 | Method | Description |
 |--------|-------------|
 | `validate({ size?, extnames? })` | Re-run validation. Called bare, it uses `sizeLimit` / `allowedExtensions`. |
-| `move(location, { name?, overwrite? })` | Persist the file to `location`. Creates the directory, overwrites by default. |
-| `moveToDisk(directory, name?)` | The same thing, returning the path it wrote. |
+| `move(location, { name?, overwrite? })` | Persist the file to the local directory `location`. Creates the directory; without `name` the file gets a random name carrying the detected extension; overwrites by default, and `overwrite: false` refuses an existing file atomically. |
 | `markAsMoved(fileName, filePath)` | Record a move you performed yourself. |
 | `stream()` | Get a readable stream of the file contents. |
 
@@ -153,6 +153,22 @@ And the following methods:
 `.` or `..`. The footgun it exists for is `await file.move(dir, { name:
 file.clientName })`, where a client name of `../../etc/passwd` would otherwise
 walk out of the directory.
+
+`MultipartFile` is macroable: a package can add methods to every upload at
+boot. That is where `moveToDisk(key, disk?, options?)` comes from — it is
+`@c9up/archive`'s macro, attached by its provider, and does not exist without
+it. It writes the upload into a configured disk (the default one, or the disk
+named by `disk`) under a normalised key, streams it by default (`moveAs:
+'buffer'` writes it in one call), accepts the disk's write options
+(`visibility`, `contentType`, `cacheControl`, `contentDisposition`), sets
+`file.meta.url` when the disk can name a URL, and marks the file as moved under
+its key. A key that climbs out of the disk is refused before anything is
+written. See [Archive](/en/modules/archive).
+
+```typescript
+await request.file('avatar')?.moveToDisk(`avatars/${user.id}.png`)
+await request.file('invoice')?.moveToDisk('invoices/a.pdf', 's3', { visibility: 'private' })
+```
 
 ::: tip No temporary file
 Ream holds the bytes in memory — `multipart.tmpDir` is refused at construction — so
