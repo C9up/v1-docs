@@ -8,7 +8,12 @@ Aurora is the **same code on the server and in the browser**. The package ships 
 
 ```bash
 pnpm add @c9up/aurora
+ream configure @c9up/aurora
 ```
+
+`ream configure @c9up/aurora` registers the provider, puts the middleware that
+binds `ctx.aurora` first in the router middleware, and writes
+`config/aurora.ts` — see [Wire it up](#wire-it-up) for what that is by hand.
 
 The package's `dist/` is built once at the framework level (`pnpm -w build` at the workspace root) — apps that consume `@c9up/aurora` don't need a bundler.
 
@@ -328,6 +333,8 @@ One file per page, **same source on the server and in the browser** (plain ESM J
 
 ### Wire it up
 
+`ream configure @c9up/aurora` writes these three pieces. By hand:
+
 ```ts
 // reamrc.ts
 providers: [
@@ -335,7 +342,30 @@ providers: [
 ]
 ```
 
-That's it. Aurora's provider:
+```ts
+// start/kernel.ts
+router.use([
+  () => import('@c9up/aurora/middleware'),   // first: binds ctx.aurora
+  // ...the application's own router middleware
+])
+```
+
+```ts
+// config/aurora.ts
+import { defineConfig } from '@c9up/aurora/server'
+
+export default defineConfig({
+  pages: { root: 'resources/pages' },
+  root: { tag: 'div' },
+})
+```
+
+The middleware goes first so that any router middleware after it — a guard
+that renders a login page, say — finds `ctx.aurora` in place; it reads nothing
+from the request, so running ahead of the body parser and the session costs
+nothing.
+
+Aurora's provider:
 - defaults `pages.root` to `<projectRoot>/resources/pages` — drop your pages there and they're picked up;
 - serves `/__assets/aurora/*` (the runtime's pre-built `dist/`);
 - serves `/__assets/pages/*` (your pages directory);
@@ -353,12 +383,14 @@ swap file — is a 404 on every mount, a link that points at one included: the
 pages mount is your source directory. `serveAssets({ root, dotFiles: "allow" })`
 serves them on a mount of your own.
 
-To use a different folder, create `config/aurora.ts`:
+To use a different folder, change `pages.root` in `config/aurora.ts`:
 
 ```ts
-export default {
+import { defineConfig } from '@c9up/aurora/server'
+
+export default defineConfig({
   pages: { root: './app/views' },
-}
+})
 ```
 
 `pages.root` is resolved against the project root (same convention `modules.path` uses in `reamrc.ts`). Absolute paths pass through unchanged.
@@ -430,7 +462,9 @@ async show({ aurora }) {
 }
 ```
 
-Register the `auroraContext` middleware globally to attach `ctx.aurora` to every request. That happens in `start/kernel.ts`, where global middleware lives — `reamrc.ts` has no key for it:
+`ctx.aurora` is attached by the `@c9up/aurora/middleware` router middleware that `ream configure` puts first in `start/kernel.ts` (see [Wire it up](#wire-it-up)) — `reamrc.ts` has no key for it. Without it, `ctx.aurora` is undefined. It is a no-op when no aurora manager is registered, so it is safe to mount unconditionally.
+
+The same middleware is exported as a function, `auroraContext` from `@c9up/aurora/server`, for the places that take an inline middleware — the server tier, a route or a group (the router tier takes lazy imports only):
 
 ```ts
 // start/kernel.ts
@@ -500,6 +534,8 @@ one line:
 
 ```ts
 // config/aurora.ts
+import { defineConfig } from '@c9up/aurora/server'
+
 export default defineConfig({
   browserPackages: ['@c9up/atom'],
 })
@@ -932,6 +968,8 @@ calls `urlFor` on, with `clientRoutes` — per call, or once in `config/aurora.t
 
 ```ts
 // config/aurora.ts
+import { defineConfig } from '@c9up/aurora/server'
+
 export default defineConfig({
   clientRoutes: { only: ['auth.*', 'users.*'] },  // or { except: ['admin.*'] }
 })                                                 // or (name, pattern) => boolean
