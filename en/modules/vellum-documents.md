@@ -24,6 +24,14 @@ const pdf = await bytes // Uint8Array
 Every example on this page is run by vellum's test suite
 (`tests/unit/guide.test.ts`).
 
+What one call may lay out is bounded, since text and drawings are often a
+user's: one `text()`, `heightOfString` or `boundsOfString` call takes at most
+1 MiB of text, a path at most 1 000 000 segments, a table cell spans at most
+1000 rows and 64 columns of a table of at most 1000 columns, and an SVG that
+uses filters is refused — a filter is drawn as pixels, at a cost its markup sets. A
+transform whose product with the current one overflows is refused, and a shape
+that would land past finite numbers is left out of the page.
+
 [[toc]]
 
 ## The document and its pages

@@ -237,6 +237,11 @@ d'envois utilisateurs :
   formulaires qui se dessinent dix fois l'un l'autre à chaque niveau font de 2 Ko
   des heures de travail. Une page qui dépasse un budget est refusée, jamais
   dessinée sans la partie qui n'y tenait pas.
+- Chaque chemin qui analyse un document existant — l'inspecter, lire ses
+  champs, l'éditer, le tamponner, le signer, vérifier ses signatures —
+  décompresse ses flux d'objets sous un plafond de 32 Mio chacun, et refuse un
+  document dont un flux d'objets n'a pas pu être lu, plutôt que de le lire sans
+  les objets qu'il contenait.
 
 | Option | Par défaut | Borne |
 | --- | --- | --- |
@@ -288,8 +293,9 @@ s'ouvre en paraissant vide tout en contenant toutes les réponses.
 Les refus sont bruyants plutôt que silencieux, parce qu'un document rempli à qui
 il manque discrètement une réponse est pire qu'un échec. Un nom de champ inconnu
 (le message liste les noms existants), un champ en lecture seule, une valeur
-au-delà de la longueur maximale déclarée, un choix que le formulaire n'offre pas
-et un état de case que le document n'accepte pas sont autant d'erreurs.
+au-delà de la longueur maximale déclarée — ou de 64 Kio quand le formulaire n'en
+déclare aucune —, un choix que le formulaire n'offre pas et un état de case que
+le document n'accepte pas sont autant d'erreurs.
 
 ### Comment le texte est mis en page
 
@@ -383,6 +389,9 @@ et non au moteur, qui ne fait aucune entrée-sortie.
 La signature est ajoutée en **révision incrémentale** : les octets d'origine
 sont conservés à l'identique. Réécrire le fichier invaliderait toute signature
 déjà présente et détruirait l'historique qu'une signature existe pour établir.
+Signer un document déjà signé le contresigne : la nouvelle signature reçoit son
+propre champ (`Signature2`, et ainsi de suite), et la précédente correspond
+toujours à ce qu'elle a signé.
 
 Une signature *visible* — tracée, en image — est une autre affaire : la
 tamponner d'abord avec `stamp`, puis signer.
@@ -441,10 +450,16 @@ postérieure, et cesse de l'accepter. Pour un document conservé des années,
 c'est ce qui le maintient vérifiable.
 
 Le jeton entre comme attribut **non signé**, ce qui permet de l'ajouter sans
-toucher à la signature. Ce qui revient est contrôlé plutôt que cru : le statut
-de l'autorité, le fait qu'elle a bien horodaté la signature envoyée, et qu'elle
-répond à **cette** demande et ne rejoue pas une réponse ancienne. Un jeton
-illisible est refusé.
+toucher à la signature. Au moment où il est attaché, la réponse de l'autorité
+est contrôlée : son statut, le fait qu'elle a bien horodaté la signature
+envoyée, et qu'elle répond à **cette** demande et ne rejoue pas une réponse
+ancienne — lu dans la structure du jeton, pas cherché dans ses octets. Une
+réponse illisible est refusée, ce qui échoue fermé.
+
+Non signé, l'attribut est aussi à la portée de quiconque pour l'ajouter ou le
+remplacer une fois le document parti : un vérificateur ne croit donc un jeton
+qu'après l'avoir contrôlé à nouveau, comme le décrit
+[La confiance](#la-confiance).
 
 La signature grossit de quelques kilo-octets : un document préparé avec une
 `capacity` juste peut en demander une plus grande.
@@ -467,9 +482,19 @@ zone que la signature laisse de côté est autre chose que sa propre valeur,
 l'entrée `/Contents` de son propre dictionnaire de signature : toute autre zone
 serait faite d'octets que personne n'a signés.
 
-Le rapport nomme aussi le signataire, l'instant qu'il a déclaré, et dit si une
-autorité l'a horodaté. Un document sans signature n'en rapporte aucune — c'est
-une réponse, pas un échec.
+Le rapport nomme aussi le signataire, l'instant qu'il a déclaré (`signedAt`,
+affiché et jamais utilisé pour juger quoi que ce soit), et dit si un
+horodatage qui se vérifie atteste du moment (`timestamped`).
+`signatureVerifies` porte sur le certificat que la signature désigne — par
+émetteur et numéro de série, ou identifiant de clé — et non sur le premier que
+liste le document, et un attribut `signing-certificate-v2` qui en désigne un
+autre est signalé et rend la signature non fiable. Les signatures sont
+vérifiées en RSA PKCS#1 v1.5 sur SHA-256, -384 ou -512, partout — le document,
+chaque maillon de certificat, une réponse OCSP, un horodatage ; tout autre
+algorithme est signalé comme invérifiable plutôt que présumé, et une clé RSA de
+moins de 2048 bits n'est pas crue. Ce qui n'a pas pu être vérifié, ou s'est
+révélé faux, est listé dans `problems`. Un document sans signature n'en
+rapporte aucune — c'est une réponse, pas un échec.
 
 ### La confiance
 
@@ -491,15 +516,29 @@ DER ou PEM. N'en fournir aucune est aussi une position : toute signature
 revient alors non fiable, ce qui est la réponse honnête plutôt que la réponse
 confortable.
 
-Le chemin est jugé **au moment de la signature**, pas maintenant : un
-certificat valable alors et expiré depuis n'a pas rétroactivement dé-signé quoi
-que ce soit. `moment` dit d'où vient cet instant — `"timestamp"` si une
-autorité en répond, `"claimed"` s'il repose sur la parole du signataire. C'est
-la raison concrète pour laquelle l'horodatage vaut son aller-retour.
+Le chemin est jugé **maintenant** — `momentAt` donne l'instant, en secondes
+depuis l'epoch — sauf si un horodatage prouve que la signature existait plus
+tôt. Il est alors jugé à l'instant de l'autorité, et un certificat valable
+alors et expiré ou révoqué depuis n'a pas rétroactivement dé-signé quoi que ce
+soit. C'est la raison concrète pour laquelle l'horodatage vaut son aller-retour.
+Un horodatage n'est cru que si la signature de l'autorité sur lui se vérifie
+avec le certificat qu'il désigne, que ce certificat est marqué pour
+l'horodatage, qu'il était valable au moment du tampon et qu'il remonte
+aujourd'hui à vos ancres, et que le jeton horodate bien cette signature-ci ;
+sinon le rapport dit pourquoi et la signature est jugée maintenant. L'instant
+que le signataire a écrit dans sa propre signature est affiché et jamais
+utilisé : le détenteur d'un certificat échu pourrait y écrire n'importe quelle
+date. `moment` dit quel cas s'est appliqué — `"timestamp"`, ou `"claimed"` /
+`"unknown"`, tous deux jugés maintenant.
 
-Chaque maillon est contrôlé : chaque certificat est bien signé par celui du
-dessus, chaque émetteur déclare être une autorité, et le certificat signataire
-a bien le droit de signer.
+Chaque maillon est contrôlé : la signature de chaque certificat se vérifie avec
+la clé de celui du dessus, chaque émetteur déclare être une autorité, la
+longueur de chemin et les contraintes de nom données à une autorité sont
+respectées, et le certificat signataire a bien le droit de signer. Une ancre est
+reconnue par le certificat entier ou par son nom et sa clé — jamais par un nom
+et un numéro de série, que n'importe qui peut copier. Un certificat qui s'est
+signé lui-même et n'est pas une ancre termine le chemin, et un chemin de plus
+de huit maillons est traité comme une boucle.
 
 ### La révocation
 
@@ -511,7 +550,11 @@ const signatures = await vellum.verifySignatures(mandat, { checkRevocation: true
 // signatures[0].revocation → { status: 'good' | 'revoked' | 'unknown', detail? }
 ```
 
-Un appel réseau par signature : c'est donc désactivé sauf demande.
+C'est un appel réseau par certificat signataire, vers le répondeur qu'il
+nomme : c'est donc désactivé sauf demande. Les signatures qui partagent un
+certificat partagent une question ; quatre au plus sont posées à la fois, et
+pas plus de seize certificats par appel — les autres répondent `unknown` sans
+que rien ne soit demandé, puisque c'est le document qui choisit les répondeurs.
 
 La réponse a **trois** valeurs, pas deux. `unknown` couvre tout le reste —
 répondeur injoignable, réponse portant sur un autre certificat, réponse que
@@ -520,9 +563,15 @@ l'erreur à éviter : en « bon », elle laisse passer un certificat retiré ; e
 « révoqué », elle rejette des documents dès qu'un serveur tombe. **C'est votre
 politique**, elle est donc rapportée et non décidée.
 
-Une réponse n'est lue que si l'émetteur, ou quelqu'un qu'il a habilité, l'a
-signée. Et un certificat retiré **après** la signature du document ne l'entache
-pas — c'est à cela que sert un instant de signature, et mieux, un horodatage.
+Une réponse n'est lue que si l'émetteur l'a signée, ou un délégué dont
+l'émetteur a signé le propre certificat, encore valable et marqué pour
+répondre — le délégué voyage dans la réponse, donc son nom et son usage seuls
+ne prouvent rien. Elle doit être à jour : au-delà de son `nextUpdate`, datée
+après l'horloge locale, ou, sans `nextUpdate`, vieille de plus d'un jour, elle
+vaut `unknown`. Et elle est lue à `momentAt` : un certificat retiré après
+l'instant d'un horodatage vérifié n'entache pas la signature, alors qu'un
+certificat retiré avant maintenant l'entache, quel que soit l'instant déclaré
+par le signataire.
 
 L'adresse du répondeur sort du certificat, c'est-à-dire de qui a envoyé le
 document. Seules les adresses publiques sont interrogées, jugées sur l'adresse à

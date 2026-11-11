@@ -24,6 +24,15 @@ const pdf = await bytes // Uint8Array
 Chaque exemple de cette page est exécuté par les tests de vellum
 (`tests/unit/guide.test.ts`).
 
+Ce qu'un appel peut mettre en page est borné, puisque textes et dessins viennent
+souvent d'un utilisateur : un appel à `text()`, `heightOfString` ou
+`boundsOfString` prend au plus 1 Mio de texte, un tracé au plus 1 000 000 de
+segments, une cellule de tableau s'étend sur au plus 1000 lignes et 64 colonnes
+d'un tableau d'au plus 1000 colonnes, et un SVG qui utilise des filtres est
+refusé — un filtre se dessine en pixels, pour un coût que fixe son balisage. Une
+transformation dont le produit avec la courante déborde est refusée, et une
+forme qui tomberait au-delà des nombres finis est laissée hors de la page.
+
 [[toc]]
 
 ## Le document et ses pages
