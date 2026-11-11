@@ -808,7 +808,7 @@ import { MigrationRunner } from '@c9up/atlas'
 
 const runner = new MigrationRunner(adapter, {
   migrationsDir: 'database/migrations',
-  dialect: 'sqlite',      // 'sqlite' | 'postgres' | 'mysql' (defaults to the value set via setAtlasDialect)
+  dialect: 'postgres',    // 'sqlite' | 'postgres' | 'mysql' — defaults to 'sqlite': pass the connection's dialect
 })
 
 // Run all pending migrations
@@ -824,6 +824,8 @@ const status = await runner.status()
 ```
 
 `MigrationRunner` requires a `DatabaseAdapter` with `execute(sql, params?)` and `query(sql, params?)` methods. The adapter returned by `createNapiConnection()` (Rust `ream-db`) implements this interface, and all DDL/DML is compiled through `ream-query` — there is no raw SQL concatenation in the runner.
+
+The runner does not read the module dialect set by `setAtlasDialect()`: without `dialect` it compiles every statement for SQLite (type map, `?` placeholders, lock table), whatever database the adapter talks to. Always pass the connection's dialect when you build one by hand; the `migration:*` commands pass it for you.
 
 ### Custom tracking-table name
 
