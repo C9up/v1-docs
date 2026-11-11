@@ -174,8 +174,10 @@ tampérés ou expirés.
 
 ```ts
 import { SignedUrl } from '@c9up/ream/security'
+import env from '#start/env.js'
 
-const su = new SignedUrl({ secret: process.env.SIGNING_SECRET! })
+// SIGNING_SECRET est déclaré Env.schema.secret() dans start/env.ts : une valeur absente refuse le démarrage
+const su = new SignedUrl({ secret: env.get('SIGNING_SECRET').release() })
 
 // Lien d'1h vers /downloads/<id>
 const url = su.make('/downloads/abc-123', { expiresIn: '1h' })

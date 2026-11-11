@@ -172,8 +172,10 @@ re-derive the signature and reject tampered or expired links.
 
 ```ts
 import { SignedUrl } from '@c9up/ream/security'
+import env from '#start/env.js'
 
-const su = new SignedUrl({ secret: process.env.SIGNING_SECRET! })
+// SIGNING_SECRET is declared Env.schema.secret() in start/env.ts: a missing value refuses to boot
+const su = new SignedUrl({ secret: env.get('SIGNING_SECRET').release() })
 
 // 1-hour link to /downloads/<id>
 const url = su.make('/downloads/abc-123', { expiresIn: '1h' })
