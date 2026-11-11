@@ -205,12 +205,12 @@ Atlas accepte. Atlas reste agnostique ; Atom porte le pont.
 
 ```ts
 import { Column } from '@c9up/atlas'
-import { Decimal } from '@c9up/atom'
+import type { Decimal } from '@c9up/atom'
 import { decimalColumn } from '@c9up/atom/atlas'
 
 class Invoice {
   @Column(decimalColumn({ scale: 2, nullable: false }))
-  total!: Decimal
+  declare total: Decimal
 }
 ```
 
