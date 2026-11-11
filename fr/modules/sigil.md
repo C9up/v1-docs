@@ -116,6 +116,11 @@ et n'est jamais remplacée en silence par une valeur par défaut :
   `saltSize` (alias `saltLength`, 8–1024, défaut 16), `maxMemory` (octets,
   défaut 32 Mio, au moins l'espace de travail `128 × r × (N + p + 2)`).
 
+Un hasher dont le `driver` n'est ni `argon2`, ni `bcrypt`, ni `scrypt` (une
+faute de frappe comme `'argon'`) lève `E_SIGIL_UNKNOWN_DRIVER` à la
+construction de `Hash` : l'application échoue au démarrage plutôt qu'à sa
+première inscription.
+
 `secret` accepte une chaîne ou un `Secret` qui en enveloppe une — ce que renvoie
 un schéma d'environnement — si bien que
 `drivers.argon2({ secret: env.get('APP_KEY') })` fonctionne tel quel.
@@ -180,7 +185,7 @@ son utilisateur se connecte.
 Le binding NAPI de Sigil est obligatoire à l'exécution. Si l'artefact `.node` est absent, le premier appel à `make()` / `verify()` lève :
 
 ```text
-[SIGIL_NAPI_REQUIRED] The argon2 Rust engine is required but not loaded.
+[E_SIGIL_NAPI_REQUIRED] The argon2 Rust engine is required but not loaded.
   Fix: cd packages/sigil && pnpm build:napi
 ```
 
@@ -211,6 +216,10 @@ En cas de doute : mots de passe → Sigil, tokens/HMAC → ream racine, flux de 
 | `HashConfig` | type | `{ default: string; drivers: Record<string, { driver: string; ...}> }`. |
 | `defineConfig` | helper | Authoring de config typé. |
 | `SigilProvider` | provider | Enregistre `Hash` (et le token `'hash'`) dans le container Ream. Importé via `@c9up/sigil/provider`. |
+| `SigilError` | classe | Base de toutes les erreurs de sigil ; `error.code` est le nom `E_SIGIL_*` de la sous-classe. |
+| `E_SIGIL_NAPI_REQUIRED` | classe | Un driver a tourné sans le moteur natif chargé. |
+| `E_SIGIL_UNKNOWN_DRIVER` | classe | Un hasher de la config nomme un driver que sigil n'a pas ; levée à la construction de `Hash`. |
+| `E_SIGIL_NOT_BOOTED` | classe | `@c9up/sigil/services/main` utilisé avant le boot de `SigilProvider`. |
 
 ## Migration depuis l'ancien `Hash` de `@c9up/ream`
 
@@ -236,10 +245,10 @@ Dans une application Ream, préférer le `Hash` résolu via le container (cf. Ex
 
 ## Dépannage — `E_SIGIL_NAPI_REQUIRED`
 
-Si cette erreur survient à l'exécution (la classe runtime est `E_SIGIL_NAPI_REQUIRED` extends `Error` ; le préfixe entre crochets `[SIGIL_NAPI_REQUIRED]` est conservé pour le matching par substring dans les tests) :
+Si cette erreur survient à l'exécution (la classe est `E_SIGIL_NAPI_REQUIRED`, une `SigilError` dont le `code` vaut `'E_SIGIL_NAPI_REQUIRED'` ; testez `error.code`, pas le message) :
 
 ```
-[SIGIL_NAPI_REQUIRED] The <driver> Rust engine is required but not loaded.
+[E_SIGIL_NAPI_REQUIRED] The <driver> Rust engine is required but not loaded.
   Fix: cd packages/sigil && pnpm build:napi
 ```
 
@@ -278,7 +287,7 @@ Chacune est buildée via `pnpm build:napi` sur un runner natif (pas de cross-com
 
 - **40.1** *(cette story)* — README + docs module EN/FR + décision d'architecture enregistrée. Stubs qui levaient dans `@c9up/ream/security/crypto` supprimés (jamais déployés). Le fallback de `SigilProvider` corrigé de `scrypt` vers `argon2` pour matcher le défaut documenté.
 - **40.3** — Warden délègue la vérification de mot de passe à Sigil ; le test d'intégration couvre les trois drivers via `Hash.make` → `Hash.verify` → `Warden.SessionStrategy`.
-- **40.4** — Binaires NAPI précompilés en CI pour les 5 plateformes cibles. Détection à l'exécution durcie avec le chemin d'erreur `[SIGIL_NAPI_REQUIRED]` et un script `pnpm build:napi`.
+- **40.4** — Binaires NAPI précompilés en CI pour les 5 plateformes cibles. Détection à l'exécution durcie avec le chemin d'erreur `E_SIGIL_NAPI_REQUIRED` et un script `pnpm build:napi`.
 
 > La story 40.2 (initialement « ream/crypto délègue à Sigil ») est en ré-évaluation : 40.1 a supprimé les stubs au lieu de les convertir en façades. Le chemin argon2 dupliqué dans `@c9up/warden` est indépendant et reste tracé par la story 40.3.
 

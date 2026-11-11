@@ -137,9 +137,8 @@ Puis `npm link` ton checkout local dans ton projet.
 Si un module Ream lève une erreur du type :
 
 ```
-[SIGIL_NAPI_REQUIRED] argon2 driver requires the prebuilt NAPI binary at
-packages/sigil/index.<platform>.node. To build it locally:
-  cd packages/sigil && pnpm build:napi
+[E_SIGIL_NAPI_REQUIRED] The argon2 Rust engine is required but not loaded.
+  Fix: cd packages/sigil && pnpm build:napi
 ```
 
 …le binaire pré-compilé n'a pas pu être chargé pour ta plateforme. C'est
