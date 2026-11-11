@@ -8,16 +8,19 @@
 
 ## Créer un nouveau projet
 
+Le squelette vient de la CLI, `@c9up/ream-cli` :
+
 ```bash
-npm init ream@latest my-app
+npm install -g @c9up/ream-cli
+ream new my-app
 cd my-app
-pnpm install
+ream dev
 ```
 
-Le scaffold pose deux questions :
+`ream new` pose deux questions (ou prend `--template` et `--db`), écrit le projet et installe ses dépendances :
 
-1. **Template** — `api` (backend API), `web` (full-stack), `microservice` (event-driven), `slim` (minimum)
-2. **Base de données** — `PostgreSQL` ou `SQLite`
+1. **Template** — `api` (backend API), `web` (full stack), `microservice` (orienté événements), `slim` (minimum)
+2. **Base de données** — `postgres` ou `sqlite`
 
 ## Installation manuelle
 

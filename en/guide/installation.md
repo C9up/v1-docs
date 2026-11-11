@@ -9,6 +9,24 @@
 
 ## Create a New Project
 
+The scaffold comes from the CLI, `@c9up/ream-cli`:
+
+```bash
+npm install -g @c9up/ream-cli
+ream new my-app
+cd my-app
+ream dev
+```
+
+`ream new` asks two questions (or takes `--template` and `--db`), writes the project and installs its dependencies:
+
+1. **Template** — `api` (backend API), `web` (full stack), `microservice` (event driven), `slim` (minimum)
+2. **Database** — `postgres` or `sqlite`
+
+## Manual Setup
+
+To set a project up by hand instead:
+
 ```bash
 mkdir my-app && cd my-app
 pnpm init
