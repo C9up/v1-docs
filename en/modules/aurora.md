@@ -1219,8 +1219,11 @@ make room would hand the limit to whoever mounts fastest.
 import { liveClient, buildLiveTransport, HttpClient } from '@c9up/aurora'
 import { relay } from '@c9up/aurora/relay'
 
+const container = document.querySelector('#app')
+if (container === null) throw new Error('the page has no #app element')
+
 liveClient({
-  container: document.querySelector('#app')!,
+  container,
   factory: () => html`<button data-live-click="increment">Count: <span>${count}</span></button>`,
   mount,                                       // { id, channel } injected into the page
   transport: buildLiveTransport(relay(), new HttpClient()),
