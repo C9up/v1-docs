@@ -993,7 +993,7 @@ if (findings.length > 0) {
 
 ## AtlasProvider
 
-Register `AtlasProvider` in your application's provider list. It reads `config/database.ts`, opens the database connection, registers the adapter in the container, and runs pending migrations automatically on boot.
+Register `AtlasProvider` in your application's provider list. It reads `config/database.ts`, opens the database connection, and registers the adapter in the container. It runs pending migrations at boot only when `migrations.autoRun` is on (never in development); otherwise `ream migration:run` applies them.
 
 ```typescript
 // config/app.ts
@@ -1020,7 +1020,7 @@ On boot, `AtlasProvider`:
 1. Opens a connection pool via Rust `ream-db` (sqlx under the hood — SQLite, PostgreSQL, or MySQL)
 2. Detects the dialect from the URL scheme and calls `setAtlasDialect(...)`
 3. Registers `db` and `db.connection` in the container
-4. Runs pending migrations through `MigrationRunner` (all DDL compiled by `ream-query`)
+4. Registers the migration source for the `migrate` / `migration:*` commands, and runs pending migrations through `MigrationRunner` only when `migrations.autoRun` is on and the environment is not development (all DDL compiled by `ream-query`)
 
 ### Migrations at boot
 
@@ -1036,7 +1036,7 @@ starts once, an embedded app on a file database:
 migrations: { autoRun: true }
 ```
 
-**It is ignored when `NODE_ENV` is `development`.** The reason to migrate at
+**It is ignored in development** (`REAM_ENV`, or else `NODE_ENV`, set to `development`, `develop` or `dev`). The reason to migrate at
 boot at all is that a container has no terminal to run a command in; a
 development machine has one. And development is the one environment that
 restarts constantly, so each restart replayed the migrations while the instance
