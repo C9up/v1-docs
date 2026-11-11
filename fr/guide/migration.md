@@ -155,8 +155,8 @@ t.timestamp('created_at').notNullable().defaultTo(this.now())          // NOW() 
 t.uuid('id').primary().defaultTo(db.raw('gen_random_uuid()'))
 ```
 
-::: warning RUPTURE (atlas 0.1.15)
-Les versions antérieures écrivaient l'argument **verbatim**, donc les valeurs par défaut de type string devaient être mises entre quotes à la main (`defaultTo("'member'")`) et les fonctions SQL passées brutes (`defaultTo('NOW()')`). Pour migrer, retirez les quotes internes des littéraux et utilisez `this.now()` / `db.raw(...)` pour les expressions. `db.raw()` renvoie un `RawSql` (le même type raw que dans les requêtes).
+::: warning Pas de quotes à la main
+`defaultTo()` met lui-même une string entre quotes, donc un littéral quoté à la main garde ses quotes : `defaultTo("'member'")` stocke les caractères `'member'`, quotes comprises. Une fonction SQL passée en string est elle aussi un littéral : `defaultTo('NOW()')` stocke le texte `NOW()`. Passez les littéraux tels quels et les expressions par `this.now()` / `db.raw(...)` ; `db.raw()` renvoie un `RawSql` (le même type raw que dans les requêtes).
 :::
 
 ## Index
