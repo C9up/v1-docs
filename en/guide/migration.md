@@ -4,14 +4,16 @@ Atlas tracks schema changes through migration files. Each migration is a TypeScr
 
 ## How migrations run
 
-When `AtlasProvider` boots, it checks whether a `migrations.path` is set in your `config/database.ts`. If it is, Atlas:
+Booting the application does not migrate it. Migrations run when you run `ream migration:run`, which:
 
-1. Creates a `_migrations` table in the database if it does not already exist.
-2. Reads all `.ts` / `.js` files in the migrations directory, sorted alphabetically.
-3. Skips any file whose name already appears in `_migrations`.
-4. Calls `up()` on each pending migration and records its name in `_migrations`.
+1. Creates the `ream_migrations` tracking table in the database if it does not already exist.
+2. Reads all `.ts` / `.js` files in the migrations directory (`migrations.path`), sorted by name.
+3. Skips any file whose name already appears in `ream_migrations`.
+4. Calls `up()` on each pending migration and records its name in `ream_migrations`, under a new batch number.
 
-Rolling back is not automatic — you call `down()` manually or through a CLI command.
+Rolling back is never automatic: `ream migration:rollback` calls `down()` on the latest batch.
+
+A host that owns its database alone (a container that starts once, an embedded app on a file database) can ask `AtlasProvider` to run pending migrations at boot with `migrations: { autoRun: true }`. The option is off by default, and it is ignored in development (`REAM_ENV`, or else `NODE_ENV`, set to `development`, `develop` or `dev`). See [When migrations run](/en/atlas/migrations#when-migrations-run).
 
 ## Config wiring
 
@@ -119,7 +121,8 @@ All column methods are called on the `TableBuilder` instance passed to the `crea
 | `date(name)` | `DATE` / `TEXT` |
 | `timestamp(name)` | `TIMESTAMP` / `TEXT` |
 | `timestamps()` | Shortcut: `created_at` + `updated_at` both `NOT NULL DEFAULT NOW()` |
-| `json(name)` | `JSONB` / `TEXT` |
+| `json(name)` | `JSON` / `TEXT` |
+| `jsonb(name)` | `JSONB` / `TEXT` |
 | `binary(name)` | `BYTEA` / `BLOB` |
 
 ### Column modifiers
@@ -219,16 +222,16 @@ export default class CreateMemberships extends Migration {
 
 ## Migration tracking
 
-Atlas uses a `_migrations` table to record which files have been applied:
+Atlas records which files have been applied in a `ream_migrations` table (renamed with `migrations.tableName`). It has four columns:
 
-```sql
-CREATE TABLE "_migrations" (
-  "name"        TEXT PRIMARY KEY,
-  "executed_at" TEXT NOT NULL DEFAULT (datetime('now'))
-);
-```
+| Column | Content |
+|--------|---------|
+| `id` | Auto-increment primary key |
+| `name` | The file name without extension (e.g. `001_create_users`), unique |
+| `batch` | The run that applied it; `migration:rollback` undoes the latest batch |
+| `executed_at` | Timestamp, defaults to `CURRENT_TIMESTAMP` |
 
-The `name` column stores the file name without extension (e.g. `001_create_users`). A migration is skipped on the next boot if its name already exists in this table.
+A migration is skipped on the next `migration:run` if its name already exists in this table. A second table, `ream_migrations_lock`, holds the lock that stops two runs from migrating the same database at once.
 
 ## Next steps
 

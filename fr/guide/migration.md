@@ -4,14 +4,16 @@ Atlas suit les modifications du schéma grâce à des fichiers de migration. Cha
 
 ## Fonctionnement des migrations
 
-Quand `AtlasProvider` démarre, il vérifie si `migrations.path` est défini dans votre `config/database.ts`. Si c'est le cas, Atlas :
+Démarrer l'application ne la migre pas. Les migrations s'exécutent quand vous lancez `ream migration:run`, qui :
 
-1. Crée une table `_migrations` dans la base de données si elle n'existe pas encore.
-2. Lit tous les fichiers `.ts` / `.js` du répertoire de migrations, triés par ordre alphabétique.
-3. Ignore tout fichier dont le nom figure déjà dans `_migrations`.
-4. Appelle `up()` sur chaque migration en attente et enregistre son nom dans `_migrations`.
+1. Crée la table de suivi `ream_migrations` dans la base de données si elle n'existe pas encore.
+2. Lit tous les fichiers `.ts` / `.js` du répertoire de migrations (`migrations.path`), triés par nom.
+3. Ignore tout fichier dont le nom figure déjà dans `ream_migrations`.
+4. Appelle `up()` sur chaque migration en attente et enregistre son nom dans `ream_migrations`, sous un nouveau numéro de batch.
 
-L'annulation n'est pas automatique — vous appelez `down()` manuellement ou via une commande CLI.
+L'annulation n'est jamais automatique : `ream migration:rollback` appelle `down()` sur le dernier batch.
+
+Un hôte qui possède seul sa base de données (un conteneur qui démarre une fois, une application embarquée sur une base fichier) peut demander à `AtlasProvider` d'exécuter les migrations en attente au démarrage avec `migrations: { autoRun: true }`. L'option est désactivée par défaut, et ignorée en développement (`REAM_ENV`, ou à défaut `NODE_ENV`, valant `development`, `develop` ou `dev`). Voir [Quand les migrations tournent](/fr/atlas/migrations#quand-les-migrations-tournent).
 
 ## Configuration
 
@@ -119,7 +121,8 @@ Toutes les méthodes de colonne s'appellent sur l'instance `TableBuilder` passé
 | `date(name)` | `DATE` / `TEXT` |
 | `timestamp(name)` | `TIMESTAMP` / `TEXT` |
 | `timestamps()` | Raccourci : `created_at` + `updated_at` tous deux `NOT NULL DEFAULT NOW()` |
-| `json(name)` | `JSONB` / `TEXT` |
+| `json(name)` | `JSON` / `TEXT` |
+| `jsonb(name)` | `JSONB` / `TEXT` |
 | `binary(name)` | `BYTEA` / `BLOB` |
 
 ### Modificateurs de colonnes
@@ -219,16 +222,16 @@ export default class CreateMemberships extends Migration {
 
 ## Suivi des migrations
 
-Atlas utilise une table `_migrations` pour enregistrer les fichiers qui ont été appliqués :
+Atlas enregistre les fichiers appliqués dans une table `ream_migrations` (renommable avec `migrations.tableName`). Elle a quatre colonnes :
 
-```sql
-CREATE TABLE "_migrations" (
-  "name"        TEXT PRIMARY KEY,
-  "executed_at" TEXT NOT NULL DEFAULT (datetime('now'))
-);
-```
+| Colonne | Contenu |
+|---------|---------|
+| `id` | Clé primaire auto-incrémentée |
+| `name` | Le nom du fichier sans extension (par exemple `001_create_users`), unique |
+| `batch` | L'exécution qui l'a appliquée ; `migration:rollback` annule le dernier batch |
+| `executed_at` | Horodatage, `CURRENT_TIMESTAMP` par défaut |
 
-La colonne `name` stocke le nom du fichier sans extension (par exemple `001_create_users`). Une migration est ignorée au prochain démarrage si son nom figure déjà dans cette table.
+Une migration est ignorée au prochain `migration:run` si son nom figure déjà dans cette table. Une seconde table, `ream_migrations_lock`, porte le verrou qui empêche deux exécutions de migrer la même base en même temps.
 
 ## Prochaines étapes
 

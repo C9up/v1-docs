@@ -29,8 +29,11 @@ embedded app on a file database — can ask for the old behaviour:
 migrations: { paths: ['database/migrations'], autoRun: true }
 ```
 
-It stays off unless asked for, in every environment. A migration command still
-wins over it, so booting the app for `migration:run` never migrates twice.
+It stays off unless asked for, in every environment, and it is ignored in
+development (`REAM_ENV`, or else `NODE_ENV`, set to `development`, `develop` or
+`dev`): a development machine has a terminal to run the
+command in, and a dev server that restarts on every save would race its previous
+instance for the migration lock. A migration command still wins over it, so booting the app for `migration:run` never migrates twice.
 
 ## Console commands
 
@@ -148,7 +151,7 @@ commands: [
 
 ## Atomicity
 
-If adapter provides `runInTransaction(batch)`, each migration is run atomically with its `_migrations` tracking insert/delete in the same transaction.
+If adapter provides `runInTransaction(batch)`, each migration is run atomically with its `ream_migrations` tracking insert/delete in the same transaction.
 
 If adapter does not provide it, Atlas logs a warning and falls back to sequential execution.
 

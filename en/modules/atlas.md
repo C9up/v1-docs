@@ -590,7 +590,8 @@ this.schema.createTable('orders', (table) => {
   table.date('birthday')               // DATE
   table.timestamp('published_at')      // TIMESTAMP (no tz — UTC only when written via atlas)
   table.timestamptz('occurred_at')     // TIMESTAMPTZ (Postgres) — UTC-normalised for ALL writers
-  table.json('metadata')               // JSONB (Postgres) / TEXT (SQLite)
+  table.json('metadata')               // JSON (Postgres) / TEXT (SQLite)
+  table.jsonb('settings')              // JSONB (Postgres) / TEXT (SQLite)
   table.binary('avatar')               // BYTEA (Postgres) / BLOB (SQLite)
   table.timestamps()                   // created_at + updated_at (NOT NULL, DEFAULT NOW())
 })

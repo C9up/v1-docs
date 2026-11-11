@@ -32,7 +32,11 @@ l'ancien comportement :
 migrations: { paths: ['database/migrations'], autoRun: true }
 ```
 
-C'est désactivé sauf demande explicite, dans tous les environnements. Une
+C'est désactivé sauf demande explicite, dans tous les environnements, et ignoré
+en développement (`REAM_ENV`, ou à défaut `NODE_ENV`, valant `development`,
+`develop` ou `dev`) : une machine de développement a un terminal
+pour lancer la commande, et un serveur de dev qui redémarre à chaque sauvegarde
+disputerait le verrou de migration à son instance précédente. Une
 commande de migration l'emporte quand même, donc démarrer l'application pour
 `migration:run` ne migre jamais deux fois.
 
@@ -155,7 +159,7 @@ commands: [
 
 ## Atomicité
 
-Si l'adapter fournit `runInTransaction(batch)`, chaque migration est exécutée de façon atomique avec l'insert/delete de tracking `_migrations` dans la même transaction.
+Si l'adapter fournit `runInTransaction(batch)`, chaque migration est exécutée de façon atomique avec l'insert/delete de tracking `ream_migrations` dans la même transaction.
 
 Sinon, Atlas log un warning et bascule en exécution séquentielle.
 
