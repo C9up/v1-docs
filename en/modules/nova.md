@@ -283,9 +283,7 @@ The reference is `stubs/public/sw.stub`; the package's tests run it against a st
 Resolve the `Nova` instance from the container (or import it directly) and call `push(subscription, payload, options?)`:
 
 ```ts
-import { Nova } from '@c9up/nova'
-
-const nova = app.container.resolve<Nova>('nova')
+const nova = await app.container.resolve('nova.push') // typed Nova; 'nova' is a compatibility alias
 
 const result = await nova.push(subscription, {
   title: 'New message',
@@ -428,7 +426,7 @@ export default class CreatePushSubscriptions extends Migration {
 }
 ```
 
-The 768 cap is not decoration: it is exactly the MySQL InnoDB utf8mb4 primary-key index budget, and the subscribe endpoint refuses a longer endpoint with a 400 rather than letting it fail as a dialect-specific length error on insert. Real endpoints from FCM, Mozilla autopush and Apple are all under 200 characters. The timestamp columns carry no DDL default because `DEFAULT (NOW())` is not a SQLite function; the stores write both columns explicitly.
+The 768 cap is not decoration: it is exactly the MySQL InnoDB utf8mb4 primary-key index budget, and the subscribe endpoint refuses a longer endpoint with a 400 rather than letting it fail as a dialect-specific length error on insert. Real endpoints from FCM, Mozilla autopush and Apple are all under 200 characters. The timestamp columns carry no DDL default: the stores write both columns explicitly.
 
 ## Testing with `FakeNova`
 
