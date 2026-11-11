@@ -1,6 +1,6 @@
 # Nova — Web Push notifications
 
-Status: **Active** — subscription endpoint, push delivery, four subscription stores, Service Worker scaffold and the `helix.nova.fake` test integration.
+Status: **Active** — subscription endpoint, push delivery, four subscription stores, Service Worker scaffold and the `FakeNova` test double.
 
 `@c9up/nova` is Ream's Web Push package. It owns three things:
 
@@ -430,30 +430,30 @@ export default class CreatePushSubscriptions extends Migration {
 
 The 768 cap is not decoration: it is exactly the MySQL InnoDB utf8mb4 primary-key index budget, and the subscribe endpoint refuses a longer endpoint with a 400 rather than letting it fail as a dialect-specific length error on insert. Real endpoints from FCM, Mozilla autopush and Apple are all under 200 characters. The timestamp columns carry no DDL default because `DEFAULT (NOW())` is not a SQLite function; the stores write both columns explicitly.
 
-## Testing with `helix.nova.fake`
+## Testing with `FakeNova`
 
-Replace the real `Nova` instance with an in-memory collector for the duration of a test. The fake captures every `push` / `pushToUser` call and exposes assertion helpers — no `web-push`, no network, no `SubscriptionStore` consultation.
+Replace the real `Nova` instance with an in-memory collector for the duration of a test. `FakeNova` (from `@c9up/nova/testing`) captures every `push` / `pushToUser` call and carries the assertions itself — no `web-push`, no network, no `SubscriptionStore` consultation.
 
 ```ts
 import { FakeNova } from '@c9up/nova/testing'
-import { nova, useContainer } from '@c9up/helix'
-import { test } from '@c9up/helix'
+import { override, test, useContainer } from '@c9up/helix'
 
 test('subscribe + welcome push', async () => {
   useContainer(container)        // your app's container
-  nova.fake(FakeNova)            // overrides the 'nova' container token
+  const fake = new FakeNova()
+  override('nova.push', fake)    // the token the nova provider binds
 
-  await runYourSubscribeFlow()   // code under test calls nova.pushToUser(...)
+  await runYourSubscribeFlow()   // code under test calls pushToUser(...) on it
 
-  nova.assertPushed({ userId: 'user-A', title: 'Welcome' })
+  fake.assertPushed({ userId: 'user-A', title: 'Welcome' })
 })
 ```
 
-The fake is auto-cleared at end-of-test via Helix's per-test cleanup queue (same lifecycle as `helix.mail.fake`).
+The provider binds the same instance under `'nova.push'` and `'nova'`: override the name the code under test resolves (both, if it uses both). helix's `override` throws outside a test and undoes itself at the end of the test, through helix's per-test cleanup queue.
 
 ### Predicate forms
 
-`nova.assertPushed(predicate)` accepts two shapes:
+`fake.assertPushed(predicate)` accepts two shapes:
 
 **Object predicate** — every present field must match (AND-combined):
 
@@ -467,17 +467,16 @@ The fake is auto-cleared at end-of-test via Helix's per-test cleanup queue (same
 
 **Function predicate** — `(captured: CapturedPush) => boolean`. Invoked once per captured call; first `true` → match.
 
-`nova.assertNotPushed(predicate)` is the inverse.
+`fake.assertNotPushed(predicate)` is the inverse.
 
-### Forwarders
+### The fake's methods
 
-| Helper | Behaviour without an active fake |
+| Method | Does |
 |---|---|
-| `nova.fake(FakeNova)` | Throws if called outside a test frame |
-| `nova.assertPushed` / `nova.assertNotPushed` | Throws "no active fake" |
-| `nova.getPushed` | Throws "no active fake" |
-| `nova.current()` | Returns `null` |
-| `nova.reset()` | No-op (safe to call from teardown blocks) |
+| `assertPushed(predicate)` | Throws, listing what was captured, when no captured call matches |
+| `assertNotPushed(predicate)` | Throws when a captured call matches |
+| `getPushed()` | Returns a copy of every captured call |
+| `reset()` | Forgets the captured calls |
 
 ### Why `pushToUser` returns `[]` under the fake
 

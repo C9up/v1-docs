@@ -31,7 +31,7 @@ This page lists the current status of ecosystem modules.
 | Station | `@c9up/station` | Present | Admin panel — consumes the Ream universe through the container |
 | Inker | `@c9up/inker` | Present | Template engine |
 | Archive | `@c9up/archive` | Present | File storage: `fs`, `s3` and `gcs` drivers, signed URLs |
-| Nova | `@c9up/nova` | Present | Web Push (VAPID + subscription + `nova.push()` delivery via `web-push` + durable-storage migration template + Atlas driver snippet in docs + Service Worker scaffold + `helix.nova.fake` test integration) |
+| Nova | `@c9up/nova` | Present | Web Push (VAPID + subscription + `nova.push()` delivery via `web-push` + durable-storage migration template + Atlas driver snippet in docs + Service Worker scaffold + `FakeNova` test double) |
 | Helix | `@c9up/helix` | Present | Test runner — `TestClient`, parallel workers (`--threads`), used by every kitchen-sink e2e |
 | Neutrino | `@c9up/neutrino` | Present | Protocol Buffers and gRPC — compiled schemas, unary gRPC services on the HTTP port, interceptors for authentication and rate limiting |
 | Quasar | `@c9up/quasar` | Present | Redis connections — named connections, pub/sub on its own socket, health checks |

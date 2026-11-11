@@ -1,6 +1,6 @@
 # Nova — Notifications Web Push
 
-Statut : **Actif** — endpoint d'abonnement, livraison des pushs, quatre stores d'abonnements, scaffold du Service Worker et l'intégration de test `helix.nova.fake`.
+Statut : **Actif** — endpoint d'abonnement, livraison des pushs, quatre stores d'abonnements, scaffold du Service Worker et le double de test `FakeNova`.
 
 `@c9up/nova` est le package Web Push de Ream. Il prend en charge trois choses :
 
@@ -430,30 +430,30 @@ export default class CreatePushSubscriptions extends Migration {
 
 Le plafond de 768 n'est pas décoratif : c'est exactement le budget d'index de clé primaire MySQL InnoDB en utf8mb4, et l'endpoint d'abonnement refuse un endpoint plus long par un 400 plutôt que de le laisser échouer en erreur de longueur propre au dialecte à l'insert. Les vrais endpoints de FCM, Mozilla autopush et Apple font tous moins de 200 caractères. Les colonnes de timestamp ne portent pas de défaut DDL parce que `DEFAULT (NOW())` n'est pas une fonction SQLite ; les stores écrivent les deux colonnes explicitement.
 
-## Tests avec `helix.nova.fake`
+## Tests avec `FakeNova`
 
-Remplace l'instance `Nova` réelle par un collecteur en mémoire pendant un test. Le fake capture chaque appel `push` / `pushToUser` et expose des helpers d'assertion — pas de `web-push`, pas de réseau, pas de consultation de `SubscriptionStore`.
+Remplace l'instance `Nova` réelle par un collecteur en mémoire pendant un test. `FakeNova` (depuis `@c9up/nova/testing`) capture chaque appel `push` / `pushToUser` et porte lui-même les assertions — pas de `web-push`, pas de réseau, pas de consultation de `SubscriptionStore`.
 
 ```ts
 import { FakeNova } from '@c9up/nova/testing'
-import { nova, useContainer } from '@c9up/helix'
-import { test } from '@c9up/helix'
+import { override, test, useContainer } from '@c9up/helix'
 
 test('subscribe + welcome push', async () => {
   useContainer(container)        // le container de ton app
-  nova.fake(FakeNova)            // override du token 'nova' dans le container
+  const fake = new FakeNova()
+  override('nova.push', fake)    // le token que lie le provider nova
 
-  await runYourSubscribeFlow()   // le code testé appelle nova.pushToUser(...)
+  await runYourSubscribeFlow()   // le code testé y appelle pushToUser(...)
 
-  nova.assertPushed({ userId: 'user-A', title: 'Welcome' })
+  fake.assertPushed({ userId: 'user-A', title: 'Welcome' })
 })
 ```
 
-Le fake est auto-nettoyé à la fin du test via la queue de cleanup per-test de Helix (même cycle de vie que `helix.mail.fake`).
+Le provider lie la même instance sous `'nova.push'` et `'nova'` : override le nom que résout le code testé (les deux, s'il utilise les deux). L'`override` de helix lève hors d'un test et s'annule de lui-même à la fin du test, par la queue de cleanup per-test de helix.
 
 ### Formes de prédicat
 
-`nova.assertPushed(predicate)` accepte deux formes :
+`fake.assertPushed(predicate)` accepte deux formes :
 
 **Prédicat objet** — tous les champs présents doivent matcher (combinés en AND) :
 
@@ -467,17 +467,16 @@ Le fake est auto-nettoyé à la fin du test via la queue de cleanup per-test de 
 
 **Prédicat fonction** — `(captured: CapturedPush) => boolean`. Invoqué une fois par capture ; premier `true` → match.
 
-`nova.assertNotPushed(predicate)` est l'inverse.
+`fake.assertNotPushed(predicate)` est l'inverse.
 
-### Forwarders
+### Les méthodes du fake
 
-| Helper | Comportement sans fake actif |
+| Méthode | Effet |
 |---|---|
-| `nova.fake(FakeNova)` | Throw si appelé hors d'un test frame |
-| `nova.assertPushed` / `nova.assertNotPushed` | Throw "no active fake" |
-| `nova.getPushed` | Throw "no active fake" |
-| `nova.current()` | Retourne `null` |
-| `nova.reset()` | No-op (safe à appeler depuis un teardown) |
+| `assertPushed(predicate)` | Lève, en listant les captures, quand aucun appel capturé ne correspond |
+| `assertNotPushed(predicate)` | Lève quand un appel capturé correspond |
+| `getPushed()` | Renvoie une copie de chaque appel capturé |
+| `reset()` | Oublie les appels capturés |
 
 ### Pourquoi `pushToUser` retourne `[]` sous le fake
 
