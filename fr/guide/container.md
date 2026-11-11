@@ -260,27 +260,27 @@ La structure doit correspondre à `{ _constructor: { dependencies: ServiceToken[
 `container.swap(token, factory)` remplace une liaison pour la durée d'un test. Le singleton mis en cache est effacé afin que la factory fictive s'exécute à neuf.
 
 ```typescript
-import { beforeEach, afterEach, test, expect } from 'vitest'
-import { container } from '@c9up/ream/services/app'
+import { beforeEach, afterEach, test } from '@c9up/helix'
+import app from '@c9up/ream/services/app'
 
 beforeEach(() => {
-  container.swap('PaymentGateway', () => ({
+  app.container.swap('PaymentGateway', () => ({
     charge: async () => { /* aucune opération */ },
   }))
 })
 
 afterEach(() => {
-  container.restore('PaymentGateway')
+  app.container.restore('PaymentGateway')
 })
 
 test('places an order without real payment', async () => {
-  const orders = await container.make(OrderService)
+  const orders = await app.container.make(OrderService)
   await orders.placeOrder(100)
   // vérifier les effets de bord sans passer par Stripe
 })
 ```
 
-Appeler `container.restore()` sans argument supprime tous les swaps actifs en une seule fois.
+Appeler `app.container.restore()` sans argument supprime tous les swaps actifs en une seule fois.
 
 ## Référence des portées
 

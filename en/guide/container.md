@@ -260,27 +260,27 @@ The shape must match `{ _constructor: { dependencies: ServiceToken[] } }`. This 
 `container.swap(token, factory)` replaces a binding for the duration of a test. The cached singleton is cleared so the fake factory runs fresh.
 
 ```typescript
-import { beforeEach, afterEach, test, expect } from 'vitest'
-import { container } from '@c9up/ream/services/app'
+import { beforeEach, afterEach, test } from '@c9up/helix'
+import app from '@c9up/ream/services/app'
 
 beforeEach(() => {
-  container.swap('PaymentGateway', () => ({
+  app.container.swap('PaymentGateway', () => ({
     charge: async () => { /* no-op */ },
   }))
 })
 
 afterEach(() => {
-  container.restore('PaymentGateway')
+  app.container.restore('PaymentGateway')
 })
 
 test('places an order without real payment', async () => {
-  const orders = await container.make(OrderService)
+  const orders = await app.container.make(OrderService)
   await orders.placeOrder(100)
   // assert side-effects without hitting Stripe
 })
 ```
 
-Calling `container.restore()` with no argument clears all active swaps at once.
+Calling `app.container.restore()` with no argument clears all active swaps at once.
 
 ## Scopes reference
 

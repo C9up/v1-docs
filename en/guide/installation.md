@@ -18,7 +18,7 @@ Install the core framework and runtime:
 
 ```bash
 pnpm add @c9up/ream reflect-metadata
-pnpm add -D @swc/core @swc-node/register typescript
+pnpm add -D @swc/core @swc-node/register typescript @c9up/ream-cli @c9up/helix
 ```
 
 ## Adding Modules
@@ -163,7 +163,7 @@ Create `.swcrc` at the project root for decorator metadata support:
     "dev": "node --import @swc-node/register/esm-register --watch bin/server.ts",
     "start": "node --import @swc-node/register/esm-register bin/server.ts",
     "build": "tsc",
-    "test": "vitest run"
+    "test": "ream test"
   }
 }
 ```
