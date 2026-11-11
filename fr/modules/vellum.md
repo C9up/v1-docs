@@ -161,9 +161,11 @@ canal alpha d'un PNG devient un masque doux, ce qui rend une signature tracée
 sur tablette transparente hors du trait. Un JPEG CMJN est refusé plutôt
 qu'inversé en silence.
 
-`stampText` utilise les 14 polices standard — `Helvetica`, `Helvetica-Bold`,
+`stampText` utilise huit des polices standard — `Helvetica`, `Helvetica-Bold`,
 `Helvetica-Oblique`, `Times-Roman`, `Times-Bold`, `Times-Italic`, `Courier`,
-`Courier-Bold` — qu'un PDF peut référencer sans les embarquer. Rien n'est ajouté
+`Courier-Bold` — qu'un PDF peut référencer sans les embarquer. Tout autre nom,
+`Times-BoldItalic` ou `Symbol` compris, est refusé avec
+`E_VELLUM_STAMP_TEXT_FAILED`. Rien n'est ajouté
 au fichier et aucune police n'est à fournir. La contrepartie est le jeu de
 caractères WinAnsi : le texte d'Europe occidentale est couvert, accents et
 ponctuation typographique compris, et tout ce qui en sort est **refusé plutôt que

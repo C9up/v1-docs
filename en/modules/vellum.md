@@ -160,9 +160,11 @@ becomes a soft mask, which is what makes a signature drawn on a tablet
 transparent everywhere but the stroke. A CMYK JPEG is refused rather than
 silently inverted.
 
-`stampText` uses the 14 standard fonts — `Helvetica`, `Helvetica-Bold`,
+`stampText` uses eight of the standard fonts — `Helvetica`, `Helvetica-Bold`,
 `Helvetica-Oblique`, `Times-Roman`, `Times-Bold`, `Times-Italic`, `Courier`,
-`Courier-Bold` — which a PDF may reference without embedding. Nothing is added to
+`Courier-Bold` — which a PDF may reference without embedding. Any other name,
+`Times-BoldItalic` or `Symbol` included, is refused with
+`E_VELLUM_STAMP_TEXT_FAILED`. Nothing is added to
 the file and no font has to be supplied. The trade-off is the WinAnsi character
 set: Western European text is covered, accents and typographic punctuation
 included, and anything outside it is **refused rather than mangled** — silently
