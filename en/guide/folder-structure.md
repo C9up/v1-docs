@@ -292,15 +292,18 @@ export default class LogRequestMiddleware {
 ```typescript
 // app/middleware/auth_middleware.ts
 import type { HttpContext } from '@c9up/ream'
-import { E_UNAUTHORIZED } from '@c9up/ream'
+import auth from '@c9up/warden/services/main'
 
 export default class AuthMiddleware {
   async handle(ctx: HttpContext, next: () => Promise<void>) {
-    const token = ctx.request.header('authorization')?.replace('Bearer ', '')
-    if (!token) throw new E_UNAUTHORIZED()
-
-    // Verify and populate ctx.auth
-    ctx.auth = { isAuthenticated: true, user: { id: 'user-1' } }
+    const header = ctx.request.header('authorization') ?? ''
+    if (header.startsWith('Bearer ')) {
+      // The token is verified before ctx.auth is set; a guard rejects the rest.
+      const result = await auth.verify(header.slice(7))
+      if (result.authenticated && result.user) {
+        ctx.auth = { isAuthenticated: true, user: result.user }
+      }
+    }
     await next()
   }
 }
