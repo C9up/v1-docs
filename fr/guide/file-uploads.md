@@ -121,6 +121,29 @@ Chaque fichier envoyé est un `MultipartFile` doté des propriétés suivantes :
 | `errors` | Les erreurs de validation collectées pour ce fichier. |
 | `isValid` | `true` lorsqu'aucune erreur de validation n'est présente. |
 
+::: danger `type` a changé de sens
+Il portait `image/png` en entier ; il porte désormais `image`, avec
+`subtype` à côté. TypeScript ne peut rien y faire : une
+comparaison telle que `file.type === 'image/png'` ne casse pas à la
+compilation, elle cesse simplement de correspondre.
+Cherche-la dans ton code, et utilise **`file.mime`** pour une liste blanche.
+
+Une app a vécu exactement ça : `if (!ALLOWED_MIME.has(file.type)) reject()`
+compilait, ne correspondait plus, et tous les téléversements d'avatar sont morts
+en silence parce qu'aucun test ne couvrait le cas qui doit PASSER. Une porte de
+validation sans test du cas passant est une porte qui peut se fermer toute
+seule.
+:::
+
+::: tip Ces champs lisent les octets, pas l'en-tête
+`mime`, `type` et `subtype` sont dérivés des octets magiques du fichier, avec
+repli sur l'en-tête `Content-Type` seulement pour un contenu sans signature (les
+formats texte). C'est cette précédence qui compte :
+l'en-tête est écrit par le client, donc un `.exe` annoncé `image/png` passerait
+sinon une liste blanche de mimes. Un fichier renommé rapporte ce qu'il est
+vraiment. L'en-tête tel qu'envoyé reste sur `file.headers['content-type']`.
+:::
+
 Et des méthodes suivantes :
 
 | Méthode | Description |
@@ -130,6 +153,17 @@ Et des méthodes suivantes :
 | `moveToDisk(directory, name?)` | La même chose, en renvoyant le chemin écrit. |
 | `markAsMoved(fileName, filePath)` | Enregistrer un déplacement fait soi-même. |
 | `stream()` | Obtient un flux lisible du contenu du fichier. |
+
+`move()` refuse tout `name` qui n'est pas un nom de fichier simple — pas de
+séparateur, pas de `.` ni `..`. Le piège qu'il couvre est
+`await file.move(dir, { name: file.clientName })`, où un nom client
+`../../etc/passwd` sortirait du répertoire.
+
+::: tip Pas de fichier temporaire
+Ream garde les octets en mémoire — `multipart.tmpDir` est refusé à la construction —
+donc `move()` écrit le tampon. Il n'y a pas de `E_MISSING_FILE_TMP_PATH` ici :
+il n'y a aucun fichier temporaire qui pourrait manquer.
+:::
 
 ## Validation
 
@@ -241,38 +275,3 @@ directement dans le stockage, et les octets ne passent jamais par le serveur.
 
 - [Configuration](/fr/guide/configuration) — enregistrer les middlewares et configurer les chemins
 - [Atlas (ORM)](/fr/modules/atlas) — persister les métadonnées de fichier aux côtés de vos entités
-
-
-::: danger `type` a changé de sens
-Il portait `image/png` en entier ; il porte désormais `image`, avec
-`subtype` à côté. TypeScript ne peut rien y faire : une
-comparaison telle que `file.type === 'image/png'` ne casse pas à la
-compilation, elle cesse simplement de correspondre.
-Cherche-la dans ton code, et utilise **`file.mime`** pour une liste blanche.
-
-Une app a vécu exactement ça : `if (!ALLOWED_MIME.has(file.type)) reject()`
-compilait, ne correspondait plus, et tous les téléversements d'avatar sont morts
-en silence parce qu'aucun test ne couvrait le cas qui doit PASSER. Une porte de
-validation sans test du cas passant est une porte qui peut se fermer toute
-seule.
-:::
-
-::: tip Ces champs lisent les octets, pas l'en-tête
-`mime`, `type` et `subtype` sont dérivés des octets magiques du fichier, avec
-repli sur l'en-tête `Content-Type` seulement pour un contenu sans signature (les
-formats texte). C'est cette précédence qui compte :
-l'en-tête est écrit par le client, donc un `.exe` annoncé `image/png` passerait
-sinon une liste blanche de mimes. Un fichier renommé rapporte ce qu'il est
-vraiment. L'en-tête tel qu'envoyé reste sur `file.headers['content-type']`.
-:::
-
-::: tip Pas de fichier temporaire
-Ream garde les octets en mémoire — `multipart.tmpDir` est refusé à la construction —
-donc `move()` écrit le tampon. Il n'y a pas de `E_MISSING_FILE_TMP_PATH` ici :
-il n'y a aucun fichier temporaire qui pourrait manquer.
-:::
-
-`move()` refuse tout `name` qui n'est pas un nom de fichier simple — pas de
-séparateur, pas de `.` ni `..`. Le piège qu'il couvre est
-`await file.move(dir, { name: file.clientName })`, où un nom client
-`../../etc/passwd` sortirait du répertoire.
