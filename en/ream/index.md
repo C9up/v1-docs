@@ -244,9 +244,10 @@ export default {
 }
 ```
 
-The `database` table is `id` (varchar, primary key), `data` (text) and
-`expires_at` (bigint, epoch ms). Nothing prunes it on its own — call
-`driver.prune()` from a scheduled job.
+The `database` table is `id` (varchar, primary key), `data` (text),
+`expires_at` (bigint, epoch ms) and `user_id` (varchar, nullable — set at login
+by `session.tag()`). Expired rows are swept by `gcProbability` (see
+[Cleaning up expired sessions](#cleaning-up-expired-sessions)).
 
 ### Session config
 

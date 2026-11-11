@@ -260,9 +260,10 @@ export default {
 }
 ```
 
-La table `database` est `id` (varchar, clé primaire), `data` (text) et
-`expires_at` (bigint, epoch ms). Rien ne la purge tout seul — appelez
-`driver.prune()` depuis une tâche planifiée.
+La table `database` est `id` (varchar, clé primaire), `data` (text),
+`expires_at` (bigint, epoch ms) et `user_id` (varchar, nullable — posée à la
+connexion par `session.tag()`). Les lignes expirées sont balayées selon
+`gcProbability` (voir [Nettoyage des sessions expirées](#nettoyage-des-sessions-expirees)).
 
 ### Configuration de session
 
