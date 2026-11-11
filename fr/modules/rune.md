@@ -94,6 +94,52 @@ const s = schema({
 s.validateResult({ name: 'Alice' })  // valid — nickname est optionnel
 ```
 
+### Fichiers
+
+```typescript
+const s = schema({
+  avatar: rules.file({ size: '2mb', extnames: ['jpg', 'png'] }),
+  report: rules.nativeFile({ maxSize: '10mb', mimeTypes: ['application/pdf'] }),
+})
+
+const result = await s.validateResultAsync({
+  avatar: ctx.request.file('avatar'),
+  report: ctx.request.file('report'),
+})
+```
+
+- `rules.file({ size, extnames, verifyContent })` accepte tout objet qui porte
+  un `size` et un nom ou une extension — l'upload du body parser, ou n'importe
+  quelle autre représentation. Les `extnames` se comparent en minuscules, sans
+  le point.
+- `rules.nativeFile({ minSize, maxSize, mimeTypes })` ajoute une borne basse et
+  une liste de types MIME ; `.minSize()`, `.maxSize()` et `.mimeTypes()`
+  chaînent les mêmes contrôles.
+- Une taille est un nombre d'octets ou une écriture comme `'512kb'`, `'2mb'`,
+  `'1gb'` (`b`, `kb`, `mb`, `gb`, `tb`, puissances de 1024). Une écriture que
+  rune ne sait pas lire lève `E_RUNE_INVALID_SIZE` à la construction du schéma,
+  au lieu de laisser le champ sans plafond.
+
+Le nom, l'extension et le type annoncé viennent tous de l'expéditeur : un
+`.exe` renommé `.png` les satisfait tous. Déclarer `extnames` ou `mimeTypes` lit
+donc aussi les premiers octets du fichier et refuse un contenu qui ne
+correspond pas à la déclaration (règle `verifyContent`). `.verifyContent()` arme
+le même contrôle sur une chaîne qui ne déclare ni l'un ni l'autre. Le contrôle
+est asynchrone : un schéma qui le porte passe par `validate()` /
+`validateResultAsync()`.
+
+Les octets viennent du `content` / `buffer` en mémoire de l'upload, d'un
+`Blob`, ou du lecteur qu'un hôte lie avec `rune.bindFileReader()`. Un chemin
+porté par la valeur n'est jamais ouvert — un corps JSON peut construire un
+objet en forme de fichier, et un chemin dedans deviendrait la lecture de
+n'importe quel fichier que le processus peut ouvrir. Sans source d'octets, le
+contrôle échoue au lieu de passer.
+
+`rules.file({ extnames, verifyContent: false })` coupe le contrôle de contenu.
+La liste d'extensions ne repose alors que sur la parole de l'expéditeur ;
+gardez cette exception pour des fichiers dont les octets sont vérifiés
+ailleurs.
+
 ## Formats liés à un pays ou à une locale
 
 Quatre règles valident une valeur contre une table par pays ou par locale :
@@ -673,6 +719,18 @@ accepter en silence une écriture que personne n'a voulu envoyer.
 `rules.number()` refuse une chaîne vide ou blanche au lieu de la lire comme
 `0` — un champ texte laissé intact ne doit pas devenir une quantité de zéro.
 Utilisez `.optional()` pour un champ qui peut être omis.
+
+`rules.number()` et `rules.boolean()` convertissent le texte que porte un
+formulaire ou une query string (`"32"` → `32`, les listes ci-dessus → un
+booléen). `rules.number({ strict: true })` et `rules.boolean({ strict: true })`
+refusent tout ce qui n'est pas déjà un nombre ou un booléen — le choix d'une API
+JSON où `"1"` est un bug du client.
+
+`rune.convertEmptyStringsToNull = true` lit chaque `""` comme `null` avant
+l'exécution des règles, pour tous les schémas du processus. Un champ vide
+compte alors comme absent : `.optional()` l'accepte, un champ requis le refuse
+comme manquant, et une règle string ne voit jamais `""`. C'est désactivé par
+défaut ; activez-le une fois, au démarrage, pas par requête.
 
 `rules.enum()` accepte une liste, un callback, ou un **enum TypeScript natif** :
 
