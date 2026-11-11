@@ -419,8 +419,7 @@ await bouncer.authorize(editPost, post); // resolves on allow, throws on deny
 
 `allows` / `denies` never throw — a denial is `false`. `execute` returns the
 full `AuthorizationResponse` (`authorized`, `message`, `status`). `authorize`
-resolves to `void` on allow and throws `WARDEN_AUTHORIZATION_FAILURE` on deny
-(the HTTP-403 mapping arrives in the HTTP-integration story).
+resolves to `void` on allow and throws `E_WARDEN_AUTHORIZATION_FAILURE` (status 403) on deny.
 
 Abilities can be registered by name and checked either way — both produce
 identical results:
@@ -619,7 +618,7 @@ Inside a handler, authorize with the same four verbs, now scoped to the request:
 class PostController {
   async update(ctx) {
     const post = await Post.find(ctx.params.id)
-    // throws WARDEN_AUTHORIZATION_FAILURE (status 403) on denial
+    // throws E_WARDEN_AUTHORIZATION_FAILURE (status 403) on denial
     await ctx.bouncer.authorize("post.edit", post)
     // ...or branch without throwing
     if (await ctx.bouncer.allows("post.publish", post)) { /* ... */ }
@@ -630,12 +629,12 @@ class PostController {
 ```
 
 When `authorize()` denies it throws a `WardenError` with
-`code: "WARDEN_AUTHORIZATION_FAILURE"` carrying `status: 403` and the denial
+`code: "E_WARDEN_AUTHORIZATION_FAILURE"` carrying `status: 403` and the denial
 message. Ream's `ExceptionHandler` duck-types that `status` and maps it to a
 **403** response:
 
 ```json
-{ "error": { "code": "WARDEN_AUTHORIZATION_FAILURE", "message": "Authorization failed" } }
+{ "error": { "code": "E_WARDEN_AUTHORIZATION_FAILURE", "message": "Authorization failed" } }
 ```
 
 A custom `deny(message, status)` — or a policy `before` returning
@@ -800,7 +799,7 @@ new SessionStrategy({
 })
 ```
 
-Without one, `login()` on such a session throws `INVALID_CONFIG`: an
+Without one, `login()` on such a session throws `E_WARDEN_INVALID_CONFIG`: an
 application on the cookie store finds out at its first sign-in, not after a
 stolen cookie.
 
@@ -1694,8 +1693,9 @@ bus's business to veto.
 
 | Code | Thrown when |
 |---|---|
-| `WARDEN_INVALID_CONFIG` | `defaultStrategy` is not present in `strategies` |
-| `WARDEN_STRATEGY_NOT_FOUND` | `getStrategy()` or `verify()` called with an unregistered strategy name |
+| `E_WARDEN_NO_AUTH_CONFIG` | `WardenProvider` finds no guard and no driver block in `config/auth.ts` |
+| `E_WARDEN_INVALID_CONFIG` | `defaultStrategy` is not present in `strategies`, or a strategy is configured unusably |
+| `E_WARDEN_STRATEGY_NOT_FOUND` | `getStrategy()` or `verify()` called with an unregistered strategy name |
 
 ---
 

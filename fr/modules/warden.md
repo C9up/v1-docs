@@ -431,8 +431,8 @@ await bouncer.authorize(editPost, post); // résout si autorisé, lève si refus
 
 `allows` / `denies` ne lèvent jamais — un refus vaut `false`. `execute` renvoie
 la réponse complète `AuthorizationResponse` (`authorized`, `message`, `status`).
-`authorize` résout à `void` si autorisé et lève `WARDEN_AUTHORIZATION_FAILURE`
-si refusé (le mapping vers HTTP 403 arrive dans la story d'intégration HTTP).
+`authorize` résout à `void` si autorisé et lève `E_WARDEN_AUTHORIZATION_FAILURE`
+(status 403) si refusé.
 
 Les abilities peuvent être enregistrées par nom et vérifiées des deux façons —
 les deux produisent des résultats identiques :
@@ -636,7 +636,7 @@ la requête :
 class PostController {
   async update(ctx) {
     const post = await Post.find(ctx.params.id)
-    // lève WARDEN_AUTHORIZATION_FAILURE (status 403) en cas de refus
+    // lève E_WARDEN_AUTHORIZATION_FAILURE (status 403) en cas de refus
     await ctx.bouncer.authorize("post.edit", post)
     // ...ou branchez sans lever
     if (await ctx.bouncer.allows("post.publish", post)) { /* ... */ }
@@ -647,12 +647,12 @@ class PostController {
 ```
 
 Quand `authorize()` refuse, il lève une `WardenError` de
-`code: "WARDEN_AUTHORIZATION_FAILURE"` portant `status: 403` et le message de
+`code: "E_WARDEN_AUTHORIZATION_FAILURE"` portant `status: 403` et le message de
 refus. L'`ExceptionHandler` de Ream lit ce `status` par duck-typing et le mappe
 sur une réponse **403** :
 
 ```json
-{ "error": { "code": "WARDEN_AUTHORIZATION_FAILURE", "message": "Authorization failed" } }
+{ "error": { "code": "E_WARDEN_AUTHORIZATION_FAILURE", "message": "Authorization failed" } }
 ```
 
 Un `deny(message, status)` personnalisé — ou un `before` de policy renvoyant
@@ -821,7 +821,7 @@ new SessionStrategy({
 })
 ```
 
-Sans elle, `login()` sur une telle session lève `INVALID_CONFIG` : une
+Sans elle, `login()` sur une telle session lève `E_WARDEN_INVALID_CONFIG` : une
 application sur le stockage cookie s'en aperçoit à sa première connexion, pas
 après un vol de cookie.
 
@@ -1739,8 +1739,9 @@ d'événements de mettre son veto à une authentification.
 
 | Code | Levé quand |
 |---|---|
-| `WARDEN_INVALID_CONFIG` | `defaultStrategy` n'est pas présent dans `strategies` |
-| `WARDEN_STRATEGY_NOT_FOUND` | `getStrategy()` ou `verify()` appelé avec un nom de stratégie non enregistré |
+| `E_WARDEN_NO_AUTH_CONFIG` | `WardenProvider` ne trouve ni guard ni bloc de driver dans `config/auth.ts` |
+| `E_WARDEN_INVALID_CONFIG` | `defaultStrategy` n'est pas présent dans `strategies`, ou une stratégie est configurée de façon inutilisable |
+| `E_WARDEN_STRATEGY_NOT_FOUND` | `getStrategy()` ou `verify()` appelé avec un nom de stratégie non enregistré |
 
 ---
 
