@@ -213,15 +213,15 @@ logger.setCorrelationId('req-abc-123')
 
 ## SpectrumProvider
 
-Register `SpectrumProvider` to auto-wire a logger from `config/logger.ts` and bind it in the container:
+`SpectrumProvider` builds the loggers from `config/logger.ts` and binds them in
+the container. `ream configure @c9up/spectrum` registers it and writes
+`config/logger.ts`; by hand, the provider goes in `reamrc.ts`:
 
 ```typescript
-// config/app.ts
-import SpectrumProvider from '@c9up/spectrum/SpectrumProvider'
-
-export default {
-  providers: [SpectrumProvider],
-}
+// reamrc.ts
+providers: [
+  () => import('@c9up/spectrum/provider'),
+]
 ```
 
 ```typescript

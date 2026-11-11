@@ -255,7 +255,18 @@ interface LoggerManagerConfig {
 }
 ```
 
-## Configuration
+## SpectrumProvider
+
+`SpectrumProvider` construit les loggers depuis `config/logger.ts` et les lie
+dans le conteneur. `ream configure @c9up/spectrum` l'enregistre et écrit
+`config/logger.ts` ; à la main, le provider se déclare dans `reamrc.ts` :
+
+```typescript
+// reamrc.ts
+providers: [
+  () => import('@c9up/spectrum/provider'),
+]
+```
 
 ```typescript
 // config/logger.ts
@@ -292,6 +303,13 @@ modules }`), qu'il enveloppe sous le nom `app`.
 Un niveau qui n'est pas l'un des six (ou `silent`) — `ERROR`, `warning`,
 `verbose` — lève `E_SPECTRUM_UNKNOWN_LEVEL`, dans la config, dans une entrée de
 `modules` comme dans le setter `level`.
+
+Une fois enregistré, résolvez le logger depuis le conteneur :
+
+```typescript
+const logger = await app.container.make('logger')
+logger.info('App booted')
+```
 
 ## Masquage
 
