@@ -669,12 +669,20 @@ ci-dessus, qui la connaît par construction.
 table.string('email', 255)
   .notNullable()                  // NOT NULL
   .unique()                       // Contrainte UNIQUE
-  .defaultTo("'pending'")         // DEFAULT 'pending'
+  .defaultTo('pending')           // DEFAULT 'pending'
+
+table.timestamp('seen_at')
+  .defaultTo(this.now())          // DEFAULT CURRENT_TIMESTAMP (SQLite) / NOW()
 
 table.uuid('user_id')
   .references('users', 'id')      // FOREIGN KEY → users(id)
   .notNullable()
 ```
+
+`defaultTo()` met entre quotes et échappe la valeur JavaScript pour vous : passez
+`'pending'`, pas `"'pending'"`, sinon la valeur par défaut stockée est le texte
+`'pending'` avec ses quotes. Une expression SQL passe par `this.raw('...')` (émise
+telle quelle) ou `this.now()`.
 
 ### Méthodes raccourcis
 
@@ -778,7 +786,7 @@ export default class CreateOrdersTable extends Migration {
   async up(): Promise<void> {
     this.schema.createTable('orders', (table) => {
       table.id()
-      table.string('status', 50).notNullable().defaultTo("'pending'")
+      table.string('status', 50).notNullable().defaultTo('pending')
       table.decimal('total', 10, 2).notNullable()
       table.uuid('user_id').references('users', 'id').notNullable()
       table.text('notes').nullable()
