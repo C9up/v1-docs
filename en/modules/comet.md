@@ -152,5 +152,5 @@ and standalone means:
 - the envelope and error codes are defined and tested **once**, not duplicated in
   the client and the server.
 
-This mirrors the model of `@c9up/quasar` (binary/protobuf wire): an agnostic core
+This mirrors the model of `@c9up/neutrino` (Protocol Buffers and gRPC): an agnostic core
 with thin, opt-in integration seams.

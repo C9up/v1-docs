@@ -155,5 +155,5 @@ agnostique et autonome veut dire :
 - l'enveloppe et les codes d'erreur sont définis et testés **une seule fois**, pas
   dupliqués dans le client et le serveur.
 
-Ça reflète le modèle de `@c9up/quasar` (fil binaire/protobuf) : un cœur agnostique
+Ça reflète le modèle de `@c9up/neutrino` (Protocol Buffers et gRPC) : un cœur agnostique
 avec des coutures d'intégration fines et opt-in.
