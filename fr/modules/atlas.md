@@ -625,7 +625,7 @@ this.schema.createTable('orders', (table) => {
   table.json('metadata')               // JSON (Postgres) / TEXT (SQLite)
   table.jsonb('settings')              // JSONB (Postgres) / TEXT (SQLite)
   table.binary('avatar')               // BYTEA (Postgres) / BLOB (SQLite)
-  table.timestamps()                   // created_at + updated_at (NOT NULL, DEFAULT NOW())
+  table.timestamps()                   // created_at + updated_at (NOT NULL, DEFAULT CURRENT_TIMESTAMP)
 })
 ```
 
@@ -716,7 +716,7 @@ telle quelle) ou `this.now()`.
 | Méthode | Effet |
 |---------|-------|
 | `table.id()` | Clé primaire UUID avec défaut `gen_random_uuid()` |
-| `table.timestamps()` | Ajoute `created_at` et `updated_at` (NOT NULL, DEFAULT NOW()) |
+| `table.timestamps()` | Ajoute `created_at` et `updated_at` (NOT NULL, DEFAULT CURRENT_TIMESTAMP, valide sur tous les dialectes) |
 
 ## Système de dialectes
 
@@ -831,7 +831,7 @@ La classe `Migration` expose `this.schema` (une instance de `Schema`) et deux he
 
 ```typescript
 this.raw('expression')   // Expression SQL brute (pour les valeurs DEFAULT)
-this.now()               // Renvoie 'NOW()'
+this.now()               // CURRENT_TIMESTAMP en SQLite, NOW() en Postgres et MySQL
 ```
 
 ### MigrationRunner
@@ -915,25 +915,21 @@ rejettent silencieusement ou bruyamment. Cette liste recense les pièges connus.
    fixtures versionnées. Voir `packages/nova/tests/integration/migration-template-ddl-output.test.ts`
    pour le pattern canonique.
 
-2. **Éviter `t.timestamps()` et `t.id()` dans les templates embarqués.** Les
-   deux émettent des `DEFAULT` non portables : `t.timestamps()` écrit
-   `DEFAULT NOW()` (valide sur Postgres + MySQL, invalide en SQLite — pas
-   de fonction `NOW()`), et `t.id()` écrit `DEFAULT gen_random_uuid()`
-   (valide sur Postgres 13+, invalide en SQLite + MySQL — pas de fonction
-   `gen_random_uuid()`). La migration crashe lors du `migrations:run` sur
-   le dialecte qui n'a pas la fonction. Écrire les colonnes explicitement
-   à la place :
+2. **Éviter `t.id()` dans les templates embarqués.** Il écrit
+   `DEFAULT gen_random_uuid()`, valide sur Postgres 13+ et invalide en SQLite
+   et MySQL, qui n'ont pas cette fonction : la migration crashe lors du
+   `migration:run` sur ces dialectes. Écrire la colonne explicitement et
+   fournir l'UUID à l'insertion. `t.timestamps()` est portable — son
+   `DEFAULT CURRENT_TIMESTAMP` est compris par tous les dialectes — tout comme
+   `this.now()`.
 
    ```typescript
-   // ✗ DO NOT in shipped templates
+   // ✗ À NE PAS FAIRE dans les templates embarqués
    t.id()
-   t.timestamps()
 
-   // ✓ Portable equivalent
-   t.uuid('id').primary()                  // no DEFAULT
-   t.timestamp('created_at').notNullable() // no DEFAULT
-   t.timestamp('updated_at').notNullable()
-   // Supply the values at INSERT/UPSERT time.
+   // ✓ Équivalent portable
+   t.uuid('id').primary()                  // pas de DEFAULT — à fournir à l'INSERT
+   t.timestamps()                          // CURRENT_TIMESTAMP sur tous les dialectes
    ```
 
 3. **Calculer le budget octets MySQL InnoDB pour les colonnes VARCHAR PK/UNIQUE.**
@@ -955,10 +951,8 @@ rejettent silencieusement ou bruyamment. Cette liste recense les pièges connus.
 L'audit est appliqué par :
 
 - `packages/atlas/tests/unit/no-non-portable-helpers-in-templates.test.ts`
-  (grep-bannit les helpers non-portables dans chaque template embarqué —
-  CI rouge si réintroduits)
-- `packages/atlas/AUDIT-migration-templates.md` (inventaire re-jouable de
-  chaque template embarqué + les règles ci-dessus)
+  (grep-bannit les helpers listés dans chaque template embarqué — CI rouge
+  si réintroduits)
 
 ## Vérification de schéma
 

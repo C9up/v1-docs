@@ -618,7 +618,7 @@ this.schema.createTable('orders', (table) => {
   table.json('metadata')               // JSON (Postgres) / TEXT (SQLite)
   table.jsonb('settings')              // JSONB (Postgres) / TEXT (SQLite)
   table.binary('avatar')               // BYTEA (Postgres) / BLOB (SQLite)
-  table.timestamps()                   // created_at + updated_at (NOT NULL, DEFAULT NOW())
+  table.timestamps()                   // created_at + updated_at (NOT NULL, DEFAULT CURRENT_TIMESTAMP)
 })
 ```
 
@@ -708,7 +708,7 @@ expression goes through `this.raw('...')` (emitted verbatim) or `this.now()`.
 | Method | Effect |
 |--------|--------|
 | `table.id()` | UUID primary key with `gen_random_uuid()` default |
-| `table.timestamps()` | Adds `created_at` and `updated_at` (NOT NULL, DEFAULT NOW()) |
+| `table.timestamps()` | Adds `created_at` and `updated_at` (NOT NULL, DEFAULT CURRENT_TIMESTAMP, valid on every dialect) |
 
 ## Dialect System
 
@@ -823,7 +823,7 @@ The `Migration` class exposes `this.schema` (a `Schema` instance) and two helper
 
 ```typescript
 this.raw('expression')   // Raw SQL expression string (for DEFAULT values)
-this.now()               // Returns 'NOW()'
+this.now()               // CURRENT_TIMESTAMP on SQLite, NOW() on Postgres and MySQL
 ```
 
 ### MigrationRunner
@@ -907,24 +907,20 @@ known pitfalls.
    committed fixtures. See `packages/nova/tests/integration/migration-template-ddl-output.test.ts`
    for the canonical pattern.
 
-2. **Avoid `t.timestamps()` and `t.id()` in shipped templates.** Both emit
-   non-portable DDL defaults: `t.timestamps()` writes `DEFAULT NOW()` (valid
-   on Postgres + MySQL, invalid on SQLite — no `NOW()` function), and
-   `t.id()` writes `DEFAULT gen_random_uuid()` (valid on Postgres 13+,
-   invalid on SQLite + MySQL — no `gen_random_uuid()` function). The
-   migration crashes at `migrations:run` on the dialect that lacks the
-   function. Write explicit columns instead:
+2. **Avoid `t.id()` in shipped templates.** It writes
+   `DEFAULT gen_random_uuid()`, valid on Postgres 13+ and invalid on SQLite
+   and MySQL, which have no such function: the migration crashes at
+   `migration:run` there. Write the column explicitly and supply the UUID at
+   insert time. `t.timestamps()` is portable — its `DEFAULT CURRENT_TIMESTAMP`
+   is understood by every dialect — and so is `this.now()`.
 
    ```typescript
    // ✗ DO NOT in shipped templates
    t.id()
-   t.timestamps()
 
    // ✓ Portable equivalent
-   t.uuid('id').primary()                  // no DEFAULT
-   t.timestamp('created_at').notNullable() // no DEFAULT
-   t.timestamp('updated_at').notNullable()
-   // Supply the values at INSERT/UPSERT time.
+   t.uuid('id').primary()                  // no DEFAULT — supply it at INSERT time
+   t.timestamps()                          // CURRENT_TIMESTAMP on every dialect
    ```
 
 3. **Compute the MySQL InnoDB byte budget for VARCHAR PK/UNIQUE columns.** On
@@ -945,10 +941,8 @@ known pitfalls.
 The audit is enforced by:
 
 - `packages/atlas/tests/unit/no-non-portable-helpers-in-templates.test.ts`
-  (grep-bans the non-portable helpers in every shipped template — fails CI
-  if reintroduced)
-- `packages/atlas/AUDIT-migration-templates.md` (re-runnable inventory of
-  every shipped template + the rules above)
+  (grep-bans the listed helpers in every shipped template — fails CI if
+  reintroduced)
 
 ## Schema verification
 

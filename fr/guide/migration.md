@@ -120,7 +120,7 @@ Toutes les méthodes de colonne s'appellent sur l'instance `TableBuilder` passé
 | `boolean(name)` | `BOOLEAN` / `INTEGER` |
 | `date(name)` | `DATE` / `TEXT` |
 | `timestamp(name)` | `TIMESTAMP` / `TEXT` |
-| `timestamps()` | Raccourci : `created_at` + `updated_at` tous deux `NOT NULL DEFAULT NOW()` |
+| `timestamps()` | Raccourci : `created_at` + `updated_at` tous deux `NOT NULL DEFAULT CURRENT_TIMESTAMP` |
 | `json(name)` | `JSON` / `TEXT` |
 | `jsonb(name)` | `JSONB` / `TEXT` |
 | `binary(name)` | `BYTEA` / `BLOB` |

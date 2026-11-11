@@ -120,7 +120,7 @@ All column methods are called on the `TableBuilder` instance passed to the `crea
 | `boolean(name)` | `BOOLEAN` / `INTEGER` |
 | `date(name)` | `DATE` / `TEXT` |
 | `timestamp(name)` | `TIMESTAMP` / `TEXT` |
-| `timestamps()` | Shortcut: `created_at` + `updated_at` both `NOT NULL DEFAULT NOW()` |
+| `timestamps()` | Shortcut: `created_at` + `updated_at` both `NOT NULL DEFAULT CURRENT_TIMESTAMP` |
 | `json(name)` | `JSON` / `TEXT` |
 | `jsonb(name)` | `JSONB` / `TEXT` |
 | `binary(name)` | `BYTEA` / `BLOB` |
