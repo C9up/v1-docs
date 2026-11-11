@@ -194,7 +194,7 @@ export default {
 }
 ```
 
-Consultez [Atlas — Système de dialectes](/fr/modules/atlas#système-de-dialectes) pour plus de détails.
+Consultez [Atlas — Système de dialectes](/fr/modules/atlas#systeme-de-dialectes) pour plus de détails.
 
 ## Exemple complet
 

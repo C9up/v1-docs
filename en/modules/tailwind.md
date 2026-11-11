@@ -48,7 +48,7 @@ cn('px-2', 'px-4')            // → 'px-4'  (later wins; dedup is the point)
 cn('rounded-lg border', props.class)
 ```
 
-Full details: [Aurora → Tailwind classes (`cn`)](./aurora.md#tailwind-classes--cn).
+Full details: [Aurora → Tailwind classes (`cn`)](./aurora.md#tailwind-classes-—-cn).
 
 ## About `@c9up/tailwind`
 

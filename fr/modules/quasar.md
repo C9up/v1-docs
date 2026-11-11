@@ -84,7 +84,7 @@ Les commandes Redis s'appellent directement sur une connexion **et sur le manage
 await quasar.set('user:42', payload, 'EX', 60)   // connexion par défaut
 ```
 
-C'est une liste fixe de commandes, pas tout ce que porte le client ioredis. Le pub/sub shardé (`ssubscribe`) en est exclu — sur le socket de commandes, il ferait passer ce socket en mode abonné — tout comme l'EventEmitter d'ioredis : une connexion a ses propres événements (voir [Événements](#événements)). Le client brut reste accessible via `connection.ioConnection` pour ce qui n'est pas enveloppé ici — nommé `ioConnection` plutôt que `client` parce que `CLIENT` est elle-même une commande Redis.
+C'est une liste fixe de commandes, pas tout ce que porte le client ioredis. Le pub/sub shardé (`ssubscribe`) en est exclu — sur le socket de commandes, il ferait passer ce socket en mode abonné — tout comme l'EventEmitter d'ioredis : une connexion a ses propres événements (voir [Événements](#evenements)). Le client brut reste accessible via `connection.ioConnection` pour ce qui n'est pas enveloppé ici — nommé `ioConnection` plutôt que `client` parce que `CLIENT` est elle-même une commande Redis.
 
 Une connexion expose aussi son état : `connectionName`, `status`, `subscriberStatus`, `autoPipelineQueueSize`, `lastError`, et `isConnecting()` (en train de composer, ou entre deux tentatives de reconnexion), `isReady()` (`connect` ou `ready`) et `isClosed()` (`close` ou `end`).
 
@@ -114,7 +114,7 @@ await quasar.unsubscribe('orders', handler)   // les autres continuent de recevo
 await quasar.unsubscribe('orders')            // retire tout et quitte le canal
 ```
 
-`subscribe` / `psubscribe` acceptent `{ onSubscription, onError }`, et un échec est signalé, jamais levé. Ce que fait réellement un abonnement en échec est décrit plus bas, dans [Événements](#événements). `subscribed()` / `psubscribed()` en sont les formes attendables : elles se résolvent une fois le canal actif et rejettent quand l'abonnement a échoué.
+`subscribe` / `psubscribe` acceptent `{ onSubscription, onError }`, et un échec est signalé, jamais levé. Ce que fait réellement un abonnement en échec est décrit plus bas, dans [Événements](#evenements). `subscribed()` / `psubscribed()` en sont les formes attendables : elles se résolvent une fois le canal actif et rejettent quand l'abonnement a échoué.
 
 Un handler est enregistré avant que Redis n'accuse réception de l'abonnement : un message que le serveur envoie dans le même paquet que l'accusé lui parvient, et un abonnement qui échoue retire son handler. Fermer une connexion avec `quit()` ou `disconnect()` retire tous ses handlers — un abonnement ultérieur sur la même connexion repart de zéro, et un handler abandonné avec l'ancien socket n'entend jamais les messages de son successeur.
 

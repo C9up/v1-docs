@@ -951,7 +951,7 @@ if (a.ok) console.log(a.value)
 if (!b.ok) console.error(b.error.message)
 ```
 
-Se marie naturellement avec [`command`](#actions-async-command) pour des appels
+Se marie naturellement avec [`command`](#actions-async-—-command) pour des appels
 réactifs :
 
 ```ts
@@ -986,7 +986,7 @@ await aurora.render(ctx, 'Users', { users }, {
 bien que le bootstrap d'hydratation le réinstalle via `setRouteManifest` —
 `urlFor` résout alors à l'identique côté serveur et navigateur.
 (`setRouteManifest(routes)` est aussi exporté si vous devez l'installer à la
-main.) Voir [Routage → Routes nommées](../guide/routing.md#routes-nommées).
+main.) Voir [Routage → Routes nommées](../guide/routing.md#routes-nommees).
 
 **Le manifeste sérialisé est public** — tout visiteur de la page peut le lire :
 `router.namedManifest()` tel quel livre à un visiteur anonyme de `/login` les noms

@@ -597,7 +597,7 @@ hydrate({
 })
 ```
 
-Le côté SSR émet actuellement toujours `<div id="app">` ; si tu passes un `target` custom, override le template SSR pour matcher (par ex. `#admin-app`). Quand le renderer ne trouve pas la cible au moment de l'hydratation, il lève `E_PHOTON_HYDRATION_NO_TARGET` — voir le [catalogue d'erreurs](../errors/#photon-hydration-no-target).
+Le côté SSR émet actuellement toujours `<div id="app">` ; si tu passes un `target` custom, override le template SSR pour matcher (par ex. `#admin-app`). Quand le renderer ne trouve pas la cible au moment de l'hydratation, il lève `E_PHOTON_HYDRATION_NO_TARGET` — voir le [catalogue d'erreurs](../errors/#e-photon-hydration-no-target).
 
 ### Ce qui livre par story
 

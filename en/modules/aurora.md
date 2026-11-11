@@ -926,7 +926,7 @@ if (a.ok) console.log(a.value)
 if (!b.ok) console.error(b.error.message)
 ```
 
-Pairs naturally with [`command`](#async-actions-command) for reactive calls:
+Pairs naturally with [`command`](#async-actions-—-command) for reactive calls:
 
 ```ts
 const validate = command((p) => rpc.call('task.validate', p))

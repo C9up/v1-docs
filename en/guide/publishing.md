@@ -139,7 +139,7 @@ either:
 Each NAPI-shipping package carries its own troubleshooting section in its
 module doc:
 
-- [`@c9up/sigil`](/en/modules/sigil#troubleshooting-sigil-napi-required)
+- [`@c9up/sigil`](/en/modules/sigil#troubleshooting-—-e-sigil-napi-required)
 
 The other packages will gain equivalent sections as they adopt the
 `E_<PKG>_NAPI_REQUIRED` pattern.

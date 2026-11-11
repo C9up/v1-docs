@@ -486,7 +486,7 @@ Le compromis, c'est moins de bugs de prod « facture blanche » au prix de plus 
 
 ## Îlots Aurora
 
-Un helper peut retourner une [SafeString](#échappement-html-vs-brut) de markup [Aurora](/fr/modules/aurora) rendu côté serveur, embarquant un îlot réactif dans un template Inker — `renderToString(component(data))` sur le serveur, `hydrate(el, component)` sur le client. Aucun code de glue ne vit dans l'un ou l'autre package. Voir [Embarquer aurora dans les templates inker](/fr/modules/aurora#embedding-aurora-in-inker-templates).
+Un helper peut retourner une [SafeString](#echappement-html-vs-brut) de markup [Aurora](/fr/modules/aurora) rendu côté serveur, embarquant un îlot réactif dans un template Inker — `renderToString(component(data))` sur le serveur, `hydrate(el, component)` sur le client. Aucun code de glue ne vit dans l'un ou l'autre package. Voir [Embarquer aurora dans les templates inker](/fr/modules/aurora#integrer-aurora-dans-les-templates-inker).
 
 ## Checklist de production
 

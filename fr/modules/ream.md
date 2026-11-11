@@ -386,4 +386,3 @@ Le core est l'orchestrateur. Les modules restent utilisables seuls, mais Ream si
 - Guide providers: `/fr/guide/providers`
 - Guide routing: `/fr/guide/routing`
 - Guide middleware: `/fr/guide/middleware`
-- Corrections package ream: `/fr/corrections/ream`

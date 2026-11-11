@@ -46,7 +46,7 @@ compileStatementNative({
 //     params: [2] }
 ```
 
-Les clauses à fenêtre temporelle (`INTERVAL` / `SLIDING` / `FILL` / `PARTITION BY`), les fonctions de sélection et les pseudo-colonnes `_wstart` / `_wend` / `_wduration` compilent aussi — on construit rarement ces specs à la main ; voir [Requêtes séries temporelles](#requêtes-séries-temporelles) pour le builder fluide qui les produit.
+Les clauses à fenêtre temporelle (`INTERVAL` / `SLIDING` / `FILL` / `PARTITION BY`), les fonctions de sélection et les pseudo-colonnes `_wstart` / `_wend` / `_wduration` compilent aussi — on construit rarement ces specs à la main ; voir [Requêtes séries temporelles](#requetes-series-temporelles) pour le builder fluide qui les produit.
 
 ## Provider
 

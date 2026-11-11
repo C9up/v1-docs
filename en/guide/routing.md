@@ -279,7 +279,7 @@ screen reads.
 
 ### URLs in the browser
 
-To build the same URLs client-side, serialize the named-route map with `router.namedManifest()` (only **named** routes are exposed — unnamed routes stay private to the server) and hand it to your page renderer; Aurora's isomorphic `urlFor` resolves against it. See [Aurora → URL builder](../modules/aurora.md#url-builder--urlfor).
+To build the same URLs client-side, serialize the named-route map with `router.namedManifest()` (only **named** routes are exposed — unnamed routes stay private to the server) and hand it to your page renderer; Aurora's isomorphic `urlFor` resolves against it. See [Aurora → URL builder](../modules/aurora.md#url-builder-—-urlfor).
 
 ```typescript
 const routes = router.namedManifest()

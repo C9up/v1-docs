@@ -378,4 +378,3 @@ The core is the orchestrator. Modules remain standalone, but Ream simplifies com
 - Providers guide: `/en/guide/providers`
 - Routing guide: `/en/guide/routing`
 - Middleware guide: `/en/guide/middleware`
-- Ream package corrections: `/en/corrections/ream`

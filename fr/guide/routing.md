@@ -280,7 +280,7 @@ debug.
 
 ### URL côté navigateur
 
-Pour construire les mêmes URL côté client, sérialisez la map des routes nommées avec `router.namedManifest()` (seules les routes **nommées** sont exposées — les autres restent privées au serveur) et passez-la au rendu de page ; le `urlFor` isomorphe d'Aurora résout dessus. Voir [Aurora → constructeur d'URL](../modules/aurora.md#constructeur-durl--urlfor).
+Pour construire les mêmes URL côté client, sérialisez la map des routes nommées avec `router.namedManifest()` (seules les routes **nommées** sont exposées — les autres restent privées au serveur) et passez-la au rendu de page ; le `urlFor` isomorphe d'Aurora résout dessus. Voir [Aurora → constructeur d'URL](../modules/aurora.md#constructeur-d-url-—-urlfor).
 
 ```typescript
 const routes = router.namedManifest()
