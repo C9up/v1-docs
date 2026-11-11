@@ -157,7 +157,7 @@ Rejeter les envois vides (0 octet) est une décision applicative (`422`). Ream n
 ## Servir les fichiers envoyés
 
 ::: warning Sécurité
-N'utilisez jamais le `type` stocké (l'en-tête `Content-Type`) comme `Content-Type` de la réponse, et ne vous y fiez jamais pour la logique applicative — utilisez plutôt `detectedType`.
+N'utilisez jamais l'en-tête envoyé par le client (`file.headers['content-type']`) comme `Content-Type` de la réponse, et ne vous y fiez jamais pour la logique applicative — `file.mime` (lu dans les octets) est la valeur de confiance, et `file.typeSource === 'detected'` indique que les octets ont bien été reconnus.
 
 Lorsque vous servez des fichiers envoyés par les utilisateurs :
 

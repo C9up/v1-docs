@@ -186,7 +186,7 @@ Rejecting empty (0-byte) uploads is an app-level decision (`422`). Ream does not
 ## Serving uploaded files
 
 ::: warning Security
-Never use the stored `type` (the `Content-Type` header) as the response `Content-Type`, and never trust it for application logic — use `detectedType` instead.
+Never use the header the client sent (`file.headers['content-type']`) as the response `Content-Type`, and never trust it for application logic — `file.mime` (read from the bytes) is the trustworthy value, and `file.typeSource === 'detected'` tells you the bytes were actually recognised.
 
 When serving user-uploaded files:
 
