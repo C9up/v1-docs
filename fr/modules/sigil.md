@@ -123,6 +123,25 @@ un schéma d'environnement — si bien que
 `verify()` relit la variante et les paramètres depuis la chaîne du hash : un mot
 de passe haché en `argon2i` se vérifie quelle que soit la config courante.
 
+### Limites de longueur de l'entrée
+
+`make()` refuse une valeur qu'il ne peut pas hacher sans risque, et lève — il ne
+renvoie pas `false` — : un formulaire d'inscription ou de changement de mot de
+passe borne le champ et traduit l'erreur en 4xx :
+
+| Driver | `make()` lève quand la valeur dépasse | Message |
+|---|---|---|
+| tous les drivers | 1024 octets UTF-8 | `Password exceeds maximum length of 1024 bytes` |
+| `bcrypt` | 72 octets UTF-8 | `Bcrypt cannot hash inputs longer than 72 bytes (got <n>); use argon2id for long passphrases` |
+
+Les limites comptent des octets, pas des caractères : une phrase de passe
+accentuée ou non latine atteint 72 octets bien avant 72 caractères. bcrypt ne
+lit que les 72 premiers octets, si bien que deux mots de passe longs partageant
+ce préfixe auraient le même hash ; sigil refuse plutôt que de tronquer. Les deux
+sont des `Error` simples, pas des `SigilError`. `verify()` avec une valeur
+au-delà des 72 octets de bcrypt répond `false`, puisqu'aucun hash écrit par
+`make()` ne peut lui correspondre.
+
 ### Hacher hors de la boucle d'événements
 
 `make` et `verify` renvoient des Promises, et la dérivation de clé s'exécute sur

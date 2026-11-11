@@ -120,6 +120,24 @@ returns — so `drivers.argon2({ secret: env.get('APP_KEY') })` works as is.
 `verify()` reads the variant and the parameters back out of the hash string, so
 a password hashed with `argon2i` verifies whatever the current config says.
 
+### Input length limits
+
+`make()` refuses a value it cannot hash safely, and throws — it does not return
+`false` — so a sign-up or password-change form bounds the field and maps the
+error to a 4xx:
+
+| Driver | `make()` throws when the value exceeds | Message |
+|---|---|---|
+| every driver | 1024 UTF-8 bytes | `Password exceeds maximum length of 1024 bytes` |
+| `bcrypt` | 72 UTF-8 bytes | `Bcrypt cannot hash inputs longer than 72 bytes (got <n>); use argon2id for long passphrases` |
+
+The limits count bytes, not characters: an accented or non-Latin passphrase
+reaches 72 bytes well before 72 characters. bcrypt reads only the first 72
+bytes, so two long passwords sharing that prefix would hash alike; sigil
+refuses rather than truncate. Both are plain `Error`s, not `SigilError`s.
+`verify()` with a value past bcrypt's 72 bytes answers `false`, since no hash
+`make()` wrote can match it.
+
 ### Hashing off the event loop
 
 `make` and `verify` return Promises, and the key derivation runs on the libuv
