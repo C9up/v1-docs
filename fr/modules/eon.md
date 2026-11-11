@@ -331,7 +331,7 @@ Pour des points **typés**, passez un mapper à `query(mapPoint)` : il s'appliqu
 ```typescript
 const series = await repo
   .query((row) => ({ start: row._wstart, avg: Number(row.avgV) }))
-  .select([{ pseudo: '_wstart' }, { function: 'avg', column: 'voltage', alias: 'avgV' }])
+  .select([{ pseudo: '_wstart' }, { fn: 'avg', column: 'voltage', as: 'avgV' }])
   .interval('1m')
 ```
 
