@@ -129,7 +129,7 @@ Part of ream core ([`@c9up/ream/events`](/en/ream/events)): a typed publish/subs
 
 ### Security Primitives
 
-Password hashing (Argon2id) and JWT signing/verification are implemented in the `ream-security` Rust crate and exposed through `@c9up/warden`. This provides constant-time comparisons and memory-hard hashing without pure-JS cryptography libraries.
+Password hashing (Argon2id by default, bcrypt and scrypt too) is implemented in the `sigil-engine` Rust crate and exposed through `@c9up/sigil`; JWT signing and verification live in the `warden-engine` crate behind `@c9up/warden`. This provides constant-time comparisons and memory-hard hashing without pure-JS cryptography libraries.
 
 ## TypeScript Decorators
 

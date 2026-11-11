@@ -247,6 +247,26 @@ router.delete('/api/tasks/:id', [TasksController, 'destroy']).guard('jwt')
 
 Les routes nécessitant une authentification appellent `.guard('jwt')`. Le guard s'appuie sur l'`AuthMiddleware` global (enregistré dans `start/kernel.ts`) qui peuple `ctx.auth` au mieux — le guard lui-même contrôle `ctx.auth.isAuthenticated === true` et émet un 401 quand il manque.
 
+### Route de connexion
+
+Le jeton qu'attendent les routes guardées vient d'une route de connexion. `auth.authenticate()` appelle le `verifyCredentials` de la stratégie par défaut (câblé dans `AppProvider` plus bas) :
+
+```typescript
+// app/modules/auth/routes.ts
+import router from '@c9up/ream/services/router'
+import auth from '@c9up/warden/services/main'
+
+router.post('/api/login', async ({ request, response }) => {
+  const result = await auth.authenticate(request.only(['email', 'password']))
+  if (result.strategyCrash) return response.status(503).json({ error: 'Try again later' })
+  if (!result.authenticated || !result.user) {
+    return response.unauthorized({ error: 'Invalid credentials' })
+  }
+  // La stratégie JWT rend le jeton signé sur l'utilisateur qu'elle a authentifié.
+  response.json({ data: { token: result.user.token } })
+})
+```
+
 ---
 
 ## 4. Middleware d'authentification
@@ -395,7 +415,7 @@ new Ignitor(new URL('../', import.meta.url), {
 Démarrez le serveur :
 
 ```bash
-node --loader ts-node/esm bin/server.ts
+node --import @swc-node/register/esm-register bin/server.ts
 # Ream listening on http://localhost:3000
 ```
 
@@ -490,8 +510,8 @@ curl -s http://localhost:3000/api/tasks | jq .
 1. `bin/server.ts` a construit un `Ignitor` avec le manifeste `reamrc.ts`.
 2. La phase **register** de l'Ignitor a chargé `config/auth.ts`, `config/database.ts`, `config/logger.ts` dans `app.config`, puis appelé `AppProvider.register()` — liant `AuthManager` dans le conteneur.
 3. La phase **boot** a appelé `AppProvider.boot()`.
-4. La phase **start** a importé `start/kernel.ts` (enregistrant le middleware nommé `auth`) puis chargé automatiquement `app/modules/task/routes.ts` (enregistrant les cinq routes de tâches).
-5. La phase **ready** a démarré le HyperServer. Chaque requête transite par le pipeline de middlewares : `LogRequestMiddleware` → middlewares nommés (`AuthMiddleware` pour les routes protégées) → contrôleur.
+4. La phase **start** a importé `start/kernel.ts` (enregistrant l'`AuthMiddleware` global) puis chargé automatiquement `app/modules/auth/routes.ts` (la route de connexion) et `app/modules/task/routes.ts` (enregistrant les cinq routes de tâches).
+5. La phase **ready** a démarré le HyperServer. Chaque requête transite par le pipeline de middlewares : l'`AuthMiddleware` global → le `.guard('jwt')` de la route (routes protégées seulement) → contrôleur.
 6. Le conteneur a résolu `TasksController` par requête, injectant automatiquement son singleton `TaskService`.
 
 ---

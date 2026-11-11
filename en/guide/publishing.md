@@ -77,10 +77,6 @@ on:
    all 5 platform artefacts via `actions/download-artifact@v4`, runs
    `pnpm publish --access public --no-git-checks`.
 
-   Currently **enabled only on `@c9up/sigil`** as the publish canary. The
-   other 8 sweep packages ship the publish job commented-out until the
-   ream-cli npm version sync strategy clears (Story 52.4 Decision C).
-
 ## How to publish
 
 The publish flow is **manual on purpose**. Tag-triggered publishes can fire
@@ -160,5 +156,4 @@ need. The proper npm pattern is **per-platform subpackages** with
 - Each platform variant is its own published package with one binary.
 - npm resolves only the matching platform's subpackage at install time.
 
-That migration is a separate epic (Epic 53+); it depends on the ream-cli
-npm version sync strategy clearing (Story 52.4 Decision C).
+That migration has not been made yet.

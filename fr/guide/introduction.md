@@ -129,7 +129,7 @@ Partie du core ream ([`@c9up/ream/events`](/fr/ream/events)) : un bus d'événem
 
 ### Primitives de sécurité
 
-Le hachage de mots de passe (Argon2id) et la signature/vérification JWT sont implémentés dans la crate Rust `ream-security` et exposés via `@c9up/warden`. Cela garantit des comparaisons en temps constant et un hachage résistant en mémoire sans bibliothèques de cryptographie en pur JavaScript.
+Le hachage de mots de passe (Argon2id par défaut, bcrypt et scrypt aussi) est implémenté dans la crate Rust `sigil-engine` et exposé via `@c9up/sigil` ; la signature et la vérification JWT vivent dans la crate `warden-engine` derrière `@c9up/warden`. Cela garantit des comparaisons en temps constant et un hachage résistant en mémoire sans bibliothèques de cryptographie en pur JavaScript.
 
 ## Décorateurs TypeScript
 

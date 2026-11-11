@@ -83,11 +83,6 @@ publication (voir plus bas).
    les 5 artefacts plateforme via `actions/download-artifact@v4`, lance
    `pnpm publish --access public --no-git-checks`.
 
-   Actuellement **activé uniquement sur `@c9up/sigil`** comme canary de
-   publication. Les 8 autres paquets du sweep livrent le job publish en
-   commentaire jusqu'à ce que la stratégie de synchronisation des versions
-   ream-cli npm soit tranchée (Story 52.4 Décision C).
-
 ## Comment publier
 
 Le flow de publication est **manuel à dessein**. Les publications
@@ -173,6 +168,4 @@ binaires qu'il n'utilise pas. Le pattern npm propre, ce sont les
 - npm ne résout que le sous-paquet de la plateforme correspondante à
   l'installation.
 
-Cette migration est un epic distinct (Epic 53+) ; elle dépend de la
-résolution de la stratégie de synchronisation des versions ream-cli npm
-(Story 52.4 Décision C).
+Cette migration n'a pas encore été faite.

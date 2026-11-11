@@ -271,9 +271,10 @@ l'un des codes attendus :
 
 ```typescript
 import { isReamError } from '@c9up/ream'
+import consoleApp from '@c9up/ream/services/console'
 
 try {
-  await ace.exec('provision')
+  await consoleApp.exec('provision')
 } catch (error) {
   if (isReamError(error, 'E_CONSOLE_MISSING_FLAG', 'E_CONSOLE_MISSING_ARGUMENT')) {
     console.error(error.hint)   // narrowing : `error` est une ReamError ici

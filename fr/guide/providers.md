@@ -102,7 +102,7 @@ Les packages officiels de Ream fournissent chacun leur propre provider. Ajoutez-
 
 ### `@c9up/spectrum/provider`
 
-Enregistre la couche HTTP, le pipeline de middleware du serveur et le gestionnaire d'exceptions.
+Lit `config/logger.ts` et lie le logger (`Logger`, `'logger'`) dans le conteneur. Spectrum est le paquet de journalisation ; le serveur HTTP, son pipeline de middlewares et le gestionnaire d'exceptions appartiennent au cœur de ream et n'ont besoin d'aucun provider.
 
 ### `@c9up/atlas/provider`
 

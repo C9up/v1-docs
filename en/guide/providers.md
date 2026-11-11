@@ -102,7 +102,7 @@ Ream's official packages each ship their own provider. Add them to `reamrc.ts` a
 
 ### `@c9up/spectrum/provider`
 
-Registers the HTTP layer, server middleware pipeline, and exception handler.
+Reads `config/logger.ts` and binds the logger (`Logger`, `'logger'`) in the container. Spectrum is the logging package; the HTTP server, its middleware pipeline and the exception handler belong to ream core and need no provider.
 
 ### `@c9up/atlas/provider`
 
