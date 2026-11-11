@@ -262,8 +262,8 @@ contenir les quatre caractères `NULL` comme valeur — nombres, horodatages,
 booléens, décimaux.
 
 ```ts
-const [row] = await conn.query('SELECT ts, amount FROM prices WHERE ts = ?', [t])
-row.amount   // null, et non "NULL"
+const row = await repo.query().where('ts', t).first()   // repo: the prices super-table
+row?.amount   // null, et non "NULL"
 ```
 
 **Les colonnes texte et binaires font exception.** Pour `VARCHAR`, `NCHAR`,

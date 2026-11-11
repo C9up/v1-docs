@@ -260,8 +260,8 @@ A SQL `NULL` comes back as `null` for every column type that cannot hold the
 four characters `NULL` as a value — numbers, timestamps, booleans, decimals.
 
 ```ts
-const [row] = await conn.query('SELECT ts, amount FROM prices WHERE ts = ?', [t])
-row.amount   // null, not "NULL"
+const row = await repo.query().where('ts', t).first()   // repo: the prices super-table
+row?.amount   // null, not "NULL"
 ```
 
 **Text and binary columns are the exception.** For `VARCHAR`, `NCHAR`, `JSON`,
