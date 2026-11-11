@@ -739,7 +739,7 @@ const hash = new Hash({
 
 // Login flow — the caller verifies the password, Warden mints the session
 const user = await db.users.findByEmail(email)
-const ok = user ? await hash.verify(password, user.passwordHash) : false
+const ok = user ? await hash.verify(user.passwordHash, password) : false
 if (!ok) throw new E_WARDEN_UNAUTHORIZED('Invalid credentials')
 
 await strategy.login({ id: user.id, roles: user.roles }, ctx.session)
@@ -1186,7 +1186,7 @@ if (auth.getStrategyNames().includes('session')) {
 
 | Concern | Where it lives |
 |---|---|
-| `Hash.make(password)` / `Hash.verify(password, hash)` | `@c9up/sigil` (Rust NAPI: argon2id, bcrypt, scrypt) |
+| `Hash.make(password)` / `Hash.verify(hash, password)` | `@c9up/sigil` (Rust NAPI: argon2id, bcrypt, scrypt) |
 | Session storage after a successful login | `@c9up/warden` `SessionStrategy.login(user, session)` |
 | JWT signing / verification | `@c9up/warden` `JwtStrategy` (HMAC-SHA256 via warden NAPI) |
 | HMAC + random + constant-time-eq stdlib primitives | `@c9up/ream/crypto` |
