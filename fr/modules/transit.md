@@ -628,7 +628,7 @@ class GitLabDriver extends Oauth2Driver {
       id: String(raw.id ?? ''),
       email: String(raw.email ?? ''),
       name: String(raw.name ?? ''),
-      avatarUrl: raw.avatar_url as string | undefined,
+      avatarUrl: typeof raw.avatar_url === 'string' ? raw.avatar_url : undefined,
       raw,
     }
   }
