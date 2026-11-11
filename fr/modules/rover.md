@@ -147,7 +147,7 @@ const { messageId } = await mail.send((message) => {
 | `.addListHeader(key, value)` | N'importe quel `List-<key>` (`key` sans le préfixe `List-`) |
 | `.icalEvent(ics, options?)` | Joindre une invitation calendrier depuis du texte ICS |
 | `.icalEventFromFile(file, options?)` | …lue depuis un fichier |
-| `.icalEventFromUrl(url, options?)` | …récupérée depuis une URL (SMTP uniquement) |
+| `.icalEventFromUrl(url, options?)` | …récupérée depuis une URL `http(s)` à la construction du message |
 
 > **List-Unsubscribe et délivrabilité.** Gmail et Yahoo exigent des expéditeurs
 > en masse une désinscription en un clic. `oneClick: true` émet l'en-tête RFC
@@ -160,11 +160,14 @@ const { messageId } = await mail.send((message) => {
 > seconde cible ne peut s'y glisser. Les commentaires sont échappés, et encodés à
 > part quand ils ne sont pas en ASCII.
 
-> **Invitations calendrier.** `icalEventFromUrl()` est réservé au SMTP :
-> nodemailer récupère l'URL, alors qu'une API HTTP de fournisseur attend les
-> octets. Les deux autres formes fonctionnent partout — pour ces transports,
-> l'invitation part comme partie `text/calendar`, ce qui est de toute façon la
-> façon dont les clients mail la lisent.
+> **Invitations calendrier.** Les trois formes fonctionnent sur tous les
+> transports. `icalEventFromUrl()` récupère l'URL à la construction du message
+> — `http:` et `https:` uniquement, en 30 secondes au plus, tout le reste ou une
+> réponse non 2xx échouant avec `E_ATTACHMENT_UNREADABLE`. Le message
+> construit porte donc les octets, et un message mis en file ne nomme aucune URL
+> que le worker irait chercher. Une API de fournisseur reçoit l'invitation comme
+> partie `text/calendar`, ce qui est de toute façon la façon dont les clients
+> mail la lisent.
 >
 > `icalEvent()` accepte soit le texte ICS, soit un callback de construction :
 >
@@ -365,7 +368,8 @@ Sans moteur enregistré, le moteur intégré de rover rend les fichiers `.html`
 sous `viewsRoot`. Il est volontairement réduit : `{{ value }}` (échappé),
 `{{{ raw }}}`, `{{#if}}` et `{{> partial}}` — ni boucles, ni expressions, ni
 helpers, donc pas d'`embedImage` non plus. Un mail qui en a besoin enregistre un
-moteur.
+moteur. Un partial qui s'inclut lui-même, directement ou par un autre, lève
+`E_MAIL_TEMPLATE_RECURSION` quand le cycle est rendu.
 
 ## Mails dépêchables
 

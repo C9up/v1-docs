@@ -146,7 +146,7 @@ const { messageId } = await mail.send((message) => {
 | `.addListHeader(key, value)` | Any `List-<key>` header (`key` carries no `List-` prefix) |
 | `.icalEvent(ics, options?)` | Attach a calendar invitation from ICS text |
 | `.icalEventFromFile(file, options?)` | …read from a file |
-| `.icalEventFromUrl(url, options?)` | …fetched from a URL (SMTP only) |
+| `.icalEventFromUrl(url, options?)` | …fetched from an `http(s)` URL when the message is built |
 
 > **List-Unsubscribe and deliverability.** Gmail and Yahoo require bulk senders
 > to offer one-click unsubscribe. `oneClick: true` emits the RFC 8058
@@ -158,10 +158,13 @@ const { messageId } = await mail.send((message) => {
 > it is refused (`E_INVALID_LIST_HEADER`), so no second target can be slipped
 > in. Comments are escaped, and encoded on their own when non-ASCII.
 
-> **Calendar invitations.** `icalEventFromUrl()` is SMTP-only: nodemailer
-> fetches the URL, while a provider HTTP API takes the bytes. The other two
-> forms work everywhere — for those transports the invitation is sent as a
-> `text/calendar` part, which is how mail clients read it anyway.
+> **Calendar invitations.** All three forms work on every transport.
+> `icalEventFromUrl()` fetches the URL when the message is built — `http:` and
+> `https:` only, within 30 seconds; anything else or a non-2xx answer fails
+> with `E_ATTACHMENT_UNREADABLE`. The built message therefore holds the bytes, and a
+> queued one names no URL for the worker to fetch. A provider API receives the
+> invitation as a `text/calendar` part, which is how mail clients read it
+> anyway.
 >
 > `icalEvent()` takes either the ICS text or a builder callback:
 >
@@ -355,7 +358,9 @@ started rejects with inker's `E_INKER_ENGINE_MISSING`.
 With no engine registered, rover's built-in engine renders `.html` files under
 `viewsRoot`. It is deliberately small: `{{ value }}` (escaped), `{{{ raw }}}`,
 `{{#if}}` and `{{> partial}}` — no loops, expressions or helpers, so no
-`embedImage` either. A mail that needs those registers an engine.
+`embedImage` either. A mail that needs those registers an engine. A partial
+that includes itself, directly or through another, throws
+`E_MAIL_TEMPLATE_RECURSION` when the cycle is rendered.
 
 ## Dispatchable mails
 
