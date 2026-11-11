@@ -198,7 +198,7 @@ It uses [ammonia](https://crates.io/crates/ammonia) (the html5ever parser used b
 `xss: true` runs the same pass over every `text/html` fragment the application
 sends; a server-rendered **full document** (opening with `<!doctype>` or
 `<html>`) is left intact. It is **off by default**: the application's own
-partials — an HTMX form with its `_csrf` field, an `<svg>` icon, a `<video>` —
+partials — a form fragment with its `_csrf` field, an `<svg>` icon, a `<video>` —
 would lose everything outside the allow-list. Turn it on only where every
 fragment may carry untrusted markup. The object form turns it on and opts
 attributes back in, for when nothing reads them from untrusted markup:

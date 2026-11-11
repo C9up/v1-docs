@@ -204,7 +204,7 @@ Elle utilise [ammonia](https://crates.io/crates/ammonia) (le parser html5ever ut
 `xss: true` applique la même passe à chaque fragment `text/html` que
 l'application envoie ; un **document complet** rendu côté serveur (commençant
 par `<!doctype>` ou `<html>`) est laissé intact. Elle est **désactivée par
-défaut** : les partiels de l'application elle-même — un formulaire HTMX avec son
+défaut** : les partiels de l'application elle-même — un fragment de formulaire avec son
 champ `_csrf`, une icône `<svg>`, une `<video>` — perdraient tout ce qui sort de
 la liste blanche. Ne l'active que là où chaque fragment peut porter du markup
 non fiable. La forme objet l'active et réautorise des attributs, quand rien ne
