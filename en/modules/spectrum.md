@@ -242,6 +242,16 @@ export default defineConfig({
       modules: {
         db: 'debug',
       },
+      // A logged request or response carries every header as it came: the
+      // session cookie, the bearer token and the cookies set in reply are
+      // kept out of the line here.
+      redact: {
+        paths: [
+          'req.headers.authorization',
+          'req.headers.cookie',
+          'res.headers["set-cookie"]',
+        ],
+      },
       transport: {
         targets: targets()
           .pushIf(!inProduction, targets.pretty())
@@ -359,6 +369,7 @@ const logger = new Logger({
   redact: {
     paths: [
       'req.headers.authorization',   // a literal path
+      'req.headers.cookie',
       '*.password',                  // wherever it turns up, one level down
       'users[*].token',              // every element of a list
       'headers["set-cookie"]',       // a key a dot cannot name
@@ -445,6 +456,7 @@ const logger = new Logger({
   msgPrefix: '[api] ',
   errorKey: 'error',
   serializers: { req: stdSerializers.req, res: stdSerializers.res },
+  redact: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
   hooks: {
     logMethod(args, method, level) {
       method(...args)  // inspect or rewrite the call's arguments
@@ -457,7 +469,13 @@ const audit = logger.child({ module: 'audit' }, { level: 'warn', msgPrefix: '[au
 ```
 
 `stdSerializers` (`err`, `req`, `res`) and `stdTimeFunctions` (`epochTime`,
-`isoTime`, `unixTime`, `nullTime`, for `timestamp`) are exported. Options that
+`isoTime`, `unixTime`, `nullTime`, for `timestamp`) are exported.
+`stdSerializers.req` writes the request's id, method, url, query, params,
+remote address and **every header as it came** — `cookie` and `authorization`
+included, so the signed session cookie, the CSRF token and a bearer token land
+in the line. `stdSerializers.res` writes the status and every response header,
+`set-cookie` included. Censoring them is `redact`'s job: keep the three paths
+above wherever these serializers are wired. Options that
 cannot be honoured — `customLevels`, `useOnlyCustomLevels`, `levelComparison`,
 `nestedKey`, `crlf`, `hooks.streamWrite`, `transport.pipeline` — throw instead
 of being ignored.

@@ -286,6 +286,16 @@ export default defineConfig({
       modules: {
         db: 'debug',
       },
+      // Une requête ou une réponse journalisée porte chaque en-tête tel qu'il
+      // est arrivé : le cookie de session, le jeton bearer et les cookies posés
+      // en réponse sont tenus hors de la ligne ici.
+      redact: {
+        paths: [
+          'req.headers.authorization',
+          'req.headers.cookie',
+          'res.headers["set-cookie"]',
+        ],
+      },
       transport: {
         targets: targets()
           .pushIf(!inProduction, targets.pretty())
@@ -323,6 +333,7 @@ const logger = new Logger({
   redact: {
     paths: [
       'req.headers.authorization',   // un chemin littéral
+      'req.headers.cookie',
       '*.password',                  // partout où il apparaît, un niveau plus bas
       'users[*].token',              // chaque élément d'une liste
       'headers["set-cookie"]',       // une clé qu'un point ne peut pas nommer
@@ -440,6 +451,7 @@ const logger = new Logger({
   msgPrefix: '[api] ',
   errorKey: 'error',
   serializers: { req: stdSerializers.req, res: stdSerializers.res },
+  redact: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
   hooks: {
     logMethod(args, method, level) {
       method(...args)  // inspecter ou réécrire les arguments de l'appel
@@ -452,7 +464,14 @@ const audit = logger.child({ module: 'audit' }, { level: 'warn', msgPrefix: '[au
 ```
 
 `stdSerializers` (`err`, `req`, `res`) et `stdTimeFunctions` (`epochTime`,
-`isoTime`, `unixTime`, `nullTime`, pour `timestamp`) sont exportés. Les options
+`isoTime`, `unixTime`, `nullTime`, pour `timestamp`) sont exportés.
+`stdSerializers.req` écrit l'id, la méthode, l'url, la query, les params et
+l'adresse distante de la requête, et **chaque en-tête tel qu'il est arrivé** —
+`cookie` et `authorization` compris : le cookie de session signé, le jeton CSRF
+et un jeton bearer arrivent dans la ligne. `stdSerializers.res` écrit le statut
+et chaque en-tête de réponse, `set-cookie` compris. Les censurer est le travail
+de `redact` : gardez les trois chemins ci-dessus partout où ces sérialiseurs
+sont branchés. Les options
 qui ne peuvent pas être honorées — `customLevels`, `useOnlyCustomLevels`,
 `levelComparison`, `nestedKey`, `crlf`, `hooks.streamWrite`,
 `transport.pipeline` — lèvent au lieu d'être ignorées.
