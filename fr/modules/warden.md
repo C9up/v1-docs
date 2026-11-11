@@ -43,44 +43,69 @@ Le `secret` doit comporter au moins 32 caractères. La `JwtStrategy` lèvera une
 
 ## WardenProvider
 
-`WardenProvider` enregistre `AuthManager` comme singleton dans le conteneur. Il lit `config/auth.ts` afin que le manager soit disponible pour les middlewares et les contrôleurs via l'injection.
-
-Le provider intégré enregistre un `AuthManager` vide (sans stratégies). Enregistrez votre propre provider dans `providers/AppProvider.ts` pour câbler les stratégies :
+`WardenProvider` enregistre `AuthManager` comme singleton dans le conteneur. Il lit `config/auth.ts` et construit une stratégie par guard. `ream configure @c9up/warden` écrit la forme à guards — un nom de guard `default` et une map `guards` construite avec les fabriques de guard (`jwtGuard`, `sessionGuard`, `apiKeyGuard`, `basicAuthGuard`) :
 
 ```typescript
-// providers/AppProvider.ts
-import { Provider } from '@c9up/ream'
-import { AuthManager } from '@c9up/warden'
-import { JwtStrategy } from '@c9up/warden'
+// config/auth.ts — le fichier qu'écrit `ream configure`
+import { defineConfig, jwtGuard } from '@c9up/warden'
+import env from '#start/env.js'
 
-export default class AppProvider extends Provider {
+export default defineConfig({
+  default: 'jwt',
+  guards: {
+    jwt: jwtGuard({
+      secret: env.get('JWT_SECRET'),
+      // Des secondes, ou une durée : JWT_EXPIRY=1h marche tel quel.
+      expiresIn: env.get('JWT_EXPIRY', '1h'),
+      // Les deux renvoient un UserPayload ({ id, roles?, permissions? }) ou null.
+      findUser: (id) => users.findPayload(id),
+      verifyCredentials: (email, password) => users.checkLogin(email, password),
+    }),
+  },
+})
+```
+
+La forme par driver est acceptée aussi : `defaultStrategy` plus un bloc par driver (`jwt`, `session`, `apiKey`), chacun transformé en sa stratégie :
+
+```typescript
+// config/auth.ts
+import { defineConfig } from '@c9up/warden'
+import env from '#start/env.js'
+
+export default defineConfig({
+  defaultStrategy: 'jwt',
+  jwt: {
+    secret: env.get('JWT_SECRET'),
+    expiresIn: env.get('JWT_EXPIRY', '1h'),
+  },
+})
+```
+
+La durée de vie du jeton est `expiresIn` (des secondes, ou une durée comme `'2h'`) ; `expiresInSeconds` est l'écriture en secondes seulement, et `expiresIn` l'emporte quand les deux sont posés. Le défaut est 3600 secondes. Aucune autre clé, comme `expiry`, n'est lue.
+
+Une config sans guards ni bloc de driver fait lever `E_WARDEN_NO_AUTH_CONFIG` au provider dès le boot.
+
+```typescript
+// reamrc.ts
+providers: [
+  () => import('@c9up/warden/provider'),
+]
+```
+
+Pour des stratégies personnalisées (session, api-key) ou un câblage supplémentaire, créez votre propre provider :
+
+```typescript
+// providers/AuthProvider.ts
+import type { AppContext } from '@c9up/ream'
+import { AuthManager } from '@c9up/warden'
+
+export default class AuthProvider {
+  constructor(protected app: AppContext) {}
+
   register() {
     this.app.container.singleton(AuthManager, () => {
-      const config = this.app.config.get<{
-        defaultStrategy: string
-        jwt: { secret: string; expiresIn: number | string }
-      }>('auth')!
-
-      const jwt = new JwtStrategy({
-        secret: config.jwt.secret,
-        expiresIn: config.jwt.expiresIn,
-        verifyCredentials: async (email, password) => {
-          // Recherche de l'utilisateur et vérification du mot de passe
-          const user = await UserService.findByEmail(email)
-          if (!user || !await user.verifyPassword(password)) return null
-          return { id: user.id, roles: user.roles, permissions: user.permissions }
-        },
-        findUser: async (id) => {
-          const user = await UserService.findById(id)
-          if (!user) return null
-          return { id: user.id, roles: user.roles, permissions: user.permissions }
-        },
-      })
-
-      return new AuthManager({
-        defaultStrategy: config.defaultStrategy,
-        strategies: { jwt },
-      })
+      // Construisez et renvoyez votre propre AuthManager avec les stratégies voulues.
+      return new AuthManager({ defaultStrategy: 'jwt', strategies: {} })
     })
   }
 }

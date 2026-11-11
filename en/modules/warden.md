@@ -42,20 +42,47 @@ The `secret` must be at least 32 characters. `JwtStrategy` will throw at constru
 
 ## WardenProvider
 
-`WardenProvider` registers `AuthManager` as a singleton in the container. It reads `config/auth.ts` and auto-wires `JwtStrategy` when `config.auth.jwt` is provided:
+`WardenProvider` registers `AuthManager` as a singleton in the container. It reads `config/auth.ts` and builds one strategy per guard. `ream configure @c9up/warden` writes the guard form — a `default` guard name and a `guards` map built with the guard factories (`jwtGuard`, `sessionGuard`, `apiKeyGuard`, `basicAuthGuard`):
+
+```typescript
+// config/auth.ts — the file `ream configure` writes
+import { defineConfig, jwtGuard } from '@c9up/warden'
+import env from '#start/env.js'
+
+export default defineConfig({
+  default: 'jwt',
+  guards: {
+    jwt: jwtGuard({
+      secret: env.get('JWT_SECRET'),
+      // Seconds, or a duration string: JWT_EXPIRY=1h works as written.
+      expiresIn: env.get('JWT_EXPIRY', '1h'),
+      // Both return a UserPayload ({ id, roles?, permissions? }) or null.
+      findUser: (id) => users.findPayload(id),
+      verifyCredentials: (email, password) => users.checkLogin(email, password),
+    }),
+  },
+})
+```
+
+The driver-keyed form is accepted too: `defaultStrategy` plus one block per driver (`jwt`, `session`, `apiKey`), each turned into its strategy:
 
 ```typescript
 // config/auth.ts
 import { defineConfig } from '@c9up/warden'
+import env from '#start/env.js'
 
 export default defineConfig({
   defaultStrategy: 'jwt',
   jwt: {
-    secret: process.env.JWT_SECRET,
-    expiry: Number(process.env.JWT_EXPIRY ?? '3600'),
+    secret: env.get('JWT_SECRET'),
+    expiresIn: env.get('JWT_EXPIRY', '1h'),
   },
 })
 ```
+
+The token lifetime is `expiresIn` (seconds, or a duration string such as `'2h'`); `expiresInSeconds` is the seconds-only spelling and `expiresIn` wins when both are set. The default is 3600 seconds. Any other key, such as `expiry`, is not read.
+
+A config with neither guards nor a driver block makes the provider throw `E_WARDEN_NO_AUTH_CONFIG` at boot.
 
 ```typescript
 // reamrc.ts
