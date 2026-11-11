@@ -185,6 +185,48 @@ router.group(() => {
 }).prefix('/api').guard('jwt')
 ```
 
+## Domaines
+
+`.domain()` limite une route, ou toutes les routes d'un groupe, à un hôte :
+
+```typescript
+router.get('/', [AdminController, 'index']).domain('admin.example.com')
+
+router.group(() => {
+  router.get('/dashboard', [TenantController, 'dashboard'])
+}).domain(':tenant.example.com')
+
+router.get('/status', [StatusController, 'show']).domain('*.example.com')
+```
+
+Un domaine est exact (`admin.example.com`), paramétré (`:tenant.example.com`) ou
+joker (`*.example.com`, à toute profondeur). Chaque `:nom` capture exactement
+**un** label fait de lettres, chiffres, `-` ou `_`, à n'importe quelle position
+(`api.:tenant.example.com`, `:tenant.:region.example.com`) : `a.b.example.com` et
+`.example.com` ne désignent aucun tenant. L'hôte est comparé sans son port et
+sans tenir compte de la casse.
+
+Le routeur rattache l'hôte de la requête à **un** domaine enregistré avant de
+regarder le chemin — un domaine exact d'abord, puis un domaine paramétré, puis un
+joker, quel que soit leur ordre d'enregistrement. Quand un domaine correspond,
+seules ses routes sont candidates : **aucun repli** vers les routes enregistrées
+sans domaine, donc un `/` sans domaine ne peut jamais répondre pour
+`admin.example.com`. Quand aucun domaine ne correspond, ou que la requête n'a pas
+d'hôte, seules les routes sans domaine le sont.
+
+Les valeurs capturées sont sur `ctx.subdomains` :
+
+```typescript
+// acme.example.com/dashboard
+async dashboard({ subdomains, response }: HttpContext) {
+  response.json({ tenant: subdomains.tenant })   // { tenant: 'acme' }
+}
+```
+
+`ctx.subdomains` est vide pour une route sans domaine paramétré. Les labels de
+l'hôte lui-même sont `ctx.request.subdomains()`. Un paramètre sans nom, ou le
+même nom deux fois, lève `E_INVALID_ROUTE_DOMAIN` quand les routes sont validées.
+
 ## Routes nommées
 
 Nommez une route avec `.as()`, puis construisez les URL depuis le nom avec `urlFor` — sans jamais coder les chemins en dur :
@@ -404,6 +446,7 @@ router.get('/example', async ({ request, response, params, auth, id }: HttpConte
   // params   — paramètres de route extraits du modèle d'URL { id: '...' }
   // auth     — { isAuthenticated, user?, roles?, permissions? }
   // id       — identifiant de corrélation (depuis l'en-tête x-request-id ou UUID auto-généré)
+  // subdomains — ce que le domaine de la route a capturé { tenant: 'acme' } (voir Domaines)
 })
 ```
 

@@ -185,6 +185,47 @@ router.group(() => {
 }).prefix('/api').guard('jwt')
 ```
 
+## Domains
+
+`.domain()` scopes a route, or every route of a group, to a host:
+
+```typescript
+router.get('/', [AdminController, 'index']).domain('admin.example.com')
+
+router.group(() => {
+  router.get('/dashboard', [TenantController, 'dashboard'])
+}).domain(':tenant.example.com')
+
+router.get('/status', [StatusController, 'show']).domain('*.example.com')
+```
+
+A domain is exact (`admin.example.com`), parameterised (`:tenant.example.com`) or
+a wildcard (`*.example.com`, any depth). Each `:name` captures exactly **one**
+label of letters, digits, `-` or `_`, in any position (`api.:tenant.example.com`,
+`:tenant.:region.example.com`): `a.b.example.com` and `.example.com` name no
+tenant. The host is compared without its port and case-insensitively.
+
+The router resolves the request's host to **one** registered domain before it
+looks at the path — an exact domain first, then a parameterised one, then a
+wildcard, whatever the order they were registered in. When a domain matches,
+only that domain's routes are candidates: there is **no fallback** to the routes
+registered without a domain, so a domain-less `/` can never answer for
+`admin.example.com`. When no domain matches, or the request has no host, only
+the domain-less routes are.
+
+The captured values are on `ctx.subdomains`:
+
+```typescript
+// acme.example.com/dashboard
+async dashboard({ subdomains, response }: HttpContext) {
+  response.json({ tenant: subdomains.tenant })   // { tenant: 'acme' }
+}
+```
+
+`ctx.subdomains` is empty for a route without a parameterised domain. The host's
+own labels are `ctx.request.subdomains()`. A parameter without a name, or the
+same name twice, throws `E_INVALID_ROUTE_DOMAIN` when the routes are committed.
+
 ## Named Routes
 
 Name a route with `.as()`, then build URLs from the name with `urlFor` — never hard-code paths:
@@ -400,6 +441,7 @@ router.get('/example', async ({ request, response, params, auth, id }: HttpConte
   // params   — route params extracted from URL pattern { id: '...' }
   // auth     — { isAuthenticated, user?, roles?, permissions? }
   // id       — correlation ID (from x-request-id header or auto-generated UUID)
+  // subdomains — what the route's domain captured { tenant: 'acme' } (see Domains)
 })
 ```
 
