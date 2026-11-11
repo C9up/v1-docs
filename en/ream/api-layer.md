@@ -82,6 +82,13 @@ Config: `config.rpc.path` overrides the mount path (default `/rpc`);
 points at a `.graphql` schema. When set, it builds a `GraphQLEngine`, gives it the
 container for resolver DI, and mounts `GET` (playground) + `POST` (queries).
 
+A `POST` must be sent as `application/json`: any other Content-Type, or none, is
+answered `415` (`{ errors: [{ message: 'Unsupported Media Type' }] }`) before the
+body is read. A form post or a `text/plain` body is a request any page can send
+with the visitor's cookies and no CORS preflight, so a mutation would otherwise
+run cross-site. The endpoint reads its own body: it works whether or not the
+body parser runs in front of it.
+
 ```ts
 // config/graphql.ts
 export default { schemaPath: './app/graphql/schema.graphql' }

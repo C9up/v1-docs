@@ -86,6 +86,14 @@ ne pointe pas vers un schéma `.graphql`. Quand il est défini, il construit un
 `GraphQLEngine`, lui donne le container pour la DI des resolvers, et monte `GET`
 (playground) + `POST` (requêtes).
 
+Un `POST` doit être envoyé en `application/json` : tout autre Content-Type, ou
+son absence, reçoit `415` (`{ errors: [{ message: 'Unsupported Media Type' }] }`)
+avant que le corps ne soit lu. Un formulaire ou un corps `text/plain` est une
+requête que n'importe quelle page peut envoyer avec les cookies du visiteur et
+sans preflight CORS : une mutation s'exécuterait sinon depuis un autre site.
+L'endpoint lit lui-même son corps : il fonctionne que le body parser tourne
+devant lui ou non.
+
 ```ts
 // config/graphql.ts
 export default { schemaPath: './app/graphql/schema.graphql' }
