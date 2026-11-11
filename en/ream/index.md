@@ -449,7 +449,11 @@ a reset token presented as a session cookie fails here rather than being
 honoured. `expiresIn` is in milliseconds. Both work on `sign()` / `unsign()` too.
 
 The APP_KEY is validated at construction: absent throws `E_MISSING_APP_KEY`,
-shorter than 16 characters throws `E_INSECURE_APP_KEY`.
+shorter than 16 characters throws `E_INSECURE_APP_KEY`. A key that appears in
+scaffolding and documentation (`change-me`, `secret`, `your-app-key-here`, the
+scaffold's placeholder) is refused with `E_INSECURE_APP_KEY` too, at boot: a key
+anyone can read lets anyone forge cookies, sessions, CSRF tokens and signed URLs.
+Run `ream generate:key` to write a fresh one into `.env`.
 
 Any JSON value can be sealed, not only a string:
 

@@ -136,7 +136,9 @@ export default await Env.create(new URL('../', import.meta.url), {
 })
 ```
 
-Types du schéma : `string({ format?: 'host' | 'url' | 'email' })`, `number()`, `boolean()`, `enum([...] as const)`, chacun avec une variante `.optional()`. Les échecs de validation lèvent `E_INVALID_ENV_VARIABLES` accompagné d'une liste agrégée.
+Types du schéma : `string({ format?: 'host' | 'url' | 'email' | 'uuid' })`, `number()`, `boolean()`, `enum([...] as const)` et `secret()`, chacun avec une variante `.optional()`. Les échecs de validation lèvent `E_INVALID_ENV_VARIABLES` accompagné d'une liste agrégée.
+
+`secret()` sert aux clés, mots de passe et jetons : `env.get()` rend un `Secret<string>` qui s'affiche `[redacted]` dans les logs, `JSON.stringify` et `console.log`, et `.release()` est la seule façon de lire la valeur.
 
 Lisez les variables dans les **fichiers de config** via `#start/env` — c'est son import qui charge `.env` avant l'évaluation de la config, dans tous les flux (serveur, console, tests) :
 
@@ -152,7 +154,14 @@ const dbPath = env.get('DB_PATH', '/tmp/app.db')  // valeur par défaut
 Ne lisez pas `process.env` directement dans les fichiers de config, les services ou les contrôleurs — faites transiter chaque variable par `start/env.ts` afin que l'application dispose d'une source de vérité unique et validée. `process.env` n'appartient qu'aux points d'entrée d'amorçage (`bin/*.ts`, `start/env.ts`).
 :::
 
-Un fichier `.env` à la racine du projet contient les valeurs locales (`.env.test`, `.env.production` sont pris en compte selon `NODE_ENV`) :
+Un fichier `.env` à la racine du projet contient les valeurs locales. Les fichiers sont lus du plus spécifique au plus général, et la première valeur trouvée pour une variable l'emporte — une variable déjà définie par le shell ou la plateforme passe avant tous les fichiers :
+
+1. `.env.<NODE_ENV>.local`
+2. `.env.local` (ignoré quand `NODE_ENV` vaut `test`, pour que les surcharges d'un développeur n'atteignent jamais les tests)
+3. `.env.<NODE_ENV>`
+4. `.env`
+
+`NODE_ENV` est d'abord normalisé (`prod` lit `.env.production`, `dev` lit `.env.development`, `testing` lit `.env.test`). Un `.env.local` oublié sur un serveur de production surcharge donc `.env` : tenez-le hors des déploiements. `ENV_PATH` désigne un autre répertoire où lire les fichiers (`ENV_PATH=/etc/secrets node bin/server.js`) ; s'il est défini et que ce répertoire ne contient aucun des fichiers, l'application refuse de démarrer plutôt que de partir sur les valeurs par défaut qui traînent.
 
 ```env
 NODE_ENV=development

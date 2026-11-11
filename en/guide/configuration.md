@@ -95,7 +95,9 @@ export default await Env.create(new URL('../', import.meta.url), {
 })
 ```
 
-Schema types: `string({ format?: 'host' | 'url' | 'email' })`, `number()`, `boolean()`, `enum([...] as const)`, each with an `.optional()` variant. Validation failures throw `E_INVALID_ENV_VARIABLES` with an aggregated list.
+Schema types: `string({ format?: 'host' | 'url' | 'email' | 'uuid' })`, `number()`, `boolean()`, `enum([...] as const)` and `secret()`, each with an `.optional()` variant. Validation failures throw `E_INVALID_ENV_VARIABLES` with an aggregated list.
+
+`secret()` is for keys, passwords and tokens: `env.get()` hands back a `Secret<string>` that prints as `[redacted]` in logs, `JSON.stringify` and `console.log`, and `.release()` is the one way to read the value.
 
 Read variables in **config files** via `#start/env` — importing it is what loads `.env` before the config is evaluated, in every flow (server, console, tests):
 
@@ -111,7 +113,14 @@ const dbPath = env.get('DB_PATH', '/tmp/app.db')  // fallback
 Do not read `process.env` directly in config files, services, or controllers — funnel every variable through `start/env.ts` so the app has a single, validated source of truth. `process.env` belongs only to the bootstrap entry points (`bin/*.ts`, `start/env.ts`).
 :::
 
-A `.env` file at the project root holds local values (`.env.test`, `.env.production` are picked up by `NODE_ENV`):
+A `.env` file at the project root holds local values. The files are read most specific first, and the first value found for a variable wins — a variable already set in the shell or by the platform beats every file:
+
+1. `.env.<NODE_ENV>.local`
+2. `.env.local` (skipped when `NODE_ENV` is `test`, so a developer's overrides never reach the tests)
+3. `.env.<NODE_ENV>`
+4. `.env`
+
+`NODE_ENV` is normalised first (`prod` reads `.env.production`, `dev` reads `.env.development`, `testing` reads `.env.test`). A `.env.local` left on a production server therefore overrides `.env`: keep it out of deployments. `ENV_PATH` names another directory to read the files from (`ENV_PATH=/etc/secrets node bin/server.js`); when it is set and that directory holds none of the files, the app refuses to boot rather than starting on whatever defaults are around.
 
 ```env
 NODE_ENV=development
