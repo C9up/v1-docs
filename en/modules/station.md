@@ -28,6 +28,7 @@ export default defineConfig({
 | ------------------ | ------------------ | -------------------------------------------------------------------------------------------- |
 | `requireAuth`      | on when Warden is bound | `false` mounts the admin without authentication (see [No authentication](#no-authentication)). |
 | `requireRole`      | none               | A role every request must hold, on top of `accessPermission`.                                |
+| `guard`            | the auth manager's default guard | The Warden guard sign-in, the gate and logout go through (see [Sign-in](#sign-in-session-cookie-and-logout)). |
 | `permissionPrefix` | `"station"`        | Namespace of the admin permissions (`station.users.edit`).                                   |
 | `accessPermission` | `"station.access"` | Permission needed to enter `/admin/*`; `false` removes this gate.                            |
 | `loginPath`        | `"/admin/login"`   | Where an unauthenticated browser is sent.                                                    |
@@ -127,8 +128,15 @@ value on every edit. Naming an unknown column, a framework-managed column or a
 hidden field in one of these lists fails at boot.
 
 A secret listed in `editable` is **write-only**: the form renders it empty, and
-on an edit an empty submission keeps the stored value. A `password` input is
-never pre-filled, whatever the column.
+on an edit an empty submission keeps the stored value. A field whose
+`formFields` entry sets `inputType: "password"` is write-only too, whatever the
+column's name: never pre-filled, kept out of the old input flashed back after a
+failed validation, and redacted in audit snapshots.
+
+Station never parses a request body itself: it reads `ctx.request.body()`, which
+stays `{}` unless the host's body parser handled the request. Keep the body
+parser registered in `start/kernel.ts` (the scaffolded default), ahead of every
+route, or every admin form post — the sign-in included — reaches Station empty.
 
 ## Authorization
 
@@ -226,6 +234,35 @@ the warning then names the environment it runs in.
 
 ## Sign-in, session cookie and logout
 
+Sign-in, the admin gate and logout go through one Warden guard: `station.guard`,
+or the auth manager's default guard when it is unset. Station keeps the bearer
+token the guard issues in its cookie, so the guard must issue one (Warden's JWT
+guard): boot refuses an unknown guard name, or a guard without `signToken` such
+as Warden's session guard, with a message pointing at `station.guard`.
+
+```ts
+export default defineConfig({
+  guard: "jwt", // the application's default guard can stay `web` (session)
+});
+```
+
+### Refused sign-ins
+
+A refused `POST /admin/login` renders the sign-in page with a fixed message —
+never the auth backend's own error text. A JSON caller (`Accept:
+application/json`) or an XHR one (`X-Requested-With: XMLHttpRequest`) gets
+`{ error, code }` instead:
+
+| Status | `code` | When |
+| ------ | ------ | ---- |
+| `400`  | `E_STATION_LOGIN_CREDENTIALS_REQUIRED` | The email or the password is empty. |
+| `401`  | `E_STATION_INVALID_CREDENTIALS` | Wrong credentials. |
+| `429`  | `E_STATION_TOO_MANY_LOGIN_ATTEMPTS` | The rate limit refused the attempt; `Retry-After` is set. |
+| `503`  | `E_STATION_LOGIN_UNAVAILABLE` | The limiter failed, or the auth backend crashed (logged for the operator, no `login_failed` recorded). |
+
+A write refused for want of a verified CSRF token answers a JSON caller with
+`E_STATION_CSRF_REQUIRED` (see [CSRF enforcement](#csrf-enforcement-fail-closed)).
+
 ### Brute-force protection
 
 `POST /admin/login` counts every attempt under the client IP and under the
@@ -273,8 +310,8 @@ Each resource's `audit` sink receives an event after every successful write:
 `action`, `resource`, `recordId`, `userId`, the `before`/`after` images, the
 client `ip`, `userAgent` and `requestId`, and `at`.
 
-Secret column values (as defined in [Columns](#columns-what-each-view-shows-and-what-a-write-may-set))
-are replaced with `"[redacted]"` in `before` and `after`. An edit that changes
+Secret column values (as defined in [Columns](#columns-what-each-view-shows-and-what-a-write-may-set)),
+and those of fields with `inputType: "password"`, are replaced with `"[redacted]"` in `before` and `after`. An edit that changes
 one still says so: `redactedChanges` lists the secret columns whose value
 changed. `defineResource({ auditSecrets: true })` hands the raw values to the
 sink instead.

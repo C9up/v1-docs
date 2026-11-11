@@ -31,6 +31,7 @@ export default defineConfig({
 | ------------------ | ------------------ | --------------------------------------------------------------------------------------------- |
 | `requireAuth`      | actif quand Warden est câblé | `false` monte l'admin sans authentification (voir [Sans authentification](#sans-authentification)). |
 | `requireRole`      | aucun              | Rôle exigé sur chaque requête, en plus de `accessPermission`.                                 |
+| `guard`            | le guard par défaut du manager d'auth | Le guard Warden par lequel passent la connexion, le verrou et la déconnexion (voir [Connexion](#connexion-cookie-de-session-et-deconnexion)). |
 | `permissionPrefix` | `"station"`        | Espace de noms des permissions d'admin (`station.users.edit`).                                |
 | `accessPermission` | `"station.access"` | Permission requise pour entrer dans `/admin/*` ; `false` retire ce verrou.                    |
 | `loginPath`        | `"/admin/login"`   | Destination d'un navigateur non authentifié.                                                  |
@@ -142,7 +143,16 @@ démarrage.
 
 Un secret listé dans `editable` est en **écriture seule** : le formulaire
 l'affiche vide, et à l'édition un envoi vide conserve la valeur enregistrée. Un
-champ `password` n'est jamais pré-rempli, quelle que soit la colonne.
+champ dont l'entrée `formFields` pose `inputType: "password"` est lui aussi en
+écriture seule, quel que soit le nom de sa colonne : jamais pré-rempli, exclu de
+l'ancienne saisie renvoyée en flash après une validation ratée, et masqué dans
+les instantanés d'audit.
+
+Station ne parse jamais lui-même le corps d'une requête : il lit
+`ctx.request.body()`, qui reste `{}` tant que le body parser de l'hôte n'a pas
+traité la requête. Gardez le body parser inscrit dans `start/kernel.ts` (le
+défaut généré), avant toute route, sinon chaque envoi de formulaire d'admin —
+connexion comprise — arrive vide à Station.
 
 ## Autorisation
 
@@ -244,6 +254,36 @@ nomme alors l'environnement dans lequel il tourne.
 
 ## Connexion, cookie de session et déconnexion
 
+La connexion, le verrou de l'admin et la déconnexion passent par un seul guard
+Warden : `station.guard`, ou le guard par défaut du manager d'auth quand il
+n'est pas défini. Station garde dans son cookie le jeton bearer qu'émet le
+guard : le guard doit donc en émettre un (le guard JWT de Warden). Le boot
+refuse un nom de guard inconnu, ou un guard sans `signToken` comme le guard
+session de Warden, avec un message qui renvoie à `station.guard`.
+
+```ts
+export default defineConfig({
+  guard: "jwt", // le guard par défaut de l'application peut rester `web` (session)
+});
+```
+
+### Connexions refusées
+
+Un `POST /admin/login` refusé affiche la page de connexion avec un message
+fixe — jamais le texte d'erreur du backend d'auth. Un appelant JSON (`Accept:
+application/json`) ou XHR (`X-Requested-With: XMLHttpRequest`) reçoit à la
+place `{ error, code }` :
+
+| Statut | `code` | Quand |
+| ------ | ------ | ----- |
+| `400`  | `E_STATION_LOGIN_CREDENTIALS_REQUIRED` | L'email ou le mot de passe est vide. |
+| `401`  | `E_STATION_INVALID_CREDENTIALS` | Identifiants faux. |
+| `429`  | `E_STATION_TOO_MANY_LOGIN_ATTEMPTS` | La limite de débit a refusé la tentative ; `Retry-After` est posé. |
+| `503`  | `E_STATION_LOGIN_UNAVAILABLE` | Le limiteur a échoué, ou le backend d'auth a planté (journalisé pour l'opérateur, aucun `login_failed` enregistré). |
+
+Une écriture refusée faute de token CSRF vérifié répond à un appelant JSON avec
+`E_STATION_CSRF_REQUIRED` (voir [Application du CSRF](#application-du-csrf-fermeture-stricte)).
+
 ### Protection contre la force brute
 
 `POST /admin/login` compte chaque tentative sous l'IP du client et sous l'email
@@ -296,8 +336,8 @@ réussie : `action`, `resource`, `recordId`, `userId`, les images `before`/`afte
 l'`ip`, le `userAgent` et le `requestId` du client, et `at`.
 
 Les valeurs des colonnes secrètes (au sens de
-[Colonnes](#colonnes-ce-que-montre-chaque-vue-ce-qu-une-ecriture-peut-modifier))
-sont remplacées par `"[redacted]"` dans `before` et `after`. Une édition qui en
+[Colonnes](#colonnes-ce-que-montre-chaque-vue-ce-qu-une-ecriture-peut-modifier)),
+et celles des champs `inputType: "password"`, sont remplacées par `"[redacted]"` dans `before` et `after`. Une édition qui en
 modifie une le signale tout de même : `redactedChanges` liste les colonnes
 secrètes dont la valeur a changé. `defineResource({ auditSecrets: true })`
 transmet les valeurs brutes au sink.
