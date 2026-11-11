@@ -245,12 +245,17 @@ attendable pour les lignes et enchaînable avec `first()`. Placez-le en dernier.
 :::
 
 Pour une seule colonne, `pluck()` saute l'hydratation de la même façon et rend
-les valeurs plutôt que les lignes. Il refuse les colonnes objet et relation :
+les valeurs plutôt que les lignes :
 
 ```ts
 const emails = await User.query().where('active', true).pluck<string>('email')
 // ['ada@acme.test', 'grace@acme.test']
 ```
+
+`V` est ce que vous affirmez de la colonne, pas ce qu'atlas vérifie : `pluck()`
+vérifie seulement que chaque valeur est un scalaire ou `null`, et lève une erreur
+sur une valeur objet (colonne objet ou relation). Affinez vous-même les valeurs
+quand le type de la colonne n'est pas certain.
 
 Un `select()` partiel de colonnes simples **inclut automatiquement la clé
 primaire**, pour que l'entité hydratée reste sauvegardable (un `save()` ultérieur

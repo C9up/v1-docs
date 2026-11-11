@@ -240,12 +240,17 @@ awaitable for the rows and chainable into `first()`. Put it last in the chain.
 :::
 
 For a single column, `pluck()` skips hydration the same way and returns the
-values rather than the rows. It rejects object and relation columns:
+values rather than the rows:
 
 ```ts
 const emails = await User.query().where('active', true).pluck<string>('email')
 // ['ada@acme.test', 'grace@acme.test']
 ```
+
+`V` is your claim about the column, not something atlas verifies: `pluck()`
+only checks that every value is a scalar or `null`, and throws on an object
+value (an object or relation column). Narrow the values yourself when the column
+type is not certain.
 
 A partial `select()` of plain columns **auto-includes the primary key**, so the
 hydrated entity is still saveable (a later `save()` UPDATEs rather than INSERTs). For

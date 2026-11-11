@@ -17,13 +17,19 @@ const users = repo.query()
 ## 2) Relation + compteur
 
 ```ts
-const users = userRepo.query()
+const users = await userRepo.query()
   .preload('posts')
   .withCount('posts', (q) => q.as('postsCount'))
   .exec()
 
-const count = users[0]?.getExtra('postsCount')
+const count = users[0]?.getExtra('postsCount')   // unknown : à affiner
+if (typeof count === 'number') {
+  // …
+}
 ```
+
+`getExtra()` renvoie `unknown` : il rend ce que le loader a stocké, donc
+affinez la valeur avant de l'utiliser.
 
 ## 3) Soft delete puis restore
 
