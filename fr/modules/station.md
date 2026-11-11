@@ -233,7 +233,8 @@ connexion (HTML).
 ### Sans authentification
 
 Quand `@c9up/warden` n'est pas câblé, l'admin ne peut monter ouvert que dans un
-processus dont le `NODE_ENV` vaut `development` ou `test` : chaque action est
+processus dont le `NODE_ENV` vaut `development` ou `test`, ou l'un de leurs
+alias `dev`, `develop` et `testing` (en majuscules ou non) : chaque action est
 autorisée et Station émet un avertissement de boot bruyant. Dans tout autre
 environnement — `production`, `prod`, `staging`, un `NODE_ENV` absent — Station
 refuse de démarrer, car un admin ouvert, c'est la création, la modification et

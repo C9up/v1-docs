@@ -216,7 +216,8 @@ token gets `401` (JSON) or a redirect to the login page (HTML).
 ### No authentication
 
 When `@c9up/warden` is not wired, the admin can only mount open in a process
-whose `NODE_ENV` is `development` or `test`: every action is allowed and Station
+whose `NODE_ENV` is `development` or `test`, or one of their aliases `dev`,
+`develop` and `testing` (in any case): every action is allowed and Station
 emits a loud boot warning. In any other environment — `production`, `prod`,
 `staging`, an unset `NODE_ENV` — Station refuses to start, because an open admin
 is full create, update and delete for anyone who can reach it. Set
