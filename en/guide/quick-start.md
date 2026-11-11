@@ -379,7 +379,9 @@ server.errorHandler(() => import('#app/exceptions/handler.js'))
 // Global middleware — runs on every routed request.
 // AuthMiddleware best-effort populates ctx.auth so guarded routes
 // (and any controller that reads `ctx.auth.user?.id`) work uniformly.
+// The body parser reads request bodies: without it every JSON POST reads as `{}`.
 router.use([
+  () => import('@c9up/ream/bodyparser_middleware'),
   () => import('#app/middleware/auth_middleware.js'),
 ])
 ```
@@ -563,8 +565,8 @@ curl -s http://localhost:3000/api/tasks | jq .
 1. `bin/server.ts` constructed an `Ignitor` with the `reamrc.ts` manifest.
 2. The Ignitor's **register** phase loaded `config/auth.ts`, `config/database.ts`, `config/logger.ts` into `app.config`, then called `AppProvider.register()` — binding `AuthManager` into the container.
 3. The **boot** phase called `AppProvider.boot()`.
-4. The **start** phase imported `start/kernel.ts` (registering the global `AuthMiddleware`), then auto-loaded `app/modules/auth/routes.ts` (the login route), `app/modules/task/routes.ts` (registering the five task routes) and `app/modules/task/events.ts` (wiring `TaskCreated` to `LogTaskCreated`).
-5. The **ready** phase started the HyperServer. Each request flows through the middleware pipeline: the global `AuthMiddleware` → the route's `.guard('jwt')` (protected routes only) → controller.
+4. The **start** phase imported `start/kernel.ts` (registering the body parser and the global `AuthMiddleware`), then auto-loaded `app/modules/auth/routes.ts` (the login route), `app/modules/task/routes.ts` (registering the five task routes) and `app/modules/task/events.ts` (wiring `TaskCreated` to `LogTaskCreated`).
+5. The **ready** phase started the HyperServer. Each request flows through the middleware pipeline: the body parser and the global `AuthMiddleware` → the route's `.guard('jwt')` (protected routes only) → controller.
 6. The container resolved `TasksController` per request, injecting its `TaskService` singleton automatically.
 
 ---

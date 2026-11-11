@@ -40,6 +40,8 @@ server.use([
 
 // Middlewares routeur — s'exécutent seulement sur les routes trouvées
 router.use([
+  // Analyse les corps de requête — sans lui body(), input() et all() lisent `{}`
+  () => import('@c9up/ream/bodyparser_middleware'),
   () => import('#middleware/auth_middleware.js'),
 ])
 
@@ -82,6 +84,8 @@ Enregistrés via `router.use()`. Ils s'exécutent seulement quand une route corr
 
 ```typescript
 router.use([
+  // Analyse les corps de requête — sans lui body(), input() et all() lisent `{}`
+  () => import('@c9up/ream/bodyparser_middleware'),
   () => import('#middleware/auth_middleware.js'),
 ])
 ```

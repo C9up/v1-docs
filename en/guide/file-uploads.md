@@ -4,24 +4,27 @@ Ream parses `multipart/form-data` requests through the BodyParser middleware and
 
 ## Enabling the parser
 
-File reading requires the `BodyParserMiddleware` to be registered globally in `start/kernel.ts` (this is the default in a scaffolded app). Without it, `request.file()` always returns `null`.
+The body parser is the only thing that reads a request body — JSON, url-encoded forms, text and multipart alike. Register it as router middleware in `start/kernel.ts` (a scaffolded `api` or `web` app already does). Without it `request.body()` is `{}`, `request.input()` and `request.all()` see only the query string, and `request.file()` always returns `null`.
 
 ```typescript
-import { BodyParserMiddleware } from '@c9up/ream'
-
-const bodyParser = new BodyParserMiddleware()
-
+// start/kernel.ts
 router.use([
-  // ...other global middleware
-  (ctx, next) => bodyParser.handle(ctx, next),
-  // ...
+  () => import('@c9up/ream/bodyparser_middleware'),
+  // ...other router middleware
 ])
 ```
 
+A JSON body is parsed only when its Content-Type is one of `json.types` (`application/json` and `application/vnd.api+json` by default). A body sent with no Content-Type, or as `text/plain` — what a foreign page can send with the visitor's cookies and no CORS preflight — is never read as JSON. A malformed JSON body reads as `{}`.
+
 ### Configuring it
 
+Registered that way, the middleware reads its settings from `config/bodyparser.ts`:
+
 ```typescript
-const bodyParser = new BodyParserMiddleware({
+// config/bodyparser.ts
+import { defineConfig } from '@c9up/ream/bodyparser/config'
+
+export default defineConfig({
   allowedMethods: ['POST', 'PUT', 'PATCH', 'DELETE'],
   json:      { limit: '1mb' },
   form:      { limit: '1mb' },
@@ -29,6 +32,8 @@ const bodyParser = new BodyParserMiddleware({
   multipart: { limit: '20mb', maxFields: 1000, maxFiles: 1000 },
 })
 ```
+
+`new BodyParserMiddleware({ ... })` takes the same object when you build the middleware yourself.
 
 `allowedMethods` decides which requests get a body parsed at all — it
 defaults to the four above, so a GET carrying a JSON content-type is left

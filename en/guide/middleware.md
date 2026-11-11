@@ -40,6 +40,8 @@ server.use([
 
 // Router middleware — runs only on matched routes
 router.use([
+  // Parses request bodies — without it body(), input() and all() read `{}`
+  () => import('@c9up/ream/bodyparser_middleware'),
   () => import('#middleware/auth_middleware.js'),
 ])
 
@@ -82,6 +84,8 @@ Registered via `router.use()`. Runs only when a route matches. Executes after se
 
 ```typescript
 router.use([
+  // Parses request bodies — without it body(), input() and all() read `{}`
+  () => import('@c9up/ream/bodyparser_middleware'),
   () => import('#middleware/auth_middleware.js'),
 ])
 ```

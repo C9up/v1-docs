@@ -380,7 +380,9 @@ server.errorHandler(() => import('#app/exceptions/handler.js'))
 // AuthMiddleware peuple `ctx.auth` au mieux pour que les routes
 // guardées (et tout contrôleur qui lit `ctx.auth.user?.id`) fonctionnent
 // uniformément.
+// Le body parser lit les corps de requête : sans lui chaque POST JSON se lit `{}`.
 router.use([
+  () => import('@c9up/ream/bodyparser_middleware'),
   () => import('#app/middleware/auth_middleware.js'),
 ])
 ```
@@ -565,8 +567,8 @@ curl -s http://localhost:3000/api/tasks | jq .
 1. `bin/server.ts` a construit un `Ignitor` avec le manifeste `reamrc.ts`.
 2. La phase **register** de l'Ignitor a chargé `config/auth.ts`, `config/database.ts`, `config/logger.ts` dans `app.config`, puis appelé `AppProvider.register()` — liant `AuthManager` dans le conteneur.
 3. La phase **boot** a appelé `AppProvider.boot()`.
-4. La phase **start** a importé `start/kernel.ts` (enregistrant l'`AuthMiddleware` global) puis chargé automatiquement `app/modules/auth/routes.ts` (la route de connexion), `app/modules/task/routes.ts` (enregistrant les cinq routes de tâches) et `app/modules/task/events.ts` (reliant `TaskCreated` à `LogTaskCreated`).
-5. La phase **ready** a démarré le HyperServer. Chaque requête transite par le pipeline de middlewares : l'`AuthMiddleware` global → le `.guard('jwt')` de la route (routes protégées seulement) → contrôleur.
+4. La phase **start** a importé `start/kernel.ts` (enregistrant le body parser et l'`AuthMiddleware` global) puis chargé automatiquement `app/modules/auth/routes.ts` (la route de connexion), `app/modules/task/routes.ts` (enregistrant les cinq routes de tâches) et `app/modules/task/events.ts` (reliant `TaskCreated` à `LogTaskCreated`).
+5. La phase **ready** a démarré le HyperServer. Chaque requête transite par le pipeline de middlewares : le body parser et l'`AuthMiddleware` global → le `.guard('jwt')` de la route (routes protégées seulement) → contrôleur.
 6. Le conteneur a résolu `TasksController` par requête, injectant automatiquement son singleton `TaskService`.
 
 ---

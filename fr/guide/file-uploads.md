@@ -4,24 +4,27 @@ Ream analyse les requêtes `multipart/form-data` grâce au middleware BodyParser
 
 ## Activer le parser
 
-La lecture des fichiers nécessite que le `BodyParserMiddleware` soit enregistré globalement dans `start/kernel.ts` (c'est le comportement par défaut d'une application générée). Sans lui, `request.file()` renvoie toujours `null`.
+Le body parser est la seule chose qui lit le corps d'une requête — JSON, formulaires url-encoded, texte et multipart. Enregistrez-le comme middleware routeur dans `start/kernel.ts` (une application `api` ou `web` générée le fait déjà). Sans lui, `request.body()` vaut `{}`, `request.input()` et `request.all()` ne voient que la chaîne de requête, et `request.file()` renvoie toujours `null`.
 
 ```typescript
-import { BodyParserMiddleware } from '@c9up/ream'
-
-const bodyParser = new BodyParserMiddleware()
-
+// start/kernel.ts
 router.use([
-  // ...autres middlewares globaux
-  (ctx, next) => bodyParser.handle(ctx, next),
-  // ...
+  () => import('@c9up/ream/bodyparser_middleware'),
+  // ...autres middlewares routeur
 ])
 ```
 
+Un corps JSON n'est analysé que si son Content-Type fait partie de `json.types` (`application/json` et `application/vnd.api+json` par défaut). Un corps envoyé sans Content-Type, ou en `text/plain` — ce qu'une page étrangère peut envoyer avec les cookies du visiteur et sans preflight CORS — n'est jamais lu comme du JSON. Un corps JSON mal formé se lit `{}`.
+
 ### Le configurer
 
+Enregistré ainsi, le middleware lit ses réglages dans `config/bodyparser.ts` :
+
 ```typescript
-const bodyParser = new BodyParserMiddleware({
+// config/bodyparser.ts
+import { defineConfig } from '@c9up/ream/bodyparser/config'
+
+export default defineConfig({
   allowedMethods: ['POST', 'PUT', 'PATCH', 'DELETE'],
   json:      { limit: '1mb' },
   form:      { limit: '1mb' },
@@ -29,6 +32,8 @@ const bodyParser = new BodyParserMiddleware({
   multipart: { limit: '20mb', maxFields: 1000, maxFiles: 1000 },
 })
 ```
+
+`new BodyParserMiddleware({ ... })` prend le même objet quand vous construisez le middleware vous-même.
 
 `allowedMethods` décide quelles requêtes voient leur corps parsé — il
 prend les quatre ci-dessus par défaut, si bien qu'un GET portant un

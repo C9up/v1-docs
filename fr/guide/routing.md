@@ -420,6 +420,8 @@ request.is(['json'])        // Vérification du Content-type
 request.accepts(['json'])   // Négociation de l'en-tête Accept
 ```
 
+Le corps derrière `input()`, `all()`, `only()`, `except()` et `body()` est ce que le body parser a produit : enregistrez `@c9up/ream/bodyparser_middleware` (voir [Envoi de fichiers](/fr/guide/file-uploads#activer-le-parser)), sinon ces méthodes ne voient que `{}` plus la chaîne de requête.
+
 #### Derrière un reverse proxy
 
 `request.ip()`, `request.ips()`, `request.protocol()` / `request.secure()` et
