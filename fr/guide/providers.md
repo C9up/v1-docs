@@ -132,16 +132,24 @@ Lit `config/auth.ts`, enregistre les guards et configure le gestionnaire d'authe
 
 ```typescript
 // config/auth.ts
-export default {
-  guard: 'jwt',
+import env from '#start/env.js'
+import { defineConfig, jwtGuard } from '@c9up/warden'
+import { findUser, verifyCredentials } from '#app/services/user_lookup.js'
+
+export default defineConfig({
+  default: 'jwt',
   guards: {
-    jwt: {
-      driver: 'jwt',
-      secret: process.env.JWT_SECRET ?? 'change-me',
-    },
+    jwt: jwtGuard({
+      // Déclaré Env.schema.secret() : pas de repli, une valeur absente refuse le démarrage.
+      secret: env.get('JWT_SECRET').release(),
+      findUser,
+      verifyCredentials,
+    }),
   },
-}
+})
 ```
+
+Ne donnez jamais de valeur de repli au secret (`process.env.JWT_SECRET ?? '…'`) : ce fichier est commité, la valeur de repli est donc publique, et un déploiement qui oublie la variable signerait chaque jeton avec.
 
 ## Comment fonctionne le chargement automatique de la config
 

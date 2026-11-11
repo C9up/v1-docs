@@ -132,16 +132,24 @@ Reads `config/auth.ts`, registers guards, and sets up the authentication manager
 
 ```typescript
 // config/auth.ts
-export default {
-  guard: 'jwt',
+import env from '#start/env.js'
+import { defineConfig, jwtGuard } from '@c9up/warden'
+import { findUser, verifyCredentials } from '#app/services/user_lookup.js'
+
+export default defineConfig({
+  default: 'jwt',
   guards: {
-    jwt: {
-      driver: 'jwt',
-      secret: process.env.JWT_SECRET ?? 'change-me',
-    },
+    jwt: jwtGuard({
+      // Declared Env.schema.secret(): no fallback, a missing value refuses to boot.
+      secret: env.get('JWT_SECRET').release(),
+      findUser,
+      verifyCredentials,
+    }),
   },
-}
+})
 ```
+
+Never give the secret a fallback (`process.env.JWT_SECRET ?? '…'`): this file is committed, so the fallback is public, and a deployment that forgets the variable would sign every token with it.
 
 ## How config auto-loading works
 

@@ -56,14 +56,19 @@ The framework reads every file in `config/` during startup and stores each one u
 
 ```typescript
 // config/auth.ts
+import env from '#start/env.js'
+
 export default {
   defaultStrategy: 'jwt',
   jwt: {
-    secret: process.env.JWT_SECRET ?? 'change-me-min-32-chars-long!!!!!',
+    // No fallback: start/env.ts refuses to boot when JWT_SECRET is missing.
+    secret: env.get('JWT_SECRET').release(),
     expiresInSeconds: 3600,
   },
 }
 ```
+
+`JWT_SECRET` is declared `Env.schema.secret()` in `start/env.ts` (see [Configuration](/en/guide/configuration#environment-variables)), so `env.get()` hands back a value that prints as `[redacted]` and `.release()` reads it. Never write a fallback such as `process.env.JWT_SECRET ?? '…'`: `config/auth.ts` is committed, so the fallback is a secret anyone can read, and an environment that forgets the variable would sign every token with it — anyone could then mint a token for any user.
 
 ```typescript
 // config/database.ts

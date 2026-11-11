@@ -86,7 +86,7 @@ import env from '#start/env.js'
 export default {
   defaultStrategy: 'jwt',
   jwt: {
-    secret: env.get('JWT_SECRET'),
+    secret: env.get('JWT_SECRET').release(),
     expiresInSeconds: 86400,
   },
 }
@@ -129,7 +129,7 @@ export default await Env.create(new URL('../', import.meta.url), {
   NODE_ENV: Env.schema.enum(['development', 'production', 'test'] as const),
   PORT: Env.schema.number(),
   HOST: Env.schema.string({ format: 'host' }),
-  JWT_SECRET: Env.schema.string(),
+  JWT_SECRET: Env.schema.secret(),
   // Optionnel avec `.optional()` — `env.get` renvoie alors `T | undefined`.
   DB_PATH: Env.schema.string.optional(),
   REDIS_URL: Env.schema.string({ format: 'url' }).optional(),
@@ -144,7 +144,7 @@ Lisez les variables dans les **fichiers de config** via `#start/env` — c'est s
 import env from '#start/env.js'
 
 const port = env.get('PORT')                      // typé `number`
-const secret = env.get('JWT_SECRET')              // typé `string`
+const secret = env.get('JWT_SECRET')              // typé `Secret<string>`, lu par .release()
 const dbPath = env.get('DB_PATH', '/tmp/app.db')  // valeur par défaut
 ```
 
@@ -158,8 +158,13 @@ Un fichier `.env` à la racine du projet contient les valeurs locales (`.env.tes
 NODE_ENV=development
 PORT=3000
 HOST=localhost
-JWT_SECRET=change-me-at-least-32-characters-long
+# Au moins 32 caractères aléatoires (par ex. `openssl rand -base64 48`). Vide, l'application refuse de démarrer.
+JWT_SECRET=
 ```
+
+::: danger
+Ne donnez jamais de valeur de repli à un secret dans un fichier de config (`env.get('JWT_SECRET') ?? '…'`, `process.env.JWT_SECRET ?? '…'`). Les fichiers de config sont commités : la valeur de repli est lisible par tous, et un déploiement qui oublie la variable signe chaque jeton avec — un contournement de l'authentification. Déclarez la variable obligatoire et laissez le démarrage échouer.
+:::
 
 ## Chemins du système de fichiers
 

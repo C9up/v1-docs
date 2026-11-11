@@ -45,7 +45,7 @@ import env from '#start/env.js'
 export default {
   defaultStrategy: 'jwt',
   jwt: {
-    secret: env.get('JWT_SECRET'),
+    secret: env.get('JWT_SECRET').release(),
     expiresInSeconds: 86400,
   },
 }
@@ -88,7 +88,7 @@ export default await Env.create(new URL('../', import.meta.url), {
   NODE_ENV: Env.schema.enum(['development', 'production', 'test'] as const),
   PORT: Env.schema.number(),
   HOST: Env.schema.string({ format: 'host' }),
-  JWT_SECRET: Env.schema.string(),
+  JWT_SECRET: Env.schema.secret(),
   // Optional with `.optional()` — `env.get` then returns `T | undefined`.
   DB_PATH: Env.schema.string.optional(),
   REDIS_URL: Env.schema.string({ format: 'url' }).optional(),
@@ -103,7 +103,7 @@ Read variables in **config files** via `#start/env` — importing it is what loa
 import env from '#start/env.js'
 
 const port = env.get('PORT')                      // typed `number`
-const secret = env.get('JWT_SECRET')              // typed `string`
+const secret = env.get('JWT_SECRET')              // typed `Secret<string>`, read with .release()
 const dbPath = env.get('DB_PATH', '/tmp/app.db')  // fallback
 ```
 
@@ -117,8 +117,13 @@ A `.env` file at the project root holds local values (`.env.test`, `.env.product
 NODE_ENV=development
 PORT=3000
 HOST=localhost
-JWT_SECRET=change-me-at-least-32-characters-long
+# At least 32 random characters (e.g. `openssl rand -base64 48`). Left empty, the app refuses to boot.
+JWT_SECRET=
 ```
+
+::: danger
+Never give a secret a fallback in a config file (`env.get('JWT_SECRET') ?? '…'`, `process.env.JWT_SECRET ?? '…'`). Config files are committed: the fallback is a value anyone can read, and a deployment that forgets the variable signs every token with it — an authentication bypass. Declare the variable required and let the boot fail.
+:::
 
 ## Filesystem paths
 

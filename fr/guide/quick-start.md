@@ -55,14 +55,19 @@ Le framework lit chaque fichier dans `config/` au démarrage et stocke chacun so
 
 ```typescript
 // config/auth.ts
+import env from '#start/env.js'
+
 export default {
   defaultStrategy: 'jwt',
   jwt: {
-    secret: process.env.JWT_SECRET ?? 'change-me-min-32-chars-long!!!!!',
+    // Pas de valeur de repli : start/env.ts refuse de démarrer sans JWT_SECRET.
+    secret: env.get('JWT_SECRET').release(),
     expiresInSeconds: 3600,
   },
 }
 ```
+
+`JWT_SECRET` est déclaré `Env.schema.secret()` dans `start/env.ts` (voir [Configuration](/fr/guide/configuration#variables-d-environnement)), donc `env.get()` rend une valeur qui s'affiche `[redacted]` et que `.release()` lit. N'écrivez jamais de valeur de repli comme `process.env.JWT_SECRET ?? '…'` : `config/auth.ts` est commité, la valeur de repli est donc un secret que tout le monde peut lire, et un environnement qui oublie la variable signerait chaque jeton avec — n'importe qui pourrait alors fabriquer un jeton pour n'importe quel utilisateur.
 
 ```typescript
 // config/database.ts
