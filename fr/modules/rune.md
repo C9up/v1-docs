@@ -363,20 +363,35 @@ s.validateResult({ name: '  Al  ' })
 ## Dans les handlers de route
 
 ```typescript
+import { rules, schema } from '@c9up/rune'
+
+const CreateOrderSchema = schema({
+  total:    rules.number().positive(),
+  name:     rules.string().min(1).max(100).trim(),
+  email:    rules.string().email(),
+  coupon:   rules.string().optional(),
+})
+
 router.post('/orders', async (ctx) => {
-  const result = CreateOrderSchema.validateResult(JSON.parse(ctx.request!.body))
+  const result = CreateOrderSchema.validateResult(ctx.request.body())
 
   if (!result.valid) {
-    ctx.response!.status = 400
-    ctx.response!.body = JSON.stringify({ errors: result.errors })
+    ctx.response.status(422).json({ errors: result.errors })
     return
   }
 
-  // result.data contient les données validées + transformées
-  ctx.response!.status = 201
-  ctx.response!.body = JSON.stringify({ order: result.data })
+  // result.data est entièrement typé et transformé
+  const order = await OrderService.create(result.data)
+
+  ctx.response.status(201).json({ order })
 })
 ```
+
+`ctx.request.body()` renvoie le corps lu par le body parser : la route a donc
+besoin du middleware body parser devant elle (sans lui, le corps vaut `{}`).
+`await ctx.request.validateUsing(CreateOrderSchema)` est la forme qui lève du
+même contrôle : elle renvoie les données validées, ou lève
+`E_VALIDATION_ERROR`, auquel le serveur répond par un 422 avec les erreurs.
 
 ## Internationalisation (i18n)
 

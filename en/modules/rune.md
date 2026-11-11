@@ -391,22 +391,25 @@ const CreateOrderSchema = schema({
 })
 
 router.post('/orders', async (ctx) => {
-  const body = JSON.parse(ctx.request!.body)
-  const result = CreateOrderSchema.validateResult(body)
+  const result = CreateOrderSchema.validateResult(ctx.request.body())
 
   if (!result.valid) {
-    ctx.response!.status = 422
-    ctx.response!.body = JSON.stringify({ errors: result.errors })
+    ctx.response.status(422).json({ errors: result.errors })
     return
   }
 
   // result.data is fully typed and transformed
   const order = await OrderService.create(result.data)
 
-  ctx.response!.status = 201
-  ctx.response!.body = JSON.stringify({ order })
+  ctx.response.status(201).json({ order })
 })
 ```
+
+`ctx.request.body()` returns the body the body parser read, so the route needs
+the body-parser middleware in front of it (without it the body is `{}`).
+`await ctx.request.validateUsing(CreateOrderSchema)` is the throwing form of
+the same check: it returns the validated data, or throws `E_VALIDATION_ERROR`,
+which the server answers with 422 and the errors.
 
 ## Internationalization (i18n)
 
