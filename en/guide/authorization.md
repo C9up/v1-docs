@@ -42,8 +42,8 @@ A request flows top to bottom:
    ownership (`user.id === resource.authorId`), and tenant isolation
    (`this.sameTenant(resource)`) — freely combined.
 4. **HTTP integration** — the `initializeBouncer` middleware builds a
-   per-request `ctx.bouncer`; a denial throws `WARDEN_AUTHORIZATION_FAILURE`,
-   which Ream maps to a **403**.
+   per-request `ctx.bouncer`; a denial throws `E_WARDEN_AUTHORIZATION_FAILURE`,
+   which Ream answers with a **403** (or the status the policy's response gives).
 
 The evaluation layer is implemented by Warden itself, with **no third-party
 dependency**.

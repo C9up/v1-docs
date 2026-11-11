@@ -12,14 +12,15 @@ All Atlas errors extend `AtlasError`, which itself extends the native `Error`:
 import { AtlasError } from '@c9up/atlas'
 
 class AtlasError extends Error {
-  readonly code: string    // stable, prefixed with `ATLAS_`
+  readonly code: string    // stable, always starts with `E_`
   readonly hint?: string   // optional actionable suggestion
 }
 ```
 
-The `code` is normalised: a code passed as `E_ENTITY_NOT_FOUND` is stored as
-`ATLAS_E_ENTITY_NOT_FOUND` (the `ATLAS_` prefix is added if absent). Catch the
-base to handle any Atlas failure uniformly, or a subclass to handle one kind:
+The `code` is normalised: a code that already starts with `E_` is kept as it is
+(`E_ROW_NOT_FOUND`, `E_MASS_ASSIGNMENT`), and any other gets the `E_ATLAS_`
+prefix (`EMPTY_SELECT` becomes `E_ATLAS_EMPTY_SELECT`). Catch the base to handle
+any Atlas failure uniformly, or a subclass to handle one kind:
 
 ```ts
 try {
@@ -33,14 +34,19 @@ try {
 ```
 
 Many operational failures are raised as a plain `AtlasError` with a specific
-code rather than a dedicated subclass — for example `ATLAS_E_EXTRA_PROPERTIES`
-(filling an undeclared column), `ATLAS_E_MODEL_NOT_PERSISTED`, and
-`ATLAS_E_MISSING_PRIMARY_KEY`. Branch on `err.code` for those.
+code rather than a dedicated subclass — for example `E_EXTRA_PROPERTIES`
+(filling an undeclared column), `E_MODEL_NOT_PERSISTED`, `E_MISSING_PRIMARY_KEY`,
+`E_STRICT_MODE` (raw SQL refused in strict mode),
+`E_ROLLBACK_DISABLED_IN_PRODUCTION` and `E_ATLAS_MIGRATION_INVALID_TABLE_NAME`.
+Branch on `err.code` for those.
 
 ## `EntityNotFoundError`
 
-Thrown by the repository's fail-fast finders when no row matches:
-`findOrFail` and `findByOrFail`.
+Thrown when a query that must return a row finds none: the repository's
+`findOrFail`, `findByOrFail`, `refresh` and `fresh`, and `firstOrFail()` /
+`sole()` on the model query and on the `db.from()` builder. Its code is
+`E_ROW_NOT_FOUND` and it carries `status = 404`, so an exception handler that
+does not catch it answers `404` with that code.
 
 ```ts
 import { EntityNotFoundError } from '@c9up/atlas'
@@ -49,7 +55,8 @@ try {
   const user = await users.findOrFail(42)
 } catch (err) {
   if (err instanceof EntityNotFoundError) {
-    err.code        // 'ATLAS_E_ENTITY_NOT_FOUND'
+    err.code        // 'E_ROW_NOT_FOUND'
+    err.status      // 404
     err.entityClass // 'User'
     err.criteria    // { id: 42 }
     return response.notFound()
@@ -60,8 +67,9 @@ try {
 
 | Field | Type | Description |
 | --- | --- | --- |
-| `entityClass` | `string` | The model class name that was queried. |
-| `criteria` | `unknown` | The lookup criteria (e.g. `{ id: 42 }` or `{ email: 'a@b.c' }`). |
+| `status` | `404` | The HTTP status an exception handler answers with. |
+| `entityClass` | `string \| undefined` | The model class name that was queried; `undefined` for a `db.from()` query. |
+| `criteria` | `unknown` | The lookup criteria (e.g. `{ id: 42 }` or `{ email: 'a@b.c' }`), when the finder had any. |
 
 The non-`OrFail` variants (`find`, `findBy`, `first`) return `null` instead of
 throwing — reach for them when a missing row is an expected outcome.
@@ -85,7 +93,7 @@ try {
   user.merge({ role: 'admin' }) // blocked
 } catch (err) {
   if (err instanceof MassAssignmentError) {
-    err.code      // 'ATLAS_E_MASS_ASSIGNMENT'
+    err.code      // 'E_MASS_ASSIGNMENT'
     err.entityClass // 'User'
     err.attribute // 'role'
   }
@@ -116,7 +124,7 @@ import { RelationNotLoadedError } from '@c9up/atlas'
 | `entityClass` | `string` | The model class name. |
 | `relationName` | `string` | The relation that was accessed. |
 
-The `hint` points at the fix: `.preload('<relation>')` on the query, or
+Its code is `E_RELATION_NOT_LOADED`. The `hint` points at the fix: `.preload('<relation>')` on the query, or
 `.load('<relation>')` on the instance.
 
 > Status: the error class is exported and stable, but the current runtime does
@@ -138,8 +146,8 @@ import { OptimisticLockError } from '@c9up/atlas'
 | `primaryKey` | `unknown` | The primary key of the conflicting row. |
 | `expectedVersion` | `number` | The version the save expected to overwrite. |
 
-The `hint` describes the recovery: reload the entity, reapply your changes, and
-retry.
+Its code is `E_OPTIMISTIC_LOCK`. The `hint` describes the recovery: reload the
+entity, reapply your changes, and retry.
 
 > Status: this is the error class only. Atlas does **not** yet ship a version-column
 > mechanism (there is no `@Version()` decorator, and nothing in the ORM raises this
@@ -159,7 +167,7 @@ try {
   await users.create(payload)
 } catch (err) {
   if (err instanceof EntityNotFoundError) return response.notFound()
-  if (err instanceof AtlasError && err.code === 'ATLAS_E_MASS_ASSIGNMENT') {
+  if (err instanceof AtlasError && err.code === 'E_MASS_ASSIGNMENT') {
     return response.forbidden()
   }
   throw err

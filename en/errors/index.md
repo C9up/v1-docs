@@ -1,40 +1,44 @@
 # Error Codes
 
-Every Ream error includes a unique code that links to this documentation. When you see an error, click the docs URL or search for the code below.
+Every framework error carries a stable `code` that starts with `E_`. A package's
+own codes add the package name (`E_ATLAS_EMPTY_SELECT`, `E_WARDEN_FORBIDDEN`); a
+few shared identifiers keep a plain form (`E_ROW_NOT_FOUND`,
+`E_UNAUTHORIZED_ACCESS`, `E_VALIDATION_ERROR`). Search for the code below.
 
 ## Error Format
 
-In development mode, errors display a full diagnostic box:
+Errors raised by the framework core (`ReamError`) print a diagnostic box in
+development:
 
 ```
 ┌──────────────────────────────────────────────┐
-│ [ATLAS_QUERY_ERROR] Column 'statsu' not found
-│ Pipeline: 8/10 (Handler)
-│ at app/modules/order/services/OrderService.ts:15
+│ [E_CONTAINER_NOT_FOUND] No binding found for 'mailer'. Did you mean 'mail'?
 │
-│ table: orders
-│ column: statsu
-│
-│ Hint: Column 'statsu' does not exist. Did you mean 'status'?
-│ Docs: https://docs.ream.dev/errors/ATLAS_QUERY_ERROR
+│ Hint: Register it with container.singleton() or decorate with @inject().
+│ Docs: https://docs.ream.dev/errors/E_CONTAINER_NOT_FOUND
 └──────────────────────────────────────────────┘
 ```
 
-In production mode, only the code and message are shown.
+An error raised inside the request pipeline adds a `Pipeline: <n>/<total> (<stage>)`
+line. In production mode, only the code and message are shown.
+
+An HTTP error answers with `{ "error": { "code": "…", "message": "…" } }` and the
+error's `status`.
 
 ## Container Errors
 
 | Code | Description |
 |------|-------------|
-| `E_CONTAINER_NOT_FOUND` | No binding found for the requested token. Includes "did you mean?" suggestions for typos. Register it with `container.singleton()` or `@Service()`. |
-| `E_CIRCULAR_DEPENDENCY` | Circular dependency detected during resolution. Use explicit factories or decouple via events. |
-| `CONTAINER_NOT_DECORATED` | A class passed to `resolve()` is not decorated with `@Service()`. Add the decorator or register manually. |
+| `E_CONTAINER_NOT_FOUND` | No binding found for the requested token. Includes "did you mean?" suggestions for typos. Register it with `container.singleton()` or decorate the class with `@inject()`. |
+| `E_CIRCULAR_DEPENDENCY` | Circular dependency (or circular alias) detected during resolution. Use explicit factories or decouple via events. |
+| `E_CONTAINER_MISSING_METADATA` | A class declares constructor parameters but the container finds no dependency metadata for them. Enable decorator metadata, annotate the parameters with `@inject()`, or declare `static containerInjections`. |
+| `E_CONTAINER_RESERVED_TOKEN` | The token name reads as an `Object.prototype` key (`constructor`, `__proto__`…). Pick another name. |
 
 ## Router Errors
 
 | Code | Description |
 |------|-------------|
-| `NOT_FOUND` | No route matches the requested method and path. |
+| `E_ROUTE_NOT_FOUND` | No route matches the requested method and path (404). |
 
 ## Pipeline Errors
 
@@ -42,7 +46,7 @@ In production mode, only the code and message are shown.
 |------|-------------|
 | `E_PIPELINE_UNKNOWN_MIDDLEWARE` | A route references a named middleware that is not registered. Register it with `middleware.register()`. |
 | `E_PIPELINE_DOUBLE_NEXT` | A middleware called `next()` more than once. Each middleware should call `next()` at most once. |
-| `PIPELINE_ERROR` | Generic pipeline error from an unhandled handler exception. Includes stage position context. |
+| `E_PIPELINE_ERROR` | A handler threw an error that carries no framework code. The error keeps the stage position in its context. |
 
 ## Photon Errors
 
@@ -195,42 +199,65 @@ If you see one, the cause is almost always a **non-deterministic render**: a `Da
 
 ## Atlas Errors
 
+Atlas normalises its codes: a code that already starts with `E_` is kept, any
+other gets the `E_ATLAS_` prefix. See [Atlas error handling](../atlas/error-handling.md)
+for the typed subclasses.
+
 | Code | Description |
 |------|-------------|
-| `ATLAS_QUERY_ERROR` | SQL query compilation failed. Check column names and operators. |
-| `ATLAS_NOT_ENTITY` | A class passed to `BaseRepository` is not decorated with `@Entity()`. |
-| `ATLAS_INVALID_IDENTIFIER` | A SQL identifier contains illegal characters (double-quotes or null bytes). |
-| `ATLAS_EMPTY_SELECT` | `select()` was called with no columns. Provide at least one column name. |
-| `ATLAS_INVALID_PAGE` | `paginate()` was called with `page < 1`. |
-| `ATLAS_INVALID_LIMIT` | `limit()` was called with a negative value. |
-| `ATLAS_INVALID_OFFSET` | `offset()` was called with a negative value. |
-| `ATLAS_INVALID_IN` | `IN` or `NOT IN` operator requires an array value. |
-| `ATLAS_INVALID_PER_PAGE` | `paginate()` was called with `perPage < 1`. |
-| `ATLAS_INVALID_CTE_NAME` | CTE name must be a valid identifier (letters, numbers, underscores). |
+| `E_ROW_NOT_FOUND` | A query that must return a row found none: `findOrFail`, `findByOrFail`, `refresh`, `fresh`, `firstOrFail()`, `sole()`. Carries `status = 404`. |
+| `E_MASS_ASSIGNMENT` | `fill()` / `merge()` (and `create`, `createMany`, `updateOrCreate`) set an attribute outside `fillable`, or listed in `guarded`. |
+| `E_EXTRA_PROPERTIES` | A fill named a property that is not a declared column. |
+| `E_MODEL_NOT_PERSISTED` | An operation that needs a stored row (`delete()`, `refresh()`, `load*()`…) ran on a local instance. |
+| `E_MISSING_PRIMARY_KEY` | The same operation ran on a persisted projection that holds no primary key. |
+| `E_STRICT_MODE` | Raw SQL refused by strict mode (a repository's `raw()`, or a `db.raw()` value written by a repository). |
+| `E_ATLAS_EMPTY_SELECT` | `select()` was called with no columns. Provide at least one column name. |
+| `E_ATLAS_INVALID_PAGE` | `paginate()` was called with `page < 1`. |
+| `E_ATLAS_INVALID_PER_PAGE` | `paginate()` was called with `perPage < 1`. |
+| `E_ATLAS_INVALID_PAGINATION` | A page, page size or row count that is not a finite, non-negative integer. |
+| `E_ATLAS_INVALID_CTE_NAME` | A CTE name must be a valid identifier (letters, numbers, underscores). |
+| `E_ATLAS_INVALID_OPERATOR` | A `where()` or `wherePivot()` operator outside the allowed list. |
+| `E_ATLAS_MIGRATION_INVALID_TABLE_NAME` | `migrations.tableName` is not a plain identifier. |
+| `E_ATLAS_MIGRATION_NOT_FOUND` | A migration to run or roll back has no file in the migrations directory. |
+| `E_MIGRATION_LOCKED` | Another run holds the migration lock. Wait for it, or clear a stale lock with `migration:unlock`. |
+| `E_ROLLBACK_DISABLED_IN_PRODUCTION` | A rollback, reset, refresh, fresh or wipe in production without `--force`. |
+| `E_ATLAS_DRY_RUN_WRITE` | A migration tried to write while running under `dryRun()`. |
 | `E_ATLAS_INSECURE_SSLMODE` | The connection asks for `sslmode=prefer` or `allow` (URL or `PGSSLMODE`), which fall back to plaintext without saying so. Use `disable` or `verify-full`. See [Encrypted connections](../atlas/connections.md#encrypted-connections-tls). |
+| `E_ATLAS_NAPI_NOT_FOUND` | The Rust query compiler is not loaded. A plain `Error` whose message starts with the code. See [Troubleshooting](../atlas/troubleshooting.md). |
+| `E_UNSAFE_IDENTIFIER`, `E_UNSAFE_SQL`, `E_UNSAFE_EXPRESSION` | The Rust compiler refused an identifier, a SQL fragment or an expression. A plain `Error` whose message starts with the code. |
 
 ## Rune Errors
 
 | Code | Description |
 |------|-------------|
-| `RUNE_VALIDATION_FAILED` | Schema validation failed. Check `result.errors` for field-level details. |
-| `RUNE_NO_RULE` | `.message()` was called before any rule was added to the chain. |
+| `E_VALIDATION_ERROR` | `validateOrThrow()` found invalid data. Carries `status = 422` and a `messages` array with one entry per field and rule. |
+| `E_RUNE_NAPI_REQUIRED` | The Rust validation engine is not loaded. |
 
 ## Warden Errors
 
 | Code | Description |
 |------|-------------|
-| `WARDEN_STRATEGY_NOT_FOUND` | The requested auth strategy is not registered. Call `registerStrategy()` or check your `AuthConfig`. |
-| `WARDEN_INVALID_CONFIG` | The `defaultStrategy` in `AuthConfig` does not exist in the `strategies` map. |
-| `WARDEN_JWT_EXPIRED` | The JWT token has expired (`exp` claim is in the past). Request a new token. |
-| `WARDEN_JWT_NOT_YET_VALID` | The JWT token is not yet valid (`nbf` claim is in the future). Wait until the `nbf` time. |
-| `WARDEN_JWT_SECRET_TOO_SHORT` | The JWT secret must be at least 32 bytes. Use a longer, cryptographically random secret. |
+| `E_UNAUTHORIZED_ACCESS` | No guard authenticated the request (401). A guarded route answers with this code. |
+| `E_INVALID_CREDENTIALS` | The error class a login flow throws when the credentials do not match (400). |
+| `E_WARDEN_AUTH_STRATEGY_ERROR` | Every attempted guard crashed (a database down, a bug): a server incident, answered 500, distinct from a credential rejection. |
+| `E_WARDEN_FORBIDDEN` | The user lacks a permission or a role a route declares (403). |
+| `E_WARDEN_MFA_REQUIRED` | The route declares `@RequireMfa` and the user has not passed the step-up (403). |
+| `E_WARDEN_AUTHORIZATION_FAILURE` | A bouncer ability or policy denied the action (403 unless the policy gives another status). |
+| `E_WARDEN_NO_AUTH_CONFIG` | `WardenProvider` booted without any guard configured. |
+| `E_WARDEN_NAPI_REQUIRED` | The Rust JWT engine is not loaded. |
+| `E_WARDEN_UNAUTHORIZED`, `E_WARDEN_AUTH_ERROR` | The standalone `expressMiddleware()` found no token or refused it (401), or failed internally (500). |
 
-## CLI Errors (`ream` / ream-cli)
+## Console Errors
 
 | Code | Description |
 |------|-------------|
-| `REAM_UNKNOWN_TYPE` | Unknown generator type. Available: `service`, `entity`, `controller`, `validator`, `provider`, `migration`. |
+| `E_CONSOLE_COMMAND_NOT_FOUND` | No command has this name. |
+| `E_CONSOLE_MISSING_ARGUMENT` | A required argument was not given. |
+| `E_CONSOLE_UNEXPECTED_ARGUMENT` | More arguments than the command declares. |
+| `E_CONSOLE_UNKNOWN_FLAG` | A flag the command does not declare. |
+| `E_CONSOLE_MISSING_FLAG` | A required flag was not given. |
+| `E_CONSOLE_INVALID_FLAG_VALUE` | A flag value of the wrong type. |
+| `E_CONSOLE_NOT_INTERACTIVE` | A command asked a question while stdin is not interactive. Pass the value as a flag. |
 
 ## Realtime Errors (Relay)
 
@@ -257,9 +284,12 @@ Returned in the JSON body of the relay routes, or as an `error` event on a hub.
 
 | Code | Description |
 |------|-------------|
-| `E_BLACKHOLE_RATE_LIMITED` | Too many requests from this IP. Wait and retry. |
+| `E_BLACKHOLE_RATE_LIMITED` | Too many requests from this client (429, with `Retry-After`). Wait and retry. |
+| `E_TOO_MANY_REQUESTS` | A throttle middleware or `limiter.consume()` found the key over its budget (429). |
 | `E_BAD_CSRF_TOKEN` | Invalid or missing CSRF token. Echo the `XSRF-TOKEN` cookie in the `X-XSRF-TOKEN` header (or the `_csrf` form field). |
-| `E_BLACKHOLE_CSRF_ORIGIN_MISMATCH` | A state-changing request came from another origin — another host, or the same host over another scheme — not listed in `csrf.trustedOrigins`. |
-| `E_BLACKHOLE_PATH_TRAVERSAL` | The path holds `..`, raw or percent-encoded. |
-| `E_BLACKHOLE_PARAMETER_POLLUTION` | A query-string key appears twice (keys ending in `[]` may repeat). |
-| `E_BLACKHOLE_MISSING_IP` | Rate limiting is on and the request has no client address to count it under. |
+| `E_BLACKHOLE_CSRF_ORIGIN_MISMATCH` | A state-changing request came from another origin — another host, or the same host over another scheme — not listed in `csrf.trustedOrigins` (403). |
+| `E_BLACKHOLE_PATH_TRAVERSAL` | The path holds `..`, raw or percent-encoded (400). |
+| `E_BLACKHOLE_PARAMETER_POLLUTION` | A query-string key appears twice (keys ending in `[]` may repeat) (400). |
+| `E_BLACKHOLE_MISSING_IP` | Rate limiting is on and the request has no client address to count it under (400). |
+| `E_BLACKHOLE_SESSION_NOT_READY` | CSRF tokens are bound to the session (`csrf.session`) and the request reached blackhole without one: register the session middleware before blackhole's (500). |
+| `E_BLACKHOLE_BLOCKED` | A refusal whose body the engine did not supply as a JSON error. |

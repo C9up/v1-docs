@@ -1,8 +1,11 @@
 # Atlas - Dépannage
 
-## `ATLAS_NAPI_NOT_FOUND`
+## `E_ATLAS_NAPI_NOT_FOUND`
 
 Cause: package natif indisponible pour la plateforme/architecture courante.
+L'erreur est une `Error` simple dont le message commence par
+`[E_ATLAS_NAPI_NOT_FOUND]` ; elle est levée par la première requête compilée
+sans le binaire.
 
 Actions:
 

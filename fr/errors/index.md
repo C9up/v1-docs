@@ -1,49 +1,54 @@
 # Codes d'erreur
 
-Chaque erreur Ream inclut un code unique qui renvoie vers cette documentation. Quand vous voyez une erreur, cliquez sur l'URL docs ou cherchez le code ci-dessous.
+Chaque erreur du framework porte un `code` stable qui commence par `E_`. Les codes
+propres à un paquet ajoutent le nom du paquet (`E_ATLAS_EMPTY_SELECT`,
+`E_WARDEN_FORBIDDEN`) ; quelques identifiants partagés gardent une forme simple
+(`E_ROW_NOT_FOUND`, `E_UNAUTHORIZED_ACCESS`, `E_VALIDATION_ERROR`). Cherchez le
+code ci-dessous.
 
 ## Format des erreurs
 
-En mode développement, les erreurs affichent un diagnostic complet :
+Les erreurs levées par le cœur du framework (`ReamError`) affichent un encadré de
+diagnostic en développement :
 
 ```
 ┌──────────────────────────────────────────────┐
-│ [ATLAS_QUERY_ERROR] Column 'statsu' not found
-│ Pipeline: 8/10 (Handler)
-│ at app/modules/order/services/OrderService.ts:15
+│ [E_CONTAINER_NOT_FOUND] No binding found for 'mailer'. Did you mean 'mail'?
 │
-│ table: orders
-│ column: statsu
-│
-│ Hint: Column 'statsu' does not exist. Did you mean 'status'?
-│ Docs: https://docs.ream.dev/errors/ATLAS_QUERY_ERROR
+│ Hint: Register it with container.singleton() or decorate with @inject().
+│ Docs: https://docs.ream.dev/errors/E_CONTAINER_NOT_FOUND
 └──────────────────────────────────────────────┘
 ```
 
-En mode production, seuls le code et le message sont affichés.
+Une erreur levée dans le pipeline de requête ajoute une ligne
+`Pipeline: <n>/<total> (<étape>)`. En production, seuls le code et le message
+sont affichés.
+
+Une erreur HTTP répond `{ "error": { "code": "…", "message": "…" } }` avec le
+`status` de l'erreur.
 
 ## Erreurs Container
 
 | Code | Description |
 |------|-------------|
-| `E_CONTAINER_NOT_FOUND` | Aucun binding trouvé pour le token demandé. Enregistrez-le avec `container.singleton()` ou `@Service()`. |
-| `CONTAINER_CIRCULAR_DEPENDENCY` | Dépendance circulaire détectée. Utilisez `@Lazy()`, des factories explicites, ou découpler via les events. |
-| `CONTAINER_OVERRIDE_UNKNOWN` | Tentative de remplacer un token qui n'a pas de binding enregistré. |
+| `E_CONTAINER_NOT_FOUND` | Aucun binding trouvé pour le token demandé. Inclut des suggestions « vouliez-vous dire ? » pour les fautes de frappe. Enregistrez-le avec `container.singleton()` ou décorez la classe avec `@inject()`. |
+| `E_CIRCULAR_DEPENDENCY` | Dépendance circulaire (ou alias circulaire) détectée pendant la résolution. Utilisez des factories explicites ou découplez via des événements. |
+| `E_CONTAINER_MISSING_METADATA` | Une classe déclare des paramètres de constructeur mais le conteneur ne trouve aucune métadonnée de dépendance pour eux. Activez les métadonnées de décorateurs, annotez les paramètres avec `@inject()`, ou déclarez `static containerInjections`. |
+| `E_CONTAINER_RESERVED_TOKEN` | Le nom du token se lit comme une clé d'`Object.prototype` (`constructor`, `__proto__`…). Choisissez un autre nom. |
 
 ## Erreurs Router
 
 | Code | Description |
 |------|-------------|
-| `ROUTER_NOT_FOUND` | Aucune route ne correspond à la méthode et au chemin demandés. |
-| `ROUTER_DUPLICATE` | Une route avec la même méthode et le même chemin est déjà enregistrée. |
+| `E_ROUTE_NOT_FOUND` | Aucune route ne correspond à la méthode et au chemin demandés (404). |
 
 ## Erreurs Pipeline
 
 | Code | Description |
 |------|-------------|
-| `PIPELINE_STAGE_FAILED` | Une erreur s'est produite à une étape spécifique du pipeline. Vérifiez la position dans le contexte. |
 | `E_PIPELINE_UNKNOWN_MIDDLEWARE` | Une route référence un middleware nommé non enregistré. Enregistrez-le avec `middleware.register()`. |
-| `PIPELINE_ERROR` | Erreur générique de pipeline. Vérifiez l'erreur originale pour les détails. |
+| `E_PIPELINE_DOUBLE_NEXT` | Un middleware a appelé `next()` plus d'une fois. Chaque middleware doit appeler `next()` au plus une fois. |
+| `E_PIPELINE_ERROR` | Un handler a levé une erreur qui ne porte aucun code du framework. L'erreur garde la position de l'étape dans son contexte. |
 
 ## Erreurs Photon
 
@@ -196,42 +201,65 @@ Si tu en vois un, la cause est presque toujours un **render non déterministe** 
 
 ## Erreurs Atlas
 
+Atlas normalise ses codes : un code qui commence déjà par `E_` est gardé, tout
+autre reçoit le préfixe `E_ATLAS_`. Voir [Gestion des erreurs Atlas](../atlas/error-handling.md)
+pour les sous-classes typées.
+
 | Code | Description |
 |------|-------------|
-| `ATLAS_QUERY_ERROR` | La compilation de la requête SQL a échoué. Vérifiez les noms de colonnes et opérateurs. |
-| `ATLAS_NOT_ENTITY` | La classe passée à `BaseRepository` n'est pas décorée avec `@Entity()`. |
-| `ATLAS_INVALID_IDENTIFIER` | Un identifiant SQL contient des caractères illégaux (guillemets doubles ou octets nuls). |
-| `ATLAS_EMPTY_SELECT` | `select()` a été appelé sans colonnes. Fournissez au moins un nom de colonne. |
-| `ATLAS_INVALID_PAGE` | `paginate()` a été appelé avec `page < 1`. |
-| `ATLAS_INVALID_LIMIT` | `limit()` a été appelé avec une valeur négative. |
-| `ATLAS_INVALID_OFFSET` | `offset()` a été appelé avec une valeur négative. |
-| `ATLAS_INVALID_IN` | L'opérateur `IN` ou `NOT IN` requiert un tableau. |
+| `E_ROW_NOT_FOUND` | Une requête qui doit rendre une ligne n'en a trouvé aucune : `findOrFail`, `findByOrFail`, `refresh`, `fresh`, `firstOrFail()`, `sole()`. Porte `status = 404`. |
+| `E_MASS_ASSIGNMENT` | `fill()` / `merge()` (et `create`, `createMany`, `updateOrCreate`) ont affecté un attribut hors de `fillable`, ou listé dans `guarded`. |
+| `E_EXTRA_PROPERTIES` | Un remplissage a nommé une propriété qui n'est pas une colonne déclarée. |
+| `E_MODEL_NOT_PERSISTED` | Une opération qui exige une ligne stockée (`delete()`, `refresh()`, `load*()`…) a tourné sur une instance locale. |
+| `E_MISSING_PRIMARY_KEY` | La même opération a tourné sur une projection persistée qui ne contient pas la clé primaire. |
+| `E_STRICT_MODE` | SQL brut refusé par le mode strict (le `raw()` d'un repository, ou une valeur `db.raw()` écrite par un repository). |
+| `E_ATLAS_EMPTY_SELECT` | `select()` a été appelé sans colonnes. Fournissez au moins un nom de colonne. |
+| `E_ATLAS_INVALID_PAGE` | `paginate()` a été appelé avec `page < 1`. |
+| `E_ATLAS_INVALID_PER_PAGE` | `paginate()` a été appelé avec `perPage < 1`. |
+| `E_ATLAS_INVALID_PAGINATION` | Une page, une taille de page ou un nombre de lignes qui n'est pas un entier fini et positif ou nul. |
+| `E_ATLAS_INVALID_CTE_NAME` | Un nom de CTE doit être un identifiant valide (lettres, chiffres, underscores). |
+| `E_ATLAS_INVALID_OPERATOR` | Un opérateur de `where()` ou `wherePivot()` hors de la liste autorisée. |
+| `E_ATLAS_MIGRATION_INVALID_TABLE_NAME` | `migrations.tableName` n'est pas un identifiant simple. |
+| `E_ATLAS_MIGRATION_NOT_FOUND` | Une migration à exécuter ou à annuler n'a pas de fichier dans le répertoire de migrations. |
+| `E_MIGRATION_LOCKED` | Une autre exécution tient le verrou de migration. Attendez-la, ou libérez un verrou resté bloqué avec `migration:unlock`. |
+| `E_ROLLBACK_DISABLED_IN_PRODUCTION` | Un rollback, reset, refresh, fresh ou wipe en production sans `--force`. |
+| `E_ATLAS_DRY_RUN_WRITE` | Une migration a tenté d'écrire pendant un `dryRun()`. |
 | `E_ATLAS_INSECURE_SSLMODE` | La connexion demande `sslmode=prefer` ou `allow` (URL ou `PGSSLMODE`), qui repassent en clair sans le dire. Utilisez `disable` ou `verify-full`. Voir [Connexions chiffrées](../atlas/connections.md#connexions-chiffrees-tls). |
+| `E_ATLAS_NAPI_NOT_FOUND` | Le compilateur de requêtes Rust n'est pas chargé. Une `Error` simple dont le message commence par le code. Voir [Dépannage](../atlas/troubleshooting.md). |
+| `E_UNSAFE_IDENTIFIER`, `E_UNSAFE_SQL`, `E_UNSAFE_EXPRESSION` | Le compilateur Rust a refusé un identifiant, un fragment SQL ou une expression. Une `Error` simple dont le message commence par le code. |
 
 ## Erreurs Rune
 
 | Code | Description |
 |------|-------------|
-| `RUNE_VALIDATION_FAILED` | La validation du schéma a échoué. Vérifiez `result.errors` pour les détails par champ. |
-| `RUNE_NO_RULE` | `.message()` a été appelé avant qu'une règle ne soit ajoutée à la chaîne. |
+| `E_VALIDATION_ERROR` | `validateOrThrow()` a trouvé des données invalides. Porte `status = 422` et un tableau `messages` avec une entrée par champ et par règle. |
+| `E_RUNE_NAPI_REQUIRED` | Le moteur de validation Rust n'est pas chargé. |
 
 ## Erreurs Warden
 
 | Code | Description |
 |------|-------------|
-| `WARDEN_STRATEGY_NOT_FOUND` | La stratégie d'auth demandée n'est pas enregistrée. Appelez `registerStrategy()` ou vérifiez votre `AuthConfig`. |
-| `WARDEN_INVALID_CONFIG` | Le `defaultStrategy` dans `AuthConfig` n'existe pas dans la map `strategies`. |
-| `WARDEN_UNAUTHORIZED` | Authentification échouée — identifiants ou token invalides. |
-| `WARDEN_JWT_EXPIRED` | Le token JWT a expiré (le claim `exp` est dans le passé). Demandez un nouveau token. |
-| `WARDEN_JWT_NOT_YET_VALID` | Le token JWT n'est pas encore valide (le claim `nbf` est dans le futur). Attendez jusqu'à l'heure `nbf`. |
-| `WARDEN_JWT_SECRET_TOO_SHORT` | Le secret JWT doit faire au moins 32 octets. Utilisez un secret plus long et cryptographiquement aléatoire. |
+| `E_UNAUTHORIZED_ACCESS` | Aucun garde n'a authentifié la requête (401). Une route gardée répond avec ce code. |
+| `E_INVALID_CREDENTIALS` | La classe d'erreur qu'un flux de connexion lève quand les identifiants ne correspondent pas (400). |
+| `E_WARDEN_AUTH_STRATEGY_ERROR` | Tous les gardes tentés ont planté (base de données indisponible, bug) : un incident serveur, répondu en 500, distinct d'un refus d'identifiants. |
+| `E_WARDEN_FORBIDDEN` | L'utilisateur n'a pas une permission ou un rôle que la route déclare (403). |
+| `E_WARDEN_MFA_REQUIRED` | La route déclare `@RequireMfa` et l'utilisateur n'a pas passé l'étape renforcée (403). |
+| `E_WARDEN_AUTHORIZATION_FAILURE` | Une ability ou une policy du bouncer a refusé l'action (403, sauf si la policy donne un autre statut). |
+| `E_WARDEN_NO_AUTH_CONFIG` | `WardenProvider` a démarré sans aucun garde configuré. |
+| `E_WARDEN_NAPI_REQUIRED` | Le moteur JWT Rust n'est pas chargé. |
+| `E_WARDEN_UNAUTHORIZED`, `E_WARDEN_AUTH_ERROR` | Le `expressMiddleware()` autonome n'a trouvé aucun token ou l'a refusé (401), ou a échoué en interne (500). |
 
-
-## Erreurs CLI (`ream` / ream-cli)
+## Erreurs Console
 
 | Code | Description |
 |------|-------------|
-| `REAM_UNKNOWN_TYPE` | Type de générateur inconnu. Disponibles : `service`, `entity`, `controller`, `validator`, `provider`, `migration`. |
+| `E_CONSOLE_COMMAND_NOT_FOUND` | Aucune commande ne porte ce nom. |
+| `E_CONSOLE_MISSING_ARGUMENT` | Un argument obligatoire n'a pas été donné. |
+| `E_CONSOLE_UNEXPECTED_ARGUMENT` | Plus d'arguments que la commande n'en déclare. |
+| `E_CONSOLE_UNKNOWN_FLAG` | Un flag que la commande ne déclare pas. |
+| `E_CONSOLE_MISSING_FLAG` | Un flag obligatoire n'a pas été donné. |
+| `E_CONSOLE_INVALID_FLAG_VALUE` | Une valeur de flag du mauvais type. |
+| `E_CONSOLE_NOT_INTERACTIVE` | Une commande a posé une question alors que stdin n'est pas interactif. Passez la valeur en flag. |
 
 ## Erreurs Temps réel (Relay)
 
@@ -258,9 +286,12 @@ Renvoyées dans le corps JSON des routes relay, ou en événement `error` sur un
 
 | Code | Description |
 |------|-------------|
-| `E_BLACKHOLE_RATE_LIMITED` | Trop de requêtes depuis cette IP. Attendez et réessayez. |
+| `E_BLACKHOLE_RATE_LIMITED` | Trop de requêtes de ce client (429, avec `Retry-After`). Attendez et réessayez. |
+| `E_TOO_MANY_REQUESTS` | Un middleware de throttle ou `limiter.consume()` a trouvé la clé au-delà de son budget (429). |
 | `E_BAD_CSRF_TOKEN` | Token CSRF invalide ou manquant. Renvoyez le cookie `XSRF-TOKEN` dans le header `X-XSRF-TOKEN` (ou le champ de formulaire `_csrf`). |
-| `E_BLACKHOLE_CSRF_ORIGIN_MISMATCH` | Une requête qui modifie l'état vient d'une autre origine — un autre hôte, ou le même hôte sur un autre schéma — absente de `csrf.trustedOrigins`. |
-| `E_BLACKHOLE_PATH_TRAVERSAL` | Le chemin contient `..`, brut ou encodé. |
-| `E_BLACKHOLE_PARAMETER_POLLUTION` | Une clé de la query string apparaît deux fois (les clés en `[]` peuvent se répéter). |
-| `E_BLACKHOLE_MISSING_IP` | La limite de débit est active et la requête n'a pas d'adresse client sous laquelle la compter. |
+| `E_BLACKHOLE_CSRF_ORIGIN_MISMATCH` | Une requête qui modifie l'état vient d'une autre origine — un autre hôte, ou le même hôte sur un autre schéma — absente de `csrf.trustedOrigins` (403). |
+| `E_BLACKHOLE_PATH_TRAVERSAL` | Le chemin contient `..`, brut ou encodé en pourcentage (400). |
+| `E_BLACKHOLE_PARAMETER_POLLUTION` | Une clé de la query string apparaît deux fois (les clés finissant par `[]` peuvent se répéter) (400). |
+| `E_BLACKHOLE_MISSING_IP` | La limite de débit est active et la requête n'a pas d'adresse client sous laquelle la compter (400). |
+| `E_BLACKHOLE_SESSION_NOT_READY` | Les tokens CSRF sont liés à la session (`csrf.session`) et la requête a atteint blackhole sans session : enregistrez le middleware de session avant celui de blackhole (500). |
+| `E_BLACKHOLE_BLOCKED` | Un refus dont le moteur n'a pas fourni le corps sous forme d'erreur JSON. |

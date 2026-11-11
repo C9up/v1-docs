@@ -1,8 +1,10 @@
 # Atlas - Troubleshooting
 
-## `ATLAS_NAPI_NOT_FOUND`
+## `E_ATLAS_NAPI_NOT_FOUND`
 
-Cause: native package not available for current platform/arch.
+Cause: native package not available for current platform/arch. The error is a
+plain `Error` whose message starts with `[E_ATLAS_NAPI_NOT_FOUND]`; it is
+thrown by the first query compiled without the binary.
 
 Actions:
 

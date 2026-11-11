@@ -14,14 +14,14 @@ natif :
 import { AtlasError } from '@c9up/atlas'
 
 class AtlasError extends Error {
-  readonly code: string    // stable, préfixé par `ATLAS_`
+  readonly code: string    // stable, commence toujours par `E_`
   readonly hint?: string   // suggestion optionnelle et actionnable
 }
 ```
 
-Le `code` est normalisé : un code passé sous la forme `E_ENTITY_NOT_FOUND` est
-stocké comme `ATLAS_E_ENTITY_NOT_FOUND` (le préfixe `ATLAS_` est ajouté s'il est
-absent). Attrapez la classe de base pour traiter uniformément n'importe quel
+Le `code` est normalisé : un code qui commence déjà par `E_` est gardé tel quel
+(`E_ROW_NOT_FOUND`, `E_MASS_ASSIGNMENT`), et tout autre reçoit le préfixe
+`E_ATLAS_` (`EMPTY_SELECT` devient `E_ATLAS_EMPTY_SELECT`). Attrapez la classe de base pour traiter uniformément n'importe quel
 échec d'Atlas, ou une sous-classe pour traiter un cas précis :
 
 ```ts
@@ -37,14 +37,18 @@ try {
 
 De nombreux échecs opérationnels sont levés comme un simple `AtlasError` avec un
 code spécifique plutôt que comme une sous-classe dédiée — par exemple
-`ATLAS_E_EXTRA_PROPERTIES` (remplir une colonne non déclarée),
-`ATLAS_E_MODEL_NOT_PERSISTED` et `ATLAS_E_MISSING_PRIMARY_KEY`. Branchez sur
-`err.code` pour ceux-là.
+`E_EXTRA_PROPERTIES` (remplir une colonne non déclarée),
+`E_MODEL_NOT_PERSISTED`, `E_MISSING_PRIMARY_KEY`, `E_STRICT_MODE` (SQL brut
+refusé en mode strict), `E_ROLLBACK_DISABLED_IN_PRODUCTION` et
+`E_ATLAS_MIGRATION_INVALID_TABLE_NAME`. Branchez sur `err.code` pour ceux-là.
 
 ## `EntityNotFoundError`
 
-Levée par les méthodes de recherche « fail-fast » du repository lorsqu'aucune
-ligne ne correspond : `findOrFail` et `findByOrFail`.
+Levée quand une requête qui doit rendre une ligne n'en trouve aucune : les
+`findOrFail`, `findByOrFail`, `refresh` et `fresh` du repository, et
+`firstOrFail()` / `sole()` sur la requête de modèle et sur le builder
+`db.from()`. Son code est `E_ROW_NOT_FOUND` et elle porte `status = 404` : un
+gestionnaire d'exceptions qui ne l'attrape pas répond `404` avec ce code.
 
 ```ts
 import { EntityNotFoundError } from '@c9up/atlas'
@@ -53,7 +57,8 @@ try {
   const user = await users.findOrFail(42)
 } catch (err) {
   if (err instanceof EntityNotFoundError) {
-    err.code        // 'ATLAS_E_ENTITY_NOT_FOUND'
+    err.code        // 'E_ROW_NOT_FOUND'
+    err.status      // 404
     err.entityClass // 'User'
     err.criteria    // { id: 42 }
     return response.notFound()
@@ -64,8 +69,9 @@ try {
 
 | Champ | Type | Description |
 | --- | --- | --- |
-| `entityClass` | `string` | Le nom de la classe du modèle interrogé. |
-| `criteria` | `unknown` | Le critère de recherche (p. ex. `{ id: 42 }` ou `{ email: 'a@b.c' }`). |
+| `status` | `404` | Le statut HTTP par lequel répond un gestionnaire d'exceptions. |
+| `entityClass` | `string \| undefined` | Le nom de la classe du modèle interrogé ; `undefined` pour une requête `db.from()`. |
+| `criteria` | `unknown` | Le critère de recherche (p. ex. `{ id: 42 }` ou `{ email: 'a@b.c' }`), quand la recherche en avait un. |
 
 Les variantes sans `OrFail` (`find`, `findBy`, `first`) renvoient `null` au lieu
 de lever une erreur — utilisez-les lorsqu'une ligne absente est un résultat
@@ -90,7 +96,7 @@ try {
   user.merge({ role: 'admin' }) // bloqué
 } catch (err) {
   if (err instanceof MassAssignmentError) {
-    err.code      // 'ATLAS_E_MASS_ASSIGNMENT'
+    err.code      // 'E_MASS_ASSIGNMENT'
     err.entityClass // 'User'
     err.attribute // 'role'
   }
@@ -121,7 +127,7 @@ import { RelationNotLoadedError } from '@c9up/atlas'
 | `entityClass` | `string` | Le nom de la classe du modèle. |
 | `relationName` | `string` | La relation qui a été accédée. |
 
-Le `hint` pointe vers la correction : `.preload('<relation>')` sur la requête, ou
+Son code est `E_RELATION_NOT_LOADED`. Le `hint` pointe vers la correction : `.preload('<relation>')` sur la requête, ou
 `.load('<relation>')` sur l'instance.
 
 > Statut : la classe d'erreur est exportée et stable, mais le runtime actuel ne
@@ -144,8 +150,8 @@ import { OptimisticLockError } from '@c9up/atlas'
 | `primaryKey` | `unknown` | La clé primaire de la ligne en conflit. |
 | `expectedVersion` | `number` | La version que la sauvegarde s'attendait à écraser. |
 
-Le `hint` décrit la récupération : recharger l'entité, réappliquer vos
-modifications, puis réessayer.
+Son code est `E_OPTIMISTIC_LOCK`. Le `hint` décrit la récupération : recharger
+l'entité, réappliquer vos modifications, puis réessayer.
 
 > Statut : il ne s'agit que de la classe d'erreur. Atlas ne fournit **pas** encore
 > de mécanisme de colonne de version (il n'existe aucun décorateur `@Version()`,
@@ -167,7 +173,7 @@ try {
   await users.create(payload)
 } catch (err) {
   if (err instanceof EntityNotFoundError) return response.notFound()
-  if (err instanceof AtlasError && err.code === 'ATLAS_E_MASS_ASSIGNMENT') {
+  if (err instanceof AtlasError && err.code === 'E_MASS_ASSIGNMENT') {
     return response.forbidden()
   }
   throw err
