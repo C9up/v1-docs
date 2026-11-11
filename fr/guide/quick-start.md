@@ -34,15 +34,16 @@ import { defineConfig } from '@c9up/ream'
 
 export default defineConfig({
   providers: [
+    () => import('@c9up/ream/events/provider'),
     () => import('./providers/AppProvider.js'),
   ],
   preloads: [
     () => import('./start/kernel.js'),
   ],
   modules: {
-    // Charge routes.ts depuis chaque sous-répertoire de app/modules/
+    // Charge routes.ts et events.ts depuis chaque sous-répertoire de app/modules/
     path: './app/modules',
-    autoload: ['routes'],
+    autoload: ['routes', 'events'],
   },
 })
 ```
@@ -106,16 +107,16 @@ import { Entity, Column, PrimaryKey, BaseEntity } from '@c9up/atlas'
 @Entity('tasks')
 export class Task extends BaseEntity {
   @PrimaryKey()
-  id!: string
+  declare id: string
 
   @Column()
-  title!: string
+  declare title: string
 
   @Column()
-  done!: boolean
+  declare done: boolean
 
   @Column()
-  createdAt!: Date
+  declare createdAt: Date
 }
 ```
 
@@ -265,6 +266,60 @@ router.post('/api/login', async ({ request, response }) => {
   // La stratégie JWT rend le jeton signé sur l'utilisateur qu'elle a authentifié.
   response.json({ data: { token: result.user.token } })
 })
+```
+
+### Événements du module
+
+Quand une tâche est créée, vous pouvez émettre un événement typé. Ajoutez une classe d'événement, un listener et un fichier de câblage `events.ts` à côté des routes.
+
+```typescript
+// app/modules/task/events/TaskCreated.ts
+import { BaseEvent } from '@c9up/ream/events'
+
+export default class TaskCreated extends BaseEvent {
+  constructor(
+    public taskId: string,
+    public title: string,
+  ) {
+    super()
+  }
+}
+```
+
+```typescript
+// app/modules/task/listeners/LogTaskCreated.ts
+import { inject, Inject } from '@c9up/ream'
+import { Logger } from '@c9up/spectrum'
+import type TaskCreated from '../events/TaskCreated.js'
+
+@inject()
+export default class LogTaskCreated {
+  constructor(@Inject('logger') private logger: Logger) {}
+
+  async handle(event: TaskCreated) {
+    this.logger.info(`Task created: ${event.taskId} — "${event.title}"`)
+  }
+}
+```
+
+```typescript
+// app/modules/task/events.ts
+import app from '@c9up/ream/services/app'
+import { Emitter } from '@c9up/ream/events'
+import TaskCreated from './events/TaskCreated.js'
+import LogTaskCreated from './listeners/LogTaskCreated.js'
+
+const emitter = await app.container.make(Emitter)
+emitter.on(TaskCreated, LogTaskCreated)
+```
+
+Puis émettez-le depuis `TaskService.create()` :
+
+```typescript
+// Dans TaskService.create()
+this.store.push(task)
+TaskCreated.dispatch(task.id, task.title)
+return task
 ```
 
 ---
@@ -510,7 +565,7 @@ curl -s http://localhost:3000/api/tasks | jq .
 1. `bin/server.ts` a construit un `Ignitor` avec le manifeste `reamrc.ts`.
 2. La phase **register** de l'Ignitor a chargé `config/auth.ts`, `config/database.ts`, `config/logger.ts` dans `app.config`, puis appelé `AppProvider.register()` — liant `AuthManager` dans le conteneur.
 3. La phase **boot** a appelé `AppProvider.boot()`.
-4. La phase **start** a importé `start/kernel.ts` (enregistrant l'`AuthMiddleware` global) puis chargé automatiquement `app/modules/auth/routes.ts` (la route de connexion) et `app/modules/task/routes.ts` (enregistrant les cinq routes de tâches).
+4. La phase **start** a importé `start/kernel.ts` (enregistrant l'`AuthMiddleware` global) puis chargé automatiquement `app/modules/auth/routes.ts` (la route de connexion), `app/modules/task/routes.ts` (enregistrant les cinq routes de tâches) et `app/modules/task/events.ts` (reliant `TaskCreated` à `LogTaskCreated`).
 5. La phase **ready** a démarré le HyperServer. Chaque requête transite par le pipeline de middlewares : l'`AuthMiddleware` global → le `.guard('jwt')` de la route (routes protégées seulement) → contrôleur.
 6. Le conteneur a résolu `TasksController` par requête, injectant automatiquement son singleton `TaskService`.
 
@@ -522,3 +577,4 @@ curl -s http://localhost:3000/api/tasks | jq .
 - [Routing](/fr/guide/routing) — Groupes de routes, guards, matchers de paramètres, routes nommées
 - [Warden](/fr/modules/warden) — Auth multi-stratégies, RBAC, détails JWT
 - [Atlas](/fr/modules/atlas) — Remplacer le stockage en mémoire par une vraie base de données
+- [Bus d'événements](/fr/ream/events) — Système d'événements typé complet avec Emitter et BaseEvent

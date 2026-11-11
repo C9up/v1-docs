@@ -133,9 +133,9 @@ import { Entity, Column, PrimaryKey, BaseEntity } from '@c9up/atlas'
 
 @Entity('tasks')
 export class Task extends BaseEntity {
-  @PrimaryKey() id!: string
-  @Column() title!: string
-  @Column() done!: boolean
+  @PrimaryKey() declare id: string
+  @Column() declare title: string
+  @Column() declare done: boolean
 }
 ```
 
