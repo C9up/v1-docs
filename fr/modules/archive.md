@@ -68,6 +68,99 @@ const meta = await storage.getMetaData('avatars/1.png')  // alias de getMetadata
 Le disque que nomme `default` est celui que renvoie `drive.use()` ; rien ne
 fait de `fs` le disque par défaut si la configuration ne le dit pas.
 
+## Visibilité et URLs signées
+
+Chaque objet stocké est `public` ou `private`. Passez `visibility` à
+l'écriture, ou changez-la ensuite :
+
+```ts
+await disk.put('invoices/42.pdf', bytes, { visibility: 'private' })
+await disk.setVisibility('avatars/1.png', 'public')
+const visibility = await disk.getVisibility('invoices/42.pdf') // 'private'
+```
+
+Sur le disque local, un fichier sans marqueur de visibilité est `public` ; un
+fichier rendu privé porte un marqueur à côté de lui. Sur S3, la visibilité est
+l'ACL de l'objet (`public-read` ou `private`), et un objet dont l'ACL ne se lit
+pas compte comme privé.
+
+`url(path)` suit la visibilité : un fichier public reçoit son URL simple, un
+fichier privé une URL signée. `getSignedUrl(path, { expiresIn })` signe
+explicitement ; `expiresIn` est un nombre de secondes ou une durée en texte
+(`'30m'`, `'7 days'`), 5 minutes par défaut, entre 1 seconde et 7 jours :
+
+```ts
+const link = await disk.getSignedUrl('invoices/42.pdf', { expiresIn: '30m' })
+```
+
+Le disque local signe avec son `signingSecret` (HMAC-SHA256). Sans lui,
+`getSignedUrl` lève `E_ARCHIVE_SIGNING_DISABLED` ; les autres méthodes
+fonctionnent toujours.
+
+### Servir le disque local
+
+Un disque local construit ses URLs sous son `routeBasePath` — `/storage` sauf
+si `services.fs({ routeBasePath })` dit autre chose. Rien ne sert ce chemin
+tant que vous ne montez pas la route signée de `@c9up/archive/signed-route`.
+Elle lit le préfixe sur le driver, sert les fichiers publics, refuse un fichier
+privé sauf si l'URL porte une signature valide, et envoie le fichier en flux
+avec un ETag :
+
+```ts
+// start/storage.ts
+import { LocalDriver, StorageManager } from '@c9up/archive'
+import { createSignedRouteHandler } from '@c9up/archive/signed-route'
+import env from '#start/env'
+
+export const driver = new LocalDriver('storage/uploads', {
+  signingSecret: env.get('APP_KEY'),
+})
+export const uploads = new StorageManager(driver)
+export const serveUploads = createSignedRouteHandler({ storage: uploads, driver })
+```
+
+```ts
+// start/kernel.ts
+import { serveUploads } from '#start/storage'
+
+server.use([serveUploads])
+```
+
+Le handler lève dès sa construction quand le driver n'a pas de
+`signingSecret`, et répond `E_ARCHIVE_PREFIX_MISMATCH` quand une option
+`prefix` contredit le `routeBasePath` du driver (laissez `prefix` de côté).
+Une requête refusée reçoit un corps JSON `{ error: { code, message } }` :
+
+| Statut | Code | Quand |
+| --- | --- | --- |
+| 403 | `E_ARCHIVE_INVALID_SIGNATURE` | La signature, son expiration ou une surcharge d'en-tête signée est mal formée ou ne correspond pas |
+| 403 | `E_ARCHIVE_EXPIRED_SIGNATURE` | La signature est valide mais son `exp` est dépassé |
+| 403 | `E_ARCHIVE_ACCESS_DENIED` | Une requête non signée vers un fichier privé |
+| 403 | `E_ARCHIVE_INVALID_KEY` | Le chemin ne nomme aucune clé que le disque adresse |
+| 404 | `E_ARCHIVE_NOT_FOUND` | Une signature valide pour un fichier qui n'est pas stocké |
+
+Une requête non signée vers un nom qui n'est pas stocké passe au middleware
+suivant.
+
+### Fichiers statiques
+
+`StaticMiddleware` sert un répertoire de ressources (`root`), sous `prefix`
+(`/static` par défaut), avec un `max-age` réglé par `maxAge` (0 par défaut : le
+navigateur garde les octets et les revalide par l'ETag) :
+
+```ts
+import { StaticMiddleware } from '@c9up/archive'
+
+const assets = new StaticMiddleware({ root: 'public', prefix: '/assets' })
+server.use([assets.handle.bind(assets)])
+```
+
+Pointez-le uniquement sur des ressources publiques, jamais sur le répertoire
+d'un disque local. Il ne vérifie aucune signature : il refuse un fichier dont
+le marqueur de visibilité dit privé et ne sert jamais les marqueurs eux-mêmes,
+mais tout le reste sous `root` est servi à quiconque le demande. Les fichiers
+privés passent par la route signée.
+
 ## Envoyer depuis le système de fichiers local
 
 ```ts
