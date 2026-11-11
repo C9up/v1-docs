@@ -60,7 +60,12 @@ const meta = await storage.getMetaData('avatars/1.png')  // alias of getMetadata
 
 ## Drivers
 
-- `local`: filesystem-backed, default driver
+- `services.fs`: the local filesystem (`LocalDriver`)
+- `services.s3`: S3 and S3-compatible object stores (`S3Driver`)
+- `services.gcs`: Google Cloud Storage (`GcsDriver`)
+
+The disk `default` names is the one `drive.use()` returns; nothing makes `fs`
+the default unless the config says so.
 
 ## Uploading from the local filesystem
 

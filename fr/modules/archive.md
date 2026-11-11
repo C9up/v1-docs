@@ -61,7 +61,12 @@ const meta = await storage.getMetaData('avatars/1.png')  // alias de getMetadata
 
 ## Drivers
 
-- `local`: adossé au système de fichiers, driver par défaut
+- `services.fs` : le système de fichiers local (`LocalDriver`)
+- `services.s3` : S3 et les stockages compatibles S3 (`S3Driver`)
+- `services.gcs` : Google Cloud Storage (`GcsDriver`)
+
+Le disque que nomme `default` est celui que renvoie `drive.use()` ; rien ne
+fait de `fs` le disque par défaut si la configuration ne le dit pas.
 
 ## Envoyer depuis le système de fichiers local
 
