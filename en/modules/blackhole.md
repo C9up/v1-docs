@@ -25,7 +25,12 @@ Every adapter shares one pipeline (`./core`): there is no duplicated security lo
 ```ts
 // Ream — config/blackhole.ts + start/kernel.ts (what `ream configure` writes)
 server.use([() => import('@c9up/blackhole/server_middleware')])
-router.use([() => import('@c9up/blackhole/middleware')])
+router.use([
+  () => import('@c9up/ream/bodyparser_middleware'),
+  () => import('@c9up/ream/session_middleware'),
+  // After the session: CSRF tokens are bound to it.
+  () => import('@c9up/blackhole/middleware'),
+])
 
 // Hono
 import { blackholeHono } from '@c9up/blackhole/hono'
@@ -52,6 +57,13 @@ limit is taken on the router tier instead: the key may read what a router
 middleware sets, such as the authenticated user. Registered alone, the
 router-tier middleware runs every check, as before.
 
+The router-tier middleware goes **after** the body parser and the session
+middleware: the CSRF check reads `_csrf` from the parsed body, and the token is
+bound to the session. `ream configure` appends it at the end of the router tier
+for that reason. When the application has a session config
+(`config/session.ts`) and blackhole runs first, every request is refused with
+`E_BLACKHOLE_SESSION_NOT_READY` rather than given a token bound to nothing.
+
 Hono has no runtime-neutral client address: pass `clientIp` (the default reads
 the socket of `@hono/node-server`). The scheme and host compared with the Origin
 are the request URL's; behind a proxy, pass `protocol` and `host`.
@@ -63,12 +75,12 @@ are the request URL's; behind a proxy, pass `protocol` and `host`.
 HTTP Request →  │ CORS → rate-limit → path-traversal →        │ → your handler
                 │ param-pollution → CSRF (all in Rust)        │
                 └─────────────────────────────────────────────┘
-                ┌─ response phase ───────────────┐
-your handler →  │ security headers → XSS sanitize │ → HTTP Response
-                └─────────────────────────────────┘
+                ┌─ response phase ─────────────────────────────┐
+your handler →  │ security headers → XSS sanitize (xss: true)  │ → HTTP Response
+                └──────────────────────────────────────────────┘
 ```
 
-The request-filter checks run in Rust (rejected requests are answered before your handler). Security headers + CORS are computed in the thin TS facade (header logic, not CPU-bound). XSS sanitization runs on the **response** body.
+The request-filter checks run in Rust (rejected requests are answered before your handler). Security headers + CORS are computed in the thin TS facade (header logic, not CPU-bound). XSS sanitization, when `xss` is on, runs on the **response** body.
 
 ## Configuration
 
@@ -78,7 +90,7 @@ Declare it in `config/blackhole.ts` (booted by the provider):
 import { defineConfig } from '@c9up/blackhole'
 
 export default defineConfig({
-  xss: true,                                  // response sanitization (default: true)
+  xss: false,                                 // sanitize every text/html fragment sent (default: false)
   csrf: true,                                 // or a { exceptRoutes, methods, cookie } object
   rateLimit: { max: 100, windowSeconds: 60 }, // omit to disable
   pathTraversal: true,                        // reject `..` / `%2e%2e` (default: true)
@@ -89,8 +101,8 @@ export default defineConfig({
 })
 ```
 
-With defaults, XSS sanitization, CSRF validation and every protective header
-are on; rate limiting and CORS are off until configured. The config
+With defaults, CSRF validation and every protective header are on; the
+automatic XSS pass, rate limiting and CORS are off until configured. The config
 `ream configure` writes has `csrf: true`.
 
 ## Security headers
@@ -166,14 +178,33 @@ method or a header outside the allowed ones gets no CORS headers.
 
 ## XSS Sanitization
 
-Outgoing **response** bodies are sanitized with [ammonia](https://crates.io/crates/ammonia) (the html5ever parser used by Firefox/Servo), not naive entity escaping:
+`sanitizeResponse(body, contentType)` cleans a `text/html` body as untrusted
+markup — what to call on user input before storing or echoing it. It always
+sanitizes, whatever `xss` says:
 
-- `text/html` fragments are parsed and rebuilt from an allow-list: dangerous nodes are removed (`<script>`, `on*` handlers, `javascript:` URIs), and any tag outside the list — custom elements and web components included — is unwrapped, its content kept. Existing entities are never double-encoded.
-- Every other content type (`text/plain`, JSON, CSV…) is sent unchanged: with `X-Content-Type-Options: nosniff` (a default header) the browser never reads it as markup, and escaping it would only corrupt it.
-- A server-rendered **full document** (opening with `<!doctype>` or `<html>`) is left intact — ammonia is for fragments, and treating a whole document as one would strip its wrappers.
-- Fragments lose `id`, `is`, `slot`, `part` and `data-*`: `<a id="config">` shadows `window.config` (DOM clobbering), `is` builds a customized element, client-side frameworks read bindings from `data-*`, and `slot`/`part` reach into shadow DOM. Opt back in only when nothing reads them from untrusted markup: `xss: { allowAttributes: ['id', 'data-*'] }`.
+```ts
+import { createBlackhole } from '@c9up/blackhole'
 
-Request query strings and bodies are **not** mutated; user input is neutralized where it is rendered (the response), not silently rewritten on the way in.
+const filter = createBlackhole({ csrf: false })
+const safe = filter.sanitizeResponse(comment.body, 'text/html')
+```
+
+It uses [ammonia](https://crates.io/crates/ammonia) (the html5ever parser used by Firefox/Servo), not naive entity escaping:
+
+- `text/html` fragments are parsed and rebuilt from an allow-list: scripts, styles, frames and event handlers go (`<script>`, `on*` handlers, `javascript:` URIs), and so do forms, inputs, buttons, SVG and media; any tag outside the list — custom elements and web components included — is unwrapped, its content kept. Existing entities are never double-encoded.
+- Every other content type (`text/plain`, JSON, CSV…) is returned unchanged: with `X-Content-Type-Options: nosniff` (a default header) the browser never reads it as markup, and escaping it would only corrupt it.
+- Fragments lose `id`, `is`, `slot`, `part` and `data-*`: `<a id="config">` shadows `window.config` (DOM clobbering), `is` builds a customized element, client-side frameworks read bindings from `data-*`, and `slot`/`part` reach into shadow DOM.
+
+`xss: true` runs the same pass over every `text/html` fragment the application
+sends; a server-rendered **full document** (opening with `<!doctype>` or
+`<html>`) is left intact. It is **off by default**: the application's own
+partials — an HTMX form with its `_csrf` field, an `<svg>` icon, a `<video>` —
+would lose everything outside the allow-list. Turn it on only where every
+fragment may carry untrusted markup. The object form turns it on and opts
+attributes back in, for when nothing reads them from untrusted markup:
+`xss: { allowAttributes: ['id', 'data-*'] }`.
+
+Request query strings and bodies are **not** mutated; user input is neutralized where it is stored or rendered, not silently rewritten on the way in.
 
 ## CSRF Protection
 
@@ -181,12 +212,20 @@ Stateless **signed double-submit cookie** validation (HMAC-SHA256). The `XSRF-TO
 
 Signing is what makes this *signed* double-submit (the OWASP-recommended shape): a naive double-submit accepts any self-consistent pair, so an attacker who can plant an `XSRF-TOKEN` cookie (a sibling subdomain, a MITM on an HTTP sibling) could forge one. A signed token can't be forged without the secret.
 
-**Bound to the session.** Under the Ream middleware, when the request has a
-session, the signature also covers a per-session secret (`csrf-secret`, kept in
-the session): a token issued to one session is refused for any other, and dies
-with its session. The session middleware must run before blackhole's router
-middleware. The standalone adapters have no session; there, the token is signed
-but bound to nothing, and the Origin check below is what stops a replayed one.
+**Bound to the session.** Under the Ream middleware, with the session
+middleware registered before blackhole's, the signature also covers a
+per-session secret (`csrf-secret`, kept in the session): a token issued to one
+session is refused for any other, and dies with its session. The secret is
+replaced whenever the session is regenerated — at login and at logout — so a
+token issued before either is refused after it, and the response carries a new
+one. The standalone adapters have no session; there, the token is signed but
+bound to nothing, and the Origin check below is what stops a replayed one.
+
+`csrf.session` makes the binding mandatory: a request that reaches the check
+without a session is refused with `E_BLACKHOLE_SESSION_NOT_READY` (500). The
+Ream provider turns it on when the application has a session config; set
+`csrf: { session: false }` for an application whose CSRF-protected routes run
+without one.
 
 ::: warning Requires a secret (breaking)
 When CSRF is enabled, a `secret` is **required**. `createBlackhole({ csrf: true })` without a secret **throws** — there is no silent fallback to an unsigned token. Pass `secret: env.get('APP_KEY')` in `config/blackhole.ts` (the provider also falls back to `process.env.APP_KEY`). `secret` takes a string or a `Secret`, such as the one `Env.schema.secret()` returns: it is released once, when the filter is built, so the config keeps it wrapped. The secret must be a stable, high-entropy value (use your `APP_KEY`) and **shared across instances** — tokens signed by one instance must verify on another.

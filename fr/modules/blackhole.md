@@ -25,7 +25,12 @@ Tous les adaptateurs partagent un seul pipeline (`./core`) : aucune logique de s
 ```ts
 // Ream — config/blackhole.ts + start/kernel.ts (ce qu'écrit `ream configure`)
 server.use([() => import('@c9up/blackhole/server_middleware')])
-router.use([() => import('@c9up/blackhole/middleware')])
+router.use([
+  () => import('@c9up/ream/bodyparser_middleware'),
+  () => import('@c9up/ream/session_middleware'),
+  // Après la session : les tokens CSRF lui sont liés.
+  () => import('@c9up/blackhole/middleware'),
+])
 
 // Hono
 import { blackholeHono } from '@c9up/blackhole/hono'
@@ -53,6 +58,13 @@ router : la clé peut lire ce qu'un middleware router pose, comme l'utilisateur
 authentifié. Inscrit seul, le middleware du tier router fait tous les
 contrôles, comme avant.
 
+Le middleware du tier router passe **après** le body parser et le middleware
+de session : le contrôle CSRF lit `_csrf` dans le corps parsé, et le token est
+lié à la session. C'est pourquoi `ream configure` l'ajoute à la fin du tier
+router. Quand l'application a une config de session (`config/session.ts`) et
+que blackhole passe en premier, chaque requête est refusée avec
+`E_BLACKHOLE_SESSION_NOT_READY` plutôt que de recevoir un token lié à rien.
+
 Hono n'a pas d'adresse client indépendante du runtime : passe `clientIp` (par
 défaut, la socket de `@hono/node-server`). Le schéma et l'hôte comparés à
 l'Origin sont ceux de l'URL de la requête ; derrière un proxy, passe `protocol`
@@ -65,12 +77,12 @@ et `host`.
 Requête HTTP →  │ CORS → rate-limit → path-traversal →        │ → ton handler
                 │ param-pollution → CSRF (tout en Rust)       │
                 └─────────────────────────────────────────────┘
-                ┌─ phase réponse ────────────────┐
-ton handler →   │ headers de sécurité → XSS       │ → Réponse HTTP
-                └─────────────────────────────────┘
+                ┌─ phase réponse ───────────────────────────┐
+ton handler →   │ headers de sécurité → XSS (xss: true)     │ → Réponse HTTP
+                └───────────────────────────────────────────┘
 ```
 
-Les vérifications du filtre de requête s'exécutent en Rust (les requêtes rejetées sont répondues avant ton handler). Les headers de sécurité + CORS sont calculés dans la fine façade TS (logique de headers, pas CPU-bound). La sanitization XSS s'applique au corps de la **réponse**.
+Les vérifications du filtre de requête s'exécutent en Rust (les requêtes rejetées sont répondues avant ton handler). Les headers de sécurité + CORS sont calculés dans la fine façade TS (logique de headers, pas CPU-bound). La sanitization XSS, quand `xss` est activé, s'applique au corps de la **réponse**.
 
 ## Configuration
 
@@ -80,7 +92,7 @@ Déclarée dans `config/blackhole.ts` (bootée par le provider) :
 import { defineConfig } from '@c9up/blackhole'
 
 export default defineConfig({
-  xss: true,                                  // sanitization de la réponse (défaut : true)
+  xss: false,                                 // sanitize chaque fragment text/html envoyé (défaut : false)
   csrf: true,                                 // ou un objet { exceptRoutes, methods, cookie }
   rateLimit: { max: 100, windowSeconds: 60 }, // omettre pour désactiver
   pathTraversal: true,                        // rejette `..` / `%2e%2e` (défaut : true)
@@ -91,9 +103,9 @@ export default defineConfig({
 })
 ```
 
-Par défaut, la sanitization XSS, la validation CSRF et chaque en-tête de
-protection sont **activés** ; le rate limiting et le CORS sont désactivés tant
-qu'ils ne sont pas configurés. La config qu'écrit `ream configure` a
+Par défaut, la validation CSRF et chaque en-tête de protection sont
+**activés** ; la passe XSS automatique, le rate limiting et le CORS sont
+désactivés tant qu'ils ne sont pas configurés. La config qu'écrit `ream configure` a
 `csrf: true`.
 
 ## En-têtes de protection
@@ -172,14 +184,34 @@ hors de ceux autorisés ne reçoit aucun en-tête CORS.
 
 ## Sanitization XSS
 
-Les corps de **réponse** sortants sont sanitizés avec [ammonia](https://crates.io/crates/ammonia) (le parser html5ever utilisé par Firefox/Servo), pas un échappement naïf d'entités :
+`sanitizeResponse(body, contentType)` nettoie un corps `text/html` comme du
+markup non fiable — c'est ce qu'on appelle sur une entrée utilisateur avant de
+la stocker ou de la renvoyer. Elle sanitize toujours, quoi que dise `xss` :
 
-- les fragments `text/html` sont parsés et reconstruits à partir d'une liste blanche : les nœuds dangereux sont retirés (`<script>`, handlers `on*`, URIs `javascript:`), et toute balise hors de la liste — éléments custom et web components compris — est déballée, son contenu gardé. Les entités existantes ne sont jamais double-encodées.
-- tout autre type de contenu (`text/plain`, JSON, CSV…) est envoyé tel quel : avec `X-Content-Type-Options: nosniff` (un en-tête par défaut), le navigateur ne le lit jamais comme du markup, et l'échapper ne ferait que le corrompre.
-- un **document complet** rendu côté serveur (commençant par `<!doctype>` ou `<html>`) est laissé intact — ammonia est fait pour des fragments, et traiter un document entier en stripperait les wrappers.
-- les fragments perdent `id`, `is`, `slot`, `part` et `data-*` : `<a id="config">` masque `window.config` (DOM clobbering), `is` fabrique un élément personnalisé, les frameworks côté client lisent des liaisons dans `data-*`, et `slot`/`part` atteignent le shadow DOM. Ne les réactive que si rien ne les lit dans du markup non fiable : `xss: { allowAttributes: ['id', 'data-*'] }`.
+```ts
+import { createBlackhole } from '@c9up/blackhole'
 
-Les query strings et corps de requête ne sont **pas** modifiés ; l'entrée utilisateur est neutralisée là où elle est rendue (la réponse), pas réécrite silencieusement à l'entrée.
+const filter = createBlackhole({ csrf: false })
+const safe = filter.sanitizeResponse(comment.body, 'text/html')
+```
+
+Elle utilise [ammonia](https://crates.io/crates/ammonia) (le parser html5ever utilisé par Firefox/Servo), pas un échappement naïf d'entités :
+
+- les fragments `text/html` sont parsés et reconstruits à partir d'une liste blanche : scripts, styles, frames et handlers d'événements disparaissent (`<script>`, handlers `on*`, URIs `javascript:`), de même que formulaires, champs, boutons, SVG et médias ; toute balise hors de la liste — éléments custom et web components compris — est déballée, son contenu gardé. Les entités existantes ne sont jamais double-encodées.
+- tout autre type de contenu (`text/plain`, JSON, CSV…) est rendu tel quel : avec `X-Content-Type-Options: nosniff` (un en-tête par défaut), le navigateur ne le lit jamais comme du markup, et l'échapper ne ferait que le corrompre.
+- les fragments perdent `id`, `is`, `slot`, `part` et `data-*` : `<a id="config">` masque `window.config` (DOM clobbering), `is` fabrique un élément personnalisé, les frameworks côté client lisent des liaisons dans `data-*`, et `slot`/`part` atteignent le shadow DOM.
+
+`xss: true` applique la même passe à chaque fragment `text/html` que
+l'application envoie ; un **document complet** rendu côté serveur (commençant
+par `<!doctype>` ou `<html>`) est laissé intact. Elle est **désactivée par
+défaut** : les partiels de l'application elle-même — un formulaire HTMX avec son
+champ `_csrf`, une icône `<svg>`, une `<video>` — perdraient tout ce qui sort de
+la liste blanche. Ne l'active que là où chaque fragment peut porter du markup
+non fiable. La forme objet l'active et réautorise des attributs, quand rien ne
+les lit dans du markup non fiable :
+`xss: { allowAttributes: ['id', 'data-*'] }`.
+
+Les query strings et corps de requête ne sont **pas** modifiés ; l'entrée utilisateur est neutralisée là où elle est stockée ou rendue, pas réécrite silencieusement à l'entrée.
 
 ## Protection CSRF
 
@@ -187,13 +219,21 @@ Validation **double-submit cookie signé** sans état (HMAC-SHA256). Le cookie `
 
 La signature est ce qui en fait un double-submit *signé* (la forme recommandée par l'OWASP) : un double-submit naïf accepte n'importe quelle paire auto-cohérente, donc un attaquant capable de poser un cookie `XSRF-TOKEN` (un sous-domaine frère, un MITM sur un frère HTTP) pourrait en forger un. Un token signé ne peut pas être forgé sans le secret.
 
-**Lié à la session.** Sous le middleware Ream, quand la requête a une session,
-la signature couvre aussi un secret propre à la session (`csrf-secret`, gardé
-dans la session) : un token émis pour une session est refusé pour toute autre,
-et meurt avec sa session. Le middleware de session doit passer avant le
-middleware router de blackhole. Les adaptateurs autonomes n'ont pas de
-session : le token y est signé mais lié à rien, et c'est le contrôle de
-l'origine ci-dessous qui arrête un token rejoué.
+**Lié à la session.** Sous le middleware Ream, avec le middleware de session
+inscrit avant celui de blackhole, la signature couvre aussi un secret propre à
+la session (`csrf-secret`, gardé dans la session) : un token émis pour une
+session est refusé pour toute autre, et meurt avec sa session. Le secret est
+remplacé chaque fois que la session est régénérée — au login et au logout — :
+un token émis avant l'un ou l'autre est refusé après, et la réponse en porte un
+nouveau. Les adaptateurs autonomes n'ont pas de session : le token y est signé
+mais lié à rien, et c'est le contrôle de l'origine ci-dessous qui arrête un
+token rejoué.
+
+`csrf.session` rend le lien obligatoire : une requête qui atteint le contrôle
+sans session est refusée avec `E_BLACKHOLE_SESSION_NOT_READY` (500). Le
+provider Ream l'active quand l'application a une config de session ; pose
+`csrf: { session: false }` pour une application dont les routes protégées par
+CSRF tournent sans.
 
 ::: warning Nécessite un secret (breaking)
 Quand le CSRF est activé, un `secret` est **obligatoire**. `createBlackhole({ csrf: true })` sans secret **throw** — il n'y a aucun fallback silencieux vers un token non signé. Passe `secret: env.get('APP_KEY')` dans `config/blackhole.ts` (le provider retombe aussi sur `process.env.APP_KEY`). `secret` prend une chaîne ou un `Secret`, comme celui que renvoie `Env.schema.secret()` : il est libéré une seule fois, à la construction du filtre, et la config le garde enveloppé. Le secret doit être une valeur stable à haute entropie (utilise ton `APP_KEY`) et **partagée entre les instances** — un token signé par une instance doit se vérifier sur une autre.
