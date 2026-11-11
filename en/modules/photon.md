@@ -403,9 +403,7 @@ on every `<script>` of the page, so a strict policy works as is in production:
 ```ts
 // config/blackhole.ts
 export default defineConfig({
-  securityHeaders: {
-    csp: { directives: { 'script-src': ['@nonce', "'strict-dynamic'"] } },
-  },
+  csp: { directives: { 'script-src': ['@nonce', "'strict-dynamic'"] } },
 })
 ```
 
@@ -419,12 +417,10 @@ development only:
 const vite = app.inDev ? ['http://localhost:5173', 'ws://localhost:5173'] : []
 
 export default defineConfig({
-  securityHeaders: {
-    csp: {
-      directives: {
-        'script-src': ["'self'", ...vite],
-        'connect-src': ["'self'", ...vite],
-      },
+  csp: {
+    directives: {
+      'script-src': ["'self'", ...vite],
+      'connect-src': ["'self'", ...vite],
     },
   },
 })

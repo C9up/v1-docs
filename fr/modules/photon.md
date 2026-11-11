@@ -411,9 +411,7 @@ fonctionne telle quelle :
 ```ts
 // config/blackhole.ts
 export default defineConfig({
-  securityHeaders: {
-    csp: { directives: { 'script-src': ['@nonce', "'strict-dynamic'"] } },
-  },
+  csp: { directives: { 'script-src': ['@nonce', "'strict-dynamic'"] } },
 })
 ```
 
@@ -427,12 +425,10 @@ deux cas, le rechargement à chaud ouvre un WebSocket vers Vite, que
 const vite = app.inDev ? ['http://localhost:5173', 'ws://localhost:5173'] : []
 
 export default defineConfig({
-  securityHeaders: {
-    csp: {
-      directives: {
-        'script-src': ["'self'", ...vite],
-        'connect-src': ["'self'", ...vite],
-      },
+  csp: {
+    directives: {
+      'script-src': ["'self'", ...vite],
+      'connect-src': ["'self'", ...vite],
     },
   },
 })
