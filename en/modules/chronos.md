@@ -122,7 +122,17 @@ new DateTime('2026-08-10T12:00:00', 'Europe/Paris').toISO() // 2026-08-10T12:00:
 DateTime.fromISO('2026-08-10T12:00', { zone: 'America/New_York' })
 DateTime.fromObject({ year: 2026, month: 8, day: 10, hour: 9 }, { zone: 'Europe/Paris' })
 DateTime.fromSQL('2026-08-10 12:00:00+00')                  // PostgreSQL timestamptz text
+DateTime.fromFormat('10/08/2026 09:30', 'dd/MM/yyyy HH:mm', { zone: 'Europe/Paris' })
 ```
+
+`fromFormat` reads the tokens `toFormat` writes (`yyyy`, `MM`, `dd`, `HH`,
+`LLL`, `EEEE`, `a`, `ZZ`, `z`, `'quoted text'`, macros such as `D` or `f`),
+with month and day names in `{ locale }` (en-US by default). The units the
+format leaves out are filled in: the larger ones from now, the smaller ones at
+their minimum — `'14:30'` read as `'HH:mm'` is today at 14:30, `'August'` read
+as `'MMMM'` is August 1st of this year. An offset or a zone written in the text
+sets the instant; the result is in `{ zone }`. Text that does not match the
+format, or names a date that does not exist, throws.
 
 Values outside years 0000-9999 are refused when they are built, and
 `fromObject` checks every field (`minute: 90` and `hour: 1.5` are errors; year
@@ -215,7 +225,7 @@ june.length('week')   // 4.285714285714286
 - `Chronos.buildRRule(rule)`
 
 `DateTime`:
-- Building: `from`, `now`, `local`, `utc`, `fromISO`, `fromObject`, `fromSQL`, `fromMillis`, `fromJSDate`, `fromRFC2822`, `fromHTTP`
+- Building: `from`, `now`, `local`, `utc`, `fromISO`, `fromObject`, `fromSQL`, `fromFormat`, `fromMillis`, `fromJSDate`, `fromRFC2822`, `fromHTTP`
 - Arithmetic: `plus`, `minus` (an amount and a unit, or a `Duration`), `diff` (a `Duration`), `set`
 - Boundaries: `startOf`, `endOf`
 - Zone and locale: `setZone` (with `keepLocalTime`), `toUTC`, `setLocale`

@@ -122,7 +122,18 @@ new DateTime('2026-08-10T12:00:00', 'Europe/Paris').toISO() // 2026-08-10T12:00:
 DateTime.fromISO('2026-08-10T12:00', { zone: 'America/New_York' })
 DateTime.fromObject({ year: 2026, month: 8, day: 10, hour: 9 }, { zone: 'Europe/Paris' })
 DateTime.fromSQL('2026-08-10 12:00:00+00')                  // texte timestamptz de PostgreSQL
+DateTime.fromFormat('10/08/2026 09:30', 'dd/MM/yyyy HH:mm', { zone: 'Europe/Paris' })
 ```
+
+`fromFormat` lit les jetons qu'écrit `toFormat` (`yyyy`, `MM`, `dd`, `HH`,
+`LLL`, `EEEE`, `a`, `ZZ`, `z`, `'texte entre apostrophes'`, macros comme `D`
+ou `f`), avec les noms de mois et de jours dans `{ locale }` (en-US par
+défaut). Les unités absentes du format sont complétées : les plus grandes
+d'après maintenant, les plus petites à leur minimum — `'14:30'` lu avec
+`'HH:mm'` est aujourd'hui à 14 h 30, `'August'` lu avec `'MMMM'` est le
+1er août de cette année. Un décalage ou un fuseau écrit dans le texte fixe
+l'instant ; le résultat est dans `{ zone }`. Un texte qui ne correspond pas au
+format, ou qui nomme une date inexistante, lève une erreur.
 
 Les valeurs hors des années 0000-9999 sont refusées dès leur construction, et
 `fromObject` contrôle chaque champ (`minute: 90` et `hour: 1.5` sont des
@@ -217,7 +228,7 @@ june.length('week')   // 4.285714285714286
 - `Chronos.buildRRule(rule)`
 
 `DateTime`:
-- Construction: `from`, `now`, `local`, `utc`, `fromISO`, `fromObject`, `fromSQL`, `fromMillis`, `fromJSDate`, `fromRFC2822`, `fromHTTP`
+- Construction: `from`, `now`, `local`, `utc`, `fromISO`, `fromObject`, `fromSQL`, `fromFormat`, `fromMillis`, `fromJSDate`, `fromRFC2822`, `fromHTTP`
 - Arithmetique: `plus`, `minus` (une quantite et une unite, ou une `Duration`), `diff` (une `Duration`), `set`
 - Bornes: `startOf`, `endOf`
 - Fuseau et locale: `setZone` (avec `keepLocalTime`), `toUTC`, `setLocale`
