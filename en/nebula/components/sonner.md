@@ -2,7 +2,7 @@
 
 Transient notifications, the way shadcn ships them: a region mounted once near the root of the app, and a `toast` function callable from anywhere — an event handler, a form's error branch, a service — with no handle threaded down to it. The API is sonner's: the same `toast` methods, the same options, the same Toaster props and the same defaults — four seconds on screen, three toasts visible, a 14 px gap, 356 px wide, <kbd>Alt</kbd>+<kbd>T</kbd> to reach the region. The look is shadcn's: the popover surface and the lucide icons.
 
-Toasts pile up behind the newest one, scaled down, and fan out while the pointer is over them — which also holds every timer, so a toast being read does not vanish. The stack is computed into inline styles rather than driven by an injected stylesheet, so it works under every adapter.
+Toasts pile up behind the newest one, scaled down, and fan out while the pointer is over them — which also holds every timer, so a toast being read does not vanish. The stack is computed into style properties rather than driven by an injected stylesheet, so it works under every adapter. They are written through the CSSOM, never as a `style` attribute, so a strict Content-Security-Policy — no `'unsafe-inline'`, as blackhole sends by default — leaves them alone. The server writes no properties: until the page hydrates, the list is already `fixed` through a class, and it is empty anyway, since toasts are raised on the client.
 
 ```sh
 ream nebula:add sonner

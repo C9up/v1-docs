@@ -1,6 +1,6 @@
 # Resizable
 
-Two panes and a divider between them, dragged with the pointer or moved with the keyboard. The split is one number — the first pane's share, in percent — driving both panes through `flex-basis`: with one source of truth the two panes can never disagree about their sizes. The handle captures the pointer while it drags, so a fast drag that outruns the few-pixel divider keeps going instead of dropping.
+Two panes and a divider between them, dragged with the pointer or moved with the keyboard. The split is one number — the first pane's share, in percent — driving both panes through `flex-basis`: with one source of truth the two panes can never disagree about their sizes. The share is written through the CSSOM rather than as a `style` attribute, which a Content-Security-Policy without `'unsafe-inline'` blocks; the server writes no such property, so until the page hydrates both panes split the room evenly. The handle captures the pointer while it drags, so a fast drag that outruns the few-pixel divider keeps going instead of dropping.
 
 Two panes, not any number: a deliberate difference from shadcn, whose resizable groups distribute sizes across any count of panels, persist them, and collapse a panel to zero. A third `ResizablePanel` in a group has no share of its own; nest a group inside a pane for three. Nothing is persisted either — `onResize` reports every new split, and you store it where you like.
 

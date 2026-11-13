@@ -1,8 +1,8 @@
 # AspectRatio
 
-A box that keeps its width-to-height ratio as its width changes: a photo in a grid, a video frame, a map. It is the CSS `aspect-ratio` property and nothing more — no padding-percentage trick and no JavaScript measuring — set inline, because the ratio is any number and cannot be a utility class.
+A box that keeps its width-to-height ratio as its width changes: a photo in a grid, a video frame, a map. No JavaScript measures it: the height comes from an empty SVG whose `viewBox` carries the ratio, and an SVG at full width is exactly as tall as its viewBox says. The ratio is any number, so it cannot be a utility class, and it is not a `style` attribute either — a Content-Security-Policy without `'unsafe-inline'` blocks those, and a style set by script only lands once the page hydrates. A `viewBox` is in the server's markup and no policy touches it, so the box has its height from the first paint.
 
-The box is `relative w-full`: its width comes from its container and its height from the ratio. Content fills it with `h-full w-full`, or positions itself `absolute inset-0` inside it.
+The box is `relative w-full`: its width comes from its container and its height from the ratio. The content sits in a layer laid `absolute inset-0` over it; it fills that layer with `h-full w-full`, or positions itself `absolute inset-0` too.
 
 ```sh
 ream nebula:add aspect-ratio

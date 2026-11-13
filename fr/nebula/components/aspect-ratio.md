@@ -1,8 +1,8 @@
 # AspectRatio
 
-Une boîte qui garde son rapport largeur/hauteur quand sa largeur change : une photo dans une grille, un cadre vidéo, une carte. C'est la propriété CSS `aspect-ratio` et rien de plus — ni astuce de remplissage en pourcentage, ni mesure en JavaScript — posée en ligne, parce que le rapport est un nombre quelconque et ne peut pas être une classe utilitaire.
+Une boîte qui garde son rapport largeur/hauteur quand sa largeur change : une photo dans une grille, un cadre vidéo, une carte. Aucun JavaScript ne la mesure : la hauteur vient d'un SVG vide dont le `viewBox` porte le rapport, et un SVG en pleine largeur est exactement aussi haut que son viewBox le dit. Le rapport est un nombre quelconque, il ne peut donc pas être une classe utilitaire, et ce n'est pas non plus un attribut `style` : une Content-Security-Policy sans `'unsafe-inline'` les bloque, et un style posé par script n'arrive qu'à l'hydratation. Un `viewBox` est dans le balisage du serveur et aucune politique n'y touche : la boîte a sa hauteur dès le premier affichage.
 
-La boîte est `relative w-full` : sa largeur vient de son conteneur, sa hauteur du rapport. Le contenu la remplit avec `h-full w-full`, ou se positionne en `absolute inset-0` à l'intérieur.
+La boîte est `relative w-full` : sa largeur vient de son conteneur, sa hauteur du rapport. Le contenu est posé dans une couche en `absolute inset-0` par-dessus ; il la remplit avec `h-full w-full`, ou se positionne lui aussi en `absolute inset-0`.
 
 ```sh
 ream nebula:add aspect-ratio

@@ -1,6 +1,6 @@
 # Progress
 
-Une barre de progression déterminée : quelle part d'un tout connu est faite. Le remplissage est une barre pleine largeur décalée vers la gauche de ce qui reste, pas une largeur qui grandit — une transformation est composée hors du fil principal, alors qu'animer `width` recalcule la mise en page de la barre à chaque image, et cela se voit sur un long envoi.
+Une barre de progression déterminée : quelle part d'un tout connu est faite. Le remplissage est une barre pleine largeur décalée vers la gauche de ce qui reste, pas une largeur qui grandit — une transformation est composée hors du fil principal, alors qu'animer `width` recalcule la mise en page de la barre à chaque image, et cela se voit sur un long envoi. La barre est une forme SVG déplacée par son attribut `transform`, pas par un attribut `style` : une Content-Security-Policy sans `'unsafe-inline'` bloque ce dernier, et le balisage du serveur montre déjà la bonne quantité avant l'hydratation.
 
 Une `value` à `null` signifie que la quantité est inconnue. La barre retire alors `aria-valuenow`, qui est la façon dont ARIA dit « progression inconnue » ; annoncer `0` à la place dirait à l'utilisateur que le travail n'a pas commencé.
 
@@ -57,7 +57,7 @@ La barre reste vide et ne dessine aucun mouvement propre ; pour une activité sa
 Progress({ value: 72, class: 'h-1' })
 ```
 
-`class` est fusionnée dans les classes de la piste : une hauteur en conflit l'emporte. Le remplissage est `bg-primary`, et la piste la même couleur à 20 %.
+`class` est fusionnée dans les classes de la piste : une hauteur en conflit l'emporte. Le remplissage est `fill-primary`, et la piste `bg-primary` à 20 %.
 
 ## API
 

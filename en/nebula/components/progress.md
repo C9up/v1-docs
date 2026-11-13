@@ -1,6 +1,6 @@
 # Progress
 
-A determinate progress bar: how much of a known whole is done. The fill is a full-width bar slid left by what remains, not a growing width — a transform is composited off the main thread, where animating `width` lays the bar out again on every frame, and that shows on a long upload.
+A determinate progress bar: how much of a known whole is done. The fill is a full-width bar slid left by what remains, not a growing width — a transform is composited off the main thread, where animating `width` lays the bar out again on every frame, and that shows on a long upload. The bar is an SVG shape moved by its `transform` attribute rather than a `style` attribute: a Content-Security-Policy without `'unsafe-inline'` blocks the latter, and the server's markup already shows the right amount before the page hydrates.
 
 A `value` of `null` means the amount is unknown. The bar then drops `aria-valuenow`, which is how ARIA says "progress unknown"; reporting `0` instead would tell the user the work has not started.
 
@@ -57,7 +57,7 @@ The bar stays empty and draws no motion of its own; for an activity with no meas
 Progress({ value: 72, class: 'h-1' })
 ```
 
-`class` is merged into the track's classes, so a conflicting height wins. The fill is `bg-primary` and the track the same colour at 20 %.
+`class` is merged into the track's classes, so a conflicting height wins. The fill is `fill-primary` and the track `bg-primary` at 20 %.
 
 ## API
 
