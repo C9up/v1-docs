@@ -100,7 +100,7 @@ const taken = await lock.acquire({
 
 `acquire()` without options waits indefinitely. `timeout: 0` means "do not wait", and `timeout: null` means "no deadline".
 
-The options are checked before the store is asked anything (`E_ECLIPSE_INVALID_RETRY`): `attempts` is a positive integer or `Infinity`, `delay` a duration from 0 to about 24.8 days, `timeout` a duration of 0 or more. A `NaN` from an unset environment variable would otherwise remove the deadline and poll the store every millisecond.
+The options are checked before the store is asked anything (`E_ECLIPSE_INVALID_RETRY`): `attempts` is a positive integer or `Infinity`, `delay` a duration from 0 to about 24.8 days, `timeout` a finite duration of 0 or more (`Infinity` is refused: "no deadline" is `null`). A `NaN` from an unset environment variable would otherwise remove the deadline and poll the store every millisecond.
 
 ### Across a process boundary
 

@@ -100,7 +100,7 @@ const taken = await lock.acquire({
 
 `acquire()` sans options attend indéfiniment. `timeout: 0` signifie « ne pas attendre », et `timeout: null` « pas d'échéance ».
 
-Les options sont vérifiées avant toute question au store (`E_ECLIPSE_INVALID_RETRY`) : `attempts` est un entier positif ou `Infinity`, `delay` une durée de 0 à environ 24,8 jours, `timeout` une durée de 0 ou plus. Sinon, un `NaN` venu d'une variable d'environnement absente supprimerait l'échéance et interrogerait le store à chaque milliseconde.
+Les options sont vérifiées avant toute question au store (`E_ECLIPSE_INVALID_RETRY`) : `attempts` est un entier positif ou `Infinity`, `delay` une durée de 0 à environ 24,8 jours, `timeout` une durée finie de 0 ou plus (`Infinity` est refusé : « pas d'échéance » s'écrit `null`). Sinon, un `NaN` venu d'une variable d'environnement absente supprimerait l'échéance et interrogerait le store à chaque milliseconde.
 
 ### D'un processus à l'autre
 
