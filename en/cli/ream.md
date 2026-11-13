@@ -463,13 +463,30 @@ never loaded produces no line, by design.
 
 ### The debug toolbar
 
-Every HTML page served in development carries a bar at the bottom: the status,
-how long the request took, how many queries it ran and how long they took, the
-heap, and the message of anything that was thrown.
+Every HTML page served in development carries a bar at the bottom. The page is
+pushed up by the bar's height, so nothing at the bottom of the page ends up
+underneath it. Each item has a summary on hover and opens a panel on click:
 
-Click any of it and the full profile opens: the SQL of each statement with its
-bindings and the model it came from, the route and the controller that answered,
-the lines logged while it ran, and the stack when it failed.
+| Item | On the bar | In the panel |
+|---|---|---|
+| request | status, method, route | route, pattern, controller, params, query string, body, headers, cookie names, session, user, response status and headers |
+| time | total duration | a timeline: the request, each query, each log line, each event |
+| mem | heap used | heap used and total, resident memory, growth during the request |
+| db | statements and their total time | each statement with its bindings, model, method, connection and start time; duplicates marked and countable, failed ones in red; filter, slowest first, copy |
+| logs | errors, else warnings, else lines | each line with its level and context; filter by level and text |
+| events | events emitted | each event with its payload; filter by name |
+| cache | operations | hits, misses and writes, with keys |
+| mail | messages | each `mail:*` event with its payload |
+| ajax | requests the page made | each `fetch` and `XMLHttpRequest` with method, status and time; click one to show its profile on the bar |
+| ream | framework version | Node.js version, environment, platform, process |
+
+Payloads are capped in depth and size, and the value of any key that names a
+secret (`password`, `token`, `authorization`, `cookie`, `apiKey`…) is replaced
+by `[redacted]`. Cookies are listed by name only.
+
+The bar remembers whether it is open, which panel was showing, its height (drag
+the top edge) and whether it was hidden (`✕`, then the small `R` button brings
+it back). `↗` opens the full profile.
 
 ```
 /__ream/profiler                 every request kept, newest first
@@ -477,27 +494,23 @@ the lines logged while it ran, and the stack when it failed.
 ```
 
 Each response also carries its token in an `X-Debug-Token` header, which is how
-a client that is not a page — an API call, a test — finds the profile of the
-request it just made.
+the bar follows the page's own `fetch` calls, and how a client that is not a
+page — an API call, a test — finds the profile of the request it just made.
+
+The bar is a script and a stylesheet served from `/__ream/profiler/_assets/`,
+with nothing inline, so a `Content-Security-Policy` of `default-src 'self'`
+runs and styles it.
 
 The last 50 requests are kept, in memory, and the bar is injected only in
 development. A production response is byte-for-byte what the handler produced.
 
 #### The query panel
 
-Queries reach the profiler as `db:query` events on the application's emitter,
-which a connection only emits when it is asked to:
-
-```ts
-// config/database.ts
-export default {
-  url: env.get('DATABASE_URL'),
-  debug: app.inDev,
-}
-```
-
-Without it the panel reads "No query" whatever the request did. A data layer
-other than atlas gets the same panel by emitting the same event.
+Queries reach the profiler as `db:query` events on the application's emitter.
+In development, atlas reports every statement, so the panel needs no
+configuration. A connection's `debug` flag now only decides what
+`prettyPrintDebugQueries` prints in the terminal. A data layer other than atlas
+gets the same panel by emitting the same event.
 
 #### The log panel
 
@@ -505,6 +518,13 @@ Log lines arrive the same way, as `log:line`. `@c9up/spectrum` bridges its own
 registry onto the emitter when the container has one, so an application logging
 through `ctx.logger` gets the panel with no configuration. The panel is absent
 from a request that logged nothing.
+
+#### The events panel
+
+Every event emitted while the request ran is listed, cache operations and mail
+included, read synchronously as it is emitted so each one lands on the request
+that caused it. Queries and log lines have their own panels and are not
+repeated there.
 
 ## Keys and integrations
 

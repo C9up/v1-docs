@@ -49,6 +49,7 @@ interface DbQueryEvent {
   method?: string                // the call that produced it (`exec`, `first`, `paginate`, …)
   ddl?: boolean                  // true for schema statements (migrations)
   inTransaction?: boolean        // true when the statement ran inside an interactive transaction
+  debug?: boolean                // whether `debug` or `.debug()` asked for it (false: reported only in development)
   error?: Error                  // set when the statement threw — the event is emitted either way
   reporterData?: Record<string, unknown> // metadata attached via `query.reporterData({...})`
 }
@@ -130,6 +131,14 @@ export default {
 
 With no subscriber, nothing is emitted either way — so `debug: true` on a
 connection with no `onDbQuery` listener costs nothing.
+
+### In development — every statement
+
+When the process runs in development (`REAM_ENV`, else `NODE_ENV`), every
+statement is reported whatever `debug` says, so the dev profiler can count and
+show them. Such an event carries `debug: false`, and the
+`prettyPrintDebugQueries` printer skips it: the terminal still shows only what
+`debug` asked for. Production and tests are unchanged.
 
 ## Bridging to your app's emitter
 

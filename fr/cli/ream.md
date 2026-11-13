@@ -475,13 +475,31 @@ un fichier que l'app n'a jamais chargé ne produit aucune ligne, c'est voulu.
 
 ### La barre de debug
 
-Toute page HTML servie en développement porte une barre en bas : le statut, le
-temps de la requête, le nombre de requêtes SQL et leur durée, le tas mémoire, et
-le message de ce qui a été levé le cas échéant.
+Toute page HTML servie en développement porte une barre en bas. La page est
+décalée de la hauteur de la barre : rien en bas de la page ne se retrouve
+dessous. Chaque élément montre un résumé au survol et ouvre un panneau au clic :
 
-Un clic dessus ouvre le profil complet : le SQL de chaque statement avec ses
-paramètres et le modèle d'où il vient, la route et le contrôleur qui ont
-répondu, les lignes loguées pendant l'exécution, et la stack en cas d'échec.
+| Élément | Sur la barre | Dans le panneau |
+|---|---|---|
+| request | statut, méthode, route | route, motif, contrôleur, paramètres, query string, corps, en-têtes, noms des cookies, session, utilisateur, statut et en-têtes de la réponse |
+| time | durée totale | une timeline : la requête, chaque requête SQL, chaque ligne de log, chaque événement |
+| mem | tas utilisé | tas utilisé et total, mémoire résidente, croissance pendant la requête |
+| db | requêtes SQL et leur durée totale | chaque requête avec ses paramètres, son modèle, sa méthode, sa connexion et son instant de départ ; doublons signalés et comptés, échecs en rouge ; filtre, plus lentes d'abord, copie |
+| logs | erreurs, sinon avertissements, sinon lignes | chaque ligne avec son niveau et son contexte ; filtre par niveau et par texte |
+| events | événements émis | chaque événement avec son contenu ; filtre par nom |
+| cache | opérations | hits, misses et écritures, avec les clés |
+| mail | messages | chaque événement `mail:*` avec son contenu |
+| ajax | requêtes faites par la page | chaque `fetch` et `XMLHttpRequest` avec méthode, statut et durée ; un clic affiche son profil dans la barre |
+| ream | version du framework | version de Node.js, environnement, plateforme, processus |
+
+Les contenus sont bornés en profondeur et en taille, et la valeur de toute clé
+qui désigne un secret (`password`, `token`, `authorization`, `cookie`,
+`apiKey`…) est remplacée par `[redacted]`. Les cookies ne sont listés que par
+leur nom.
+
+La barre retient si elle est ouverte, le panneau affiché, sa hauteur (glisser le
+bord du haut) et si elle est masquée (`✕`, puis le petit bouton `R` pour la
+retrouver). `↗` ouvre le profil complet.
 
 ```
 /__ream/profiler                 toutes les requêtes gardées, la plus récente d'abord
@@ -489,8 +507,13 @@ répondu, les lignes loguées pendant l'exécution, et la stack en cas d'échec.
 ```
 
 Chaque réponse porte aussi son token dans un en-tête `X-Debug-Token` : c'est
-ainsi qu'un client qui n'est pas une page — un appel d'API, un test — retrouve
-le profil de la requête qu'il vient de faire.
+ainsi que la barre suit les appels `fetch` de la page, et qu'un client qui n'est
+pas une page — un appel d'API, un test — retrouve le profil de la requête qu'il
+vient de faire.
+
+La barre est un script et une feuille de style servis depuis
+`/__ream/profiler/_assets/`, sans rien d'inline : une
+`Content-Security-Policy` en `default-src 'self'` l'exécute et la met en forme.
 
 Les 50 dernières requêtes sont gardées, en mémoire, et la barre n'est injectée
 qu'en développement. Une réponse de production est octet pour octet ce que le
@@ -499,19 +522,11 @@ handler a produit.
 #### Le panneau des requêtes SQL
 
 Les requêtes arrivent au profiler sous forme d'événements `db:query` sur
-l'émetteur de l'application, qu'une connexion n'émet que si on le lui demande :
-
-```ts
-// config/database.ts
-export default {
-  url: env.get('DATABASE_URL'),
-  debug: app.inDev,
-}
-```
-
-Sans ça le panneau affiche « No query » quoi qu'ait fait la requête. Une autre
-couche de données que atlas obtient le même panneau en émettant le même
-événement.
+l'émetteur de l'application. En développement, atlas rapporte chaque requête :
+le panneau ne demande aucune configuration. Le flag `debug` d'une connexion ne
+décide plus que de ce que `prettyPrintDebugQueries` affiche dans le terminal.
+Une autre couche de données que atlas obtient le même panneau en émettant le
+même événement.
 
 #### Le panneau des logs
 
@@ -519,6 +534,13 @@ Les lignes de log arrivent de la même façon, en `log:line`. `@c9up/spectrum`
 branche son propre registre sur l'émetteur quand le conteneur en expose un :
 une application qui logue via `ctx.logger` a donc le panneau sans configuration.
 Le panneau est absent d'une requête qui n'a rien logué.
+
+#### Le panneau des événements
+
+Chaque événement émis pendant la requête y figure, opérations de cache et mails
+compris. Il est lu au moment même de l'émission, donc chacun est rattaché à la
+requête qui l'a causé. Les requêtes SQL et les lignes de log ont leurs propres
+panneaux et n'y sont pas répétées.
 
 ## Clés et intégrations
 

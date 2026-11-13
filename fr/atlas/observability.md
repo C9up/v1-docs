@@ -52,6 +52,7 @@ interface DbQueryEvent {
   method?: string                // l'appel qui l'a produite (`exec`, `first`, `paginate`, …)
   ddl?: boolean                  // true pour les instructions de schéma (migrations)
   inTransaction?: boolean        // true quand l'instruction a tourné dans une transaction interactive
+  debug?: boolean                // si `debug` ou `.debug()` l'a demandée (false : rapportée seulement en développement)
   error?: Error                  // défini quand l'instruction a échoué — l'événement est émis dans tous les cas
   reporterData?: Record<string, unknown> // métadonnées attachées via `query.reporterData({...})`
 }
@@ -136,6 +137,15 @@ export default {
 
 Sans abonné, rien n'est émis dans tous les cas — donc `debug: true` sur une
 connexion sans écouteur `onDbQuery` ne coûte rien.
+
+### En développement — chaque instruction
+
+Quand le processus tourne en développement (`REAM_ENV`, sinon `NODE_ENV`),
+chaque instruction est rapportée quel que soit `debug`, pour que le profiler de
+développement puisse les compter et les montrer. Un tel événement porte
+`debug: false`, et l'imprimante `prettyPrintDebugQueries` l'ignore : le
+terminal ne montre toujours que ce que `debug` a demandé. Production et tests
+inchangés.
 
 ## Brancher sur l'émetteur de ton application
 
