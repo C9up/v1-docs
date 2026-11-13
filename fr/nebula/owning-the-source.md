@@ -29,4 +29,6 @@ La copie va dans un seul sens. Un correctif publié ici n'atteint jamais un proj
 | `conflict` | les deux ont bougé |
 | `unknown` | copié avant que l'empreinte existe — impossible de dire quel côté a bougé |
 
+Le rapport se termine par une commande `ream nebula:add --force …` pour les fichiers `outdated`, prête à coller. Elle nomme des composants, jamais des fichiers : un fichier partagé comme `lib/icons.ts` ou `primitives/menu.ts` n'a pas de nom à lui et suit un composant installé qui s'en sert. Un composant n'est proposé que si rien de ce qu'il recopierait — ses fichiers et ceux des composants qu'il entraîne — n'est `edited`, `conflict` ou `unknown` : la commande n'écrase rien de vous. Un fichier en retard que seuls des composants modifiés portent est listé à part, à comparer à la main.
+
 Lancez-le à chaque montée de version du paquet. Un `primitives/presence.ts` copié puis oublié sur plusieurs versions, c'est ainsi qu'un overlay garde un comportement corrigé en amont : la copie est antérieure au délai borné qui démonte une surface dont l'`animationend` n'arrive jamais, et les dialogues fermés restent dans le document en fond plein écran invisible. Ce fichier appartient à seize composants d'overlay, donc rien dans le symptôme ne le désigne.

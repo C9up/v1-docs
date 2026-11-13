@@ -29,4 +29,6 @@ Copying is one way. A fix released here never reaches a project on its own, and 
 | `conflict` | both moved |
 | `unknown` | copied before the record existed — no way to tell which side moved |
 
+The report ends with a `ream nebula:add --force …` command for the `outdated` files, ready to paste. It lists component names, never files: a shared file such as `lib/icons.ts` or `primitives/menu.ts` has no name of its own and comes along with a component you installed that uses it. A component is only suggested when nothing it would re-copy — its files and those of the components it pulls in — is `edited`, `conflict` or `unknown`, so the command overwrites nothing of yours. An outdated file that only edited components carry is listed apart, to compare by hand.
+
 Run it when you upgrade the package. A copied `primitives/presence.ts` left behind across several releases is how an overlay keeps behaviour that was fixed upstream: the copy predates the deadline that removes a surface whose `animationend` never arrives, so closed dialogs stay in the document as invisible full-screen backdrops. The file is part of sixteen overlay components, so nothing about the symptom points at it.
