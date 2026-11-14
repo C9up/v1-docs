@@ -231,7 +231,7 @@ Holds the state and renders the wrapper (`flex min-h-svh w-full`) around the sid
 | `children` | `Parts` | — | The `Sidebar` and the page, built in `() =>`. |
 | `defaultOpen` | `boolean` | `true` | The starting state when there is no cookie yet. Only the first provider on the page sets it. |
 | `open` | `Reactive<boolean>` | — | The state, controlled. |
-| `onOpenChange` | `(open: boolean) => void` | — | Called when the provider changes the state: <kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + <kbd>B</kbd>, closing the mobile sheet, `useSidebar().setOpen`. |
+| `onOpenChange` | `(open: boolean) => void` | — | Called when the provider changes the column's state: <kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + <kbd>B</kbd> on a wide screen, `useSidebar().setOpen`. The mobile sheet has a state of its own and does not call it. |
 | `class` | `Reactive<string>` | — | Merged into the wrapper's classes; where `--sidebar-width` and `--sidebar-width-icon` go. |
 
 ### Sidebar
@@ -444,11 +444,13 @@ A nested `<ul>`, ruled on its left. Hidden while collapsed to icons.
 
 | Member | Type | Description |
 |---|---|---|
-| `open` | `() => boolean` | Whether it is open — the controlled `open` when there is one. |
+| `open` | `() => boolean` | Whether the column is open — the controlled `open` when there is one. |
+| `openMobile` | `() => boolean` | Whether the sheet is open on a phone. Closed on every load and never persisted, so a column left open does not cover a phone's page. |
 | `isMobile` | `() => boolean` | Whether the viewport is under 768 px, where the sidebar is a sheet. |
 | `state` | `() => 'expanded' \| 'collapsed'` | `open`, as the word written to `data-state`. |
 | `setOpen` | `(next: boolean) => void` | Sets the shared state and calls `onOpenChange`. |
-| `toggleSidebar` | `() => void` | Flips the shared state and calls `onOpenChange`. |
+| `setOpenMobile` | `(next: boolean) => void` | Opens or closes the sheet on a phone. |
+| `toggleSidebar` | `() => void` | Flips the sheet on a phone; on a wide screen, flips the shared state and calls `onOpenChange`. |
 
 ### sidebarState and sidebarCollapsed
 

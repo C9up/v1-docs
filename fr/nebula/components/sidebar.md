@@ -231,7 +231,7 @@ Tient l'état et rend l'enveloppe (`flex min-h-svh w-full`) autour de la barre e
 | `children` | `Parts` | — | La `Sidebar` et la page, construites dans `() =>`. |
 | `defaultOpen` | `boolean` | `true` | L'état de départ tant qu'il n'y a pas de cookie. Seul le premier fournisseur de la page le fixe. |
 | `open` | `Reactive<boolean>` | — | L'état, contrôlé. |
-| `onOpenChange` | `(open: boolean) => void` | — | Appelée quand le fournisseur change l'état : <kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + <kbd>B</kbd>, fermeture du panneau mobile, `useSidebar().setOpen`. |
+| `onOpenChange` | `(open: boolean) => void` | — | Appelée quand le fournisseur change l'état de la colonne : <kbd>Cmd</kbd>/<kbd>Ctrl</kbd> + <kbd>B</kbd> sur grand écran, `useSidebar().setOpen`. Le panneau mobile a son propre état et ne l'appelle pas. |
 | `class` | `Reactive<string>` | — | Fusionnée dans les classes de l'enveloppe ; c'est là que vont `--sidebar-width` et `--sidebar-width-icon`. |
 
 ### Sidebar
@@ -444,11 +444,13 @@ Un `<ul>` imbriqué, souligné d'un filet à gauche. Masqué quand la barre est 
 
 | Membre | Type | Description |
 |---|---|---|
-| `open` | `() => boolean` | Si elle est ouverte — le `open` contrôlé quand il y en a un. |
+| `open` | `() => boolean` | Si la colonne est ouverte — le `open` contrôlé quand il y en a un. |
+| `openMobile` | `() => boolean` | Si le panneau est ouvert sur un téléphone. Fermé à chaque chargement et jamais persisté : une colonne laissée ouverte ne recouvre pas la page d'un téléphone. |
 | `isMobile` | `() => boolean` | Si la fenêtre fait moins de 768 px, là où la barre est un panneau. |
 | `state` | `() => 'expanded' \| 'collapsed'` | `open`, sous la forme du mot écrit dans `data-state`. |
 | `setOpen` | `(next: boolean) => void` | Fixe l'état partagé et appelle `onOpenChange`. |
-| `toggleSidebar` | `() => void` | Bascule l'état partagé et appelle `onOpenChange`. |
+| `setOpenMobile` | `(next: boolean) => void` | Ouvre ou ferme le panneau sur un téléphone. |
+| `toggleSidebar` | `() => void` | Bascule le panneau sur un téléphone ; sur grand écran, bascule l'état partagé et appelle `onOpenChange`. |
 
 ### sidebarState et sidebarCollapsed
 
