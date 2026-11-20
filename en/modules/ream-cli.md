@@ -173,6 +173,8 @@ export default {
 
 Output is line-prefixed per process, and when one stops the other is stopped with it — a Ctrl-C leaves no orphan watcher holding the output file, and a command that cannot start takes down whatever had already started. This is what spares an app from wiring `concurrently -k` itself.
 
+Each process gets its own stdin: a pipe `ream dev` keeps open and never writes to, which ends when `ream dev` does. A watcher that stops at the end of its input — `tailwindcss --watch` does, so as not to outlive whoever started it — keeps watching for the whole session, whether `ream dev` runs in a terminal or with its output sent to a file, and still exits on its own if `ream dev` is killed. No `--watch=always` needed. The terminal itself stays with `ream dev`.
+
 `ream build` runs the assets **first** and stops there if they fail, rather than shipping a dist with a stale stylesheet.
 
 Both keys are optional: with no `assets`, `ream dev` and `ream build` behave exactly as before, with the server owning the terminal.

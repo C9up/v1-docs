@@ -229,6 +229,19 @@ await container.call(handler, 'handle', [mySpecificReportService])
 // position 0 uses mySpecificReportService; position 1 is still injected
 ```
 
+TypeScript only emits a method's parameter types when the method carries a decorator, so put `@inject()` on the method itself — a controller action, a command's `run()`, a listener's `handle()` — to inject a service there without widening the constructor:
+
+```typescript
+export default class UsersController {
+  @inject()
+  async index(ctx: HttpContext, users: UserService) {
+    return users.findAll()
+  }
+}
+```
+
+The runtime values (`ctx` here) fill the first slots; every slot left open is resolved by its type. `@inject()` on a method does not register the class.
+
 ## `static containerInjections` — without `emitDecoratorMetadata`
 
 Runtimes that do not emit TypeScript decorator metadata (Bun native, esbuild without the plugin, some ESM environments) cannot use `Reflect.getMetadata('design:paramtypes', ...)`. Declare a static `containerInjections` property as a fallback — the container reads it with priority.
@@ -254,6 +267,29 @@ export default class UsersController {
 ```
 
 The shape must match `{ _constructor: { dependencies: ServiceToken[] } }`. This convention works in any runtime.
+
+A method's dependencies take the same shape under the method's name — `{ handle: { dependencies: [String, UserService] } }` — and `container.call()` reads them.
+
+## Conditional bindings — `container.if()`
+
+A binding chosen per resolution by a predicate: a feature flag, a per-tenant implementation. The conditions are tried in registration order and the first that holds answers; when none does, the regular binding (or the class itself) does.
+
+```typescript
+container.bind(PaymentGateway, () => new StripeGateway())
+container.if((resolver, runtimeValues, parent) => flags.beta).bind(PaymentGateway, () => new BetaGateway())
+container.if(() => tenant.isLegacy).singleton(PaymentGateway, () => new LegacyGateway())
+```
+
+The condition receives the resolver, the runtime values given to `make()` (a class's own dependencies get none) and the class asking (`null` for a direct `make()`); it may be async. A conditional `singleton` keeps one instance per branch — except one built from a request-scoped value, which stays that request's. `container.conditionalBinding(condition, token, factory, isSingleton)` is the same in one call. A swap still wins over it.
+
+## Observing resolutions — `useEmitter()`
+
+```typescript
+container.useEmitter(emitter) // or new Container({ emitter })
+emitter.on('container_binding:resolved', ({ binding, value }) => { /* … */ })
+```
+
+Every resolution emits `container_binding:resolved` with the binding and the value — what a profiler or telemetry panel lists a request's services from. A throwing or rejecting emitter never fails the resolution it reports on.
 
 ## Testing — `swap()` and `restore()`
 

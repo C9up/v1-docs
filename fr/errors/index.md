@@ -86,6 +86,7 @@ Levées par les exceptions de `@c9up/ream` et par son serveur HTTP natif. Les re
 | `E_RESPONSE_TOO_LARGE` | — | Un corps de réponse dépasse le plafond configuré. Les corps sont gardés entiers en mémoire : servez un gros fichier en flux ou depuis le stockage. |
 | `E_BODYPARSER_CONFIG` | — | La configuration du body parser utilise une option qui n'est plus prise en charge. |
 | `E_BODYPARSER_INVALID_SIZE` | — | Une limite de taille de corps n'est ni un nombre d'octets ni une taille comme `'1mb'`. |
+| `E_BODYPARSER_INVALID_JSON` | 400 / 422 | Un corps JSON est mal formé (400), ou, avec `json.strict`, n'est ni un objet ni un tableau (422). |
 | `E_HTTP_REQUEST_TIMEOUT` | 408 | Le serveur natif n'a pas reçu le corps de la requête à temps. |
 | `E_REQUEST_ABORTED` | 400 | Le client a fermé la connexion pendant la lecture du corps. |
 | `E_BAD_MULTIPART` | 400 | Un corps `multipart/form-data` est mal formé, ou son paramètre `boundary` manque. |
@@ -124,6 +125,11 @@ Levées pendant l'assemblage, la configuration et le démarrage de l'application
 | `E_SERVER_GRPC_ALREADY_SET` | — | Un second handler gRPC a été enregistré sur le serveur. |
 | `E_SERVER_GRPC_INVALID_LIMIT` | — | Une limite de taille de message gRPC n'est ni un nombre entier d'octets, ni `-1` pour aucune limite. |
 | `E_REAM_STUB_SYNTAX` | — | Un template de stub a une erreur de syntaxe. |
+| `E_ENV_FILE_NOT_FOUND` | — | Une valeur `.env` `file:<chemin>` désigne un fichier qui n'existe pas. Le message nomme la variable et le chemin. |
+| `E_ENV_CIRCULAR_REFERENCE` | — | Des valeurs `.env` se citent en boucle (`A=$B`, `B=$A`). |
+| `E_IDENTIFIER_ALREADY_DEFINED` | — | `Env.defineIdentifier()` a reçu un nom déjà enregistré (`file` est fourni). Utilisez `defineIdentifierIfMissing()` ou retirez d'abord l'identifiant. |
+| `E_APP_MISSING_IMPORTER` | — | `app.import()` / `app.importDefault(id)` a été appelé sur une application construite sans `importer`. |
+| `E_DUMP_DIE_EXCEPTION` | 500 | `dd()` a arrêté la requête (réponse avec un dump HTML) ou la commande (dump affiché). Jamais rapporté. |
 
 ## Erreurs Console
 
@@ -175,6 +181,13 @@ Levées pendant l'assemblage, la configuration et le démarrage de l'application
 | `E_SCHEDULE_TASK_TIMEOUT` | — | Une tâche n'a pas fini dans son `timeoutMs` ; elle continue en arrière-plan. |
 | `E_SCHEDULE_PROVIDER_ALREADY_REGISTERED` | — | Le provider du scheduler a été enregistré deux fois sur le même conteneur. |
 | `E_SCHEDULER_NATIVE_ERROR` | — | Un appel au scheduler natif a échoué. |
+
+## Erreurs Events
+
+| Code | HTTP | Description |
+|------|------|-------------|
+| `E_EVENTS_UNSUPPORTED_STORE` | — | `config/events.ts` nomme un `store` autre que `'memory'`, le seul de ce build. |
+| `E_EVENTS_UNSUPPORTED_OPTION` | — | `config/events.ts` contient une option que rien ne lit (`retries` compris), ou n'est pas un objet. |
 
 ## Erreurs RPC et GraphQL
 
@@ -265,6 +278,7 @@ simples dont le message commence par le code.
 | `E_ATLAS_INVALID_INCREMENT` | — | `increment()` / `decrement()` a reçu une quantité qui n'est pas un nombre fini. |
 | `E_ATLAS_INVALID_DATE_COLUMN_VALUE` | — | Une colonne de date a reçu une valeur qui n'est pas une date valide. |
 | `E_ATLAS_UNDEFINED_BINDING` | — | Une valeur de requête vaut `undefined`. Validez l'entrée avant ; utilisez `whereNull()` pour chercher NULL. |
+| `E_ATLAS_DIALECT_MISMATCH` | — | `useTransaction(trx)` a reçu une transaction d'un autre dialecte que celui pour lequel la requête a été construite. Ouvrez la transaction sur la connexion de la requête, ou construisez la requête depuis la transaction. |
 | `E_ATLAS_RAW_BINDINGS` | — | Une requête brute a des paramètres sans valeur liée. |
 | `E_ATLAS_RAW_VALUE` | — | `defaultTo(db.raw())` a reçu des valeurs liées, qu'un défaut de colonne ne peut pas porter. |
 | `E_ATLAS_NON_FINITE_NUMBER` | — | `defaultTo()` a reçu un nombre qui n'est pas un nombre SQL (`NaN`, `Infinity`). |
@@ -340,6 +354,7 @@ simples dont le message commence par le code.
 | `E_AURORA_TEMPLATE_IN_ATTRIBUTE` | — | Un template `html` imbriqué a atteint une valeur d'attribut ou `.value`. |
 | `E_AURORA_FILE_INPUT_VALUE` | — | `.value` a reçu une chaîne non vide sur un `<input type="file">`. |
 | `E_AURORA_DUPLICATE_KEY` | — | Deux éléments d'une liste `each()` partagent une clé, qui désigne une seule ligne. |
+| `E_AURORA_REACTIVE_CYCLE` | — | Des effets se sont relancés sans fin au cours d'une même mise à jour : l'un écrit ce que lui-même, ou un effet qu'il déclenche, lit. |
 | `E_AURORA_INTERNAL` | — | Un invariant interne d'aurora a cassé : toujours un bug d'aurora. |
 
 ## Erreurs Blackhole
@@ -354,7 +369,22 @@ simples dont le message commence par le code.
 | `E_BLACKHOLE_PARAMETER_POLLUTION` | 400 | Une clé de la query string apparaît deux fois (les clés finissant par `[]` peuvent se répéter). |
 | `E_BLACKHOLE_MISSING_IP` | 400 | La limite de débit est active et la requête n'a pas d'adresse client sous laquelle la compter. |
 | `E_BLACKHOLE_SESSION_NOT_READY` | 500 | Les tokens CSRF sont liés à la session (`csrf.session`) et la requête a atteint blackhole sans session : enregistrez le middleware de session avant celui de blackhole. |
+| `E_BLACKHOLE_UNKNOWN_CSP_KEYWORD` | 500 | La CSP nomme un `@mot-clé` sans résolveur enregistré (`cspKeywords.register`), ou un mot-clé a été enregistré sous un nom invalide. Levée à la création du filtre. |
+| `E_BLACKHOLE_INVALID_CSP_KEYWORD_VALUE` | 500 | Le résolveur d'un mot-clé CSP a renvoyé une valeur contenant `;`, `,` ou un saut de ligne, qui clorait la directive. |
+| `E_BLACKHOLE_DATABASE_UNAVAILABLE` | 500 | Le store de limitation en base n'a rien où compter : `@c9up/atlas` n'est pas installé, pas démarré, ou la connexion nommée n'en est pas une. Passez un client en `connection`, ou configurez atlas. |
+| `E_BLACKHOLE_UNSUPPORTED_DATABASE` | 500 | Le store de limitation en base a reçu une base autre que PostgreSQL, MySQL ou SQLite. |
 | `E_BLACKHOLE_BLOCKED` | variable | Un refus dont le moteur n'a pas fourni le corps sous forme d'erreur JSON. |
+
+## Erreurs Chronos
+
+Levées comme de simples `Error` (`RangeError` pour une année refusée avant le moteur) dont le message commence par `CODE:`.
+
+| Code | HTTP | Description |
+|------|------|-------------|
+| `E_CHRONOS_INVALID_YEAR` | — | `easterDate` / `holidays` ont reçu une année qui n'est pas un entier de 1583 à 9999 (le comput grégorien). |
+| `E_CHRONOS_UNKNOWN_COUNTRY` | — | `holidays` / `isHoliday` ont reçu un pays sans calendrier de jours fériés (connus : `CH`, `FR`). |
+| `E_CHRONOS_UNKNOWN_REGION` | — | La région n'est pas le code à deux lettres d'un canton suisse, ou une région a été donnée pour `FR`. |
+| `E_CHRONOS_INVALID_DATE` | — | `isHoliday` a reçu une chaîne qui n'est pas une date calendaire `YYYY-MM-DD`. |
 
 ## Erreurs Echo
 
@@ -395,6 +425,8 @@ simples dont le message commence par le code.
 | `E_ECLIPSE_UNKNOWN_STORE` | — | Un nom de store de verrous n'est pas déclaré. |
 | `E_ECLIPSE_QUASAR_MISSING` | — | Un store Redis est configuré et `@c9up/quasar` n'est pas installé. |
 | `E_ECLIPSE_INCOMPLETE_CONNECTION` | — | La connexion quasar n'a pas ce dont eclipse a besoin. |
+| `E_ECLIPSE_DATABASE_UNAVAILABLE` | — | Un store de verrous en base demande atlas, qui n'est pas installé ou n'a pas démarré. |
+| `E_ECLIPSE_UNSUPPORTED_DATABASE` | — | Un store de verrous en base a reçu un dialecte autre que PostgreSQL, MySQL ou SQLite. |
 
 ## Erreurs Eon
 
@@ -408,6 +440,7 @@ La plupart des refus d'eon sont des `Error` simples dont le message commence par
 | `E_EON_NO_TIMESTAMP` | — | Une super-table n'a pas de colonne `@Timestamp`. |
 | `E_EON_CHILD_STABLE` | — | `createChildTable()` n'a reçu ni `stable` ni `EntityClass`. |
 | `E_EON_CHILD_COLLISION` | — | Deux jeux de tags distincts mènent à la même table enfant ; eon refuse d'écrire des lignes discordantes sous un seul jeu de tags. |
+| `E_EON_CHILD_MIGRATION` | — | `migrateChildTableNames()` a lu une ligne de la liste des enfants sans nom de table. |
 | `E_EON_BATCH_SIZE` | — | `batchSize` n'est pas un entier positif. |
 | `E_EON_DECIMAL_STMT` | — | Une super-table avec des colonnes DECIMAL est passée par le chemin STMT en colonnes, qui ne sait pas les lier. Utilisez `ingestSql()`. |
 | `E_EON_TYPE` | — | Une colonne ou un tag a un type inconnu ou absent. |
@@ -635,6 +668,8 @@ Les erreurs côté serveur sont levées par `@c9up/photon` (SSR / renderer) ; le
 2. Vérifie que `ssr.entrypoint` et `entryClient` sont des paths relatifs sans segments `..` et se terminent par `.tsx?` / `.jsx?` / `.vue` / `.svelte`.
 3. Redémarre le renderer (`PhotonRenderer.boot()` revalide).
 
+Levée aussi au rendu quand `rootView` nomme un template mais que la requête n'a pas de moteur de vues (`ctx.view`) : installe-en un (`@c9up/inker` le pose), ou fais renvoyer à `rootView` une fonction qui écrit le document.
+
 **Lieu du throw :** `packages/photon/src/PhotonRenderer.ts`.
 
 ### E_PHOTON_MANIFEST_MISSING
@@ -827,7 +862,8 @@ Renvoyées dans le corps JSON des routes relay, ou en événement `error` sur un
 |------|------|-------------|
 | `E_RELAY_BAD_REQUEST` | 400 | `subscribe` sans `uid` ni `channel` exploitables (deux chaînes non vides). |
 | `E_RELAY_CHANNEL_TOO_LONG` | 400 | Le nom du canal dépasse 256 caractères. |
-| `E_RELAY_NOT_CONNECTED` | 400 | Aucune connexion n'a cet uid sur cette instance — elle s'est fermée, ou la requête est arrivée sur une autre instance (voir *Plusieurs instances*). |
+| `E_RELAY_NOT_CONNECTED` | 400 | Aucune connexion n'a cet uid sur cette instance et aucun bus n'est configuré pour relayer la requête à l'instance qui la tient — ou la connexion s'est fermée. |
+| `E_RELAY_BUS_UNAVAILABLE` | 503 | La souscription devait être relayée à l'instance qui tient le flux, et le bus a refusé le message. |
 | `E_RELAY_NOT_OWNER` | 403 | La connexion a été ouverte par un autre utilisateur ; subscribe, unsubscribe et trames de hub doivent venir du même. |
 | `E_RELAY_CHANNEL_NO_AUTHORIZER` | 403 | Aucun `relay.authorize()` ne couvre le canal, et `allowUnauthorizedChannels` est désactivé. |
 | `E_RELAY_CHANNEL_FORBIDDEN` | 403 | L'autorisateur du canal a refusé, ou levé une erreur. |
@@ -925,6 +961,7 @@ Rune normalise ses codes : un code qui commence déjà par `E_` est gardé, tout
 | Code | HTTP | Description |
 |------|------|-------------|
 | `E_STATION_LOGIN_CREDENTIALS_REQUIRED` | 400 | Le formulaire de connexion admin a été envoyé sans email ou sans mot de passe. |
+| `E_STATION_LOGIN_IDENTIFIER_TOO_LONG` | 400 | L'email de connexion admin dépasse 254 caractères (RFC 5321) ; refusé avant le limiteur. |
 | `E_STATION_INVALID_CREDENTIALS` | 401 | Email ou mot de passe invalide. |
 | `E_STATION_TOO_MANY_LOGIN_ATTEMPTS` | 429 | Trop de tentatives de connexion ; réessayez plus tard. |
 | `E_STATION_LOGIN_UNAVAILABLE` | 503 | La connexion est temporairement indisponible. |
@@ -936,6 +973,7 @@ Rune normalise ses codes : un code qui commence déjà par `E_` est gardé, tout
 | Code | HTTP | Description |
 |------|------|-------------|
 | `E_TRANSIT_INVALID_XML` | — | Un fournisseur a répondu un XML illisible, ou qui utilise une construction que transit refuse. |
+| `E_TRANSIT_PROTECTED_PARAMETER` | — | Un callback de `begin()`/`redirect()` a tenté de poser ou retirer un paramètre que la connexion possède (`state`, `nonce`, le challenge PKCE, `client_id`, `redirect_uri`, `response_type`), ou `scope` via `param()` au lieu des méthodes de scope. |
 
 ## Erreurs Vellum
 
@@ -1001,11 +1039,11 @@ Warden normalise ses codes : un code qui commence déjà par `E_` est gardé, to
 | Code | HTTP | Description |
 |------|------|-------------|
 | `E_UNAUTHORIZED_ACCESS` | 401 | Aucun garde n'a authentifié la requête. Une route gardée répond avec ce code. |
-| `E_INVALID_CREDENTIALS` | 400 | La classe d'erreur qu'un flux de connexion lève quand les identifiants ne correspondent pas. |
+| `E_INVALID_CREDENTIALS` | 400 | Les identifiants ne correspondent pas. `authFinder().verifyCredentials` la lève pour un compte inconnu comme pour un mauvais mot de passe, après le même travail de hachage. |
 | `E_WARDEN_AUTH_STRATEGY_ERROR` | 500 | Tous les gardes tentés ont planté (base de données indisponible, bug) : un incident serveur, distinct d'un refus d'identifiants. |
 | `E_WARDEN_FORBIDDEN` | 403 | L'utilisateur n'a pas une permission ou un rôle que la route déclare. |
 | `E_WARDEN_MFA_REQUIRED` | 403 | La route déclare `@RequireMfa` et l'utilisateur n'a pas passé l'étape renforcée. |
-| `E_WARDEN_AUTHORIZATION_FAILURE` | 403 | Une ability ou une policy du bouncer a refusé l'action (403, sauf si la policy donne un autre statut). |
+| `E_AUTHORIZATION_FAILURE` | 403 | Une ability ou une policy du bouncer a refusé l'action (403, sauf si le refus donne un autre statut). La classe exportée porte le refus dans `error.response`, traduction comprise. |
 | `E_WARDEN_UNAUTHORIZED` | 401 | Le `expressMiddleware()` autonome n'a trouvé aucun token ou l'a refusé. |
 | `E_WARDEN_AUTH_ERROR` | 500 | Le `expressMiddleware()` autonome a échoué en interne. |
 | `E_WARDEN_NO_AUTH_CONFIG` | — | `WardenProvider` a démarré sans aucun garde configuré. |

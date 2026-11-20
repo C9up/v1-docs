@@ -14,7 +14,11 @@ router.use([
 ])
 ```
 
-A JSON body is parsed only when its Content-Type is one of `json.types` (`application/json` and `application/vnd.api+json` by default). A body sent with no Content-Type, or as `text/plain` — what a foreign page can send with the visitor's cookies and no CORS preflight — is never read as JSON. A malformed JSON body reads as `{}`.
+A JSON body is parsed only when its Content-Type is one of `json.types` (`application/json`, `application/json-patch+json`, `application/vnd.api+json` and `application/csp-report` by default). A body sent with no Content-Type, or as `text/plain` — what a foreign page can send with the visitor's cookies and no CORS preflight — is never read as JSON.
+
+A malformed JSON body is refused with `400 E_BODYPARSER_INVALID_JSON` before your handler runs. Under `json.strict` (on by default) the body must be an object or an array; any other JSON value is refused with a 422. An array, or a scalar once `strict` is off, is kept under `_body`. A `__proto__` key, and a `constructor` key holding a `prototype`, are removed while parsing, so copying the body onto an object with `Object.assign` or a deep merge cannot replace that object's prototype.
+
+`trimWhitespaces` and `convertEmptyStringsToNull` are on by default for `json`, `form` and `multipart`: every string value is trimmed, and an empty one becomes `null`. Keys are left as sent. Turn either off in that section of the config.
 
 ### Configuring it
 
@@ -97,6 +101,8 @@ Use `request.file(field, options?)` for a single upload and `request.files(field
 const avatar = request.file('avatar')   // MultipartFile | null
 const photos = request.files('photos')  // MultipartFile[]
 ```
+
+Uploads are nested by field name the same way form fields are. An input named `documents[]` is read with `request.files('documents')`, and one named `user[avatar]` with `request.file('user.avatar')`. When a path holds several files, `request.file()` returns the first one. `request.allFiles()` returns the whole tree, for example `{ documents: [file, file], user: { avatar: file } }`.
 
 `request.file()` returns `null` when no file was sent for that field, so always guard before using it.
 

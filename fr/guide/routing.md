@@ -372,6 +372,20 @@ router
   .where('id', router.matchers.uuid())
 ```
 
+`.guard('jwt')` nomme les guards qui peuvent répondre de la requête : être
+authentifié par un autre ne suffit pas. Une requête déjà authentifiée par l'un
+d'eux passe ; sinon le gate appelle `ctx.auth.authenticateUsing(guards)`, comme
+`middleware.auth({ guards })`, et le `401` d'un guard (avec sa redirection vers
+la connexion ou son challenge `WWW-Authenticate`) fait la réponse. Une requête
+authentifiée par session sur une route `.guard('jwt')` est refusée : un
+formulaire posté depuis un autre site avec le cookie de session ne peut pas
+atteindre un endpoint prévu pour des jetons bearer. Un état d'authentification
+qui n'indique pas `authenticatedViaGuard` et n'a pas d'`authenticateUsing` est
+refusé lui aussi. Plusieurs guards — ceux de la route, de son groupe et du
+`@Guard` du contrôleur — forment une seule liste : n'importe lequel peut
+authentifier. Les méthodes RPC et les resolvers GraphQL appliquent la même
+vérification.
+
 `.permission()` vérifie les permissions propres à l'utilisateur authentifié,
 telles que la couche d'authentification les résout : quand
 `ctx.auth.hasAllPermissions()` existe (l'authentificateur de warden la fournit et

@@ -42,7 +42,7 @@ Une requête circule de haut en bas :
    (`this.permissions`), de l'ownership (`user.id === resource.authorId`) et de
    l'isolation tenant (`this.sameTenant(resource)`) — librement combinés.
 4. **Intégration HTTP** — le middleware `initializeBouncer` construit un
-   `ctx.bouncer` par requête ; un refus lève `E_WARDEN_AUTHORIZATION_FAILURE`, que
+   `ctx.bouncer` par requête ; un refus lève `E_AUTHORIZATION_FAILURE`, que
    Ream rend en **403** (ou avec le statut que donne la réponse de la policy).
 
 La couche d'évaluation est implémentée par Warden lui-même, **sans dépendance

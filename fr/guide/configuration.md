@@ -171,6 +171,22 @@ HOST=localhost
 JWT_SECRET=
 ```
 
+### Références et identifiants
+
+Une valeur peut citer une autre variable avec `$NOM` ou `${NOM}` ; la valeur citée est elle-même interpolée d'abord, donc l'ordre des lignes est sans effet, et une boucle (`A=$B`, `B=$A`) arrête le démarrage avec `E_ENV_CIRCULAR_REFERENCE`. `\$` garde un dollar littéral.
+
+Une valeur qui commence par un identifiant enregistré passe par lui. `file:` est fourni : il lit le fichier relativement à la racine du projet (un chemin absolu marche aussi), ce qui est la façon dont les secrets Docker et Kubernetes arrivent jusqu'à l'application. Un fichier absent arrête le démarrage avec `E_ENV_FILE_NOT_FOUND`, qui nomme la variable et le chemin.
+
+```env
+DB_HOST=db.internal
+DATABASE_URL=postgres://app@${DB_HOST}/app
+DB_PASSWORD=file:/run/secrets/db_password
+# L'échappement : la chaîne littérale `file:not-a-path`
+MOTTO=file\:not-a-path
+```
+
+Enregistrez les vôtres avec `Env.defineIdentifier(nom, (value, key, appRoot) => …)`, avant que `Env.create` ne s'exécute ; le résolveur peut être asynchrone. Un nom déjà pris (`file` compris) lève `E_IDENTIFIER_ALREADY_DEFINED` ; `Env.defineIdentifierIfMissing` n'enregistre que si le nom est libre.
+
 ::: danger
 Ne donnez jamais de valeur de repli à un secret dans un fichier de config (`env.get('JWT_SECRET') ?? '…'`, `process.env.JWT_SECRET ?? '…'`). Les fichiers de config sont commités : la valeur de repli est lisible par tous, et un déploiement qui oublie la variable signe chaque jeton avec — un contournement de l'authentification. Déclarez la variable obligatoire et laissez le démarrage échouer.
 :::

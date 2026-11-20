@@ -130,6 +130,22 @@ HOST=localhost
 JWT_SECRET=
 ```
 
+### References and identifiers
+
+A value can reference another variable with `$NAME` or `${NAME}`; the referenced value is itself interpolated first, so the order of the lines does not matter, and a loop (`A=$B`, `B=$A`) stops the boot with `E_ENV_CIRCULAR_REFERENCE`. `\$` keeps a literal dollar sign.
+
+A value that starts with a registered identifier goes through it. `file:` is built in: it reads the file relative to the project root (an absolute path works too), which is how Docker and Kubernetes secrets reach the app. A missing file stops the boot with `E_ENV_FILE_NOT_FOUND`, naming the variable and the path.
+
+```env
+DB_HOST=db.internal
+DATABASE_URL=postgres://app@${DB_HOST}/app
+DB_PASSWORD=file:/run/secrets/db_password
+# The escape: the literal string `file:not-a-path`
+MOTTO=file\:not-a-path
+```
+
+Register your own with `Env.defineIdentifier(name, (value, key, appRoot) => …)`, before `Env.create` runs; the resolver may be async. A name already taken (`file` included) throws `E_IDENTIFIER_ALREADY_DEFINED`; `Env.defineIdentifierIfMissing` registers only when the name is free.
+
 ::: danger
 Never give a secret a fallback in a config file (`env.get('JWT_SECRET') ?? '…'`, `process.env.JWT_SECRET ?? '…'`). Config files are committed: the fallback is a value anyone can read, and a deployment that forgets the variable signs every token with it — an authentication bypass. Declare the variable required and let the boot fail.
 :::

@@ -181,6 +181,8 @@ export default {
 
 Chaque flux est préfixé ligne par ligne, et l'arrêt de l'un arrête l'autre — un Ctrl-C ne laisse aucun watcher orphelin en train d'écrire dans le fichier de sortie, et une commande qui ne démarre pas emporte celle qui avait déjà démarré. C'est ce qui évite à une application de câbler elle-même `concurrently -k`.
 
+Chaque processus reçoit son propre stdin : un tube que `ream dev` garde ouvert sans jamais y écrire, et qui se ferme quand `ream dev` se termine. Un watcher qui s'arrête à la fin de son entrée — c'est le cas de `tailwindcss --watch`, pour ne pas survivre à qui l'a lancé — continue de surveiller pendant toute la session, que `ream dev` tourne dans un terminal ou avec sa sortie envoyée dans un fichier, et s'arrête quand même de lui-même si `ream dev` est tué. Inutile d'ajouter `--watch=always`. Le terminal, lui, reste à `ream dev`.
+
 `ream build` exécute les assets **d'abord** et s'arrête là s'ils échouent, plutôt que de livrer un dist avec une feuille de style périmée.
 
 Les deux clés sont optionnelles : sans `assets`, `ream dev` et `ream build` se comportent exactement comme avant, le serveur gardant le terminal.

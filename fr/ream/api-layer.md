@@ -67,6 +67,15 @@ En production, une panne interne (un handler ou un validateur qui lève autre
 chose qu'une erreur JSON-RPC, un validateur non enregistré) reçoit
 `-32603 Internal error` sans son message.
 
+Le serveur garde ce que l'appelant ne voit pas : chacune de ces pannes est
+journalisée par `ctx.logger`, donc avec l'identifiant de corrélation de la
+requête, avec son message, sa pile, la méthode RPC et l'`id` de l'appel, au
+niveau `error` (`warn` pour un refus qu'un middleware a levé avec un statut
+4xx, comme pour une route). Elle est aussi émise comme événement `exception`,
+avec un champ `rpcMethod` en plus. Une erreur JSON-RPC que le handler lève
+exprès (avec un `code` numérique) est une réponse, pas une panne : elle n'est
+pas journalisée.
+
 Config : `config.rpc.path` change le chemin de montage (défaut `/rpc`) ;
 `config.rpc.contentTypes` remplace les types de média acceptés.
 
@@ -114,6 +123,50 @@ Les classes resolver sont instanciées via `container.make()` à chaque requête
 donc elles reçoivent leurs dépendances injectées. La réponse est élaguée au
 selection-set du client, donc un resolver peut sans risque renvoyer un objet riche
 (p. ex. une entité ORM).
+
+### Ce que reçoit un resolver
+
+Le document est vérifié contre le schéma avant qu'aucun resolver ne tourne : une
+mutation ne s'exécute jamais à moitié.
+
+- `args` ne contient que les arguments que le schéma déclare pour ce champ. Un
+  argument non déclaré est refusé (`Unknown argument "role" on field
+  "Mutation.updateProfile".`) : un resolver qui étale `args` dans un modèle ne
+  peut pas recevoir `role` ou `isAdmin`. Un argument obligatoire absent est
+  refusé, et la valeur par défaut déclarée est appliquée.
+- Les variables de la requête n'atteignent `args` qu'à travers les références
+  `$nom` de l'opération, et seulement celles qu'elle déclare
+  (`query Q($id: ID!)`). Une variable non déclarée utilisée est une erreur ; une
+  variable envoyée que l'opération ne déclare pas est ignorée. Un littéral
+  chaîne comme `"$role"` reste une chaîne.
+- Un document à plusieurs opérations exécute celle que nomme `operationName`, et
+  il est refusé sans.
+- Un champ que le type racine ne déclare pas est refusé.
+
+Le corps de la requête est lu sans clés `__proto__`, comme le fait le body
+parser.
+
+### Limites
+
+`maxDepth` (12 par défaut) et `maxComplexity` (1000 champs par défaut, alias
+compris) sont appliqués par le parseur natif **pendant qu'il déplie les
+fragments** : quelques centaines d'octets de fragments qui s'étalent chacun deux
+fois se déplieraient sinon en millions de champs. Le même budget plafonne le
+nombre de fragments dépliés. Les fragments qui s'étalent eux-mêmes, les
+fragments inconnus et les noms de fragment en double sont refusés, comme dans la
+validation de graphql-js. `maxQueryBytes` (100 000 par défaut) plafonne la
+requête avant le parsing.
+
+```ts
+export default {
+  schemaPath: './app/graphql/schema.graphql',
+  maxDepth: 12,
+  maxComplexity: 1000,
+}
+```
+
+L'option de guard (`guard: 'jwt'`) restreint les guards qui peuvent authentifier
+l'appel, comme sur les routes — voir [Routage](/fr/guide/routing#builder-de-route-fluide).
 
 ## OpenAPI + Swagger UI
 

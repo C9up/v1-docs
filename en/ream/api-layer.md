@@ -65,6 +65,14 @@ In production, an internal failure (a handler or a validator that throws
 something other than a JSON-RPC error, a validator that is not registered) is
 answered `-32603 Internal error` without its message.
 
+The server keeps what the caller does not see: every such failure is logged
+through `ctx.logger`, so with the request's correlation id, with its message,
+its stack, the RPC method and the call's `id`, at `error` level (`warn` for a
+refusal a middleware threw with a 4xx status, as a route's would be). It is
+also emitted as the `exception` event, with an extra `rpcMethod` field. A
+JSON-RPC error the handler threw on purpose (one with a numeric `code`) is an
+answer, not a failure, and is not logged.
+
 Config: `config.rpc.path` overrides the mount path (default `/rpc`);
 `config.rpc.contentTypes` replaces the accepted media types.
 
@@ -108,6 +116,48 @@ gql.resolver('Mutation', 'createTask', TaskResolver, 'createTask', {
 Resolver classes are instantiated through `container.make()` per request, so they
 receive injected dependencies. The response is pruned to the client's selection
 set, so a resolver may safely return a rich object (e.g. an ORM entity).
+
+### What a resolver receives
+
+The document is checked against the schema before any resolver runs, so a
+mutation never runs half-way:
+
+- `args` holds only the arguments the schema declares for that field. An
+  undeclared one is refused (`Unknown argument "role" on field
+  "Mutation.updateProfile".`), so a resolver that spreads `args` into a model
+  cannot be handed `role` or `isAdmin`. A missing required argument is refused,
+  and a declared default is applied.
+- Request variables reach `args` only through the `$name` references of the
+  operation, and only the variables it declares (`query Q($id: ID!)`). A
+  variable it does not declare is an error; one the request sends that the
+  operation does not declare is ignored. A string literal such as `"$role"` is
+  a string.
+- A document with several operations runs the one `operationName` names, and
+  is refused without it.
+- A field the root type does not declare is refused.
+
+The request body is parsed without `__proto__` keys, as the body parser does.
+
+### Limits
+
+`maxDepth` (default 12) and `maxComplexity` (default 1000 fields, aliases
+included) are applied by the native parser **while it expands fragments**: a
+few hundred bytes of fragments spreading each other twice would otherwise
+expand to millions of fields. The same budget caps how many fragments are
+expanded. Fragments that spread themselves, unknown fragments and duplicate
+fragment names are refused, as graphql-js validation does. `maxQueryBytes`
+(default 100 000) caps the query before parsing.
+
+```ts
+export default {
+  schemaPath: './app/graphql/schema.graphql',
+  maxDepth: 12,
+  maxComplexity: 1000,
+}
+```
+
+A guard option (`guard: 'jwt'`) restricts which guards may authenticate the
+call, as on routes — see [Routing](/en/guide/routing#fluent-route-builder).
 
 ## OpenAPI + Swagger UI
 

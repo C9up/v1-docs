@@ -320,6 +320,11 @@ session.flashErrors({ email: 'Pris' })   // dans `errorsBag`
 session.flashValidationErrors(error)     // inputErrorsBag + errorsBag + input
 ```
 
+Les données flash vivent exactement une requête de plus. Cette requête les sort
+de la session et réécrit la session sans elles, même si elle ne fait que lire :
+un message, ses erreurs de validation et la saisie flashée ne reviennent donc
+pas sur la page suivante.
+
 `reflash()` / `reflashOnly(clés)` / `reflashExcept(clés)` conservent le flash du
 tour PRÉCÉDENT pour un tour de plus — ce qu'il faut à une chaîne de redirections
 pour qu'un message survive.
@@ -339,6 +344,20 @@ return response.redirect(session.pullIntendedUrl() ?? '/dashboard')
 ```
 
 `getIntendedUrl()` lit sans consommer ; `clearIntendedUrl()` l'efface.
+
+Le constructeur de redirection fait les deux étapes via la session de la
+requête :
+
+```ts
+// dans un middleware d'authentification, sur une page qui exige une connexion
+return ctx.response.redirect().withIntendedUrl().toPath('/login')
+// …après une connexion réussie
+return ctx.response.redirect().toIntended('/dashboard')
+```
+
+`withIntendedUrl()` ne retient l'URL que pour un GET qui n'est pas un XHR et qui
+a trouvé une route. `toIntended(repli)` et `toIntendedRoute(nom, params)` la
+consomment, et tombent sur le repli quand elle manque ou pointe hors du site.
 
 Le driver `redis` reçoit un client, ou nomme une connexion [Quasar](/fr/modules/quasar) :
 
@@ -393,6 +412,12 @@ L'en-tête `Referer` est **fourni par le client**. Y rediriger sans contrôle es
 une redirection ouverte : l'hôte doit donc être celui de la requête ou figurer
 dans la liste que vous donnez ; tout le reste tombe sur le repli.
 
+La valeur rendue est le chemin et la query string du référent, jamais son hôte :
+`response.redirect().back()` et une redirection vers cette valeur restent sur
+votre site. Les barres obliques de tête sont ramenées à une seule :
+`http://app.test//evil.com/x` donne `/evil.com/x`, et non `//evil.com/x`, qu'un
+navigateur suivrait vers un autre hôte.
+
 ## La réponse
 
 ```ts
@@ -410,7 +435,10 @@ ctx.response.cookie('prefs', { theme: 'dark' }, { maxAge: '2h' })
   mot.
 - **`plainCookie`** emballe sa valeur en JSON base64url, donc un objet revient un
   objet et un nombre un nombre. Passez `encode: false` pour une valeur qu'un
-  script du navigateur doit lire telle quelle, ou déjà protégée.
+  script du navigateur doit lire telle quelle, ou déjà protégée. Noms et valeurs
+  sont encodés en pourcentage à l'écriture et décodés à la lecture :
+  `request.plainCookie(nom, undefined, { encoded: false })` relit exactement ce
+  qui a été écrit, espaces, accents et `;` compris.
 - **`attachment`** échappe le nom de fichier et ajoute la forme étendue RFC 6266,
   pour qu'un nom non-ASCII survive à un en-tête Latin-1 au lieu d'arriver illisible.
 

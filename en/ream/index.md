@@ -303,6 +303,11 @@ session.flashErrors({ email: 'Taken' })  // into `errorsBag`
 session.flashValidationErrors(error)     // inputErrorsBag + errorsBag + input
 ```
 
+Flash data lives for exactly one following request. That request takes it out
+of the session and writes the session back without it, even when it only reads
+— so a message, its validation errors and the flashed input do not reappear on
+the page after.
+
 `reflash()` / `reflashOnly(keys)` / `reflashExcept(keys)` keep the PREVIOUS
 request's flash for one more hop — what a redirect chain needs so a message
 survives.
@@ -322,6 +327,19 @@ return response.redirect(session.pullIntendedUrl() ?? '/dashboard')
 ```
 
 `getIntendedUrl()` reads without consuming; `clearIntendedUrl()` drops it.
+
+The redirect builder does both steps through the request's session:
+
+```ts
+// in an auth middleware, on a page that needs a login
+return ctx.response.redirect().withIntendedUrl().toPath('/login')
+// …after a successful login
+return ctx.response.redirect().toIntended('/dashboard')
+```
+
+`withIntendedUrl()` stores the URL only for a GET that is not an XHR and matched
+a route. `toIntended(fallback)` and `toIntendedRoute(name, params)` consume it,
+and fall back when it is missing or points off-site.
 
 The `redis` driver takes a client, or names a [Quasar](/en/modules/quasar) connection:
 
@@ -376,6 +394,12 @@ The `Referer` header is **supplied by the client**. Redirecting back to it
 unchecked is an open redirect, so the host must be this request's own or one of
 the hosts you list; anything else falls back.
 
+What comes back is the referrer's path and query string, never its host, so
+`response.redirect().back()` and a redirect to this value stay on your site.
+Leading slashes are collapsed to one: `http://app.test//evil.com/x` gives
+`/evil.com/x`, not the protocol-relative `//evil.com/x` a browser would follow
+to another host.
+
 ## The response
 
 ```ts
@@ -392,7 +416,10 @@ ctx.response.cookie('prefs', { theme: 'dark' }, { maxAge: '2h' })
   header as the invalid `Max-Age=2h`, and the cookie was dropped without a word.
 - **`plainCookie`** packs its value as base64url JSON, so an object comes back an
   object and a number a number. Pass `encode: false` for a value a browser script
-  must read verbatim, or one that is already protected.
+  must read verbatim, or one that is already protected. Names and values are
+  percent-encoded on the way out and decoded on the way in, so
+  `request.plainCookie(name, undefined, { encoded: false })` reads back exactly
+  what was written, spaces, accents and `;` included.
 - **`attachment`** escapes the filename and adds the RFC 6266 extended form, so a
   non-ASCII name survives a Latin-1 header instead of arriving mangled.
 

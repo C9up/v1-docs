@@ -81,6 +81,11 @@ A preview is not side-effect free either: to collect the SQL it imports each
 migration module and runs its `up()` / `down()` inside the server, so it
 executes the project's code.
 
+A preview, like `migration.status`, changes no schema: it never creates the
+migrations tracking table. Where that table does not exist nothing has been
+migrated, so a rollback (preview or real) returns an empty list and says so in
+`knownGaps`.
+
 ## Errors
 
 An unknown tool name is a JSON-RPC error (`-32602`). A tool that runs and

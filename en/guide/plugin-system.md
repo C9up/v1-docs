@@ -81,7 +81,10 @@ The hook runs once per `ream add` / `ream configure` invocation. It MUST be idem
 ```typescript
 interface Codemods {
   addProvider(importPath: string): Promise<void>
-  addEnvVars(vars: Record<string, string>): Promise<void>
+  addEnvVars(
+    vars: Record<string, string>,
+    options?: { omitFromExample?: string[]; overwrite?: boolean },
+  ): Promise<void>
   writeFile(filePath: string, content: string, options?: { force?: boolean }): Promise<void>
   makeUsingStub(
     stubsRoot: string,
@@ -116,14 +119,17 @@ await codemods.addProvider('@community/your-plugin/provider')
 
 **Known limitation.** `addProvider` is a regex-based codemod, not a TypeScript AST transform. It works for the canonical `providers: [ ... ]` shape emitted by `ream new` and tolerates comments and whitespace around the array literal. It does NOT handle unusual shapes — providers spread from a const, providers built via a ternary, providers extracted into a separate `const providers = [...]` above the config object — see the JSDoc at `packages/ream/src/Codemods.ts:76`. Document this limitation in your plugin README so users with non-canonical layouts know to edit `reamrc.ts` by hand.
 
-### `addEnvVars(vars)`
+### `addEnvVars(vars, options?)`
 
-Appends `KEY=value` pairs to `.env` (creating the file if missing). Idempotent — keys already present at the start of any line in `.env` are left untouched, so existing values written by the user or a prior configure run are preserved.
+Appends `KEY=value` pairs to `.env` (creating the file if missing) and to `.env.example` when the project has one, so a fresh clone learns the variables exist. Idempotent — a key already present at the start of a line is left untouched in either file, so values written by the user or a prior configure run are preserved; `overwrite: true` (or a codemods instance created with `force`) replaces that line in place instead.
+
+Keys listed in `omitFromExample` are written empty (`KEY=`) to `.env.example`, so a secret's development value never reaches the committed file. A value or key holding a line break is refused before anything is written.
 
 ```typescript
-await codemods.addEnvVars({
-  POSTMARK_API_TOKEN: '<your-postmark-token>',
-})
+await codemods.addEnvVars(
+  { POSTMARK_API_URL: 'https://api.postmarkapp.com', POSTMARK_API_TOKEN: '<your-postmark-token>' },
+  { omitFromExample: ['POSTMARK_API_TOKEN'] },
+)
 ```
 
 Use placeholder values that signal "fill me in" (an empty string, a `<placeholder>` tag, or a development-only fallback). Do NOT commit production secrets through `addEnvVars`.
@@ -346,7 +352,7 @@ if (!flags?.apiToken?.[0]) {
 The five `Codemods` methods deduplicate by design:
 
 - `addProvider` skips if the exact import path is already present in `reamrc.ts`.
-- `addEnvVars` skips keys already present in `.env`.
+- `addEnvVars` skips keys already present in `.env` / `.env.example` (unless `overwrite`).
 - `writeFile` skips existing files unless `force` is set.
 - `registerCommand` skips if the exact import path is already present in `reamrc.ts`.
 - `registerMiddleware` skips if the exact import path is already present in the targeted tier's `<tier>.use([...])` block, and rejects cross-tier collisions outright.

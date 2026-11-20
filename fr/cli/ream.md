@@ -358,6 +358,13 @@ ream start              # node bin/server.js
 ream migration:status   # node bin/console.js migration:status
 ```
 
+Sous Linux et macOS, `ream` ne reste pas entre vous et node : `start`, une
+commande de l'application, `test`, `repl` et `inspect` cèdent le processus à
+node (`exec`). Un `docker stop`, un `kill -TERM`, un `timeout 600 ream test` ou
+un terminal fermé atteint donc le serveur, le worker de file ou le run de tests
+lui-même, qui s'arrête par ses propres hooks, et `ream` se termine avec le code
+de sortie de node. Sous Windows, node tourne comme enfant, comme avant.
+
 `ream test` lit ses suites dans le fichier rc et les passe au runner : les noms
 de suites et leurs globs vivent donc à un seul endroit, pas dans un script. Un
 projet `api` ou `web` frais les a déjà : une suite `unit`, une suite
@@ -436,6 +443,16 @@ C'est l'adresse **effectivement liée**, port compris — un serveur qui trouve
 | `h` | afficher cette liste |
 | `Ctrl-C` / `Ctrl-D` | quitter |
 
+Les touches demandent un terminal. `ream dev` lit celui dans lequel il tourne
+et passe chaque touche au serveur par un pseudo-terminal propre au serveur :
+le serveur y répond tout en restant hors du premier plan du terminal, et ne
+peut donc jamais être stoppé pour l'avoir lu. Sans terminal en entrée — un
+agent, la CI, une entrée venue d'un tube — ou avec `ream dev` passé en
+arrière-plan, rien
+n'est lu, aucun enfant ne reçoit de terminal, et le bandeau omet
+`Press h to show help`. `c` n'efface l'écran que lorsque le serveur écrit
+directement dans le terminal, c'est-à-dire sans commande d'assets à côté.
+
 ### Ce qu'un changement imprime
 
 ```
@@ -475,19 +492,24 @@ un fichier que l'app n'a jamais chargé ne produit aucune ligne, c'est voulu.
 
 ### La barre de debug
 
-Toute page HTML servie en développement porte une barre en bas. La page est
-décalée de la hauteur de la barre : rien en bas de la page ne se retrouve
-dessous. Chaque élément montre un résumé au survol et ouvre un panneau au clic :
+Toute page HTML servie en développement porte une barre en bas. Une page qui
+défile est décalée de la hauteur de la barre : rien en bas de la page ne se
+retrouve dessous. Une page dont la coque remplit l'écran et défile à
+l'intérieur (`h-screen` avec un élément intérieur qui défile) est laissée telle
+quelle — la décaler ne ferait que faire défiler le document — et la hauteur de
+la barre est disponible dans `--ream-toolbar-height` sur `<html>`, pour qu'une
+telle coque lui laisse la place (`h-[calc(100vh-var(--ream-toolbar-height,0px))]`).
+Chaque élément montre un résumé au survol et ouvre un panneau au clic :
 
 | Élément | Sur la barre | Dans le panneau |
 |---|---|---|
 | request | statut, méthode, route | route, motif, contrôleur, paramètres, query string, corps, en-têtes, noms des cookies, session, utilisateur, statut et en-têtes de la réponse |
-| time | durée totale | une timeline : la requête, chaque requête SQL, chaque ligne de log, chaque événement |
+| time | durée totale | une timeline : la requête, chaque requête SQL, chaque ligne de log, chaque événement, chaque opération de cache |
 | mem | tas utilisé | tas utilisé et total, mémoire résidente, croissance pendant la requête |
 | db | requêtes SQL et leur durée totale | chaque requête avec ses paramètres, son modèle, sa méthode, sa connexion et son instant de départ ; doublons signalés et comptés, échecs en rouge ; filtre, plus lentes d'abord, copie |
 | logs | erreurs, sinon avertissements, sinon lignes | chaque ligne avec son niveau et son contexte ; filtre par niveau et par texte |
 | events | événements émis | chaque événement avec son contenu ; filtre par nom |
-| cache | opérations | hits, misses et écritures, avec les clés |
+| cache | opérations et leur durée totale | hits (ceux servis en grâce à part), misses, écritures, suppressions, vidages et expirations ; un tableau par store quand il y en a plusieurs ; chaque opération avec sa clé, son store, sa durée, sa TTL et sa valeur ; filtre par clé ou par store |
 | mail | messages | chaque événement `mail:*` avec son contenu |
 | ajax | requêtes faites par la page | chaque `fetch` et `XMLHttpRequest` avec méthode, statut et durée ; un clic affiche son profil dans la barre |
 | ream | version du framework | version de Node.js, environnement, plateforme, processus |
@@ -537,10 +559,29 @@ Le panneau est absent d'une requête qui n'a rien logué.
 
 #### Le panneau des événements
 
-Chaque événement émis pendant la requête y figure, opérations de cache et mails
-compris. Il est lu au moment même de l'émission, donc chacun est rattaché à la
-requête qui l'a causé. Les requêtes SQL et les lignes de log ont leurs propres
+Chaque événement émis pendant la requête y figure, mails compris. Il est lu au
+moment même de l'émission, donc chacun est rattaché à la requête qui l'a causé.
+Les requêtes SQL, les lignes de log et les opérations de cache ont leurs propres
 panneaux et n'y sont pas répétées.
+
+#### Le panneau du cache
+
+Les opérations de cache arrivent sous forme de `cache:hit`, `cache:miss`,
+`cache:written`, `cache:deleted`, `cache:cleared` et `cache:expire` sur
+l'émetteur de l'application. `@c9up/echo` les émet sur l'émetteur du conteneur :
+une application sur echo a donc le panneau sans configuration. Le panneau est
+absent d'une requête qui n'a pas touché au cache.
+
+echo indique la durée de chaque opération (`duration`, en millisecondes) et,
+pour une écriture, la durée de vie de l'entrée (`ttl`, en secondes, `null` si
+elle n'expire pas). Un `getOrSet` qui rate compte le temps de sa factory dans
+son miss, et son écriture à part : le total ne compte pas la factory deux fois.
+Un autre cache obtient le même panneau en émettant les mêmes événements ; sans
+`duration`, ses opérations sont comptées et listées, sans durée.
+
+Les compteurs restent justes au-delà des 300 opérations que le panneau liste.
+Une valeur en cache est bornée comme tout contenu, et une valeur stockée sous
+une clé qui désigne un secret (`oauth:token:42`) s'affiche `[redacted]`.
 
 ## Clés et intégrations
 
@@ -563,6 +604,14 @@ Un projet qui tient un `.env.example` y voit `APP_KEY=` inscrite sans valeur :
 la variable est documentée et la clé reste dans `.env`. `ream new` écrit ce
 fichier : toutes les variables de `.env`, avec `APP_KEY` et `DB_PASSWORD` vides,
 et seul `.env` figure dans `.gitignore`.
+
+Un `.env` créé par `ream new` ou `generate:key` n'est lisible que par son
+propriétaire (`0600`) : il contient la clé qui signe chaque cookie et chaque
+session. Un `.env` existant garde le mode que vous lui avez donné.
+`generate:key` refuse un `.env` ou un `.env.example` qui est un lien symbolique
+ou pas un fichier ordinaire, et n'écrit alors rien : juste après un clone,
+c'est le dépôt qui décide de ce que sont ces noms, et un lien porterait
+l'écriture vers un autre fichier de votre compte.
 
 ## Diagnostics
 

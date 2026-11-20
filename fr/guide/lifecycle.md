@@ -133,9 +133,10 @@ export default class AtlasProvider extends Provider {
 
 Ce qui se passe, dans l'ordre :
 
-1. Les fichiers de préchargement issus de `reamrc.preloads` sont importés. C'est à ce moment que `start/kernel.ts` s'exécute et configure le middleware du serveur.
-2. Les routes des modules sont chargées automatiquement. L'Ignitor lit `reamrc.modules.path`, parcourt chaque sous-répertoire et importe tout fichier nommé `routes.ts` (ou les noms de fichiers listés dans `reamrc.modules.autoload`).
-3. `provider.start()` est appelé sur chaque provider.
+1. `provider.start()` est appelé sur chaque provider.
+2. Les hooks `app.starting()` s'exécutent.
+3. Les fichiers de préchargement issus de `reamrc.preloads` sont importés. C'est à ce moment que `start/kernel.ts` s'exécute et configure le middleware du serveur.
+4. Les routes des modules sont chargées automatiquement. L'Ignitor lit `reamrc.modules.path`, parcourt chaque sous-répertoire et importe tout fichier nommé `routes.ts` (ou les noms de fichiers listés dans `reamrc.modules.autoload`).
 
 Le serveur HTTP n'accepte pas encore de requêtes durant cette phase. C'est le bon moment pour définir les routes, enregistrer les middlewares nommés et préchauffer les caches.
 
@@ -168,7 +169,8 @@ Ce qui se passe, dans l'ordre :
 2. Le serveur HTTP est lancé — `serverFactory` est appelé, `onRequest` est connecté au kernel, et `listen()` est attendu.
 3. Le gestionnaire d'erreurs global est installé (intercepte les rejets non gérés et les `uncaughtException`).
 4. `provider.ready()` est appelé sur chaque provider.
-5. Le watcher de rechargement à chaud démarre en mode dev.
+5. Les hooks `app.ready()` s'exécutent.
+6. Le watcher de rechargement à chaud démarre en mode dev, puis l'application est marquée prête (`app.isReady`).
 
 Après le retour de `ready()`, l'application est entièrement opérationnelle. Affichez votre message de disponibilité ici.
 
@@ -248,6 +250,24 @@ Enregistre un callback qui s'exécute au début de la phase BOOT, avant la méth
 ### `app.booted(callback)`
 
 Enregistre un callback qui s'exécute après que tous les providers ont démarré. S'il est appelé après que l'application a déjà démarré, le callback s'exécute immédiatement.
+
+### `app.starting(callback)`
+
+Enregistre un callback qui s'exécute pendant la phase START, après le `start()` de chaque provider et avant les fichiers de préchargement. Un warm-up l'exécute aussi. Retourne l'application, les appels s'enchaînent donc.
+
+### `app.ready(callback)`
+
+Enregistre un callback qui s'exécute une fois que le `ready()` de chaque provider a rendu la main, avant que l'application soit marquée prête. Appelé sur une application déjà prête, le callback s'exécute tout de suite (`await app.ready(...)` l'attend). Un callback qui lève fait échouer le démarrage.
+
+```typescript
+app.ready(async () => {
+  await warmCaches()
+})
+```
+
+### `app.import(id)` et `app.importDefault(id)`
+
+Importent un module à travers l'importeur donné à l'application (`new Ignitor(APP_ROOT, { importer: (filePath) => import(filePath) })`), si bien qu'un sous-chemin `#` comme `#listeners/send_email` se résout par rapport au `package.json` de l'application. `importDefault` retourne l'export par défaut et nomme le module quand il n'en a pas ; il accepte aussi un thunk (`() => import('./x.js')`). Sans importeur, les deux lèvent `E_APP_MISSING_IMPORTER`.
 
 ## Propriétés d'environnement
 

@@ -23,7 +23,7 @@ await emitter.emit('user:registered', { id: 1 })
 class TaskDeclared extends BaseEvent {
   constructor(public task: Task) { super() }
 }
-emitter.on(TaskDeclared, SendNotification)   // classe listener (résolue par DI)
+emitter.on(TaskDeclared, [SendNotification])  // classe listener (résolue par DI)
 await new TaskDeclared(task).emit()
 
 // Souscriptions wildcard (moteur de pattern Rust)
@@ -56,16 +56,45 @@ possède pas.
 ```ts
 emitter.once('boot:ready', run)         // la prochaine occurrence seulement
 emitter.off('boot:ready', run)          // en retirer un
-emitter.listenIf(config.audit, 'x', fn) // n'enregistre que si le drapeau tient
+emitter.listenIf(config.audit, 'x', fn) // n'enregistre que si le drapeau tient ; rend le désabonnement
 emitter.listenerCount('x')              // combien, ou tous sans argument
 emitter.clearListeners('x')             // vide un événement
-emitter.clearAllListeners()             // vide tout
+emitter.clearAllListeners()             // vide tout, listeners joker compris
 emitter.onError((event, error) => report(event, error))
 ```
 
-Les **classes** listener sont résolues via le container IoC : elles bénéficient
-donc de l'injection de dépendances. Les listeners fonction inline marchent
-toujours, même sans container.
+Chacune prend un event string ou une classe d'event
+(`emitter.off(UserRegistered, listener)`, `emitter.listenerCount(UserRegistered)`).
+Le même listener enregistré deux fois pour un event ne tourne qu'une fois.
+
+### Formes de listener
+
+Les deux sortes d'event acceptent les mêmes listeners :
+
+```ts
+const SendVerificationEmail = () => import('#listeners/send_verification_email')
+
+emitter.on(UserRegistered, (event) => audit(event))          // une fonction
+emitter.on(UserRegistered, [SendWelcome])                      // une classe, méthode `handle`
+emitter.on('user:registered', [SendWelcome, 'onRegistered'])   // une classe et une méthode
+emitter.on(UserRegistered, [SendVerificationEmail])            // paresseux : importé au premier emit
+emitter.on('user:registered', SendWelcome)                     // raccourci de [SendWelcome]
+
+emitter.listen(UserRegistered, [SendVerificationEmail, AuditLog]) // plusieurs, chacun en [listener, 'handle']
+emitter.off(UserRegistered, [SendWelcome, 'onRegistered'])      // un tuple se retrouve par classe et méthode
+```
+
+Les **classes** listener sont construites via le container IoC : elles
+bénéficient donc de l'injection de dépendances ; sans container elles sont
+construites avec `new`. Le module d'un listener paresseux — et ce qu'il importe,
+un mailer ou une queue — est chargé au premier emit, pas au boot, puis gardé
+pour les suivants ; son export par défaut est la classe listener. Une méthode
+absente de l'instance est rapportée comme une erreur. Les listeners fonction
+inline marchent toujours, même sans container.
+
+La forme chaîne `'#listeners/x.method'` d'AdonisJS n'est pas acceptée : elle a
+besoin de l'importeur de modules de l'application, que l'emitter n'a pas. Un
+tuple paresseux dit la même chose.
 
 ### Souscriptions joker
 
@@ -78,6 +107,18 @@ const scoped = await emitter.onAny('order.*', audit)        // un motif
 await unsubscribe()
 await emitter.offAny(audit)                                 // ou par listener
 ```
+
+Un listener joker reçoit le nom de l'event et la valeur émise, une fois par
+event qui correspond, et tourne avec l'identifiant de corrélation actif là où
+l'event a été émis (`emitter.getCorrelationId()`). L'identifiant voyage sur
+l'enveloppe de l'event natif, pas dans le payload. Un listener qui lève ou
+rejette est rapporté via `onError` comme tout autre listener ; il ne peut pas
+faire tomber le process.
+
+La valeur traverse le bus natif en JSON : un listener joker en reçoit une copie.
+Un event de classe arrive comme un objet simple sous son `eventName`, une `Date`
+comme sa chaîne ISO. Les listeners enregistrés avec `on()` reçoivent la valeur
+elle-même.
 
 ::: tip Pourquoi des promesses
 Les deux sont des promesses, et la fonction de désabonnement est
@@ -104,6 +145,11 @@ const emitter = await app.container.make('events')   // ou 'emitter'
 
 Le provider binde trois tokens vers le même emitter — `events` (principal),
 `emitter` (un alias), et `bus` (le `EventBus` natif bas niveau).
+
+Un listener ne garde pas le process en vie : une commande console se termine
+quand son travail est fini, même avec un `onAny` ou un `onRequest` enregistré au
+preload. Un serveur reste debout grâce à sa socket. À l'arrêt, le provider retire
+tous les listeners, souscriptions joker et handlers de requête que le bus garde.
 
 ## Dans un handler — `ctx.events`
 
@@ -143,9 +189,9 @@ routes) :
 ```ts
 // start/events.ts
 import emitter from '@c9up/ream/events/services/main'
-import { SendWelcome } from '#listeners/send_welcome'
+const SendWelcome = () => import('#listeners/send_welcome')
 
-emitter.on('user:created', SendWelcome)
+emitter.on('user:created', [SendWelcome])   // importé au premier 'user:created'
 emitter.on('app:ready', () => console.log('booted'))
 ```
 
@@ -164,15 +210,16 @@ export default defineConfig({
 import { defineConfig } from '@c9up/ream/events/config'
 
 export default defineConfig({
-  store: 'memory',   // défaut — zéro infra externe
-  retries: 3,
+  store: 'memory',   // le défaut, et le seul store de ce build
 })
 ```
 
-Le store par défaut est en mémoire (`MemoryStore`). Un store Redis durable et
-distribué est disponible quand la crate native est compilée avec la feature
-cargo `redis-store` — opt-in, donc une app simple ne tire jamais de dépendance
-Redis.
+Le store est en mémoire. La crate native a un store Redis durable derrière la
+feature cargo `redis-store` et une boucle de relivraison, mais aucun des deux
+n'est encore atteignable depuis JavaScript : le provider les refuse au boot
+plutôt que de les ignorer. Un `store` autre que `'memory'` échoue avec
+`E_EVENTS_UNSUPPORTED_STORE`, toute autre option (`retries` comprise) avec
+`E_EVENTS_UNSUPPORTED_OPTION`.
 
 ## Tests
 

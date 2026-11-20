@@ -84,6 +84,7 @@ Raised by `@c9up/ream`'s exceptions and its native HTTP server. The server's own
 | `E_RESPONSE_TOO_LARGE` | — | A response body is over the configured ceiling. Bodies are held whole in memory, so a large file should be streamed or served from storage. |
 | `E_BODYPARSER_CONFIG` | — | The body parser config uses an option that is no longer supported. |
 | `E_BODYPARSER_INVALID_SIZE` | — | A body size limit is neither a number of bytes nor a size such as `'1mb'`. |
+| `E_BODYPARSER_INVALID_JSON` | 400 / 422 | A JSON body is malformed (400), or under `json.strict` is neither an object nor an array (422). |
 | `E_HTTP_REQUEST_TIMEOUT` | 408 | The native server did not receive the request body in time. |
 | `E_REQUEST_ABORTED` | 400 | The client closed the connection while the body was being read. |
 | `E_BAD_MULTIPART` | 400 | A `multipart/form-data` body is malformed, or its `boundary` parameter is missing. |
@@ -122,6 +123,11 @@ Raised while the application is assembled, configured and started.
 | `E_SERVER_GRPC_ALREADY_SET` | — | A second gRPC handler was registered on the server. |
 | `E_SERVER_GRPC_INVALID_LIMIT` | — | A gRPC message size limit is not a whole number of bytes, or `-1` for no limit. |
 | `E_REAM_STUB_SYNTAX` | — | A stub template has a syntax error. |
+| `E_ENV_FILE_NOT_FOUND` | — | A `.env` value `file:<path>` names a file that does not exist. The message names the variable and the path. |
+| `E_ENV_CIRCULAR_REFERENCE` | — | `.env` values reference each other in a loop (`A=$B`, `B=$A`). |
+| `E_IDENTIFIER_ALREADY_DEFINED` | — | `Env.defineIdentifier()` was given a name already registered (`file` is built in). Use `defineIdentifierIfMissing()` or remove the identifier first. |
+| `E_APP_MISSING_IMPORTER` | — | `app.import()` / `app.importDefault(id)` was called on an application built without an `importer`. |
+| `E_DUMP_DIE_EXCEPTION` | 500 | `dd()` stopped the request (answered with an HTML dump) or the command (printed the dump). Never reported. |
 
 ## Console Errors
 
@@ -173,6 +179,13 @@ Raised while the application is assembled, configured and started.
 | `E_SCHEDULE_TASK_TIMEOUT` | — | A task did not complete within its `timeoutMs`; it keeps running in the background. |
 | `E_SCHEDULE_PROVIDER_ALREADY_REGISTERED` | — | The scheduler provider was registered twice on the same container. |
 | `E_SCHEDULER_NATIVE_ERROR` | — | A call into the native scheduler failed. |
+
+## Event Errors
+
+| Code | HTTP | Description |
+|------|------|-------------|
+| `E_EVENTS_UNSUPPORTED_STORE` | — | `config/events.ts` names a `store` other than `'memory'`, the only one this build has. |
+| `E_EVENTS_UNSUPPORTED_OPTION` | — | `config/events.ts` holds an option nothing reads (`retries` included), or is not an object. |
 
 ## RPC and GraphQL Errors
 
@@ -263,6 +276,7 @@ message starts with the code.
 | `E_ATLAS_INVALID_INCREMENT` | — | `increment()` / `decrement()` was given an amount that is not a finite number. |
 | `E_ATLAS_INVALID_DATE_COLUMN_VALUE` | — | A date column was given a value that is not a valid date. |
 | `E_ATLAS_UNDEFINED_BINDING` | — | A query value is `undefined`. Validate the input first; use `whereNull()` to match NULL. |
+| `E_ATLAS_DIALECT_MISMATCH` | — | `useTransaction(trx)` was given a transaction of another dialect than the query was built for. Start the transaction on the query's connection, or build the query from the transaction. |
 | `E_ATLAS_RAW_BINDINGS` | — | A raw query has placeholders with no binding. |
 | `E_ATLAS_RAW_VALUE` | — | `defaultTo(db.raw())` was given bindings, which a column default cannot carry. |
 | `E_ATLAS_NON_FINITE_NUMBER` | — | `defaultTo()` was given a number that is not a SQL number (`NaN`, `Infinity`). |
@@ -338,6 +352,7 @@ message starts with the code.
 | `E_AURORA_TEMPLATE_IN_ATTRIBUTE` | — | A nested `html` template reached an attribute value or `.value`. |
 | `E_AURORA_FILE_INPUT_VALUE` | — | `.value` was given a non-empty string on an `<input type="file">`. |
 | `E_AURORA_DUPLICATE_KEY` | — | Two elements of an `each()` list share a key, which names one row. |
+| `E_AURORA_REACTIVE_CYCLE` | — | Effects kept re-running each other in one update: one writes what it, or an effect it triggers, reads. |
 | `E_AURORA_INTERNAL` | — | An invariant inside aurora broke: always a bug in aurora itself. |
 
 ## Blackhole Errors
@@ -352,7 +367,22 @@ message starts with the code.
 | `E_BLACKHOLE_PARAMETER_POLLUTION` | 400 | A query-string key appears twice (keys ending in `[]` may repeat). |
 | `E_BLACKHOLE_MISSING_IP` | 400 | Rate limiting is on and the request has no client address to count it under. |
 | `E_BLACKHOLE_SESSION_NOT_READY` | 500 | CSRF tokens are bound to the session (`csrf.session`) and the request reached blackhole without one: register the session middleware before blackhole's. |
+| `E_BLACKHOLE_UNKNOWN_CSP_KEYWORD` | 500 | The CSP names an `@keyword` no resolver is registered for (`cspKeywords.register`), or a keyword was registered under an invalid name. Raised when the filter is created. |
+| `E_BLACKHOLE_INVALID_CSP_KEYWORD_VALUE` | 500 | A CSP keyword's resolver answered a value with `;`, `,` or a line break, which would end the directive. |
+| `E_BLACKHOLE_DATABASE_UNAVAILABLE` | 500 | The database limiter store has nothing to count in: `@c9up/atlas` is not installed, not booted, or the named connection is not one. Pass a client as `connection`, or set atlas up. |
+| `E_BLACKHOLE_UNSUPPORTED_DATABASE` | 500 | The database limiter store was given a database other than PostgreSQL, MySQL or SQLite. |
 | `E_BLACKHOLE_BLOCKED` | varies | A refusal whose body the engine did not supply as a JSON error. |
+
+## Chronos Errors
+
+Thrown as plain `Error`s (`RangeError` for a year rejected before the engine) whose message starts with `CODE:`.
+
+| Code | HTTP | Description |
+|------|------|-------------|
+| `E_CHRONOS_INVALID_YEAR` | — | `easterDate` / `holidays` got a year that is not an integer in 1583-9999 (the Gregorian computus). |
+| `E_CHRONOS_UNKNOWN_COUNTRY` | — | `holidays` / `isHoliday` got a country with no holiday calendar (known: `CH`, `FR`). |
+| `E_CHRONOS_UNKNOWN_REGION` | — | The region is not a Swiss canton's two-letter code, or a region was given for `FR`. |
+| `E_CHRONOS_INVALID_DATE` | — | `isHoliday` got a string that is not a calendar date `YYYY-MM-DD`. |
 
 ## Echo Errors
 
@@ -393,6 +423,8 @@ message starts with the code.
 | `E_ECLIPSE_UNKNOWN_STORE` | — | A lock store name is not declared. |
 | `E_ECLIPSE_QUASAR_MISSING` | — | A Redis store was configured and `@c9up/quasar` is not installed. |
 | `E_ECLIPSE_INCOMPLETE_CONNECTION` | — | The quasar connection lacks what eclipse needs. |
+| `E_ECLIPSE_DATABASE_UNAVAILABLE` | — | A database lock store asks for atlas, which is not installed or has not booted. |
+| `E_ECLIPSE_UNSUPPORTED_DATABASE` | — | A database lock store was given a dialect other than PostgreSQL, MySQL or SQLite. |
 
 ## Eon Errors
 
@@ -406,6 +438,7 @@ Most eon refusals are plain `Error`s whose message starts with `[CODE]`; the que
 | `E_EON_NO_TIMESTAMP` | — | A super-table has no `@Timestamp` column. |
 | `E_EON_CHILD_STABLE` | — | `createChildTable()` was given neither `stable` nor `EntityClass`. |
 | `E_EON_CHILD_COLLISION` | — | Two distinct tag sets map to the same child table; eon refuses to write mismatched rows under one tag set. |
+| `E_EON_CHILD_MIGRATION` | — | `migrateChildTableNames()` read a child listing row without a table name. |
 | `E_EON_BATCH_SIZE` | — | `batchSize` is not a positive integer. |
 | `E_EON_DECIMAL_STMT` | — | A super-table with DECIMAL columns went through the columnar STMT path, which cannot bind them. Use `ingestSql()`. |
 | `E_EON_TYPE` | — | A column or tag has an unknown or missing type. |
@@ -633,6 +666,8 @@ Server-side errors are thrown from `@c9up/photon` (SSR / renderer); client-side 
 2. Verify `ssr.entrypoint` and `entryClient` are relative paths without `..` segments and end in `.tsx?` / `.jsx?` / `.vue` / `.svelte`.
 3. Restart the renderer (`PhotonRenderer.boot()` re-validates).
 
+Also thrown at render time when `rootView` names a template but the request has no view engine (`ctx.view`): install one (`@c9up/inker` sets it), or make `rootView` return a function that writes the document.
+
 **Throw site:** `packages/photon/src/PhotonRenderer.ts`.
 
 ### E_PHOTON_MANIFEST_MISSING
@@ -825,7 +860,8 @@ Returned in the JSON body of the relay routes, or as an `error` event on a hub.
 |------|------|-------------|
 | `E_RELAY_BAD_REQUEST` | 400 | `subscribe` without a usable `uid` or `channel` (both non-empty strings). |
 | `E_RELAY_CHANNEL_TOO_LONG` | 400 | The channel name exceeds 256 characters. |
-| `E_RELAY_NOT_CONNECTED` | 400 | No connection has this uid on this instance — it closed, or the request reached another instance (see *Running more than one instance*). |
+| `E_RELAY_NOT_CONNECTED` | 400 | No connection has this uid on this instance and no bus is configured to relay the request to the instance holding it — or the connection closed. |
+| `E_RELAY_BUS_UNAVAILABLE` | 503 | The subscription had to be relayed to the instance holding the stream, and the bus refused the message. |
 | `E_RELAY_NOT_OWNER` | 403 | The connection was opened by another user; subscribe, unsubscribe and hub frames must come from the same one. |
 | `E_RELAY_CHANNEL_NO_AUTHORIZER` | 403 | No `relay.authorize()` covers the channel, and `allowUnauthorizedChannels` is off. |
 | `E_RELAY_CHANNEL_FORBIDDEN` | 403 | The channel's authorizer refused, or threw. |
@@ -923,6 +959,7 @@ Rune normalises its codes: a code that already starts with `E_` is kept, any oth
 | Code | HTTP | Description |
 |------|------|-------------|
 | `E_STATION_LOGIN_CREDENTIALS_REQUIRED` | 400 | The admin sign-in form was sent without an email or a password. |
+| `E_STATION_LOGIN_IDENTIFIER_TOO_LONG` | 400 | The admin sign-in email is longer than 254 characters (RFC 5321); refused before the rate limiter. |
 | `E_STATION_INVALID_CREDENTIALS` | 401 | Invalid email or password. |
 | `E_STATION_TOO_MANY_LOGIN_ATTEMPTS` | 429 | Too many sign-in attempts; try again later. |
 | `E_STATION_LOGIN_UNAVAILABLE` | 503 | Sign-in is temporarily unavailable. |
@@ -934,6 +971,7 @@ Rune normalises its codes: a code that already starts with `E_` is kept, any oth
 | Code | HTTP | Description |
 |------|------|-------------|
 | `E_TRANSIT_INVALID_XML` | — | A provider answered XML that cannot be parsed, or that uses a construct transit refuses. |
+| `E_TRANSIT_PROTECTED_PARAMETER` | — | A per-request `begin()`/`redirect()` callback tried to set or clear a parameter the sign-in owns (`state`, `nonce`, the PKCE challenge, `client_id`, `redirect_uri`, `response_type`), or `scope` through `param()` instead of the scope methods. |
 
 ## Vellum Errors
 
@@ -999,11 +1037,11 @@ Warden normalises its codes: a code that already starts with `E_` is kept, any o
 | Code | HTTP | Description |
 |------|------|-------------|
 | `E_UNAUTHORIZED_ACCESS` | 401 | No guard authenticated the request. A guarded route answers with this code. |
-| `E_INVALID_CREDENTIALS` | 400 | The error class a login flow throws when the credentials do not match. |
+| `E_INVALID_CREDENTIALS` | 400 | The credentials do not match. `authFinder().verifyCredentials` throws it for an unknown account and a wrong password alike, after the same hash work. |
 | `E_WARDEN_AUTH_STRATEGY_ERROR` | 500 | Every attempted guard crashed (a database down, a bug): a server incident, distinct from a credential rejection. |
 | `E_WARDEN_FORBIDDEN` | 403 | The user lacks a permission or a role a route declares. |
 | `E_WARDEN_MFA_REQUIRED` | 403 | The route declares `@RequireMfa` and the user has not passed the step-up. |
-| `E_WARDEN_AUTHORIZATION_FAILURE` | 403 | A bouncer ability or policy denied the action (403 unless the policy gives another status). |
+| `E_AUTHORIZATION_FAILURE` | 403 | A bouncer ability or policy denied the action (403 unless the denial gives another status). The exported class carries the denial as `error.response`, translation included. |
 | `E_WARDEN_UNAUTHORIZED` | 401 | The standalone `expressMiddleware()` found no token or refused it. |
 | `E_WARDEN_AUTH_ERROR` | 500 | The standalone `expressMiddleware()` failed internally. |
 | `E_WARDEN_NO_AUTH_CONFIG` | — | `WardenProvider` booted without any guard configured. |

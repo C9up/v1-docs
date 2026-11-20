@@ -349,6 +349,13 @@ ream start              # node bin/server.js
 ream migration:status   # node bin/console.js migration:status
 ```
 
+On Linux and macOS, `ream` does not stay between you and node: `start`, an
+application command, `test`, `repl` and `inspect` hand the process over to node
+(`exec`). A `docker stop`, a `kill -TERM`, a `timeout 600 ream test` or a
+closed terminal therefore reaches the server, the queue worker or the test run
+itself, which shuts down through its own hooks, and `ream` ends with node's
+exit code. On Windows node runs as a child, as before.
+
 `ream test` reads its suites from the rc file and hands them to the runner, so
 the suite names and their globs live in one place rather than in a script. A new
 `api` or `web` project already has them: a `unit` suite and a `functional` one,
@@ -424,6 +431,15 @@ because every-interface is not a link that opens.
 | `h` | show this list |
 | `Ctrl-C` / `Ctrl-D` | quit |
 
+The keys need a terminal. `ream dev` reads the one it runs in and passes each
+key to the server through a pseudo-terminal of the server's own, so the
+server answers them while staying out of the terminal's foreground: it can
+never be stopped for reading it. With no terminal on its input — an agent,
+CI, input piped in — or with `ream dev` sent to the background,
+nothing is read, no child gets a terminal, and the banner leaves out
+`Press h to show help`. `c` clears the screen only when the server writes to
+the terminal directly, that is with no assets command beside it.
+
 ### What a change prints
 
 ```
@@ -463,19 +479,24 @@ never loaded produces no line, by design.
 
 ### The debug toolbar
 
-Every HTML page served in development carries a bar at the bottom. The page is
-pushed up by the bar's height, so nothing at the bottom of the page ends up
-underneath it. Each item has a summary on hover and opens a panel on click:
+Every HTML page served in development carries a bar at the bottom. A page that
+scrolls is pushed up by the bar's height, so nothing at its bottom ends up
+underneath it. A page whose shell fills the viewport and scrolls inside
+(`h-screen` with an inner scrolling element) is left as it is — padding it
+would only make the document scroll — and the bar's height is available as
+`--ream-toolbar-height` on `<html>`, for such a shell to leave room for it
+(`h-[calc(100vh-var(--ream-toolbar-height,0px))]`). Each item has a summary on
+hover and opens a panel on click:
 
 | Item | On the bar | In the panel |
 |---|---|---|
 | request | status, method, route | route, pattern, controller, params, query string, body, headers, cookie names, session, user, response status and headers |
-| time | total duration | a timeline: the request, each query, each log line, each event |
+| time | total duration | a timeline: the request, each query, each log line, each event, each cache operation |
 | mem | heap used | heap used and total, resident memory, growth during the request |
 | db | statements and their total time | each statement with its bindings, model, method, connection and start time; duplicates marked and countable, failed ones in red; filter, slowest first, copy |
 | logs | errors, else warnings, else lines | each line with its level and context; filter by level and text |
 | events | events emitted | each event with its payload; filter by name |
-| cache | operations | hits, misses and writes, with keys |
+| cache | operations and their total time | hits (graced ones apart), misses, writes, deletes, clears and expirations; a table per store when there are several; each operation with its key, store, duration, TTL and value; filter by key or store |
 | mail | messages | each `mail:*` event with its payload |
 | ajax | requests the page made | each `fetch` and `XMLHttpRequest` with method, status and time; click one to show its profile on the bar |
 | ream | framework version | Node.js version, environment, platform, process |
@@ -521,10 +542,29 @@ from a request that logged nothing.
 
 #### The events panel
 
-Every event emitted while the request ran is listed, cache operations and mail
-included, read synchronously as it is emitted so each one lands on the request
-that caused it. Queries and log lines have their own panels and are not
+Every event emitted while the request ran is listed, mail included, read
+synchronously as it is emitted so each one lands on the request that caused it.
+Queries, log lines and cache operations have their own panels and are not
 repeated there.
+
+#### The cache panel
+
+Cache operations arrive as `cache:hit`, `cache:miss`, `cache:written`,
+`cache:deleted`, `cache:cleared` and `cache:expire` on the application's
+emitter. `@c9up/echo` emits them on the container's emitter, so an application
+on echo gets the panel with no configuration. The panel is absent from a
+request that never touched the cache.
+
+echo reports how long each operation took (`duration`, in milliseconds) and,
+on a write, how long the entry lives (`ttl`, in seconds, `null` for no expiry).
+A `getOrSet` that misses reports its factory's time in its miss, and its write
+on its own, so the total does not count the factory twice. Another cache gets
+the same panel by emitting the same events; without `duration` its operations
+are still counted and listed, untimed.
+
+The counts stay true past the 300 operations the panel lists. A cached value is
+capped like any payload, and a value stored under a key that names a secret
+(`oauth:token:42`) is shown as `[redacted]`.
 
 ## Keys and integrations
 
@@ -546,6 +586,13 @@ A project that keeps a `.env.example` gets `APP_KEY=` recorded there with no
 value, so the variable is documented and the key stays in `.env`. `ream new`
 writes that file: every variable of `.env`, with `APP_KEY` and `DB_PASSWORD`
 left empty, and only `.env` in `.gitignore`.
+
+A `.env` that `ream new` or `generate:key` creates is readable by its owner
+only (`0600`): it holds the key that signs every cookie and session. An
+existing `.env` keeps the mode you gave it. `generate:key` refuses a `.env` or
+`.env.example` that is a symbolic link or not a regular file, and then writes
+nothing: right after a clone, the repository decides what those names are, and
+a link would carry the write into another file of your account.
 
 ## Diagnostics
 

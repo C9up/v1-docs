@@ -229,6 +229,19 @@ await container.call(handler, 'handle', [mySpecificReportService])
 // la position 0 utilise mySpecificReportService ; la position 1 est toujours injectée
 ```
 
+TypeScript n'émet les types des paramètres d'une méthode que si elle porte un décorateur : placez donc `@inject()` sur la méthode elle-même — une action de contrôleur, le `run()` d'une commande, le `handle()` d'un listener — pour y injecter un service sans élargir le constructeur :
+
+```typescript
+export default class UsersController {
+  @inject()
+  async index(ctx: HttpContext, users: UserService) {
+    return users.findAll()
+  }
+}
+```
+
+Les valeurs d'exécution (`ctx` ici) remplissent les premières positions ; chaque position restée libre est résolue par son type. `@inject()` sur une méthode n'enregistre pas la classe.
+
 ## `static containerInjections` — sans `emitDecoratorMetadata`
 
 Les environnements d'exécution qui n'émettent pas les métadonnées de décorateurs TypeScript (Bun natif, esbuild sans le plugin, certains environnements ESM) ne peuvent pas utiliser `Reflect.getMetadata('design:paramtypes', ...)`. Déclarez une propriété statique `containerInjections` comme solution de repli — le conteneur la lit en priorité.
@@ -254,6 +267,29 @@ export default class UsersController {
 ```
 
 La structure doit correspondre à `{ _constructor: { dependencies: ServiceToken[] } }`. Cette convention fonctionne dans n'importe quel environnement d'exécution.
+
+Les dépendances d'une méthode prennent la même forme sous le nom de la méthode — `{ handle: { dependencies: [String, UserService] } }` — et `container.call()` les lit.
+
+## Liaisons conditionnelles — `container.if()`
+
+Une liaison choisie à chaque résolution par un prédicat : un feature flag, une implémentation par tenant. Les conditions sont essayées dans l'ordre d'enregistrement et la première qui tient répond ; si aucune ne tient, la liaison ordinaire (ou la classe elle-même) répond.
+
+```typescript
+container.bind(PaymentGateway, () => new StripeGateway())
+container.if((resolver, runtimeValues, parent) => flags.beta).bind(PaymentGateway, () => new BetaGateway())
+container.if(() => tenant.isLegacy).singleton(PaymentGateway, () => new LegacyGateway())
+```
+
+La condition reçoit le resolver, les valeurs d'exécution passées à `make()` (les dépendances d'une classe n'en reçoivent pas) et la classe qui demande (`null` pour un `make()` direct) ; elle peut être asynchrone. Un `singleton` conditionnel garde une instance par branche — sauf une instance construite à partir d'une valeur propre à la requête, qui reste celle de cette requête. `container.conditionalBinding(condition, token, factory, isSingleton)` fait la même chose en un appel. Un swap reste prioritaire.
+
+## Observer les résolutions — `useEmitter()`
+
+```typescript
+container.useEmitter(emitter) // ou new Container({ emitter })
+emitter.on('container_binding:resolved', ({ binding, value }) => { /* … */ })
+```
+
+Chaque résolution émet `container_binding:resolved` avec la liaison et la valeur — ce qu'un profiler ou un panneau de télémétrie utilise pour lister les services d'une requête. Un émetteur qui lève ou dont la promesse est rejetée ne fait jamais échouer la résolution qu'il rapporte.
 
 ## Tests — `swap()` et `restore()`
 

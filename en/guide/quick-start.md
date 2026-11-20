@@ -413,7 +413,9 @@ export default class AppProvider extends Provider {
         secret: authConfig.jwt.secret,
         expiresInSeconds: authConfig.jwt.expiresInSeconds,
         verifyCredentials: async (email, password) => {
-          // Replace with a real database lookup + password verification
+          // Replace with a real lookup built on authFinder({ hash, findForAuth })
+          // from @c9up/warden: it pays a hash for an unknown email too, so the
+          // response time does not reveal which accounts exist.
           if (email === 'admin@example.com' && password === 'secret') {
             return { id: 'user-1', email, roles: ['admin'], permissions: ['tasks.create'] }
           }

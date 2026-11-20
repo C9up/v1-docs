@@ -83,6 +83,11 @@ La prévisualisation n'est pas sans effet non plus : pour obtenir le SQL, elle
 importe chaque module de migration et exécute son `up()` / `down()` dans le
 serveur, donc elle exécute du code du projet.
 
+Une prévisualisation, comme `migration.status`, ne modifie aucun schéma : elle
+ne crée jamais la table de suivi des migrations. Là où cette table n'existe pas,
+rien n'a été migré, donc un rollback (prévisualisé ou réel) renvoie une liste
+vide et le signale dans `knownGaps`.
+
 ## Erreurs
 
 Un nom d'outil inconnu est une erreur JSON-RPC (`-32602`). Un outil qui

@@ -14,7 +14,11 @@ router.use([
 ])
 ```
 
-Un corps JSON n'est analysé que si son Content-Type fait partie de `json.types` (`application/json` et `application/vnd.api+json` par défaut). Un corps envoyé sans Content-Type, ou en `text/plain` — ce qu'une page étrangère peut envoyer avec les cookies du visiteur et sans preflight CORS — n'est jamais lu comme du JSON. Un corps JSON mal formé se lit `{}`.
+Un corps JSON n'est analysé que si son Content-Type fait partie de `json.types` (`application/json`, `application/json-patch+json`, `application/vnd.api+json` et `application/csp-report` par défaut). Un corps envoyé sans Content-Type, ou en `text/plain` — ce qu'une page étrangère peut envoyer avec les cookies du visiteur et sans preflight CORS — n'est jamais lu comme du JSON.
+
+Un corps JSON mal formé est refusé avec `400 E_BODYPARSER_INVALID_JSON` avant que votre handler ne s'exécute. Avec `json.strict` (actif par défaut), le corps doit être un objet ou un tableau ; toute autre valeur JSON est refusée avec un 422. Un tableau, ou un scalaire une fois `strict` coupé, est rangé sous `_body`. Une clé `__proto__`, et une clé `constructor` portant un `prototype`, sont retirées au parsing : copier le corps sur un objet avec `Object.assign` ou une fusion profonde ne peut donc pas remplacer le prototype de cet objet.
+
+`trimWhitespaces` et `convertEmptyStringsToNull` sont actifs par défaut pour `json`, `form` et `multipart` : chaque valeur texte est débarrassée de ses espaces de bord, et une valeur vide devient `null`. Les clés restent telles qu'envoyées. Coupez l'un ou l'autre dans la section correspondante de la configuration.
 
 ### Le configurer
 
@@ -100,6 +104,8 @@ Utilisez `request.file(field, options?)` pour un seul fichier et `request.files(
 const avatar = request.file('avatar')   // MultipartFile | null
 const photos = request.files('photos')  // MultipartFile[]
 ```
+
+Les fichiers sont imbriqués selon le nom du champ, comme les champs de formulaire. Un champ nommé `documents[]` se lit avec `request.files('documents')`, et un champ nommé `user[avatar]` avec `request.file('user.avatar')`. Quand un chemin porte plusieurs fichiers, `request.file()` renvoie le premier. `request.allFiles()` renvoie l'arbre complet, par exemple `{ documents: [file, file], user: { avatar: file } }`.
 
 `request.file()` renvoie `null` lorsqu'aucun fichier n'a été envoyé pour ce champ, alors protégez-vous toujours avant de l'utiliser.
 
