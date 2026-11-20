@@ -31,6 +31,18 @@ En plus des sous-requêtes et des mots-clés d'instruction, elles refusent :
 - tout `#`, y compris dans un littéral : il ouvre un commentaire sur MySQL.
   Aucune colonne, aucun alias ni aucun agrégat accepté par ces méthodes n'en a
   besoin.
+- une fonction qu'elles ne listent pas, quelle que soit son écriture : un nom
+  entre guillemets doubles ou entre backticks (`"pg_sleep"(30)`,
+  `` `sleep`(5) ``) et un nom qualifié par un schéma (`pg_catalog.pg_sleep(1)`,
+  `public.count(id)`) sont des appels que le serveur exécute ; ils sont donc
+  refusés comme un nom nu non listé. Une fonction autorisée s'écrit toujours
+  nue.
+
+L'expression supplémentaire de `whereExpr()` (`whereExpr('total', '+ tax', '>=',
+100)`) reste disponible en mode strict ; elle n'appelle donc qu'un ensemble
+autorisé de fonctions scalaires (`abs`, `round`, `coalesce`, `length`, `lower`,
+…) : `pg_sleep()`, `version()` ou `current_setting()` y sont refusés. Voir
+[ModelQuery avancé](model-query-advanced.md).
 
 Une apostrophe doublée dans un littéral (`'it''s'`) reste acceptée. Ce que ces
 vérifications refusent relève d'une surface brute avec bindings.

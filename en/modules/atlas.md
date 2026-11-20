@@ -567,7 +567,8 @@ db.from('users')
 ```
 
 `andHavingExists`, `orHavingExists`, `havingNotExists`, `andHavingNotExists` and
-`orHavingNotExists` complete the family.
+`orHavingNotExists` complete the family. A model query has them too; its
+subquery is another model query, or a callback building one on the same model.
 
 ### Cursor pagination
 

@@ -79,6 +79,7 @@ new BaseRepository(EntityClass, db, options?)
 - `whereRaw(sql, bindings)`
 - `whereExpr(column, operator, value)`
 - `whereExpr(column, extraExpression, operator, value)`
+- `useTransaction(trx)`
 
 ### Relations
 

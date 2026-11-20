@@ -11,11 +11,17 @@ const q = repo.query()
 ```
 
 L'`extraExpression` optionnelle (2e arg de la forme à 4 args) est un fragment
-**arithmétique** uniquement — colonnes, nombres, `+ - * / ,`, parenthèses et
-fonctions. Les mots-clés SQL bruts (`OR`, `AND`, `IS`, `NOT`, `SELECT`, …) sont
-rejetés pour que le fragment ne puisse pas altérer la logique du prédicat ; la
-valeur comparée est toujours bindée. Utiliser `whereRaw` (avec bindings) pour
-tout ce qui dépasse l'arithmétique.
+**arithmétique** uniquement — colonnes, nombres, `+ - * / ,`, parenthèses et un
+ensemble fixe de fonctions scalaires : `abs`, `ceil`, `floor`, `round`,
+`coalesce`, `nullif`, `length`, `lower`, `upper`, `trim`, `replace`,
+`substring`, `now`. Tout autre appel (`pg_sleep()`, `version()`,
+`current_setting()`, une fonction définie par l'utilisateur) est refusé, de même
+que les fonctions d'identité sans parenthèses (`current_user`, `session_user`,
+…). Les mots-clés SQL bruts (`OR`, `AND`, `IS`, `NOT`, `SELECT`, …) sont rejetés
+pour que le fragment ne puisse pas altérer la logique du prédicat ; la valeur
+comparée est toujours bindée. La forme à 4 args reste disponible en mode strict,
+c'est pourquoi elle repose sur une liste blanche. Utiliser `whereRaw` (avec
+bindings) pour tout ce qui la dépasse.
 
 Garder `whereRaw` seulement pour des fragments SQL réellement spécifiques au dialecte, toujours avec bindings.
 
@@ -154,7 +160,24 @@ const trx = await db.transaction({ isolationLevel: 'repeatable read' })
 
 Les appels `transaction()` imbriqués réutilisent la même connexion via
 `SAVEPOINT` (rollback partiel). Passer le `trx` actif à un repository avec
-`repo.useTransaction(trx)`.
+`repo.useTransaction(trx)`, ou à une requête construite avant que la transaction
+existe avec `query.useTransaction(trx)` :
+
+```ts
+const query = User.query().where('id', 1)
+await db.transaction(async (trx) => {
+  await query.useTransaction(trx).update({ active: false })
+  await db.from('audit').useTransaction(trx).insert({ note: 'deactivated' })
+})
+```
+
+Une requête de modèle liée ainsi hydrate des lignes liées à la transaction (leurs
+`save()` / `delete()` y restent) et diffère ses domain events jusqu'au commit,
+comme `Model.query({ client: trx })`. Le builder de connexion, ses builders
+d'écriture (`insert`, `update`, `delete`) et `db.rawQuery()` acceptent aussi
+`useTransaction(trx)`. Une transaction ouverte sur une connexion d'un autre
+dialecte est refusée (`E_ATLAS_DIALECT_MISMATCH`) : la requête a été construite
+pour le sien.
 
 **Hooks après-commit.** `trx.after('commit', cb)` / `trx.after('rollback', cb)`
 enregistrent des effets de bord qui ne s'exécutent qu'une fois la transaction
@@ -351,17 +374,27 @@ const rows = await repo.query()
 ```
 
 - `having(col, op, value)` / `orHaving(col, op, value)`
+- `having((q) => …)` / `orHaving((q) => …)` : les clauses du callback, entre
+  parenthèses comme un seul groupe (`HAVING (count(*) > ? OR sum(total) < ?)`)
+- `having(db.raw(sql, bindings))` / `orHaving(db.raw(…))`
 - `havingIn(col, values)` / `havingNotIn(col, values)`
 - `havingBetween(col, [lo, hi])` / `havingNotBetween(col, [lo, hi])`
 - `havingNull(col)` / `havingNotNull(col)`
+- `havingExists(sub)` / `havingNotExists(sub)` : `sub` est une autre requête de
+  modèle ou un callback qui en construit une sur ce modèle
 - `havingRaw(sql, bindings?)`, `groupByRaw(sql)`, `orderByRaw(sql)`
+
+Chaque méthode `having*` a une forme `or*` (`orHavingIn`, `orHavingNull`,
+`orHavingBetween`, `orHavingExists`, `orHavingRaw`, …) et un alias `and*`
+(`andHaving`, `andHavingIn`, …), sur la requête de modèle comme sur `db.from()`.
 
 Une colonne `having` nue est résolue via le mapping de colonnes de l'entité (en
 respectant `@Column({ columnName })`) ; une expression d'agrégat ou un alias
 `withCount` / `withAggregate` est laissé verbatim pour que `having` puisse le
 référencer. `havingRaw`, `groupByRaw` et `orderByRaw` sont des surfaces SQL brut —
 elles lèvent une erreur sous `setAtlasStrictMode(true)` / `ATLAS_STRICT`, exactement
-comme `whereRaw`.
+comme `whereRaw` ; de même pour `orHavingRaw`, `andHavingRaw` et
+`having(db.raw(…))`.
 
 ## Opérations d'ensemble
 
@@ -526,6 +559,11 @@ côté serveur, donc seule la course côté client s'y applique. Il n'y a pas de
 d'annulation séparé par KILL-by-PID (cette voie est indisponible sous le driver) ;
 l'annulation est toujours le timeout d'instruction en session. Appeler `timeout()`
 sans argument le supprime.
+
+La connexion du pool retrouve le timeout qu'elle avait avant la requête, y compris
+une valeur par défaut de rôle ou de base (`ALTER ROLE app SET statement_timeout =
+'5s'`) ou une valeur `options` de démarrage. Une connexion dont la valeur ne peut
+pas être restaurée est fermée au lieu de retourner dans le pool.
 
 ## Écritures et upserts au niveau connexion
 

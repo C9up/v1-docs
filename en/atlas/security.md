@@ -28,6 +28,17 @@ compiled. Besides refusing sub-selects and statement keywords, they refuse:
   skipped as "inside the string" would run as SQL. No aggregate needs one.
 - any `#`, inside a literal included: it opens a comment on MySQL. No column,
   alias or aggregate these methods accept needs it.
+- a function they do not list, however it is spelled: a double-quoted or
+  backticked name (`"pg_sleep"(30)`, `` `sleep`(5) ``) and a schema-qualified
+  one (`pg_catalog.pg_sleep(1)`, `public.count(id)`) are calls the server runs,
+  so they are refused like an unlisted bare name. An allowed function is
+  always written bare.
+
+`whereExpr()`'s extra expression (`whereExpr('total', '+ tax', '>=', 100)`)
+stays available in strict mode, so it calls only an allow-listed set of scalar
+functions (`abs`, `round`, `coalesce`, `length`, `lower`, …): `pg_sleep()`,
+`version()` or `current_setting()` there are refused. See
+[Advanced ModelQuery](model-query-advanced.md).
 
 A quote doubled inside a literal (`'it''s'`) stays accepted. Anything these
 checks refuse belongs in a raw surface with bindings.

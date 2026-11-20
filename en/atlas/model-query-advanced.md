@@ -11,10 +11,16 @@ const q = repo.query()
 ```
 
 The optional `extraExpression` (2nd arg of the 4-arg form) is an **arithmetic**
-fragment only — columns, numbers, `+ - * / ,`, parentheses and functions. Bare
-SQL keywords (`OR`, `AND`, `IS`, `NOT`, `SELECT`, …) are rejected so the fragment
-can't alter the predicate's logic; the compared value is always bound. Reach for
-`whereRaw` (with bindings) for anything beyond arithmetic.
+fragment only — columns, numbers, `+ - * / ,`, parentheses and a fixed set of
+scalar functions: `abs`, `ceil`, `floor`, `round`, `coalesce`, `nullif`,
+`length`, `lower`, `upper`, `trim`, `replace`, `substring`, `now`. Any other
+call (`pg_sleep()`, `version()`, `current_setting()`, a user-defined function)
+is refused, and so are the parenthesis-free identity functions (`current_user`,
+`session_user`, …). Bare SQL keywords (`OR`, `AND`, `IS`, `NOT`, `SELECT`, …)
+are rejected so the fragment can't alter the predicate's logic; the compared
+value is always bound. The 4-arg form stays available in strict mode, which is
+why it is an allow-list. Reach for `whereRaw` (with bindings) for anything
+beyond it.
 
 Use `whereRaw` only for truly dialect-specific SQL fragments and always with bindings.
 
@@ -153,7 +159,23 @@ const trx = await db.transaction({ isolationLevel: 'repeatable read' })
 ```
 
 Nested `transaction()` calls reuse the same connection via `SAVEPOINT` (partial
-rollback). Hand the active `trx` to a repository with `repo.useTransaction(trx)`.
+rollback). Hand the active `trx` to a repository with `repo.useTransaction(trx)`,
+or to a query built before the transaction existed with `query.useTransaction(trx)`:
+
+```ts
+const query = User.query().where('id', 1)
+await db.transaction(async (trx) => {
+  await query.useTransaction(trx).update({ active: false })
+  await db.from('audit').useTransaction(trx).insert({ note: 'deactivated' })
+})
+```
+
+A model query bound this way hydrates rows bound to the transaction (their
+`save()` / `delete()` stay inside it) and defers its domain events to the commit,
+like `Model.query({ client: trx })`. The connection-level builder, its write
+builders (`insert`, `update`, `delete`) and `db.rawQuery()` take
+`useTransaction(trx)` too. A transaction on a connection of another dialect is
+refused (`E_ATLAS_DIALECT_MISMATCH`): the query was built for its own.
 
 **After-commit hooks.** `trx.after('commit', cb)` / `trx.after('rollback', cb)`
 register side effects that run only once the transaction is durable;
@@ -344,16 +366,26 @@ const rows = await repo.query()
 ```
 
 - `having(col, op, value)` / `orHaving(col, op, value)`
+- `having((q) => …)` / `orHaving((q) => …)`: the callback's clauses, parenthesised
+  as one group (`HAVING (count(*) > ? OR sum(total) < ?)`)
+- `having(db.raw(sql, bindings))` / `orHaving(db.raw(…))`
 - `havingIn(col, values)` / `havingNotIn(col, values)`
 - `havingBetween(col, [lo, hi])` / `havingNotBetween(col, [lo, hi])`
 - `havingNull(col)` / `havingNotNull(col)`
+- `havingExists(sub)` / `havingNotExists(sub)`: `sub` is another model query or a
+  callback building one on this model
 - `havingRaw(sql, bindings?)`, `groupByRaw(sql)`, `orderByRaw(sql)`
+
+Every `having*` method has an `or*` form (`orHavingIn`, `orHavingNull`,
+`orHavingBetween`, `orHavingExists`, `orHavingRaw`, …) and an `and*` alias
+(`andHaving`, `andHavingIn`, …), on the model query and on `db.from()` alike.
 
 A bare `having` column resolves through the entity column map (honouring
 `@Column({ columnName })`); an aggregate expression or a `withCount` / `withAggregate`
 alias is left verbatim so `having` can reference it. `havingRaw`, `groupByRaw` and
 `orderByRaw` are raw-SQL surfaces — they throw under `setAtlasStrictMode(true)` /
-`ATLAS_STRICT`, exactly like `whereRaw`.
+`ATLAS_STRICT`, exactly like `whereRaw`; so do `orHavingRaw`, `andHavingRaw` and
+`having(db.raw(…))`.
 
 ## Set operations
 
@@ -513,6 +545,11 @@ client has already given up. SQLite has no server-side statement timeout, so onl
 client race applies there. There is no separate KILL-by-PID cancellation path (that
 route is unavailable under the driver); cancellation is always the in-session
 statement timeout. Calling `timeout()` with no argument clears it.
+
+The pooled connection gets back the timeout it had before the query, a role or
+database default (`ALTER ROLE app SET statement_timeout = '5s'`) or a startup
+`options` value included. A connection whose value cannot be restored is closed
+rather than returned to the pool.
 
 ## Connection-level writes and upserts
 
