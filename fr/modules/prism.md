@@ -158,6 +158,14 @@ vérifiés, et un noyau 3x3 doit porter exactement neuf valeurs finies. La teint
 fait exception : elle est circulaire, donc 400 degrés valent 40 plutôt qu'une
 erreur.
 
+Aucun réglage n'est converti en douce en chemin vers le moteur : NaN, un infini,
+une valeur qui déborde le flottant 32 bits du moteur, ou une fraction là où un
+entier est attendu (`brighten`, `hueRotate`, `rotate`, le `threshold` de
+`sharpen`) est refusé avec `E_PRISM_INVALID_OPERATION`, et l'`opacity` d'une
+composition doit être comprise entre 0 et 1. Un sigma vaut 0 ou un nombre
+normal — un sigma sous-normal comme `1e-40` est refusé plutôt que confié au
+flou — et `sharpen` exige un sigma supérieur à 0.
+
 ### Vignettes
 
 ```ts
@@ -400,6 +408,7 @@ Les listes blanches bornent le nombre de réponses, pas le coût d'en produire u
 - **Une variante n'est rendue qu'une fois.** Sa clé est la largeur qu'elle aura vraiment : 3200, 3840 et 5120 d'une source de 3000 px sont la même image et un seul rendu. La même variante demandée plusieurs fois en même temps n'est décodée qu'une fois.
 - **Il y a toujours un cache.** Avec `cacheDir`, les variantes sont gardées sur le disque, un dossier par source ; remplacer une source supprime les variantes de sa version précédente quand les nouvelles sont écrites, si bien qu'un avatar renvoyé au même chemin ne s'accumule pas. Sans `cacheDir`, elles sont gardées en mémoire jusqu'à `memoryCacheBytes` (32 Mio), les moins récemment utilisées partant les premières.
 - **Les rendus passent quelques-uns à la fois.** `concurrency` (2) rendus tournent en même temps, `queueLimit` (64) attendent ; au-delà, la réponse est un 503 `E_PRISM_IMAGE_BUSY` avec `Retry-After`, plutôt qu'une attente plus longue pour tout le monde.
+- **Identifier une source est borné aussi.** Ses 64 premiers Kio sont lus pour distinguer une image de tout le reste ; une vidéo ou une archive posée dans une racine coûte cette lecture, une fois par version du fichier — la réponse, refus compris, est retenue. Une image plus grande n'est lue en entier qu'à l'intérieur de la porte de rendu ci-dessus, si bien que `concurrency` x `limits.maxBytes` est le maximum que les lectures de sources tiennent à la fois, et la même source demandée plusieurs fois en même temps n'est lue qu'une fois.
 - **L'AVIF est encodé à l'`effort` 1** (0 le plus rapide, 9 le plus lent) : l'image est encodée pendant qu'un visiteur attend, et l'effort 4 prend environ quatre fois plus de temps pour des octets à un pour cent près.
 
 | Option | Défaut | |

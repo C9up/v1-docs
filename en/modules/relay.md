@@ -100,12 +100,22 @@ each publication carries the id of the relay that sent it, which ignores its own
 — the bus hands a message back to its publisher too, and the local clients
 already had it.
 
-**Subscriptions need the instance that holds the stream.** The bus carries
-broadcasts, not connections: a connection's uid, its channels, a hub's tokens
-and groups live on the instance that opened the stream. A `subscribe` that
-reaches another instance answers `400 E_RELAY_NOT_CONNECTED`. Route a client's relay
-requests to one instance — sticky sessions on `/__relay/*` and the hub paths —
-or run one instance for them.
+**A subscription may land on any instance.** A connection's uid and its
+channels live on the instance that opened the stream, but the balancer sends
+`POST /__relay/subscribe` and `/__relay/unsubscribe` anywhere. The instance a
+`subscribe` lands on runs the channel's authorizer with that request, then
+relays the subscription on the bus; the instance holding the uid applies it
+after checking that the requester is the user and session that opened the
+stream, and that the stream is under `maxChannelsPerClient`. An `unsubscribe`
+is relayed the same way. The answer is `204` once the bus has the message — a
+refusal on the holder (another user, the channel cap) is applied there and not
+reported back — and the `subscribe` / `unsubscribe` events fire on the holder,
+once applied, with the stream's context. A bus that refuses the relay answers
+`503 E_RELAY_BUS_UNAVAILABLE`.
+
+Hubs are different: a hub's tokens and groups live on the instance that opened
+the stream, so route a client's hub requests to one instance — sticky sessions
+on the hub paths — or run one instance for them.
 
 ```ts
 import { defineConfig, transports } from '@c9up/relay'
@@ -118,7 +128,10 @@ export default defineConfig({
 `connection` takes the name of a [`@c9up/quasar`](/en/modules/quasar)
 connection — resolved when the first broadcast goes out, not while the config
 file is read — or a client of your own answering `publish`, `subscribe` and
-`unsubscribe`.
+`unsubscribe`. A named connection quasar retires once its retry strategy gives
+up (status `end`) is not used again: the next broadcast asks for the connection
+again and subscribes the bus channel on it, since the old subscription died with
+its subscriber socket — so the bus heals by itself once Redis is back.
 
 A shared client stacks listeners, so `unsubscribe(channel, handler)` has to
 honour the handler it is given and remove only that one. Dropping every

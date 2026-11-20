@@ -15,7 +15,7 @@ Without a shared lock, every instance of an application does everything: a night
 - extend a lease that outlives its original window
 - hand a held lease to another process (`serialize` / `restoreLock`)
 - owner-checked release, so one holder cannot free another's lease
-- pluggable stores (`Memory`, `Redis`)
+- pluggable stores (`Memory`, `Redis`, `Database`)
 
 ## Configure
 
@@ -126,6 +126,26 @@ Milliseconds because a lease is measured against wall-clock time and Redis takes
 
 - `MemoryStore` — correct while the application runs in **one** process. Two replicas each keep their own map and will both take the same key. It is not a distributed lock.
 - `RedisStore` — what a second replica needs.
+- `DatabaseStore` — a distributed lock through the SQL database the application already has (PostgreSQL, MySQL, SQLite), for one without Redis.
+
+### SQL database
+
+```ts
+stores: {
+  database: stores.database(),                          // atlas' default connection
+  // stores.database({ connection: 'pg', tableName: 'locks' })
+  // stores.database({ connection: db })                 // any client with dialect + rawQuery
+}
+```
+
+The table has three columns — `key` (primary), `owner`, `expiration` (epoch milliseconds, `NULL` never expires); copy the migration from `stubs/database/migrations/9200_create_locks.stub` in the package. Atlas is loaded on the first lock only, and is never a dependency of eclipse.
+
+- Acquiring is one atomic upsert on PostgreSQL and SQLite: it inserts the key, or takes over a lease that has lapsed, never a live one. MySQL, without `RETURNING`, deletes the lapsed lease and then inserts.
+- Expiry is computed and compared on the **database** clock, not the replica's: a replica whose clock runs ahead cannot take a lease its holder is still working under.
+- Release and extend carry the owner in the statement's predicate, so a lapsed holder never removes the next holder's lease.
+- Lapsed rows are swept as locks are taken (at most once a minute), and a key over 255 characters is stored as its SHA-256.
+
+The option is `connection`, not `connectionName`, because it also takes a client. There is no DynamoDB store (named deviation: no AWS client in the ecosystem).
 
 ### Redis through Quasar
 
@@ -137,7 +157,7 @@ stores: {
 }
 ```
 
-The client is resolved on the first lock, not while the config is read. `stores.redis({ client })` still works: `@c9up/quasar` is an **optional** peer, and eclipse runs without it.
+The client is resolved on the first lock, not while the config is read. `stores.redis({ client })` still works: `@c9up/quasar` is an **optional** peer, and eclipse runs without it. A connection quasar retires once its retry strategy gives up (status `end`) is not used again: the next lock asks for the connection again, so locking (and the scheduler) recovers by itself once Redis is back. A client passed directly is kept as it is.
 
 ## Safety
 
@@ -184,6 +204,8 @@ schedulerBackend(() => locks, {
 | `E_ECLIPSE_UNKNOWN_STORE` | a config or `use()` naming a store that is not declared |
 | `E_ECLIPSE_INVALID_CONFIG` | a lock config without `stores` or `default` |
 | `E_ECLIPSE_MISSING_CONFIG` | the provider is registered but `config/lock.ts` is missing |
+| `E_ECLIPSE_DATABASE_UNAVAILABLE` | a database store asks for atlas, which is not installed or has not booted |
+| `E_ECLIPSE_UNSUPPORTED_DATABASE` | a database store was given a dialect other than PostgreSQL, MySQL or SQLite |
 
 ## Testing
 

@@ -191,7 +191,7 @@ stores: {
 }
 ```
 
-Le client est résolu à la première commande, pas pendant la lecture de la config : déclarer un store n'ouvre donc jamais de connexion à lui seul. `drivers.redis({ client })` fonctionne toujours : `@c9up/quasar` est une peer **optionnelle**, et echo tourne sans elle.
+Le client est résolu à la première commande, pas pendant la lecture de la config : déclarer un store n'ouvre donc jamais de connexion à lui seul. `drivers.redis({ client })` fonctionne toujours : `@c9up/quasar` est une peer **optionnelle**, et echo tourne sans elle. Une connexion que quasar retire quand sa stratégie de reconnexion abandonne (statut `end`) n'est plus utilisée : la commande suivant redemande la connexion, si bien que le store se rétablit tout seul quand Redis revient. Un client passé directement est gardé tel quel. Le bus quasar fait de même à sa publication suivante, et réabonne ses écouteurs sur la nouvelle connexion — les anciens abonnements sont morts avec son socket d'abonnement.
 
 ## Écouter le cache
 
@@ -200,6 +200,19 @@ cache.on('cache:miss', ({ key, store }) => metrics.miss(store, key))
 cache.once('cache:hit', logFirstHit)
 cache.off('cache:miss', handler)
 ```
+
+| Événement | Contenu |
+|---|---|
+| `cache:hit` | `key`, `value`, `store`, `graced` (servi après sa TTL, dans sa fenêtre de grâce), `duration` |
+| `cache:miss` | `key`, `store`, `duration` — pour `getOrSet`, émis une fois sa factory exécutée, et chronométré avec elle |
+| `cache:written` | `key`, `value`, `store`, `ttl` (en secondes, `null` sans expiration), `duration` (l'écriture seule) |
+| `cache:deleted` | `key`, `store`, `duration` |
+| `cache:cleared` | `store`, `duration` |
+| `cache:expire` | `key`, `store`, `duration` |
+
+`duration` est en millisecondes, de l'appel à l'événement. Ces événements
+atteignent aussi l'émetteur de l'application : c'est ainsi que la
+[barre de debug](/fr/cli/ream#le-panneau-du-cache) affiche son panneau du cache.
 
 Enregistré sur le gestionnaire de magasins, un écouteur atteint aussi les
 magasins construits **ensuite** — ils sont paresseux, donc un écouteur posé au

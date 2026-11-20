@@ -35,6 +35,20 @@ const scryptHashed = await hash.use('scrypt').make('password')
 
 `hash.use(name)` retourne un `HashDriver` dont les méthodes `make` / `verify` ciblent le driver nommé.
 
+Un nom que la config ne déclare pas lève `E_SIGIL_UNKNOWN_HASHER`, qui liste les
+noms déclarés.
+
+`hash.isValidHash(value)` dit si `value` est un hash que le driver par défaut
+pourrait vérifier — pour décider si une valeur doit encore être hachée avant
+d'être enregistrée, ou pour contrôler une table d'utilisateurs importée. La
+chaîne est analysée en entier, sans appel natif : pour argon2, la variante, la
+version (`16`, `19` ou absente), exactement `m`, `t` et `p` dans les plages
+qu'accepte verify, un sel de 8 à 48 octets et une sortie de 10 à 64 octets en
+base64 canonique ; pour scrypt, exactement `n` (une puissance de deux), `r` et
+`p`, un coût et un espace de travail qu'accepte verify sous le `maxMemory` du
+hasher, un sel de 8 à 1024 octets et une clé de 64 à 128 octets. Une chaîne qui
+ne fait que commencer comme un hash (`$argon2id$garbage`) donne `false`.
+
 ### Re-hachage transparent — `needsReHash`
 
 `hash.needsReHash(storedHash): boolean` retourne `true` quand un hash stocké a été produit avec un algorithme ou des paramètres qui ont depuis divergé de votre config actuelle (p. ex. vous avez augmenté les `rounds` de bcrypt, ou changé le driver par défaut). Re-hachez lors d'un login réussi pour que les identifiants migrent vers les paramètres renforcés au fil du temps :
@@ -121,9 +135,18 @@ faute de frappe comme `'argon'`) lève `E_SIGIL_UNKNOWN_DRIVER` à la
 construction de `Hash` : l'application échoue au démarrage plutôt qu'à sa
 première inscription.
 
+De même pour un `default` qui ne nomme aucun des hashers déclarés — typiquement
+`default: env.get('HASH_DRIVER')` réglé sur un driver que `list` ne déclare pas :
+`new Hash(...)` lève `E_SIGIL_UNKNOWN_HASHER`.
+
 `secret` accepte une chaîne ou un `Secret` qui en enveloppe une — ce que renvoie
 un schéma d'environnement — si bien que
 `drivers.argon2({ secret: env.get('APP_KEY') })` fonctionne tel quel.
+
+`hash.config` est une copie de la configuration où chaque `secret` est remplacé
+par une enveloppe qui s'affiche `[redacted]` via `JSON.stringify`, `String()` et
+`util.inspect` : journaliser ou sérialiser le hasher n'écrit jamais le poivre.
+L'objet passé reste tel quel.
 
 `verify()` relit la variante et les paramètres depuis la chaîne du hash : un mot
 de passe haché en `argon2i` se vérifie quelle que soit la config courante.
@@ -219,6 +242,7 @@ En cas de doute : mots de passe → Sigil, tokens/HMAC → ream racine, flux de 
 | `SigilError` | classe | Base de toutes les erreurs de sigil ; `error.code` est le nom `E_SIGIL_*` de la sous-classe. |
 | `E_SIGIL_NAPI_REQUIRED` | classe | Un driver a tourné sans le moteur natif chargé. |
 | `E_SIGIL_UNKNOWN_DRIVER` | classe | Un hasher de la config nomme un driver que sigil n'a pas ; levée à la construction de `Hash`. |
+| `E_SIGIL_UNKNOWN_HASHER` | classe | `default` (à la construction de `Hash`) ou `use(name)` nomme un hasher que la config ne déclare pas. |
 | `E_SIGIL_NOT_BOOTED` | classe | `@c9up/sigil/services/main` utilisé avant le boot de `SigilProvider`. |
 
 ## Migration depuis l'ancien `Hash` de `@c9up/ream`

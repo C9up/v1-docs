@@ -377,7 +377,7 @@ La table `push_subscriptions` que la migration ci-dessous crée. La connexion es
 
 ### `stores.redis({ connection, prefix })`
 
-Une clé par abonnement et un set par utilisateur. `connection` prend un client, une fonction qui en rend un, ou le **nom** d'une connexion `@c9up/quasar` — résolu au runtime, pour que quasar reste un peer optionnel et n'entre jamais dans le graphe de build de Nova. Une connexion à qui manque une des six commandes que le store émet est refusée en la nommant, plutôt que d'échouer au premier abonnement.
+Une clé par abonnement et un set par utilisateur. `connection` prend un client, une fonction qui en rend un, ou le **nom** d'une connexion `@c9up/quasar` — résolu au runtime, pour que quasar reste un peer optionnel et n'entre jamais dans le graphe de build de Nova. Une connexion à qui manque une des six commandes que le store émet est refusée en la nommant, plutôt que d'échouer au premier abonnement. Une connexion que quasar retire quand sa stratégie de reconnexion abandonne (statut `end`) n'est plus utilisée : l'appel suivant redemande la connexion, si bien que le Web Push se rétablit tout seul quand Redis revient. Un client passé directement est gardé tel quel.
 
 `prefix` vaut `nova:push` par défaut ; change-le pour faire tourner deux applications sur une même base Redis.
 

@@ -66,6 +66,45 @@ router.get('/dashboard', async ({ auth, photon, response }) => {
 
 Photon effectue le rendu serveur du composant, injecte les props serialisees et envoie une page HTML complete. Cote client, le framework hydrate la page en une application interactive.
 
+### L'objet page — `ctx.photon.page()`
+
+`ctx.photon.page(component, props)` construit l'objet page que `render()` enverrait — props résolues selon la requête (rechargement partiel compris), `deferredProps`, étiquettes de fusion, `sharedProps`, drapeaux d'historique, version — sans écrire de réponse. `render()` repose dessus : ce qu'un test vérifie est ce que reçoit le client :
+
+```typescript
+const page = await ctx.photon.page('Dashboard', { stats: defer(() => getStats()) })
+// page.deferredProps → { default: ['stats'] }, page.props n'a pas de `stats`
+```
+
+### Le document HTML — `rootView`
+
+Une première visite reçoit un document HTML. Sans configuration, Photon en écrit un minimal ; `rootView` le rend à l'application — le `<html lang>`, une favicon, des polices, une classe sur le body :
+
+```typescript
+export default defineConfig({
+  framework: 'react',
+  entryClient: 'resources/app.tsx',
+  // un template que le moteur de vues rend par ctx.view.render('app', data) :
+  rootView: 'app',
+  // ou choisi par requête :
+  // rootView: (ctx) => (ctx.auth?.user ? 'app' : 'guest'),
+})
+```
+
+Le template reçoit `page` (l'objet page, plus `ssrHead` / `ssrBody` quand la page est rendue côté serveur), `photon.head` et `photon.body` (le balisage de Photon, prêt à placer sans échappement : balises meta, feuilles de style, le point de montage `<div id="app">`, les données de page et les scripts d'entrée, chacun avec le nonce CSP de la requête) et les props de vue passées en quatrième argument de `render()` :
+
+```typescript
+await ctx.photon.render('Dashboard', { user }, undefined, { lang: 'fr', theme: 'dark' })
+```
+
+Un hôte sans moteur de vues renvoie une fonction qui écrit le document elle-même :
+
+```typescript
+rootView: (ctx) => ({ photon, lang }) =>
+  `<!DOCTYPE html><html lang="${lang}"><head>${photon.head}</head><body>${photon.body}</body></html>`,
+```
+
+Un nom de template sur une requête sans `ctx.view` lève `E_PHOTON_INVALID_CONFIG`. La quatrième position des props de vue est une déviation nommée : le troisième argument amont est celui des props de vue, celui de Photon porte les métadonnées `<head>` de l'appel.
+
 ## Props partagées
 
 `ctx.photon.share({ ... })` enregistre des props par requête qui sont fusionnées dans **chaque** `ctx.photon.render(...)` de la même requête. Utilisez-le pour les props transversales que vous répéteriez sinon dans chaque handler — l'utilisateur authentifié, les messages flash, la locale active.
@@ -760,6 +799,7 @@ Chaque valeur textuelle (`title`, `description`, og:*, twitter:*, `content` cust
 | `ssr.pages` | `string[] \| (ctx, page) => boolean \| Promise<boolean>` | toutes les pages | Les pages rendues côté serveur |
 | `encryptHistory` | `boolean` | `false` | Chiffrer l'historique de chaque page ; `ctx.photon.encryptHistory(false)` le désactive pour une réponse |
 | `assetsVersion` | `string \| number` | empreinte du manifest | Une version d'assets fixe, envoyée avec chaque page |
+| `rootView` | `string \| (ctx) => string \| RootViewRenderer` | document de Photon | Le document HTML d'une première visite : un nom de template pour `ctx.view`, ou une fonction qui en renvoie un (ou une fonction qui écrit le document) |
 
 ## Erreurs
 
@@ -803,7 +843,11 @@ ctx.photon.render('Dashboard', {
 
 - **`defer`** annonce le nom sans exécuter le résolveur ; le client demande
   chaque groupe dans une requête suivante. `{ rescue: true }` laisse un panneau
-  lent échouer sans emporter tout le rechargement.
+  lent échouer sans emporter tout le rechargement : la prop est omise et nommée
+  dans `rescuedProps`, et l'erreur est quand même signalée — par défaut au
+  `logger.error({ err }, 'Rescued deferred prop "stats"')` de la requête
+  (`console.error` sans logger). `onRescue((error, { prop, ctx }) => …)`
+  remplace cet écouteur pour tout le processus ; `onRescue()` le rétablit.
 - **`merge` / `deepMerge`** étiquettent la prop pour que le client combine au
   lieu de remplacer. `matchOn('id')` empêche une ligne renvoyée entre deux pages
   d'apparaître en double.

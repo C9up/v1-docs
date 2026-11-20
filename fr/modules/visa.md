@@ -179,6 +179,15 @@ entre-temps, ou enregistrer plus de scopes que la page n'en listait. Elle ne
 frappe rien : le code n'existe qu'une fois `grant` exécuté. Un ticket dure dix
 minutes ; `consentTicketTtlSeconds` dans la config change cette durée.
 
+`authorize()` prend la query telle que le parser la livre. Un paramètre envoyé
+deux fois (`scope=a&scope=b`) ou entre crochets (`scope[]=a`, `scope[x]=1`)
+arrive sous forme de tableau ou d'objet, et la RFC 6749 §3.1 interdit qu'un
+paramètre figure plus d'une fois : c'est un `invalid_request` — montré à
+l'utilisateur quand il s'agit de `client_id` ou de `redirect_uri`, redirigé
+sinon (sans `state` quand c'est `state` qui est répété). `resource` fait
+exception, puisque la RFC 8707 permet à une requête d'en nommer plusieurs : une
+chaîne ou plusieurs chaînes, rien d'autre.
+
 ## Les clients
 
 ```ts
@@ -258,6 +267,35 @@ const grant = await visa.verify(bearerToken, new Date(), 'https://api.example/mc
 if (!grant) return ctx.response.unauthorized({ error: 'invalid_token' })
 ```
 
+### Un serveur de ressources dans un autre process (RFC 7662)
+
+`verify()` lit le store. Un serveur de ressources qui ne le partage pas
+interroge `/oauth/introspect` à la place — en tant que client à part entière,
+et seulement une fois nommé :
+
+```ts
+// config/visa.ts
+introspection: {
+  resourceServers: ['api'],   // des ids de clients, enregistrés avec un secret
+}
+```
+
+Sans cette clé, l'introspection ne répond qu'au client à qui le jeton a été
+émis, et `{ active: false }` à tous les autres — la même réponse que pour un
+jeton qui n'existe pas. Un serveur de ressources nommé obtient la vraie réponse
+pour n'importe quel jeton d'accès, `aud` compris, et peut donc refuser un jeton
+frappé pour une autre ressource (RFC 8707). Deux limites tiennent même pour
+lui : un client public ne compte jamais, puisqu'il s'authentifie sans rien et
+que le nommer ouvrirait l'introspection à quiconque connaît son id ; et les
+jetons de rafraîchissement restent à leur propre client, puisqu'ils ne sont
+jamais envoyés à un serveur de ressources (RFC 6749 §1.5). Les noms viennent de
+cette config seulement : un client qui s'est enregistré lui-même n'y accède
+jamais.
+
+`token_type_hint` décide quelle table est lue en premier, jamais laquelle est
+lue : un jeton envoyé avec le mauvais indice est quand même trouvé (RFC 7662
+§2.1).
+
 ### Dire à un client où s'authentifier (RFC 9728)
 
 Un 401 sans rien d'autre est une impasse : l'appelant apprend qu'il lui faut un
@@ -333,6 +371,11 @@ celle de la requête : grants, scopes et méthode d'auth viennent de cette
 config, l'id est choisi ici, et une redirect URI doit être en https ou en http
 sur une adresse de loopback.
 
+Un jeton d'accès initial absent ou faux est un échec d'authentification, pas un
+problème de métadonnées : `401` avec `{ "error": "invalid_token" }` et un défi
+`Bearer` (RFC 7591 §3, RFC 6750 §3.1) — `WWW-Authenticate: Bearer` quand aucun
+jeton n'a été envoyé, `Bearer error="invalid_token"` quand c'était le mauvais.
+
 ## Ce que `ream configure` écrit
 
 ```bash
@@ -393,6 +436,16 @@ Validé au démarrage et pas à la première requête : une URL, `https` (localh
 excepté), sans query string ni fragment, et le slash final retiré — chaque
 endpoint est construit par concaténation, donc `https://auth.test/` produirait
 sinon `https://auth.test//oauth/token`.
+
+Un issuer peut porter un chemin. Le document de métadonnées se trouve alors là
+où la RFC 8414 §3.1 le place, le segment well-known entre l'hôte et le chemin :
+`https://example.com/auth` publie sur
+`/.well-known/oauth-authorization-server/auth`, et pas à la racine, où il
+nommerait un autre issuer que celui qu'attend un client qui interroge la racine
+(§3.3). Les endpoints qu'il liste sont l'issuer suivi de `prefix` —
+`https://example.com/auth/oauth/token` — alors que l'application les monte sur
+`prefix` seul : le proxy placé devant retire donc `/auth` avant de les
+transmettre, et laisse passer le chemin well-known tel quel.
 
 ## Le store
 

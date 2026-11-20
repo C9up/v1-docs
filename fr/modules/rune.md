@@ -102,9 +102,10 @@ const s = schema({
   report: rules.nativeFile({ maxSize: '10mb', mimeTypes: ['application/pdf'] }),
 })
 
+const form = await request.formData() // une Request web
 const result = await s.validateResultAsync({
   avatar: ctx.request.file('avatar'),
-  report: ctx.request.file('report'),
+  report: form.get('report'),
 })
 ```
 
@@ -112,8 +113,10 @@ const result = await s.validateResultAsync({
   un `size` et un nom ou une extension — l'upload du body parser, ou n'importe
   quelle autre représentation. Les `extnames` se comparent en minuscules, sans
   le point.
-- `rules.nativeFile({ minSize, maxSize, mimeTypes })` ajoute une borne basse et
-  une liste de types MIME ; `.minSize()`, `.maxSize()` et `.mimeTypes()`
+- `rules.nativeFile({ minSize, maxSize, mimeTypes })` est pour le `File` de la
+  plateforme (ce que renvoie `formData()`) : tout le reste, y compris un objet
+  JSON qui a la forme d'un fichier, échoue avec `nativeFile`. Elle ajoute une
+  borne basse et une liste de types MIME ; `.minSize()`, `.maxSize()` et `.mimeTypes()`
   chaînent les mêmes contrôles.
 - Une taille est un nombre d'octets ou une écriture comme `'512kb'`, `'2mb'`,
   `'1gb'` (`b`, `kb`, `mb`, `gb`, `tb`, puissances de 1024). Une écriture que
@@ -649,8 +652,15 @@ Deux options explicites changent ça :
 
 | | |
 | --- | --- |
-| `.allowUnknownProperties()` | garder la clé dans la sortie |
+| `.allowUnknownProperties()` | garder la clé dans la sortie, telle quelle |
 | `.denyUnknownProperties()` | faire échouer la charge, en nommant la clé |
+
+`allowUnknownProperties()` ne garde que les clés que la forme ne déclare pas,
+telles qu'elles ont été envoyées : `toCamelCase()` renomme les clés déclarées,
+pas celles-là. Un champ déclaré apparaît une seule fois, sous son nom de
+sortie, avec sa valeur validée — jamais sa valeur brute à côté, et une clé
+inconnue écrite comme le nom de sortie d'un champ déclaré (`userBio` à côté
+d'un `user_bio` déclaré) ne la remplace pas.
 
 `denyUnknownProperties()` est pour une API dont le contrat est de refuser ce
 qu'elle ne comprend pas. Un client qui envoie `emial` se le voit dire, au lieu

@@ -65,7 +65,10 @@ const meta = await storage.getMetaData('avatars/1.png')  // alias of getMetadata
 - `services.gcs`: Google Cloud Storage (`GcsDriver`)
 
 The disk `default` names is the one `drive.use()` returns; nothing makes `fs`
-the default unless the config says so.
+the default unless the config says so. Only the keys of `services` are disks:
+any other name — `constructor` and `toString` included — throws
+`E_ARCHIVE_UNKNOWN_DISK`, from `drive.use()` and, for `default`, when the
+manager is built.
 
 ## Visibility and signed URLs
 
@@ -79,7 +82,11 @@ const visibility = await disk.getVisibility('invoices/42.pdf') // 'private'
 ```
 
 On the local disk a file with no visibility marker is `public`; a file made
-private carries a marker beside it. On S3 the visibility is the object's ACL
+private carries a marker beside it. That marker goes down before the bytes:
+`put`, `copy` and `move` mark a private file before writing, copying or moving
+it into place, so it is never readable as public while it lands, and a write
+that fails leaves it private or removes it. Made public, a file keeps its old
+marker until the new bytes are in place. On S3 the visibility is the object's ACL
 (`public-read` or `private`), and an object whose ACL cannot be read counts as
 private.
 
@@ -152,6 +159,9 @@ import { StaticMiddleware } from '@c9up/archive'
 const assets = new StaticMiddleware({ root: 'public', prefix: '/assets' })
 server.use([assets.handle.bind(assets)])
 ```
+
+Files are streamed from disk, never read whole into memory: a request holds
+one read buffer whatever the file's size, and files above 2 GiB are served.
 
 Point it at public assets only, never at a local disk's directory. It has no
 signature check: it refuses a file whose visibility marker says private and

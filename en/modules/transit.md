@@ -168,6 +168,30 @@ without a config type per provider:
 socials.discord({ ...credentials, authorizeParams: { prompt: 'none' } })
 ```
 
+Both can change for one redirect: `begin()` and `redirect()` take a callback
+that receives an `AuthorizeRequest`, starting from the configured scopes and
+parameters — to ask for a scope only when a feature needs it, or pass a
+`login_hint` to one sign-in:
+
+```ts
+const { url, state, secret } = await transit.begin('github', (request) => {
+  request.mergeScopes(['repo']).param('prompt', 'consent')
+})
+// with a state of your own: transit.begin('github', state, (request) => …)
+// offline: transit.redirect('github', state, secret, (request) => …)
+```
+
+`scopes()` replaces, `mergeScopes()` adds, `clearScopes()` empties (an OpenID
+Connect provider still gets `openid`), `transformScopes()` rewrites what the
+next two receive; `param()` and `clearParam()` set and drop parameters, and
+`getScopes()` / `getParams()` read them back. What the flow's security rests
+on — `state`, `nonce`, `code_challenge`, `code_challenge_method`, `client_id`,
+`redirect_uri`, `response_type` — cannot be set or cleared there
+(`E_TRANSIT_PROTECTED_PARAMETER`), nor through `authorizeParams`; scopes go
+through the scope methods. OAuth1 and SAML providers refuse a callback rather
+than ignoring it. `FakeTransit` records what the callback asked for in
+`begun[i].authorize`.
+
 Two LinkedIn entries because LinkedIn has two flows. **A new application wants
 `linkedinOpenidConnect`** — LinkedIn no longer grants `r_liteprofile` to new
 apps. `linkedin` is the member API, for an application that already holds those
@@ -322,11 +346,17 @@ Never in a token, never on a later sign-in:
 import { parseAppleUser } from '@c9up/transit'
 
 const identity = parseAppleUser(ctx.request.input('user'))
-// { name: 'Ada Lovelace', email: 'ada@privaterelay.appleid.com' } — or undefined
+// { name: 'Ada Lovelace' } — or undefined
 ```
 
 Store it when it is there. `undefined` is the normal case for a returning user,
 not an error.
+
+Only the name is read from that field. It also carries an `email`, but the
+field is plain form data, signed by nothing: the person signing in can set it
+to any address before the browser posts it, and their id_token still verifies.
+The address is `user.email` from the callback — the id_token's, with
+`emailVerificationState` — and never this field's.
 
 The address may be a private relay (`is_private_email` in `user.raw`), which
 forwards and can be turned off by the person at any time. Apple sends its
@@ -405,6 +435,14 @@ SHA-1 is refused, for signatures and for digests. XPath and XSLT transforms are
 refused — one can make the digest cover something other than the element, and
 the other is executable.
 
+A response may be signed on the assertion, on the response, or on both (the
+"sign response and assertion" setting of Entra ID, Okta, Keycloak or ADFS).
+Signed on both, the response's own signature — the one enveloped in
+`<samlp:Response>`, which covers everything inside it — is the one verified,
+and the single assertion is read from the element it covers. Any other shape
+with several signatures (two on the response, several inside it with none on
+it) is refused.
+
 ### Replay, and a second replica
 
 An assertion is a bearer token: captured once and posted twice it is valid both
@@ -430,6 +468,11 @@ replayStore: replayStores.memory()                       // a single process, de
 
 Outside production the in-process store remains the default: one dev process is
 the case it is correct for.
+
+The Redis store fails closed while Redis is down (the assertion is refused), and
+recovers by itself once it is back: neither a failed resolution nor a connection
+quasar retired (status `end`) is kept, so the next sign-in asks for the
+connection again.
 
 ### The asserted email
 
@@ -526,6 +569,11 @@ that Active Directory returns for any search from a domain root. They are not
 counted as entries, and they are never followed: chasing one would send the
 next bind wherever the reply pointed. Any other reply the search cannot read
 fails the sign-in.
+
+A reply that cannot be framed or decoded at all — malformed BER, an indefinite
+length, a message declared larger than 8 MiB — fails the operations waiting on
+that connection with an `LdapError` and closes it. It never escapes the socket:
+one bad reply from a directory does not take the process down.
 
 ### What a directory returns
 

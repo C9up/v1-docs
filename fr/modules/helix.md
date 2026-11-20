@@ -241,8 +241,22 @@ time.travel(60_000)         // +1 minute
 time.unfreeze()
 ```
 
-Enveloppe `@c9up/chronos` : `DateTime.now()` et n'importe quelle colonne
-Atlas `created_at` / `updated_at` voient l'horloge gelée.
+L'horloge est figée par `vi.setSystemTime`, qui remplace `Date` : tout ce qui
+lit l'heure à travers `Date` — `DateTime.now()` de chronos, les colonnes Atlas
+`created_at` / `updated_at` — voit l'horloge gelée ; helix n'importe aucune
+bibliothèque de dates.
+
+`freeze` et `travel` s'annulent d'eux-mêmes en fin de test : l'horloge revient à
+ce qu'elle était avant l'appel — le réglage posé dans un `beforeAll` par
+`vi.setSystemTime` ou `vi.useFakeTimers`, ou l'heure réelle s'il n'y en avait
+pas —, si bien que le test suivant voit l'horloge choisie par le fichier, quoi
+qu'ait fait le test précédent.
+
+`Date` n'est remplacé que pendant qu'une horloge est figée ; importer helix ne
+modifie aucune variable globale. Pendant ce temps, le remplaçant se comporte
+toujours comme `Date` : une `class X extends Date` garde son prototype et ses
+méthodes, `new Date().constructor === Date`, et une date créée avant le gel
+reste `instanceof Date`.
 
 ## Bonnes pratiques
 

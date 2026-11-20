@@ -90,6 +90,50 @@ name holds that id, and `dispatch` answers the id of the one that does. Without
 still holds it); with `ttl` it is held that long at most, and `extend` restarts
 the window on each duplicate.
 
+## Context, fluent dispatch and job lookup
+
+`this.context` is the attempt a job is running: `jobId`, `name`, `attempt` (1 on
+the first run), `queue`, `priority`, `acquiredAt` and `stalledCount`, frozen. A
+handler registered by name receives it as the third argument of
+`handle(payload, signal, context)`.
+
+```ts
+async execute() {
+  if (this.context.attempt > 1) logger.info(`retrying ${this.context.jobId}`)
+}
+```
+
+A job class dispatches itself through the queue bound to `services/main`;
+awaiting the builder sends it:
+
+```ts
+const { jobId } = await SendEmail.dispatch({ to }).toQueue('emails').in('5m').priority(1)
+const { jobIds } = await SendEmail.dispatchMany([{ to: a }, { to: b }]).toQueue('emails')
+```
+
+`dedup({ id, ttl?, extend? })` is on the single dispatcher. `dispatchMany`
+checks the options of every job before pushing the first, then pushes them one
+at a time.
+
+`queue.getJob(jobId)` answers where a job is — `pending`, `delayed`, `active`,
+`completed` or `failed` — with its record as last stored, `finishedAt` and
+`error` for a finished one, or `null` once it is gone:
+
+```ts
+await queue.dispatch(Report, payload, {
+  removeOnComplete: { age: '1h', count: 100 },  // keep completed ones an hour, 100 at most
+  removeOnFail: false,                          // keep failed ones for getJob
+  failOnTimeout: true,                          // a timed-out attempt is the last one
+})
+```
+
+A finished job is removed at once by default. `removeOnComplete` /
+`removeOnFail` take `true`, `false` (keep it) or `{ age, count }`, which prunes
+the completed (or failed) jobs of the whole queue, whatever their class.
+`removeOnFail` governs `getJob` only: `failedJobs()` keeps its own list, bounded
+by `maxFailedJobs`. Both drivers answer `getJob`; on Redis the lookup lives in a
+hash per job (`<prefix>job:<id>`) written in the same script as every move.
+
 ## Workers
 
 ```bash
@@ -230,6 +274,9 @@ only by name.
 - `dedup` has no `replace` mode: a waiting job is one serialised entry, which
   cannot be rewritten in place atomically
 - no cross-process durability with `MemoryDriver`
+- no SQL-backed store: jobs live in memory or in Redis; an application without
+  Redis runs the memory store on one process
+- no job groups, and `dispatchMany` is not one atomic batch
 
 ## Production checklist
 
@@ -254,6 +301,6 @@ import { RedisDriver, quasarConnection } from '@c9up/bay'
 new RedisDriver(quasarConnection('jobs'), { visibilityTimeoutMs: 30_000 })
 ```
 
-The client resolves on the first command, so declaring a redis queue never dials on its own. Passing a client directly still works: `@c9up/quasar` is an **optional** peer.
+The client resolves on the first command, so declaring a redis queue never dials on its own. Passing a client directly still works: `@c9up/quasar` is an **optional** peer. A connection quasar retires once its retry strategy gives up (status `end`) is not used again: the next queue operation asks for the connection again, so the queue recovers by itself once Redis is back. A client passed directly is kept as it is.
 
 Every move of a job — taken, completed, retried, failed, promoted from its delay, reclaimed from a dead worker — is one server-side script, so a dropped connection never leaves a job half-moved. The client must answer `eval` (Redis 2.6+; ioredis and Quasar connections do). Each pop holds a lease token of its own, and only that holder may renew or settle the job: a worker whose lease lapsed cannot touch the claim of the worker that took the job after it.

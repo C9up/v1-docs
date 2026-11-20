@@ -169,6 +169,30 @@ le fournisseur accepte d'autre sur son URL d'autorisation — `prompt`,
 socials.discord({ ...identifiants, authorizeParams: { prompt: 'none' } })
 ```
 
+Les deux peuvent changer le temps d'une redirection : `begin()` et `redirect()`
+prennent un callback qui reçoit un `AuthorizeRequest`, parti des scopes et
+paramètres configurés — pour ne demander un scope que quand une fonctionnalité
+en a besoin, ou passer un `login_hint` à une seule connexion :
+
+```ts
+const { url, state, secret } = await transit.begin('github', (request) => {
+  request.mergeScopes(['repo']).param('prompt', 'consent')
+})
+// avec votre propre state : transit.begin('github', state, (request) => …)
+// hors ligne : transit.redirect('github', state, secret, (request) => …)
+```
+
+`scopes()` remplace, `mergeScopes()` ajoute, `clearScopes()` vide (un
+fournisseur OpenID Connect reçoit tout de même `openid`), `transformScopes()`
+réécrit ce que les deux suivantes reçoivent ; `param()` et `clearParam()`
+posent et retirent des paramètres, `getScopes()` / `getParams()` les relisent.
+Ce sur quoi repose la sécurité du flux — `state`, `nonce`, `code_challenge`,
+`code_challenge_method`, `client_id`, `redirect_uri`, `response_type` — ne
+peut être ni posé ni retiré là (`E_TRANSIT_PROTECTED_PARAMETER`), ni via
+`authorizeParams` ; les scopes passent par les méthodes de scope. Les
+fournisseurs OAuth1 et SAML refusent un callback plutôt que de l'ignorer.
+`FakeTransit` note ce que le callback a demandé dans `begun[i].authorize`.
+
 Deux entrées LinkedIn parce que LinkedIn a deux flux. **Une application récente
 veut `linkedinOpenidConnect`** — LinkedIn n'accorde plus `r_liteprofile` aux
 nouvelles applications. `linkedin` est l'API membre, pour une application qui
@@ -327,11 +351,18 @@ un champ `user`. Jamais dans un token, jamais lors d'une connexion suivante :
 import { parseAppleUser } from '@c9up/transit'
 
 const identity = parseAppleUser(ctx.request.input('user'))
-// { name: 'Ada Lovelace', email: 'ada@privaterelay.appleid.com' } — ou undefined
+// { name: 'Ada Lovelace' } — ou undefined
 ```
 
 Stockez-le quand il est là. `undefined` est le cas normal d'un utilisateur qui
 revient, pas une erreur.
+
+Seul le nom est lu dans ce champ. Il contient aussi un `email`, mais le champ
+est une simple donnée de formulaire, signée par rien : la personne qui se
+connecte peut y mettre n'importe quelle adresse avant que le navigateur ne
+l'envoie, et son id_token reste valide. L'adresse est le `user.email` du
+callback — celle de l'id_token, avec `emailVerificationState` — jamais celle de
+ce champ.
 
 L'adresse peut être un relais privé (`is_private_email` dans `user.raw`), qui
 fait suivre et que la personne peut couper à tout moment. Apple envoie ses
@@ -411,6 +442,14 @@ SHA-1 est refusé, pour les signatures comme pour les empreintes. Les
 transformations XPath et XSLT sont refusées — l'une peut déplacer ce que
 l'empreinte couvre, l'autre est exécutable.
 
+Une réponse peut être signée sur l'assertion, sur la réponse, ou sur les deux
+(le réglage « signer la réponse et l'assertion » d'Entra ID, Okta, Keycloak ou
+ADFS). Signée sur les deux, c'est la signature propre de la réponse — celle
+enveloppée dans `<samlp:Response>`, qui couvre tout ce qu'elle contient — qui
+est vérifiée, et l'unique assertion est lue dans l'élément qu'elle couvre. Toute
+autre forme à plusieurs signatures (deux sur la réponse, plusieurs à
+l'intérieur sans aucune sur elle) est refusée.
+
 ### Le rejeu, et une deuxième réplique
 
 Une assertion est un jeton porteur : capturée une fois et repostée, elle est
@@ -437,6 +476,11 @@ replayStore: replayStores.memory()                       // un seul processus, d
 
 Hors production, le store en processus reste le défaut : un processus de
 développement unique est le cas pour lequel il est juste.
+
+Le store Redis échoue fermé tant que Redis est indisponible (l'assertion est
+refusée), et se rétablit tout seul à son retour : ni une résolution échouée ni
+une connexion retirée par quasar (statut `end`) n'est gardée : la prochaine
+connexion SAML redemande la connexion Redis.
 
 ### L'email affirmé
 
@@ -539,6 +583,11 @@ serveurs qu'Active Directory renvoie pour toute recherche depuis la racine d'un
 domaine. Elles ne comptent pas comme des entrées et ne sont jamais suivies :
 en suivre une enverrait le bind suivant là où pointait la réponse. Toute autre
 réponse que la recherche ne sait pas lire fait échouer la connexion.
+
+Une réponse impossible à découper ou à décoder — BER mal formé, longueur
+indéfinie, message annoncé à plus de 8 Mio — fait échouer les opérations en
+attente sur cette connexion avec une `LdapError` et la ferme. Elle ne sort
+jamais du socket : une mauvaise réponse d'un annuaire n'arrête pas le processus.
 
 ### Ce qu'un annuaire rend
 

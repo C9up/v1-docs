@@ -133,6 +133,21 @@ onto the page first.
 Rotation adds to whatever a page already carries, because a scan can arrive
 already turned. The angle must be a multiple of 90.
 
+Each operation costs what the document weighs, once, however many pages it
+has: `selectPages` and every part of `split` copy only what their pages reach —
+the page, its resources and annotations, and the catalog's outline, form and
+names, with every reference to another page removed. A page tree that lists the
+same page object twice is refused, by these and by stamping and `inspect`,
+rather than counted as several pages.
+
+What an edit copies once per page is bounded as well. Pages may share one large
+resource group, annotation list, inherited `/Resources` or catalog, and each
+part of a `split`, each stamped or flattened page, carries its own copy of it.
+One call copies at most 4 million values (array elements and dictionary
+entries) and 256 MiB of strings, names and stream data, 1 GiB across the parts
+of a `split`, and is refused past that. For a `split`, select the pages you need
+instead.
+
 ## Stamping
 
 `stamp` draws an image; `stampText` writes a line of text.
@@ -202,7 +217,7 @@ Failures raise `VellumError`, carrying a `code`:
 | --- | --- |
 | `E_VELLUM_NAPI_REQUIRED` | The native engine is not loadable on this platform |
 | `E_VELLUM_INVALID_PDF` | The bytes are not a readable PDF |
-| `E_VELLUM_INVALID_PAGE` | A page number below 1 |
+| `E_VELLUM_INVALID_PAGE` | A page number below 1, or past 4 294 967 296, the last the engine addresses |
 | `E_VELLUM_INVALID_ROTATION` | An angle that is not a whole multiple of 90 |
 | `E_VELLUM_RENDER_FAILED` | Rasterising failed |
 | `E_VELLUM_EXTRACT_FAILED` | Text extraction failed |
@@ -233,10 +248,14 @@ Every input is treated as hostile, because these documents come from uploads:
   nothing about it: a 1 MiB compressed stream inflates to 1 GiB, and forms
   drawing one another ten times per level turn 2 KB into hours of work. A page
   over a budget is refused, never drawn without the part that did not fit.
+  `renderAll` and `extractTextAll` also hold the document to a total across its
+  pages, since the page count is the document's to choose.
 - Every path that parses an existing document — inspecting it, reading its
-  fields, editing, stamping, signing, verifying — inflates its object streams
-  under a ceiling of 32 MiB each, and refuses a document whose object stream
-  could not be read, rather than reading it without the objects it held.
+  fields, editing, stamping, signing, verifying — inflates its object and
+  cross-reference streams under a ceiling of 32 MiB for all of them together,
+  and builds at most 4 million objects from the document. It refuses a document
+  past either, or whose object stream could not be read, rather than reading it
+  without the objects it held.
 
 | Option | Default | Bounds |
 | --- | --- | --- |
@@ -244,6 +263,8 @@ Every input is treated as hostile, because these documents come from uploads:
 | `maxTotalPixels` | 500 million | The pixels `renderAll` may rasterise across every page, checked before the first is drawn. |
 | `maxDecodedBytes` | 256 MiB | The decoded stream data one page may need: content, images, fonts. |
 | `maxOperations` | 10 million | The content operators and glyphs one page may take to draw, nested forms included. |
+| `maxTotalDecodedBytes` | 1 GiB | The decoded stream data `renderAll` and `extractTextAll` may need across every page. |
+| `maxTotalOperations` | 10 million | The operators and glyphs `renderAll` and `extractTextAll` may take across every page — and so the text `extractTextAll` hands back. |
 
 Each is set in `config/vellum.ts`, and `render` and `renderAll` take them per
 call. Raise one knowingly, for a document you trust.

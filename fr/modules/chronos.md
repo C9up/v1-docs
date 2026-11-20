@@ -271,3 +271,29 @@ développée sans risque : le texte est plafonné à 8 Ko, chaque liste BY* est 
 ensemble, au plus 10 000 occurrences sont renvoyées, et l'itération s'arrête en
 l'an 9999 — une règle impossible répond `[]` en quelques millisecondes au lieu
 de bloquer le fil d'exécution.
+
+## Jours fériés et Pâques
+
+```ts
+import { easterDate, holidays, isHoliday } from '@c9up/chronos'
+
+easterDate(2026)                                   // '2026-04-05'
+holidays(2026, { country: 'FR' })                  // [{ date: '2026-01-01', key: 'new_year' }, …]
+holidays(2026, { country: 'CH', region: 'VD' })    // jours fédéraux + ceux de Vaud
+isHoliday('2026-09-21', { country: 'CH', region: 'VD' })   // true : Lundi du Jeûne fédéral
+```
+
+`country` vaut `FR` ou `CH`. Pour la Suisse, sans `region` la réponse est les
+trois jours fédéraux ; avec le code à deux lettres d'un canton
+(`SWISS_CANTONS`), s'y ajoutent le lundi de Pâques, l'Ascension, le lundi de
+Pentecôte et les jours propres au canton (Vendredi saint, Fête-Dieu, Lundi du
+Jeûne fédéral, Jeûne genevois, Näfelser Fahrt, Saint-Berchtold…). Chaque jour
+férié porte une `key` stable que l'application traduit, et deux jours fériés
+le même jour sont tous deux listés.
+
+Un `DateTime` est lu sur sa propre horloge locale, une chaîne doit être
+`YYYY-MM-DD` (`E_CHRONOS_INVALID_DATE`). Un pays ou un canton inconnu est
+refusé (`E_CHRONOS_UNKNOWN_COUNTRY`, `E_CHRONOS_UNKNOWN_REGION`) plutôt que de
+répondre « aucun jour férié », ce qui laisserait une faute de frappe dans un
+réglage ouvrir tous les jours fériés aux rendez-vous. La date de Pâques est
+calculée pour 1583-9999 (`E_CHRONOS_INVALID_YEAR`).

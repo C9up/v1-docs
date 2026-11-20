@@ -150,11 +150,14 @@ export default defineConfig({
   grpc: {
     maxReceiveMessageLength: 1024 * 1024, // 4 Mio par défaut ; -1 : sans limite
     maxSendMessageLength: 8 * 1024 * 1024, // -1 par défaut : sans limite
+    maxInFlightRequestBytes: 16 * 1024 * 1024, // 8 Mio par défaut ; -1 : sans limite
   },
 })
 ```
 
 Une requête au-delà de `maxReceiveMessageLength` répond `RESOURCE_EXHAUSTED` avant tout intercepteur ; une réponse au-delà de `maxSendMessageLength` est remplacée par `RESOURCE_EXHAUSTED`. Une valeur qui n'est pas un nombre entier d'octets (ou `-1`) arrête le démarrage. Le serveur natif applique les mêmes limites : une requête est refusée sur son préfixe de longueur, avant que le message soit lu.
+
+La limite par message ne borne pas à elle seule la mémoire. Une requête décodée est bien plus grosse que ses octets : chaque élément d'un champ message répété devient un objet complet dont chaque champ reçoit sa valeur par défaut, si bien qu'une requête de 4 Mio d'éléments vides occupe quelque 280 Mo de tas, et quelques appels de ce genre en même temps épuisent un processus. `maxInFlightRequestBytes` borne les octets de requête décodés et retenus à la fois, sur tous les appels dont la méthode n'a pas fini : un appel qui la dépasserait répond `RESOURCE_EXHAUSTED` avant tout intercepteur et avant qu'un seul octet soit décodé. Un appel est toujours admis quand rien d'autre n'est en cours, et un appel qui a répondu `DEADLINE_EXCEEDED` ou `CANCELLED` reste compté jusqu'à ce que sa méthode s'arrête, puisqu'elle tient encore sa requête. Un client lit `RESOURCE_EXHAUSTED` comme une invitation à réessayer plus tard.
 
 Le côté requête d'un appel doit arriver entier — un message, puis la fin du flux — dans le `requestTimeout` du serveur (`config/app.ts` → `http`), sinon l'appel répond `DEADLINE_EXCEEDED`. Un second message répond `UNIMPLEMENTED` et des trailers de requête `INTERNAL`, avant que la méthode s'exécute : les métadonnées sont les seuls en-têtes de la requête.
 

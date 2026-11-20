@@ -91,6 +91,51 @@ Sans `ttl`, l'id est tenu jusqu'à ce que le job se termine ou échoue
 définitivement (un job relancé le tient toujours) ; avec `ttl`, il l'est au plus
 ce temps-là, et `extend` relance la fenêtre à chaque doublon.
 
+## Contexte, dispatch fluide et suivi d'un job
+
+`this.context` décrit la tentative en cours : `jobId`, `name`, `attempt` (1 au
+premier passage), `queue`, `priority`, `acquiredAt` et `stalledCount`, figés. Un
+handler enregistré par nom le reçoit en troisième argument de
+`handle(payload, signal, context)`.
+
+```ts
+async execute() {
+  if (this.context.attempt > 1) logger.info(`nouvelle tentative ${this.context.jobId}`)
+}
+```
+
+Une classe de job se met elle-même en file via la queue liée à `services/main` ;
+attendre le builder l'envoie :
+
+```ts
+const { jobId } = await SendEmail.dispatch({ to }).toQueue('emails').in('5m').priority(1)
+const { jobIds } = await SendEmail.dispatchMany([{ to: a }, { to: b }]).toQueue('emails')
+```
+
+`dedup({ id, ttl?, extend? })` existe sur le dispatcher simple. `dispatchMany`
+vérifie les options de chaque job avant de pousser le premier, puis les pousse un
+par un.
+
+`queue.getJob(jobId)` dit où en est un job — `pending`, `delayed`, `active`,
+`completed` ou `failed` — avec son enregistrement tel que stocké en dernier,
+`finishedAt` et `error` pour un job terminé, ou `null` une fois qu'il a disparu :
+
+```ts
+await queue.dispatch(Report, payload, {
+  removeOnComplete: { age: '1h', count: 100 },  // garder les terminés une heure, 100 au plus
+  removeOnFail: false,                          // garder les échoués pour getJob
+  failOnTimeout: true,                          // une tentative hors délai est la dernière
+})
+```
+
+Par défaut, un job terminé est retiré aussitôt. `removeOnComplete` /
+`removeOnFail` prennent `true`, `false` (le garder) ou `{ age, count }`, qui
+élague les jobs terminés (ou échoués) de toute la file, quelle que soit leur
+classe. `removeOnFail` ne concerne que `getJob` : `failedJobs()` garde sa propre
+liste, bornée par `maxFailedJobs`. Les deux drivers répondent à `getJob` ; sur
+Redis, le suivi vit dans un hash par job (`<prefix>job:<id>`) écrit dans le même
+script que chaque déplacement.
+
 ## Workers
 
 ```bash
@@ -234,6 +279,9 @@ qu'il ne connaît que par son nom.
 - `dedup` n'a pas de mode `replace` : un job en attente est une seule entrée
   sérialisée, qu'on ne peut pas réécrire sur place de façon atomique
 - en mode Memory, aucune durabilité inter-process
+- pas de stockage SQL : les jobs vivent en mémoire ou dans Redis ; une
+  application sans Redis utilise le stockage mémoire, sur un seul process
+- pas de groupes de jobs, et `dispatchMany` n'est pas un lot atomique
 
 ## Checklist prod
 
@@ -258,6 +306,6 @@ import { RedisDriver, quasarConnection } from '@c9up/bay'
 new RedisDriver(quasarConnection('jobs'), { visibilityTimeoutMs: 30_000 })
 ```
 
-Le client est résolu à la première commande : déclarer une queue redis n'ouvre donc jamais de connexion à elle seule. Passer un client directement fonctionne toujours : `@c9up/quasar` est une peer **optionnelle**.
+Le client est résolu à la première commande : déclarer une queue redis n'ouvre donc jamais de connexion à elle seule. Passer un client directement fonctionne toujours : `@c9up/quasar` est une peer **optionnelle**. Une connexion que quasar retire quand sa stratégie de reconnexion abandonne (statut `end`) n'est plus utilisée : l'appel suivant redemande la connexion, si bien que la queue se rétablit tout seul quand Redis revient. Un client passé directement est gardé tel quel.
 
 Chaque déplacement d'un job — pris, terminé, relancé, en échec, sorti de son délai, récupéré d'un worker mort — est un seul script côté serveur : une connexion coupée ne laisse jamais un job à moitié déplacé. Le client doit répondre à `eval` (Redis 2.6+ ; ioredis et les connexions Quasar le font). Chaque pop tient un jeton de bail qui lui est propre, et seul ce détenteur peut renouveler ou solder le job : un worker dont le bail a expiré ne peut plus toucher à la prise du worker qui a repris le job après lui.

@@ -134,6 +134,22 @@ hérités sur la page.
 La rotation s'ajoute à ce que la page porte déjà, parce qu'un scan peut arriver
 déjà tourné. L'angle doit être un multiple de 90.
 
+Chaque opération coûte ce que pèse le document, une fois, quel que soit son
+nombre de pages : `selectPages` et chaque partie de `split` ne copient que ce
+que leurs pages atteignent — la page, ses ressources et ses annotations, et le
+plan, le formulaire et les noms du catalogue, privés de toute référence à une
+autre page. Un arbre de pages qui liste deux fois le même objet page est refusé,
+par ces opérations comme par le tamponnage et `inspect`, plutôt que compté comme
+plusieurs pages.
+
+Ce qu'une édition copie une fois par page est borné aussi. Des pages peuvent
+partager un gros groupe de ressources, une liste d'annotations, des `/Resources`
+héritées ou un catalogue, et chaque partie d'un `split`, chaque page tamponnée
+ou aplatie, en emporte sa propre copie. Un appel copie au plus 4 millions de
+valeurs (éléments de tableau et entrées de dictionnaire) et 256 Mio de chaînes,
+de noms et de données de flux, 1 Gio sur les parties d'un `split`, et il est
+refusé au-delà. Pour un `split`, sélectionner plutôt les pages utiles.
+
 ## Tamponnage
 
 `stamp` dessine une image, `stampText` écrit une ligne de texte.
@@ -203,7 +219,7 @@ Les échecs lèvent une `VellumError`, porteuse d'un `code` :
 | --- | --- |
 | `E_VELLUM_NAPI_REQUIRED` | Le moteur natif n'est pas chargeable sur cette plateforme |
 | `E_VELLUM_INVALID_PDF` | Les octets ne forment pas un PDF lisible |
-| `E_VELLUM_INVALID_PAGE` | Un numéro de page inférieur à 1 |
+| `E_VELLUM_INVALID_PAGE` | Un numéro de page inférieur à 1, ou au-delà de 4 294 967 296, le dernier que le moteur adresse |
 | `E_VELLUM_INVALID_ROTATION` | Un angle qui n'est pas un multiple entier de 90 |
 | `E_VELLUM_RENDER_FAILED` | La rasterisation a échoué |
 | `E_VELLUM_EXTRACT_FAILED` | L'extraction de texte a échoué |
@@ -236,12 +252,16 @@ d'envois utilisateurs :
   n'en dit rien : un flux compressé de 1 Mio se décompresse en 1 Gio, et des
   formulaires qui se dessinent dix fois l'un l'autre à chaque niveau font de 2 Ko
   des heures de travail. Une page qui dépasse un budget est refusée, jamais
-  dessinée sans la partie qui n'y tenait pas.
+  dessinée sans la partie qui n'y tenait pas. `renderAll` et `extractTextAll`
+  tiennent aussi le document à un total sur toutes ses pages, puisque le nombre
+  de pages est au choix du document.
 - Chaque chemin qui analyse un document existant — l'inspecter, lire ses
   champs, l'éditer, le tamponner, le signer, vérifier ses signatures —
-  décompresse ses flux d'objets sous un plafond de 32 Mio chacun, et refuse un
-  document dont un flux d'objets n'a pas pu être lu, plutôt que de le lire sans
-  les objets qu'il contenait.
+  décompresse ses flux d'objets et de références croisées sous un plafond de
+  32 Mio pour tous ensemble, et construit au plus 4 millions d'objets à partir
+  du document. Il refuse un document qui dépasse l'un ou l'autre, ou dont un
+  flux d'objets n'a pas pu être lu, plutôt que de le lire sans les objets qu'il
+  contenait.
 
 | Option | Par défaut | Borne |
 | --- | --- | --- |
@@ -249,6 +269,8 @@ d'envois utilisateurs :
 | `maxTotalPixels` | 500 millions | Les pixels que `renderAll` peut produire sur toutes les pages, vérifiés avant de dessiner la première. |
 | `maxDecodedBytes` | 256 Mio | Les données de flux décodées dont une page peut avoir besoin : contenu, images, polices. |
 | `maxOperations` | 10 millions | Les opérateurs de contenu et glyphes que le dessin d'une page peut demander, formulaires imbriqués compris. |
+| `maxTotalDecodedBytes` | 1 Gio | Les données de flux décodées dont `renderAll` et `extractTextAll` peuvent avoir besoin sur toutes les pages. |
+| `maxTotalOperations` | 10 millions | Les opérateurs et glyphes que `renderAll` et `extractTextAll` peuvent demander sur toutes les pages — et donc le texte que rend `extractTextAll`. |
 
 Chacune se règle dans `config/vellum.ts`, et `render` comme `renderAll` les
 acceptent à l'appel. N'en relever une qu'en connaissance de cause, pour un

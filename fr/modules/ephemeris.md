@@ -105,6 +105,16 @@ refusée (`E_EPHEMERIS_INVALID_VALUE`). `toJsonLd()` rend donc des données
 simples que n'importe quel `JSON.stringify` — celui de Photon, d'Inker,
 d'Aurora — écrit fidèlement.
 
+Un nœud donné sans helper est ensuite tenu aux bornes des helpers — pas aux
+règles de Google par type : une propriété qui n'admet qu'une URL (`url`,
+`image`…) doit être une URL http(s) absolue, une propriété qui admet URL ou
+texte n'est jamais une URL `javascript:`, `vbscript:`, `data:`, `file:` ou
+`blob:` (`E_EPHEMERIS_INVALID_URL`), un texte fait au plus 10 000 caractères
+(`E_EPHEMERIS_TOO_LONG`), et prix, devises et dates ont la forme qu'exige un
+helper. La sortie d'un helper est prise comme déjà vérifiée.
+`new SchemaGraph({ url, onWarning })` reçoit les avertissements de ces
+contrôles, comme l'`onWarning` d'un helper.
+
 ## La balise script
 
 ```ts

@@ -191,7 +191,7 @@ stores: {
 }
 ```
 
-The client is resolved on the first command, not while the config is read, so declaring a store never dials on its own. `drivers.redis({ client })` still works: `@c9up/quasar` is an **optional** peer, and echo runs without it.
+The client is resolved on the first command, not while the config is read, so declaring a store never dials on its own. `drivers.redis({ client })` still works: `@c9up/quasar` is an **optional** peer, and echo runs without it. A connection quasar retires once its retry strategy gives up (status `end`) is not used again: the next cache command asks for the connection again, so the store recovers by itself once Redis is back. A client passed directly is kept as it is. The quasar bus does the same on its next publish, and subscribes its listeners again on the new connection — the old subscriptions died with its subscriber socket.
 
 ## Listening to the cache
 
@@ -200,6 +200,19 @@ cache.on('cache:miss', ({ key, store }) => metrics.miss(store, key))
 cache.once('cache:hit', logFirstHit)
 cache.off('cache:miss', handler)
 ```
+
+| Event | Payload |
+|---|---|
+| `cache:hit` | `key`, `value`, `store`, `graced` (served past its TTL, inside its grace window), `duration` |
+| `cache:miss` | `key`, `store`, `duration` — for `getOrSet`, reported once its factory ran, and timed with it |
+| `cache:written` | `key`, `value`, `store`, `ttl` (seconds, `null` for no expiry), `duration` (the write alone) |
+| `cache:deleted` | `key`, `store`, `duration` |
+| `cache:cleared` | `store`, `duration` |
+| `cache:expire` | `key`, `store`, `duration` |
+
+`duration` is in milliseconds, from the call to the event. These events also
+reach the application's emitter, which is how the
+[debug toolbar](/en/cli/ream#the-cache-panel) shows its cache panel.
 
 Registered on the store manager, a listener also reaches stores built **later** —
 stores are lazy, so one registered at boot would otherwise miss every store not

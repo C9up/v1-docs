@@ -116,16 +116,19 @@ const s = schema({
   report: rules.nativeFile({ maxSize: '10mb', mimeTypes: ['application/pdf'] }),
 })
 
+const form = await request.formData() // a web Request
 const result = await s.validateResultAsync({
   avatar: ctx.request.file('avatar'),
-  report: ctx.request.file('report'),
+  report: form.get('report'),
 })
 ```
 
 - `rules.file({ size, extnames, verifyContent })` accepts any object with a
   `size` and a name or extension — the body parser's upload, or any other
   representation. `extnames` are compared lowercase, without the dot.
-- `rules.nativeFile({ minSize, maxSize, mimeTypes })` adds a lower bound and a
+- `rules.nativeFile({ minSize, maxSize, mimeTypes })` is for the platform
+  `File` (what `formData()` returns): anything else, a JSON object shaped like
+  a file included, fails with `nativeFile`. It adds a lower bound and a
   MIME-type list; `.minSize()`, `.maxSize()` and `.mimeTypes()` chain the same
   checks.
 - Sizes are a byte count or a spelling such as `'512kb'`, `'2mb'`, `'1gb'`
@@ -655,8 +658,14 @@ Two opt-ins change it:
 
 | | |
 | --- | --- |
-| `.allowUnknownProperties()` | keep the key in the output |
+| `.allowUnknownProperties()` | keep the key in the output, unchanged |
 | `.denyUnknownProperties()` | fail the payload, naming the key |
+
+`allowUnknownProperties()` only keeps keys the shape does not declare, as they
+were sent: `toCamelCase()` renames the declared ones, not these. A declared
+field appears once, under its output name, with its validated value — never
+its raw input beside it, and an unknown key spelled like a declared field's
+output name (`userBio` next to a declared `user_bio`) does not replace it.
 
 `denyUnknownProperties()` is for an API whose contract is that it refuses what
 it does not understand. A client sending `emial` is told so, instead of being

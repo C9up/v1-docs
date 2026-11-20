@@ -117,9 +117,11 @@ ne la nomme pas. Sont des secrets les colonnes déclarées
 `@Column({ serializeAs: null })` et celles dont le nom contient `password`,
 `passwd`, `secret`, `token` ou `apikey`.
 
-- **Liste et fiche** affichent toutes les colonnes sauf les secrets.
-  `list.columns` et `show.columns` remplacent ce choix par une liste explicite,
-  dans l'ordre donné.
+- **Liste et fiche** affichent toutes les colonnes sauf les secrets et les
+  champs que le formulaire rend en saisie de mot de passe
+  (`formFields.<col>.inputType: "password"`). `list.columns` et `show.columns`
+  remplacent ce choix par une liste explicite, dans l'ordre donné ; y nommer
+  une telle colonne est le choix explicite qui l'affiche.
 - **Création et édition** n'acceptent que les colonnes **modifiables**, qui sont
   aussi les champs du formulaire. Par défaut : toutes les colonnes sauf la clé
   primaire, les horodatages gérés, la colonne de suppression logique, les
@@ -287,11 +289,16 @@ Une écriture refusée faute de token CSRF vérifié répond à un appelant JSON
 ### Protection contre la force brute
 
 `POST /admin/login` compte chaque tentative sous l'IP du client et sous l'email
-soumis (en minuscules) **avant** de vérifier le mot de passe. La sixième
-tentative en 15 minutes sur l'une ou l'autre clé est refusée avec `429` et un
-en-tête `Retry-After`, sans atteindre la vérification des identifiants ; une
-connexion réussie remet les deux compteurs à zéro. Un limiteur en panne (store
-indisponible) refuse la tentative avec `503`.
+soumis (en minuscules, sous son empreinte SHA-256) **avant** de vérifier le mot
+de passe. La sixième tentative en 15 minutes sur l'une ou l'autre clé est
+refusée avec `429` et un en-tête `Retry-After`, sans atteindre la vérification
+des identifiants ; une connexion réussie remet les deux compteurs à zéro. Un
+limiteur en panne (store indisponible) refuse la tentative avec `503`.
+
+L'IP est comptée d'abord, et une tentative refusée sur elle ne compte pas
+l'email : une adresse déjà limitée ne peut pas remplir le store d'identifiants
+inventés et bloquer tous les autres administrateurs. Un email de plus de 254
+caractères (RFC 5321) est refusé avec `400` avant d'atteindre le limiteur.
 
 Les compteurs vivent par défaut dans la mémoire du processus. En cluster,
 passez un limiteur partagé — l'`AuthRateLimiter` de Warden sur un

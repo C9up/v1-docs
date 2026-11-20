@@ -15,7 +15,7 @@ Sans verrou partagé, chaque instance de l'application fait tout : la facturatio
 - prolonger un bail que le travail dépasse
 - transmettre un bail détenu à un autre processus (`serialize` / `restoreLock`)
 - relâchement vérifié par propriétaire : un détenteur ne peut pas libérer le bail d'un autre
-- stores enfichables (`Memory`, `Redis`)
+- stores enfichables (`Memory`, `Redis`, `Database`)
 
 ## Configurer
 
@@ -126,6 +126,26 @@ Des millisecondes parce qu'un bail se mesure sur l'horloge murale et que Redis p
 
 - `MemoryStore` — correct tant que l'application tourne dans **un seul** processus. Deux répliques gardent chacune sa propre table et prendront toutes les deux la même clé. Ce n'est pas un verrou distribué.
 - `RedisStore` — ce dont une deuxième réplique a besoin.
+- `DatabaseStore` — un verrou distribué à travers la base SQL que l'application a déjà (PostgreSQL, MySQL, SQLite), pour celle qui n'a pas de Redis.
+
+### Base de données SQL
+
+```ts
+stores: {
+  database: stores.database(),                          // connexion par défaut d'atlas
+  // stores.database({ connection: 'pg', tableName: 'locks' })
+  // stores.database({ connection: db })                 // tout client avec dialect + rawQuery
+}
+```
+
+La table a trois colonnes — `key` (primaire), `owner`, `expiration` (millisecondes epoch, `NULL` n'expire jamais) ; copiez la migration depuis `stubs/database/migrations/9200_create_locks.stub` dans le paquet. Atlas n'est chargé qu'au premier verrou et n'est jamais une dépendance d'eclipse.
+
+- Prendre le verrou est un seul upsert atomique sous PostgreSQL et SQLite : il insère la clé, ou reprend un bail échu, jamais un bail vivant. MySQL, sans `RETURNING`, supprime le bail échu puis insère.
+- L'expiration est calculée et comparée sur l'horloge de la **base**, pas sur celle de la réplique : une réplique dont l'horloge avance ne peut pas prendre un bail sous lequel son détenteur travaille encore.
+- La libération et la prolongation portent le propriétaire dans le prédicat de la requête : un détenteur échu ne supprime jamais le bail du suivant.
+- Les lignes échues sont balayées au fil des prises de verrou (au plus une fois par minute), et une clé de plus de 255 caractères est stockée sous son SHA-256.
+
+L'option s'appelle `connection`, pas `connectionName`, parce qu'elle accepte aussi un client. Il n'y a pas de store DynamoDB (écart nommé : aucun client AWS dans l'écosystème).
 
 ### Redis via Quasar
 
@@ -137,7 +157,7 @@ stores: {
 }
 ```
 
-Le client est résolu au premier verrou, pas à la lecture de la config. `stores.redis({ client })` reste possible : `@c9up/quasar` est un pair **optionnel** et eclipse tourne sans lui.
+Le client est résolu au premier verrou, pas à la lecture de la config. `stores.redis({ client })` reste possible : `@c9up/quasar` est un pair **optionnel** et eclipse tourne sans lui. Une connexion que quasar retire quand sa stratégie de reconnexion abandonne (statut `end`) n'est plus utilisée : le verrou suivant redemande la connexion, si bien que le verrouillage (et le planificateur) se rétablit tout seul quand Redis revient. Un client passé directement est gardé tel quel.
 
 ## Sûreté
 
@@ -184,6 +204,8 @@ schedulerBackend(() => locks, {
 | `E_ECLIPSE_UNKNOWN_STORE` | une config ou un `use()` nommant un store non déclaré |
 | `E_ECLIPSE_INVALID_CONFIG` | une config de verrous sans `stores` ou sans `default` |
 | `E_ECLIPSE_MISSING_CONFIG` | le provider est enregistré mais `config/lock.ts` manque |
+| `E_ECLIPSE_DATABASE_UNAVAILABLE` | un store base de données demande atlas, qui n'est pas installé ou n'a pas démarré |
+| `E_ECLIPSE_UNSUPPORTED_DATABASE` | un store base de données a reçu un dialecte autre que PostgreSQL, MySQL ou SQLite |
 
 ## Tests
 

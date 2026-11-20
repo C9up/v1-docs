@@ -455,8 +455,8 @@ await bouncer.authorize(editPost, post); // résout si autorisé, lève si refus
 
 `allows` / `denies` ne lèvent jamais — un refus vaut `false`. `execute` renvoie
 la réponse complète `AuthorizationResponse` (`authorized`, `message`, `status`).
-`authorize` résout à `void` si autorisé et lève `E_WARDEN_AUTHORIZATION_FAILURE`
-(status 403) si refusé.
+`authorize` résout à `void` si autorisé et lève `E_AUTHORIZATION_FAILURE`
+(status 403, sauf si le refus en donne un autre) si refusé.
 
 Les abilities peuvent être enregistrées par nom et vérifiées des deux façons —
 les deux produisent des résultats identiques :
@@ -477,7 +477,12 @@ import { AuthorizationResponse } from "@c9up/warden";
 AuthorizationResponse.allow(); // { authorized: true }
 AuthorizationResponse.deny(); // { authorized: false, status: 403 }
 AuthorizationResponse.deny("Post introuvable", 404); // message + statut personnalisés
+AuthorizationResponse.deny("Pas à vous").t("errors.post_not_owned", { id: post.id }); // clé i18n
 ```
+
+`.t(identifier, data)` nomme la traduction du refus. Elle voyage avec l'erreur
+levée (`error.response.translation`), et `error.getResponseMessage(ctx)` la
+résout via `ctx.i18n` quand la requête en a un.
 
 ### Policies
 
@@ -560,7 +565,13 @@ bouncer.scope; // { tenant: "acme" }
 - `this.permissions` — les `EffectivePermissions` résolues pour `(user, scope)`
   (dérivées des rôles ∪ grants ACL, avec héritage global→tenant via la couche 1).
   Résolues **une seule fois par Bouncer** et partagées sur chaque vérification.
-  Un invité, ou un Bouncer sans resolver, obtient un ensemble vide.
+  Un invité, ou un Bouncer sans resolver, obtient un ensemble vide. Quand la
+  requête est arrivée avec un jeton d'accès, l'ensemble est restreint par les
+  capacités du jeton exactement comme `ctx.auth.hasPermission()` :
+  `this.permissions.has('orders:delete')` vaut `false` pour un jeton émis avec
+  `['orders:read']`, quoi que l'utilisateur détienne. `hasAll`, `hasAny` et
+  `permissions` sont restreints de la même façon ; `roles` reste celui de
+  l'utilisateur.
 
 `this.sameTenant(resource)` applique l'isolation tenant explicitement — elle
 renvoie `true` sous `global` (aucune frontière) et
@@ -660,7 +671,7 @@ la requête :
 class PostController {
   async update(ctx) {
     const post = await Post.find(ctx.params.id)
-    // lève E_WARDEN_AUTHORIZATION_FAILURE (status 403) en cas de refus
+    // lève E_AUTHORIZATION_FAILURE (status 403) en cas de refus
     await ctx.bouncer.authorize("post.edit", post)
     // ...ou branchez sans lever
     if (await ctx.bouncer.allows("post.publish", post)) { /* ... */ }
@@ -670,14 +681,32 @@ class PostController {
 }
 ```
 
-Quand `authorize()` refuse, il lève une `WardenError` de
-`code: "E_WARDEN_AUTHORIZATION_FAILURE"` portant `status: 403` et le message de
-refus. L'`ExceptionHandler` de Ream lit ce `status` par duck-typing et le mappe
-sur une réponse **403** :
+Quand `authorize()` refuse, il lève `E_AUTHORIZATION_FAILURE` — une classe
+exportée (une `WardenError`) dont le `code` est `"E_AUTHORIZATION_FAILURE"`,
+portant `status` (403 sauf si le refus en donne un autre), le message du refus
+(« Access denied » s'il n'en a pas) et l'`AuthorizationResponse` elle-même dans
+`error.response`. L'`ExceptionHandler` de Ream lit ce `status` par duck-typing et
+le mappe sur la réponse :
 
 ```json
-{ "error": { "code": "E_WARDEN_AUTHORIZATION_FAILURE", "message": "Authorization failed" } }
+{ "error": { "code": "E_AUTHORIZATION_FAILURE", "message": "Access denied" } }
 ```
+
+Un gestionnaire d'exceptions qui veut la traduction du refus la lit sur
+l'erreur :
+
+```ts
+import { E_AUTHORIZATION_FAILURE } from "@c9up/warden"
+
+if (error instanceof E_AUTHORIZATION_FAILURE) {
+  error.response.translation    // { identifier, data } posé par .t()
+  error.getResponseMessage(ctx) // ctx.i18n.t(identifier, data, { defaultValue: message })
+}
+```
+
+`getResponseMessage` se rabat sur l'identifiant `errors.E_AUTHORIZATION_FAILURE`
+quand le refus ne pose aucune traduction, et sur le message brut quand le
+contexte n'a pas d'`i18n`.
 
 Un `deny(message, status)` personnalisé — ou un `before` de policy renvoyant
 `deny("not found", 404)` — propage **son propre** status jusqu'à la réponse,
@@ -697,8 +726,14 @@ par requête** et partage le résultat entre tous les checks de cette requête
 ### Configuration
 
 ```typescript
-import { JwtStrategy } from '@c9up/warden'
+import { authFinder, JwtStrategy } from '@c9up/warden'
 import env from '#start/env.js'
+
+const users = authFinder({
+  hash, // un Hash de @c9up/sigil
+  findForAuth: (email) => db.users.findByEmail(email),
+  passwordColumnName: 'passwordHash',
+})
 
 const jwt = new JwtStrategy({
   // Obligatoire : minimum 32 caractères, lève une erreur à la construction si plus court
@@ -707,10 +742,12 @@ const jwt = new JwtStrategy({
   // Optionnel : secondes ou chaîne de durée (par défaut : 3600)
   expiresIn: '2h',
 
-  // Appelé par authenticate() — vérifie email/mot de passe, retourne UserPayload ou null
+  // Appelé par authenticate() — vérifie email/mot de passe. Bâti sur authFinder
+  // (voir « Vérification d'identifiants à temps constant ») : un email inconnu
+  // coûte le même hachage qu'un mauvais mot de passe, et les deux lèvent
+  // E_INVALID_CREDENTIALS, que le garde lit comme un refus.
   verifyCredentials: async (email, password) => {
-    const user = await db.users.findByEmail(email)
-    if (!user || !await verifyPassword(password, user.passwordHash)) return null
+    const user = await users.verifyCredentials(email, password)
     return { id: user.id, roles: user.roles, permissions: user.permissions }
   },
 
@@ -802,18 +839,22 @@ Sans bloc `session`, la stratégie n'est pas enregistrée et `@Guard('session')`
 
 ```typescript
 import { Hash } from '@c9up/sigil'
-import { E_INVALID_CREDENTIALS } from '@c9up/warden'
+import { authFinder } from '@c9up/warden'
 
 const hash = new Hash({
   default: 'argon2',
   drivers: { argon2: { driver: 'argon2' } },
 })
+const users = authFinder({
+  hash,
+  findForAuth: (email) => db.users.findByEmail(email),
+  passwordColumnName: 'passwordHash',
+})
 
-// Flux de login — l'appelant vérifie le mot de passe, Warden mintie la session
-const user = await db.users.findByEmail(email)
-if (!user || !(await hash.verify(user.passwordHash, password))) {
-  throw new E_INVALID_CREDENTIALS() // 400, code E_INVALID_CREDENTIALS
-}
+// Flux de login — l'appelant vérifie le mot de passe, Warden mintie la session.
+// Lève E_INVALID_CREDENTIALS (400) pour un email inconnu comme pour un mauvais
+// mot de passe, après le même travail de hachage.
+const user = await users.verifyCredentials(email, password)
 
 await strategy.login({ id: user.id, roles: user.roles }, ctx.session)
 
@@ -1029,13 +1070,15 @@ endpoint machine-à-machine ou un outil interne derrière TLS, et son inadéquat
 pour une connexion utilisateur.
 
 ```ts
-import { basicAuthGuard, safeCompare } from '@c9up/warden'
+import { authFinder, basicAuthGuard, safeCompare } from '@c9up/warden'
+
+const users = authFinder({ hash, findForAuth: (email) => User.findBy('email', email) })
 
 basicAuthGuard({
   realm: 'Espace admin',                  // affiché dans l'invite du navigateur
   verifyCredentials: async (uid, password) => {
-    const user = await User.findBy('email', uid)
-    if (!user || !(await hash.verify(user.password, password))) return null
+    // Lève E_INVALID_CREDENTIALS sur tout échec : le garde répond 401.
+    const user = await users.verifyCredentials(uid, password)
     return { id: user.id, email: user.email }
   },
 })
@@ -1047,7 +1090,12 @@ Deux choses qu'il fait pour vous :
   passe peut en contenir, un nom d'utilisateur non. Découper sur le dernier
   accepterait la mauvaise paire.
 - Un utilisateur inconnu et un mot de passe faux renvoient le **même** message.
-  Les distinguer transforme l'endpoint en oracle de noms d'utilisateurs.
+  Les distinguer transforme l'endpoint en oracle de noms d'utilisateurs — et
+  répondre plus vite à l'un qu'à l'autre aussi, d'où l'exemple bâti sur
+  `authFinder`.
+- Un `verifyCredentials` peut répondre à un mauvais identifiant par `null` ou en
+  levant `E_INVALID_CREDENTIALS` ; les deux donnent un 401. Toute autre erreur
+  est une panne, et rapportée comme telle, pas comme un mauvais mot de passe.
 
 Inscrite comme garde, les routes `@Guard('basic')` lisent l'en-tête
 `Authorization: Basic …` ; un refus répond 401 avec
@@ -1135,8 +1183,9 @@ qui contient les permissions propres de l'utilisateur. Ce qu'une requête faite
 avec un jeton peut faire, c'est ce que l'utilisateur peut faire **et** ce que le
 jeton autorise : une capacité qui porte le nom d'une permission n'accorde rien
 que l'utilisateur n'a pas, et un jeton limité à quelques capacités ne porte pas
-toutes les permissions de son utilisateur. `@Permission(...)`, `hasPermission`
-et `hasAllPermissions` appliquent exactement cette intersection ;
+toutes les permissions de son utilisateur. `@Permission(...)`, `hasPermission`,
+`hasAllPermissions`, `resolvePermissions` et le `this.permissions` d'une policy
+appliquent exactement cette intersection ;
 `tokenAllows(user, permission)` en est la moitié « jeton », seule. Un
 utilisateur connecté par session ou par JWT n'a pas de `currentAccessToken` et
 n'est vérifié que sur ses propres permissions.
@@ -1149,8 +1198,18 @@ await tokens.find(user, identifier)    // null s'il n'est pas à cet utilisateur
 await tokens.delete(user, identifier)  // 0 ou 1
 await tokens.deleteAll(user)
 await tokens.invalidate(new Secret(presentedValue)) // révoque depuis la valeur elle-même
-guard.invalidateToken(presentedValue)                // la même chose, depuis le garde
+guard.invalidateToken(presentedValue)                // la même chose, depuis la stratégie
+
+// Par requête, via le garde par lequel la requête s'est authentifiée :
+const token = await ctx.auth.use('api').createToken(user, ['orders:read'])
+token.value.release()                                // à remettre au client tout de suite
+await ctx.auth.use('api').invalidateToken()          // déconnexion : révoque le jeton de cette requête
 ```
+
+`ctx.auth.use('api').invalidateToken()` lit le jeton dans la requête (le jeton
+Bearer, ou l'en-tête de clé d'API du garde) et lève `E_UNAUTHORIZED_ACCESS` s'il
+n'y en a pas. Appeler l'une ou l'autre sur un garde qui n'émet pas de jetons
+d'accès lève `E_WARDEN_STRATEGY_CANNOT_ISSUE`.
 
 `find` et `delete` ne touchent qu'un jeton appartenant à l'utilisateur nommé.
 `invalidate` ne révoque que si le secret correspond : un identifiant seul — lu
@@ -1191,9 +1250,15 @@ if (user) await limiter.clear(...keys)
 
 Compter d'abord est ce qui tient face à une rafale : chaque tentative est un
 incrément atomique, si bien que vingt essais simultanés ne peuvent pas tous lire
-« pas encore bloqué ». L'identifiant est normalisé (casse, espaces autour), et
-`maxAttempts` et `windowSeconds` doivent être des entiers positifs.
+« pas encore bloqué ». L'identifiant est normalisé (casse, espaces autour) et
+la clé en est l'empreinte SHA-256 : une clé a la même taille quoi que le client
+envoie. `maxAttempts` et `windowSeconds` doivent être des entiers positifs.
 `MfaManager` utilise le même limiteur pour son verrouillage.
+
+Les clés sont comptées dans l'ordre — l'IP d'abord — et la première au-delà de
+la limite arrête la tentative : les clés suivantes ne sont pas comptées. Une
+adresse déjà limitée ne peut donc pas ouvrir une fenêtre par identifiant
+qu'elle invente ; elle touche au plus `maxAttempts` identifiants par fenêtre.
 
 Le `MemoryAttemptStore` par défaut compte par processus et il est borné
 (100 000 clés). Quand il est plein et que toutes les fenêtres sont encore
@@ -1204,7 +1269,11 @@ laisserait un déluge d'identifiants inventés effacer le verrouillage d'une
 victime. Pendant un tel déluge, les premières tentatives sous de nouvelles clés
 attendent que des fenêtres expirent. En production, utilisez
 `RedisAttemptStore` : il est partagé par toutes les instances et n'a pas cette
-borne.
+borne. Avec un resolver (un nom de connexion quasar), il — comme
+`RedisBlacklistDriver` et `RedisTotpReplayGuard` — abandonne une connexion que
+quasar a retirée quand sa stratégie de reconnexion a abandonné (statut `end`) et
+la redemande à l'appel suivant : connexions, vérifications de révocation et
+codes TOTP se rétablissent tout seuls quand Redis revient.
 
 ---
 
@@ -1272,6 +1341,42 @@ if (auth.getStrategyNames().includes('session')) {
   // les stratégies session exposent verifyWithContext(unused, { session })
 }
 ```
+
+---
+
+## Vérification d'identifiants à temps constant — `authFinder`
+
+Une connexion qui sort tôt pour un compte inconnu répond en microsecondes ; une
+qui vérifie un hachage de mot de passe répond en ~100 ms. Cet écart suffit à
+dire à un appelant anonyme quels emails sont inscrits. `authFinder` le referme :
+un uid inconnu paie lui aussi un hachage, et chaque échec lève la même
+`E_INVALID_CREDENTIALS` (400).
+
+```ts
+import { Hash } from '@c9up/sigil'
+import { authFinder } from '@c9up/warden'
+
+const users = authFinder({
+  hash: new Hash({ default: 'argon2', drivers: { argon2: { driver: 'argon2' } } }),
+  findForAuth: (uid) => User.findBy('email', uid),   // null si aucun
+  passwordColumnName: 'password',                     // la valeur par défaut
+})
+
+const user = await users.verifyCredentials(email, password) // ou lève E_INVALID_CREDENTIALS
+await users.verifyPassword(user, currentPassword)           // booléen
+```
+
+- Un uid ou un mot de passe vide échoue tout de suite — cela ne dit rien d'aucun
+  compte.
+- Un uid inconnu exécute `hash.make(password)`, le coût d'une vraie
+  vérification, puis échoue.
+- Une ligne sans hachage de mot de passe (un compte qui se connecte par SSO) est
+  un identifiant refusé, après le même hachage — pas un plantage qui
+  signalerait l'existence du compte.
+
+Passez `users.verifyCredentials` tel quel à un garde, ou enveloppez-le pour
+façonner le payload : un garde lit une `E_INVALID_CREDENTIALS` levée comme un
+refus.
 
 ---
 
@@ -1359,7 +1464,7 @@ sont vérifiés à la construction : TOTP `digits` 6–8, `period` 1–3600 s, `
 
 ### @RequireMfa — protéger des routes
 
-Une route décorée par `@RequireMfa()` n'est accessible que si le credential de la requête a passé un step-up MFA : un JWT signé avec `{ mfa: true }`, ou une session sur laquelle `markMfaVerified()` a tourné. Sinon le middleware d'auth renvoie **403 `E_WARDEN_MFA_REQUIRED`**. `user.mfa` est posé par le garde d'après ce credential, jamais d'après ce que renvoie `findUser` — un compte où la MFA est *activée* n'a pas pour autant passé le step-up. Une nouvelle connexion et une déconnexion effacent le step-up de la session.
+Une route décorée par `@RequireMfa()` n'est accessible que si le credential de la requête a passé un step-up MFA : un JWT signé avec `{ mfa: true }`, ou une session sur laquelle `markMfaVerified()` a tourné. Sinon le middleware d'auth renvoie **403 `E_WARDEN_MFA_REQUIRED`**. `user.mfa` est posé par le garde d'après ce credential, jamais d'après ce que renvoie `findUser` — un compte où la MFA est *activée* n'a pas pour autant passé le step-up. Un credential sans notion de step-up — un jeton d'accès, un identifiant Basic, une session ranimée par un cookie remember-me — porte toujours `mfa: false`, quoi que contienne la ligne de l'utilisateur. Une nouvelle connexion et une déconnexion effacent le step-up de la session.
 
 ```typescript
 import { Guard, RequireMfa } from '@c9up/warden'
@@ -1575,7 +1680,7 @@ throw new E_FORBIDDEN('Insufficient permissions', ['posts.create'])
 // Réponse : { "error": { "code": "E_FORBIDDEN", "message": "Insufficient permissions", "required": ["posts.create"] } }
 ```
 
-Les échecs propres à Warden sont des `WardenError` : `E_UNAUTHORIZED_ACCESS` (401) et `E_INVALID_CREDENTIALS` (400) sont des classes exportées ; `E_WARDEN_FORBIDDEN` est le code qu'écrit le gate des décorateurs, pas une classe.
+Les échecs propres à Warden sont des `WardenError` : `E_UNAUTHORIZED_ACCESS` (401), `E_INVALID_CREDENTIALS` (400) et `E_AUTHORIZATION_FAILURE` (403, un `authorize()` refusé) sont des classes exportées ; `E_WARDEN_FORBIDDEN` est le code qu'écrit le gate des décorateurs, pas une classe.
 
 ---
 
@@ -1725,12 +1830,35 @@ interface JwtStrategyConfig {
 gardes :
 
 ```ts
-await auth.authenticate()              // lève E_UNAUTHORIZED_ACCESS
-await auth.check()                     // true | false
+const user = await auth.authenticate()  // l'utilisateur, ou lève E_UNAUTHORIZED_ACCESS
+await auth.check()                      // true | false
 
-await auth.authenticateUsing(['web', 'api'])
-await auth.checkUsing(['web', 'api'])  // le pendant qui ne lève pas
+const sameUser = await auth.authenticateUsing(['web', 'api'])
+await auth.checkUsing(['web', 'api'])   // le pendant qui ne lève pas
 ```
+
+### Un garde de la requête — `auth.use()`
+
+`auth.use(name)` est un garde de cette requête ; `auth.use()` sans nom est le
+garde par défaut, que nomme `auth.defaultGuard`. Chaque garde répond aux mêmes
+questions que l'authenticator, pour lui-même :
+
+```ts
+const web = ctx.auth.use()              // le garde par défaut
+ctx.auth.defaultGuard                   // 'web'
+
+await web.authenticate()                // l'utilisateur, ou lève E_UNAUTHORIZED_ACCESS
+await web.check()                       // true | false
+web.getUserOrFail()                     // l'utilisateur, ou lève E_UNAUTHORIZED_ACCESS
+web.authenticationAttempted             // si ce garde a été essayé pendant la requête
+await web.authenticateAsClient(user)    // ce qu'envoie un client de test (arguments propres à la stratégie)
+
+await ctx.auth.use('api').createToken(user, ['orders:read'])
+await ctx.auth.use('api').invalidateToken()
+```
+
+`createToken` et `invalidateToken` n'existent que sur un garde à jetons d'accès ;
+voir **Gérer les jetons d'un utilisateur**.
 
 Un handler qui se demande « quelqu'un est-il connecté via l'un des deux » devait
 écrire le try/catch lui-même. Un refus d'identifiants est une réponse ; une

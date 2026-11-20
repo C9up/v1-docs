@@ -66,7 +66,10 @@ const meta = await storage.getMetaData('avatars/1.png')  // alias de getMetadata
 - `services.gcs` : Google Cloud Storage (`GcsDriver`)
 
 Le disque que nomme `default` est celui que renvoie `drive.use()` ; rien ne
-fait de `fs` le disque par défaut si la configuration ne le dit pas.
+fait de `fs` le disque par défaut si la configuration ne le dit pas. Seules les
+clés de `services` sont des disques : tout autre nom — `constructor` et
+`toString` compris — lève `E_ARCHIVE_UNKNOWN_DISK`, depuis `drive.use()` et,
+pour `default`, dès la construction du gestionnaire.
 
 ## Visibilité et URLs signées
 
@@ -80,7 +83,12 @@ const visibility = await disk.getVisibility('invoices/42.pdf') // 'private'
 ```
 
 Sur le disque local, un fichier sans marqueur de visibilité est `public` ; un
-fichier rendu privé porte un marqueur à côté de lui. Sur S3, la visibilité est
+fichier rendu privé porte un marqueur à côté de lui. Ce marqueur est posé avant
+les octets : `put`, `copy` et `move` marquent un fichier privé avant de
+l'écrire, de le copier ou de le déplacer, si bien qu'il n'est jamais lisible
+comme public pendant son arrivée, et une écriture qui échoue le laisse privé ou
+le supprime. Rendu public, un fichier garde son ancien marqueur jusqu'à ce que
+les nouveaux octets soient en place. Sur S3, la visibilité est
 l'ACL de l'objet (`public-read` ou `private`), et un objet dont l'ACL ne se lit
 pas compte comme privé.
 
@@ -154,6 +162,10 @@ import { StaticMiddleware } from '@c9up/archive'
 const assets = new StaticMiddleware({ root: 'public', prefix: '/assets' })
 server.use([assets.handle.bind(assets)])
 ```
+
+Les fichiers sont diffusés en flux depuis le disque, jamais lus en entier en
+mémoire : une requête ne garde qu'un tampon de lecture quelle que soit la
+taille du fichier, et les fichiers de plus de 2 Gio sont servis.
 
 Pointez-le uniquement sur des ressources publiques, jamais sur le répertoire
 d'un disque local. Il ne vérifie aucune signature : il refuse un fichier dont

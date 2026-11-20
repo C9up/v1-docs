@@ -153,6 +153,13 @@ is capped, brightness and contrast are range-checked, and a 3x3 kernel must
 carry exactly nine finite values. Hue is the exception — it is circular, so
 400 degrees means 40 rather than an error.
 
+No knob is coerced on its way to the engine: NaN, an infinity, a value that
+overflows the engine's 32-bit float, or a fraction where a whole number is
+expected (`brighten`, `hueRotate`, `rotate`, `sharpen`'s `threshold`) is
+refused with `E_PRISM_INVALID_OPERATION`, and a composite's `opacity` must lie
+in 0-1. A sigma is 0 or a normal number — a subnormal one such as `1e-40` is
+refused rather than handed to the blur — and `sharpen` needs a sigma above 0.
+
 ### Thumbnails
 
 ```ts
@@ -392,6 +399,7 @@ The allow-lists bound how many answers exist, not what producing one costs nor h
 - **A variant is rendered once.** It is keyed by the width it will really have: 3200, 3840 and 5120 of a 3000px source are the same image and one render. The same variant asked for several times at once is decoded once.
 - **There is always a cache.** With `cacheDir`, variants are kept on disk, one directory per source; replacing a source deletes its previous version's variants when the new ones are written, so an avatar re-uploaded at the same path does not pile up. Without `cacheDir`, they are kept in memory up to `memoryCacheBytes` (32 MiB), least recently used dropped first.
 - **Renders run a few at a time.** `concurrency` (2) renders run at once, `queueLimit` (64) wait; past that the answer is 503 `E_PRISM_IMAGE_BUSY` with `Retry-After`, rather than a longer wait for everyone.
+- **Identifying a source is bounded too.** Its first 64 KiB are read to tell an image from anything else; a video or archive sitting in a root costs that read, once per version of the file — the answer, a refusal included, is remembered. A larger image is read whole only inside the render gate above, so `concurrency` x `limits.maxBytes` is the most that source reads hold at once, and the same source asked for many times at once is read once.
 - **AVIF is encoded at `effort` 1** (0 fastest, 9 slowest): the image is encoded while a visitor waits, and effort 4 takes about four times as long for bytes within a percent.
 
 | Option | Default | |

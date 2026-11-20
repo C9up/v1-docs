@@ -45,7 +45,7 @@ main: {
 
 Both are converted on a copy as the client is built, so the config keeps the Secret wrapped. A port that is not a whole port number (`'63 79'`, `'redis'`, `70000`) is refused instead of being handed to ioredis, which would quietly dial 6379. A cluster's `clusterOptions.redisOptions.password` accepts a Secret too.
 
-Printing the manager — `JSON.stringify(quasar)`, `console.log(quasar)`, a log line — shows where each connection points but no credential: passwords, usernames, TLS keys and the userinfo of a `url` come out as `[redacted]`. `quasar.managerConfig` still reads the real config.
+Printing the manager — `JSON.stringify(quasar)`, `console.log(quasar)`, a log line — shows where each connection points but no credential: passwords, usernames, TLS keys, the userinfo of a `url` and its credential query parameters (`?password=…`, `?username=…`, which ioredis reads as options too — on a `redis://` URL, a scheme-less `host:port` or a unix socket path alike) come out as `[redacted]`. `quasar.managerConfig` still reads the real config.
 
 ### The generated config
 
@@ -86,7 +86,13 @@ await quasar.set('user:42', payload, 'EX', 60)   // default connection
 
 They are a fixed list of commands, not everything the ioredis client carries. Sharded pub/sub (`ssubscribe`) is left out — on the command socket it would switch that socket into subscriber mode — and so is ioredis' EventEmitter: a connection has its own events (see [Events](#events)). The raw client stays reachable as `connection.ioConnection` for anything not wrapped here — named `ioConnection` rather than `client` because `CLIENT` is itself a Redis command.
 
-A connection also reports its state: `connectionName`, `status`, `subscriberStatus`, `autoPipelineQueueSize`, `lastError`, and `isConnecting()` (dialling or between two reconnect attempts), `isReady()` (`connect` or `ready`) and `isClosed()` (`close` or `end`).
+A connection also reports its state: `connectionName`, `status`, `subscriberStatus`, `autoPipelineQueueSize`, `lastError`, and `isConnecting()` (dialling or between two reconnect attempts), `isReady()` (`connect` or `ready`) and `isClosed()` (`close` or `end`). `mode` and `subscribeMode` give ioredis' mode (`normal`, `subscriber`, `monitor`) for the command socket and the pub/sub one (`undefined` until a subscribe opens it, and on a cluster, which has no mode).
+
+A cluster connection also hands over `slots` and `nodes(role?)` — `nodes('master')` is how to run a command on every master, a `SCAN` or a `FLUSHDB` per node. On a standalone connection `slots` is `undefined` and `nodes()` throws: an empty list would turn a per-node loop into a silent no-op.
+
+```ts
+for (const node of quasar.connection('cluster').nodes('master')) await node.flushdb()
+```
 
 ### LUA scripts
 

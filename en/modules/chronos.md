@@ -266,3 +266,28 @@ A rule taken from user input or an imported .ics is safe to expand: the text is
 capped at 8 KB, every BY* list is a set, at most 10 000 occurrences come back,
 and iteration ends at year 9999 — an unsatisfiable rule answers `[]` in
 milliseconds instead of holding the thread.
+
+## Public holidays and Easter
+
+```ts
+import { easterDate, holidays, isHoliday } from '@c9up/chronos'
+
+easterDate(2026)                                   // '2026-04-05'
+holidays(2026, { country: 'FR' })                  // [{ date: '2026-01-01', key: 'new_year' }, …]
+holidays(2026, { country: 'CH', region: 'VD' })    // federal days + Vaud's
+isHoliday('2026-09-21', { country: 'CH', region: 'VD' })   // true: Federal Fast Monday
+```
+
+`country` is `FR` or `CH`. For Switzerland, without a `region` the answer is the
+three federal days; with a canton's two-letter code (`SWISS_CANTONS`) it adds
+Easter Monday, Ascension, Whit Monday and that canton's own days (Good Friday,
+Corpus Christi, Federal Fast Monday, Geneva Fast, Näfelser Fahrt, Saint
+Berchtold, …). Each holiday carries a stable `key` the application translates,
+and two holidays on one day are both listed.
+
+A `DateTime` is read on its own wall clock, a string must be `YYYY-MM-DD`
+(`E_CHRONOS_INVALID_DATE`). An unknown country or canton is refused
+(`E_CHRONOS_UNKNOWN_COUNTRY`, `E_CHRONOS_UNKNOWN_REGION`) rather than answered
+with no holiday, which would let a typo in a setting open every holiday to
+bookings. The Easter date is computed for 1583-9999
+(`E_CHRONOS_INVALID_YEAR`).

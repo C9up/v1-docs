@@ -63,6 +63,45 @@ router.get('/dashboard', async ({ auth, photon, response }) => {
 
 Photon will server-render the component, inject the serialized props, and send a full HTML page. On the client, the framework hydrates the page into an interactive application.
 
+### The page object — `ctx.photon.page()`
+
+`ctx.photon.page(component, props)` builds the page object `render()` would send — props resolved against the request (a partial reload included), `deferredProps`, merge labels, `sharedProps`, the history flags, the version — without writing a response. `render()` is built on it, so what a test asserts on is what the client gets:
+
+```typescript
+const page = await ctx.photon.page('Dashboard', { stats: defer(() => getStats()) })
+// page.deferredProps → { default: ['stats'] }, page.props has no `stats`
+```
+
+### The HTML document — `rootView`
+
+A first visit is answered with an HTML document. Without configuration Photon writes a minimal one; `rootView` makes it the application's — the `<html lang>`, a favicon, fonts, a body class:
+
+```typescript
+export default defineConfig({
+  framework: 'react',
+  entryClient: 'resources/app.tsx',
+  // a template the view engine renders as ctx.view.render('app', data):
+  rootView: 'app',
+  // or chosen per request:
+  // rootView: (ctx) => (ctx.auth?.user ? 'app' : 'guest'),
+})
+```
+
+The template receives `page` (the page object, plus `ssrHead` / `ssrBody` when the page is server-rendered), `photon.head` and `photon.body` (Photon's markup, ready to place unescaped: meta tags, stylesheets, the `<div id="app">` mount, the page data and the entry scripts, each with the request's CSP nonce) and the view props given as `render()`'s fourth argument:
+
+```typescript
+await ctx.photon.render('Dashboard', { user }, undefined, { lang: 'fr', theme: 'dark' })
+```
+
+A host with no view engine returns a function that writes the document itself:
+
+```typescript
+rootView: (ctx) => ({ photon, lang }) =>
+  `<!DOCTYPE html><html lang="${lang}"><head>${photon.head}</head><body>${photon.body}</body></html>`,
+```
+
+A template name on a request without `ctx.view` throws `E_PHOTON_INVALID_CONFIG`. The fourth position for view props is a named deviation: upstream's third argument is the view props, Photon's is the per-call `<head>` metadata.
+
 ## Shared Props
 
 `ctx.photon.share({ ... })` registers per-request props that are merged into **every** `ctx.photon.render(...)` of the same request. Use it for cross-cutting props you'd otherwise repeat in every handler — the authenticated user, flash messages, the active locale.
@@ -747,6 +786,7 @@ Every text value (`title`, `description`, og:*, twitter:*, custom `content`) pas
 | `ssr.pages` | `string[] \| (ctx, page) => boolean \| Promise<boolean>` | every page | Which pages to server-render |
 | `encryptHistory` | `boolean` | `false` | Encrypt every page's history state; `ctx.photon.encryptHistory(false)` turns it off for one response |
 | `assetsVersion` | `string \| number` | manifest fingerprint | A fixed asset version, sent with every page |
+| `rootView` | `string \| (ctx) => string \| RootViewRenderer` | Photon's document | The HTML document of a first visit: a template name for `ctx.view`, or a function returning one (or a function that writes the document) |
 
 ## Errors
 
@@ -790,7 +830,11 @@ ctx.photon.render('Dashboard', {
 
 - **`defer`** announces the name and does not run the resolver; the client asks
   for each group in a follow-up request. `{ rescue: true }` lets one slow panel
-  fail without taking the whole reload with it.
+  fail without taking the whole reload with it: the prop is left out and named
+  in `rescuedProps`, and the error is still reported — to the request's
+  `logger.error({ err }, 'Rescued deferred prop "stats"')` by default
+  (`console.error` without a logger). `onRescue((error, { prop, ctx }) => …)`
+  replaces that listener process-wide; `onRescue()` restores it.
 - **`merge` / `deepMerge`** label the prop so the client combines instead of
   replacing. `matchOn('id')` is what stops a row re-sent between two pages from
   appearing twice.

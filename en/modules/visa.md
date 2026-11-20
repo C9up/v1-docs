@@ -169,6 +169,14 @@ lost a scope or a redirect URI meanwhile, or registered more scopes than the
 page listed. It mints nothing: the code exists only once `grant` runs. A ticket
 lasts ten minutes; `consentTicketTtlSeconds` in the config changes it.
 
+`authorize()` takes the query as the parser hands it over. A parameter sent
+twice (`scope=a&scope=b`) or bracketed (`scope[]=a`, `scope[x]=1`) arrives as an
+array or an object, and RFC 6749 §3.1 says a parameter MUST NOT be included
+more than once: it is an `invalid_request` — shown to the user when it is
+`client_id` or `redirect_uri`, redirected otherwise (without `state` when
+`state` is the repeated one). `resource` is the exception, since RFC 8707 lets a
+request name several: one string or several strings, nothing else.
+
 ## Clients
 
 ```ts
@@ -248,6 +256,32 @@ const grant = await visa.verify(bearerToken, new Date(), 'https://api.example/mc
 if (!grant) return ctx.response.unauthorized({ error: 'invalid_token' })
 ```
 
+### A resource server in another process (RFC 7662)
+
+`verify()` reads the store. A resource server that does not share it asks
+`/oauth/introspect` instead — as a client of its own, and only once it is
+named:
+
+```ts
+// config/visa.ts
+introspection: {
+  resourceServers: ['api'],   // client ids, registered with a secret
+}
+```
+
+Left out, introspection answers only the client a token was issued to, and
+`{ active: false }` to everyone else — the same answer as for a token that does
+not exist. A named resource server gets the real answer for any access token,
+`aud` included, so it can refuse one minted for another resource (RFC 8707). Two
+limits hold even for it: a public client never counts, since it authenticates
+with nothing and naming it would open introspection to anyone who knows its id;
+and refresh tokens stay with their own client, since one is never sent to a
+resource server (RFC 6749 §1.5). Names come from this config only, so a client
+that registered itself never gains it.
+
+`token_type_hint` decides which table is read first, never which one is read:
+a token sent with the wrong hint is still found (RFC 7662 §2.1).
+
 ### Telling a client where to authenticate (RFC 9728)
 
 A 401 with nothing else in it is a dead end: the caller learns it needs a token
@@ -322,6 +356,11 @@ What a self-registered client may **be** is the server's decision, not the
 request's: grants, scopes and auth method come from this config, the id is
 chosen here, and a redirect URI must be https or http on a loopback address.
 
+A missing or wrong initial access token is a credential failure, not a
+metadata one: `401` with `{ "error": "invalid_token" }` and a `Bearer`
+challenge (RFC 7591 §3, RFC 6750 §3.1) — `WWW-Authenticate: Bearer` when no
+token was sent, `Bearer error="invalid_token"` when the wrong one was.
+
 ## What `ream configure` writes
 
 ```bash
@@ -379,6 +418,16 @@ Validated at boot rather than at the first request: a URL, `https` (localhost
 excepted), no query string, no fragment, and a trailing slash dropped — every
 endpoint is built by concatenation, so `https://auth.test/` would otherwise
 produce `https://auth.test//oauth/token`.
+
+An issuer may carry a path. The metadata document then lives where RFC 8414
+§3.1 puts it, with the well-known segment between the host and the path:
+`https://example.com/auth` publishes at
+`/.well-known/oauth-authorization-server/auth`, and not at the root, where it
+would name an issuer other than the one a client fetching the root expects
+(§3.3). The endpoints it lists are the issuer followed by `prefix` —
+`https://example.com/auth/oauth/token` — while the application mounts them at
+`prefix` alone, so the proxy in front strips `/auth` before passing them on,
+and passes the well-known path through unchanged.
 
 ## The store
 

@@ -104,13 +104,23 @@ publication porte l'identifiant du relais qui l'a émise, lequel ignore les
 siennes — le bus rend aussi un message à son émetteur, dont les clients locaux
 l'ont déjà reçu.
 
-**Les souscriptions exigent l'instance qui tient le flux.** Le bus transporte
-les broadcasts, pas les connexions : l'uid d'une connexion, ses canaux, les
-tokens et les groupes d'un hub vivent sur l'instance qui a ouvert le flux. Un
-`subscribe` qui arrive sur une autre instance répond `400 E_RELAY_NOT_CONNECTED`.
-Dirigez les requêtes relay d'un client vers une seule instance — sessions
-collantes sur `/__relay/*` et les chemins des hubs — ou faites-les servir par
-une seule instance.
+**Une souscription peut arriver sur n'importe quelle instance.** L'uid d'une
+connexion et ses canaux vivent sur l'instance qui a ouvert le flux, mais le
+répartiteur envoie `POST /__relay/subscribe` et `/__relay/unsubscribe` n'importe
+où. L'instance qui reçoit un `subscribe` exécute l'autorisation du canal avec
+cette requête, puis relaie la souscription sur le bus ; l'instance qui tient
+l'uid l'applique après avoir vérifié que le demandeur est l'utilisateur et la
+session qui ont ouvert le flux, et que le flux reste sous `maxChannelsPerClient`.
+Un `unsubscribe` est relayé de la même façon. La réponse est `204` dès que le bus
+a le message — un refus chez le détenteur (un autre utilisateur, le plafond de
+canaux) s'applique là-bas sans être renvoyé — et les événements `subscribe` /
+`unsubscribe` partent du détenteur, une fois appliqués, avec le contexte du flux.
+Un bus qui refuse le relais répond `503 E_RELAY_BUS_UNAVAILABLE`.
+
+Les hubs, eux, restent attachés : les tokens et les groupes d'un hub vivent sur
+l'instance qui a ouvert le flux, donc dirigez les requêtes de hub d'un client
+vers une seule instance — sessions collantes sur les chemins des hubs — ou
+faites-les servir par une seule instance.
 
 ```ts
 import { defineConfig, transports } from '@c9up/relay'
@@ -122,7 +132,11 @@ export default defineConfig({
 
 `connection` accepte le nom d'une connexion [`@c9up/quasar`](/fr/modules/quasar)
 — résolue au premier broadcast, pas à la lecture du fichier de config — ou
-votre propre client répondant à `publish`, `subscribe` et `unsubscribe`.
+votre propre client répondant à `publish`, `subscribe` et `unsubscribe`. Une
+connexion nommée que quasar retire quand sa stratégie de reconnexion abandonne
+(statut `end`) n'est plus utilisée : le broadcast suivant redemande la connexion
+et y réabonne le canal du bus, l'ancien abonnement étant mort avec son socket —
+le bus se rétablit donc tout seul quand Redis revient.
 
 Un client partagé empile les écouteurs : `unsubscribe(channel, handler)` doit
 donc honorer le handler qu'on lui passe et ne retirer que celui-là. Retirer

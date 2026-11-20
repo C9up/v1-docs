@@ -496,6 +496,21 @@ mailer — a provider booting after this one, a test swapping it. The `*Compiled
 pair sends a message that is already built, which is what a queue worker holds:
 composed and serialised elsewhere, nothing left to render.
 
+## One mailer by name
+
+```ts
+mail.use()                                   // the `default` mailer
+const ses = mail.use('ses')
+await ses.send((m) => m.to(user.email).subject('Hi').text('…'))
+await ses.sendCompiled(builtMessage)
+await ses.sendLaterCompiled(builtMessage, { queue: 'mail' })
+await ses.close()                            // that transport's connections only
+```
+
+`use()` without a name is the mailer `default` names. The `Mailer` it returns
+carries the per-message methods, each bound to its own transport. The queue
+stays one per `Mail`: `setMessenger()` is on the manager, not on a `Mailer`.
+
 ## Text bodies and the envelope
 
 ```ts

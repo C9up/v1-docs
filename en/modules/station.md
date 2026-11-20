@@ -106,8 +106,10 @@ A column holding a secret is kept out of the admin unless the resource names
 it. Secrets are columns declared `@Column({ serializeAs: null })` and columns
 whose name contains `password`, `passwd`, `secret`, `token` or `apikey`.
 
-- **List and show** render every column except secrets. `list.columns` and
-  `show.columns` replace that with an explicit list, in the given order.
+- **List and show** render every column except secrets and fields the form
+  renders as a password input (`formFields.<col>.inputType: "password"`).
+  `list.columns` and `show.columns` replace that with an explicit list, in the
+  given order; naming such a column there is the opt-in that shows it.
 - **Create and edit** accept the **editable** columns only, which are also the
   form's fields. By default: every column except the primary key, managed
   timestamps, the soft-delete column, relations, secrets and the fields
@@ -266,10 +268,16 @@ A write refused for want of a verified CSRF token answers a JSON caller with
 ### Brute-force protection
 
 `POST /admin/login` counts every attempt under the client IP and under the
-submitted email (lower-cased) **before** checking the password. The sixth
-attempt in 15 minutes on either key is refused with `429` and a `Retry-After`
-header, without reaching the credential check; a successful sign-in clears both
-counters. A limiter that fails (a store outage) refuses the attempt with `503`.
+submitted email (lower-cased, keyed by its SHA-256 digest) **before** checking
+the password. The sixth attempt in 15 minutes on either key is refused with
+`429` and a `Retry-After` header, without reaching the credential check; a
+successful sign-in clears both counters. A limiter that fails (a store outage)
+refuses the attempt with `503`.
+
+The IP is counted first, and an attempt refused on it does not count the email:
+an address already throttled cannot fill the store with invented identifiers
+and lock every other administrator out. An email longer than 254 characters
+(RFC 5321) is refused with `400` before it reaches the limiter.
 
 The counters live in the process's memory by default. In a cluster, pass a
 shared limiter — Warden's `AuthRateLimiter` over a `RedisAttemptStore` has the

@@ -150,11 +150,14 @@ export default defineConfig({
   grpc: {
     maxReceiveMessageLength: 1024 * 1024, // default 4 MiB; -1: no limit
     maxSendMessageLength: 8 * 1024 * 1024, // default -1: no limit
+    maxInFlightRequestBytes: 16 * 1024 * 1024, // default 8 MiB; -1: no limit
   },
 })
 ```
 
 A request past `maxReceiveMessageLength` is answered `RESOURCE_EXHAUSTED` before any interceptor runs; a reply past `maxSendMessageLength` is answered `RESOURCE_EXHAUSTED` instead of being sent. A value that is not a whole number of bytes (or `-1`) stops the start. The native server applies the same limits: a request is refused on its length prefix, before the message is read.
+
+The message limit alone does not bound memory. A decoded request is far larger than its bytes: every element of a repeated message field becomes a full object with every field set to its default, so a 4 MiB request of empty elements holds some 280 MB of heap, and a few such calls at once exhaust a process. `maxInFlightRequestBytes` bounds the request bytes decoded and held at once, over every call whose method has not finished: a call that would go past it is answered `RESOURCE_EXHAUSTED` before any interceptor runs or any byte is decoded. A call is always admitted when nothing else is in flight, and a call answered `DEADLINE_EXCEEDED` or `CANCELLED` stays counted until its method stops, since the method still holds its request. Clients see `RESOURCE_EXHAUSTED` as a signal to retry later.
 
 The request side of a call must arrive whole — one message, then the end of the stream — within the server's `requestTimeout` (`config/app.ts` → `http`), or the call is answered `DEADLINE_EXCEEDED`. A second message is answered `UNIMPLEMENTED` and request trailers `INTERNAL`, before the method runs: the metadata is the request headers only.
 

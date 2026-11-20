@@ -508,6 +508,22 @@ tard que le mailer — un provider qui démarre après celui-ci, un test qui
 l'échange. La paire `*Compiled` envoie un message déjà construit, ce que tient
 un worker de file : composé et sérialisé ailleurs, plus rien à rendre.
 
+## Un mailer par son nom
+
+```ts
+mail.use()                                   // le mailer `default`
+const ses = mail.use('ses')
+await ses.send((m) => m.to(user.email).subject('Bonjour').text('…'))
+await ses.sendCompiled(messageConstruit)
+await ses.sendLaterCompiled(messageConstruit, { queue: 'mail' })
+await ses.close()                            // les connexions de ce transport seulement
+```
+
+`use()` sans nom rend le mailer que nomme `default`. Le `Mailer` rendu porte
+les méthodes par message, chacune liée à son propre transport. La file reste
+unique par `Mail` : `setMessenger()` est sur le gestionnaire, pas sur un
+`Mailer`.
+
 ## Corps texte et enveloppe
 
 ```ts

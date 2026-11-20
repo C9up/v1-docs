@@ -234,8 +234,21 @@ time.travel(60_000)         // +1 minute
 time.unfreeze()
 ```
 
-Wraps `@c9up/chronos` so `DateTime.now()` and any Atlas
-`created_at` / `updated_at` columns observe the frozen clock.
+The clock is pinned through `vi.setSystemTime`, which replaces `Date`, so
+anything that reads the time through `Date` — chronos's `DateTime.now()`, Atlas's
+`created_at` / `updated_at` columns — observes the frozen clock; helix imports
+no date library.
+
+`freeze` and `travel` undo themselves at the end of the test: the clock goes back
+to what it was before the call — the pin a `beforeAll` set with
+`vi.setSystemTime` or `vi.useFakeTimers`, or real time when there was none — so
+the next test sees the clock the file chose, whatever the previous test did.
+
+`Date` is replaced only while a clock is pinned; importing helix changes no
+global. While pinned, the replacement still behaves as `Date`: a
+`class X extends Date` keeps its own prototype and methods,
+`new Date().constructor === Date`, and a date made before the pin is still
+`instanceof Date`.
 
 ## Best practices
 

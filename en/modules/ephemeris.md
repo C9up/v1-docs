@@ -99,6 +99,16 @@ value with `toJSON` what it gives, and a value JSON cannot hold (`NaN`,
 (`E_EPHEMERIS_INVALID_VALUE`). `toJsonLd()` therefore returns plain data that
 any `JSON.stringify` — Photon's, Inker's, Aurora's — writes faithfully.
 
+A node given without a helper is then held to the helpers' bounds — not
+Google's per-type rules: a URL-only property (`url`, `image`…) must be an
+absolute http(s) URL, a property that may be a URL or text is never a
+`javascript:`, `vbscript:`, `data:`, `file:` or `blob:` URL
+(`E_EPHEMERIS_INVALID_URL`), text is at most 10,000 characters
+(`E_EPHEMERIS_TOO_LONG`), and prices, currencies and dates have the form a
+helper requires. A helper's output is taken as already checked.
+`new SchemaGraph({ url, onWarning })` receives the warnings those checks
+raise, as a helper's `onWarning` does.
+
 ## The script tag
 
 ```ts

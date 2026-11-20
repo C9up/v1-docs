@@ -377,7 +377,7 @@ The `push_subscriptions` table the migration below creates. The connection is ta
 
 ### `stores.redis({ connection, prefix })`
 
-A key per subscription and a set per user. `connection` takes a client, a function answering with one, or the **name** of a `@c9up/quasar` connection — resolved at runtime, so quasar stays an optional peer and never enters Nova's build graph. A connection missing one of the six commands the store issues is refused by name, rather than failing on the first subscribe.
+A key per subscription and a set per user. `connection` takes a client, a function answering with one, or the **name** of a `@c9up/quasar` connection — resolved at runtime, so quasar stays an optional peer and never enters Nova's build graph. A connection missing one of the six commands the store issues is refused by name, rather than failing on the first subscribe. A connection quasar retires once its retry strategy gives up (status `end`) is not used again: the next call asks for the connection again, so Web Push recovers by itself once Redis is back. A client passed directly is kept as it is.
 
 `prefix` defaults to `nova:push`; change it to run two applications against one Redis database.
 

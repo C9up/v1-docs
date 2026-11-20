@@ -175,12 +175,28 @@ await createChildTable(conn, { EntityClass: Meters, name: 'd0', tags: [1, 'north
 // → CREATE TABLE IF NOT EXISTS `d0` USING `meters` TAGS (1, 'north')
 
 // A deterministic child name for a tag-set (idempotent create + stable routing)
-childTableName(Meters, [1, 'north']) // → 't_<fnv1a-hex>'
+childTableName(Meters, [1, 'north']) // → 't_031da91ff5add6466e2222f61b95a541'
 
 await dropSuperTable(conn, Meters)   // → DROP STABLE IF EXISTS `meters`
 ```
 
 Child tables also auto-create on first insert (`INSERT INTO d1 USING meters TAGS (2) VALUES (...)`, the compile-boundary form above) — `createChildTable` is the *explicit* form.
+
+#### Child-table names
+
+Every ingest path (STMT, literal SQL, the testing factory) writes a point into the child that `childTableName` names for its tag values. The name is the identity of a series, and a tag value often comes from outside (a device id, a sensor a user named), so it has to be impossible to forge: `t_` followed by the first 128 bits of a SHA-256 over a versioned, length-prefixed encoding of the stable name and each tag value. Finding another tag value that lands on an existing child is out of reach.
+
+Up to eon 0.2.15 the name was a 64-bit FNV-1a, which is not collision resistant: a chosen tag value reaching an existing child could be computed in about thirty seconds, and TDengine's `USING … TAGS` form writes into an existing child and ignores the TAGS it is given, so those rows were stored under the other series' tags. The change gives every tag set a new name. A database written by an earlier version keeps its old children, and the next ingest opens a second child for the same tags. Move them once, before ingesting again:
+
+```typescript
+import { migrateChildTableNames } from '@c9up/eon'
+
+const report = await migrateChildTableNames(conn, Meters, { dryRun: true })
+// { renamed: [{ from: 't_…', to: 't_…', tags: [1, 'north'] }], current: [...], unmatched: [...] }
+await migrateChildTableNames(conn, Meters)
+```
+
+For each child whose name is the former name of its own tags, it creates the new child with the same tags, copies the rows (`INSERT … SELECT`) and drops the old one; TDengine cannot rename a child table. Running it again after an interruption is safe: a row copied twice keeps its timestamp, which TDengine overwrites. A child created with an explicit `name`, or whose tags read back in another JavaScript type than the one ingested (a `number` for a BIGINT tag ingested as `bigint`), is listed in `unmatched` and left alone. `legacyChildTableName()` gives the former name of a tag set if you move data yourself.
 
 `ALTER STABLE` compiles one statement per change (`addColumn` / `dropColumn` / `modifyColumn` / `addTag` / `dropTag` / `modifyTag` / `renameTag`):
 
