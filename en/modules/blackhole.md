@@ -149,6 +149,24 @@ export default defineConfig({
   through `dangerouslyDisableDefaultSrc`.
 - `@nonce` is replaced per request with `'nonce-…'`; the raw value is
   `response.nonce`.
+- Any other `@keyword` is resolved per request by the resolver registered for
+  it, which is how a package contributes a source (an asset server, a CDN, a
+  dev server). A keyword nothing resolves throws when the filter is created
+  (`E_BLACKHOLE_UNKNOWN_CSP_KEYWORD`) instead of reaching the browser as a host
+  named `@keyword`; register it before the filter is built (in a provider's
+  `register()`), since the resolvers are captured then:
+
+  ```ts
+  import { cspKeywords } from '@c9up/blackhole'
+
+  // (request, response, nonce) — the framework's own objects
+  cspKeywords.register('@assetsUrl', () => env.get('ASSETS_URL'))
+  // csp: { directives: { scriptSrc: ["'self'", '@nonce', '@assetsUrl'] } }
+  ```
+
+  An empty answer drops the keyword; an answer with `;`, `,` or a line break
+  throws (`E_BLACKHOLE_INVALID_CSP_KEYWORD_VALUE`) rather than ending the
+  directive.
 - `hsts.maxAge: 0` is valid: it tells browsers to drop the policy.
 
 The headers are set before the handler runs and added afterwards only where
@@ -195,9 +213,24 @@ It uses [ammonia](https://crates.io/crates/ammonia) (the html5ever parser used b
 - Every other content type (`text/plain`, JSON, CSV…) is returned unchanged: with `X-Content-Type-Options: nosniff` (a default header) the browser never reads it as markup, and escaping it would only corrupt it.
 - Fragments lose `id`, `is`, `slot`, `part` and `data-*`: `<a id="config">` shadows `window.config` (DOM clobbering), `is` builds a customized element, client-side frameworks read bindings from `data-*`, and `slot`/`part` reach into shadow DOM.
 
-`xss: true` runs the same pass over every `text/html` fragment the application
-sends; a server-rendered **full document** (opening with `<!doctype>` or
-`<html>`) is left intact. It is **off by default**: the application's own
+`xss: true` runs the same pass over every `text/html` body the application
+sends — one that opens like a document (`<!doctype html>`, `<html>`, a comment)
+included: those first bytes are written by whoever wrote the content, so an
+untrusted comment could otherwise claim to be a page and switch the pass off.
+A page the application renders itself is left intact only when the handler
+says so for that response:
+
+| Adapter | Mark the response's HTML as the application's own |
+| --- | --- |
+| Ream | `ctx.store.set('trustedHtml', true)` |
+| Express | `res.locals.trustedHtml = true` |
+| Fastify | `reply.trustedHtml = true` |
+| Hono | `c.set('trustedHtml', true)` |
+
+A page rendered by `ctx.aurora.render()` (aurora 0.1.52 or later) or
+`ctx.view.render()` (inker 0.1.24 or later) is marked by the renderer: nothing
+to add. Only the literal `true` counts. Mark only bodies whose untrusted parts the
+template already escaped. It is **off by default**: the application's own
 partials — a form fragment with its `_csrf` field, an `<svg>` icon, a `<video>` —
 would lose everything outside the allow-list. Turn it on only where every
 fragment may carry untrusted markup. The object form turns it on and opts
@@ -382,6 +415,26 @@ await login.consume(key)                        // throws once over
 `remaining`, `availableIn`, `isBlocked` and `clear`. Counting is a fixed window
 per key, opened by its first request.
 
+Several limits at once — each limiter on its own key, in the default store or
+a named one (`limiter.multi('redis', [...])`):
+
+```ts
+const multi = limiter.multi([
+  { key: `login_${ip}`, requests: 5, duration: '1 minute' },
+  { key: `login_${ip}`, requests: 100, duration: '1 day', blockDuration: '1 hour' },
+])
+
+await multi.consume()                          // throws the first ThrottleException
+const [error, user] = await multi.penalize(() => verify(email, password))
+```
+
+`MultiLimiter` has `consume`, `attempt`, `penalize`, `increment`, `decrement`,
+`get`, `set`, `delete` and `list`. `consume` counts in order: the limiters
+before the one that throws have counted.
+
+`limiter.clear()` forgets the keys of every limiter handed out so far;
+`limiter.clear(['redis'])` only those of the named stores.
+
 The stores live under `limiter` in `config/blackhole.ts` (default: one memory
 store):
 
@@ -394,12 +447,36 @@ export default defineConfig({
     stores: {
       memory: limiterStores.memory(),
       redis: limiterStores.redis({ connection: 'main' }),
+      database: limiterStores.database({ tableName: 'rate_limits' }),
     },
   },
 })
 ```
 
-The Redis store's `clear()` deletes its own keys (by prefix), not the database.
+The Redis store's `clear()` deletes its own keys (by prefix), not the database. A connection quasar retires once its retry strategy gives up (status `end`) is not used again: the next request asks for the connection again, so rate limiting recovers by itself once Redis is back. A client passed directly is kept as it is.
+
+The database store counts in a SQL table (PostgreSQL, MySQL, SQLite), for an
+application without Redis. `connection` takes atlas' `db` (or any client with
+`dialect` and `rawQuery(sql, bindings)`), a function answering one, or the name
+of an atlas connection; left out, atlas' default connection, loaded on first
+use — blackhole does not depend on atlas. Each count is one atomic
+upsert-and-increment; expired rows are deleted as counting goes; a key longer
+than 255 characters is stored as its SHA-256. Its `clear()` empties the table,
+so give the limiter a table of its own. The table:
+
+```ts
+// database/migrations/9100_create_rate_limits.ts
+// (stubs/database/migrations/9100_create_rate_limits.stub in the package)
+this.schema.createTable('rate_limits', (t) => {
+  t.string('key', 255).primary()
+  t.integer('points').notNullable().defaultTo(0)
+  t.bigInteger('expire').nullable() // epoch milliseconds
+  t.index('expire')
+})
+```
+
+atlas missing or not booted raises `E_BLACKHOLE_DATABASE_UNAVAILABLE` on the
+first count; another database, `E_BLACKHOLE_UNSUPPORTED_DATABASE`.
 
 ## Filter Results
 

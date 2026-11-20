@@ -8,7 +8,7 @@ Inker est le module de templating côté serveur de l'écosystème Ream (`@c9up/
 
 Inker ne tire aucune dépendance de templating. Il est hand-rolled, réparti entre un cœur Rust et un renderer Node :
 
-- **Rust (`inker-engine`)** — un lexer à balayage avant unique et un parser linéaire transforment une source `.inker` en un **AST JSON** (`parseTemplate` via NAPI, sérialisé par `astToJson`). C'est le travail CPU-bound ; chaque nœud porte la *source verbatim* de ses expressions.
+- **Rust (`inker-engine`)** — un lexer à balayage avant unique et un parser linéaire transforment une source `.inker` en un **AST JSON** (`parseTemplate` via NAPI, sérialisé par `astToJson`). C'est le travail CPU-bound ; chaque nœud porte la *source verbatim* de ses expressions. Le troisième appel du binaire, `openedPath`, donne le chemin système d'un fichier de template ouvert : le chargeur vérifie ainsi que le fichier réellement ouvert se trouve dans la racine des templates (Linux lit `/proc/self/fd` à la place).
 - **Node (`renderNode.ts`)** — parcourt l'AST JSON et évalue la source de chaque expression dans le **V8** de Node, avec les helpers enregistrés, les globals du cœur et le scope de rendu tous en portée lexicale (un seul runtime ; les helpers sont de simples fonctions appelables partout, y compris dans des arrow functions et des arguments scopés à une boucle).
 
 > La source des expressions est contrôlée par l'auteur (fichiers `.inker`) — le même niveau de confiance que le reste du code de l'app. C'est pourquoi un helper peut être appelé *à l'intérieur* d'une expression riche (`{{ users.filter(u => can(u)).map(u => u.name).join(', ') }}`).
@@ -218,7 +218,7 @@ Les props sont n'importe quelle expression JavaScript — un objet littéral ave
 
 Deux couches de fonctions sont toujours en portée d'expression :
 
-- **Globals du cœur** — casse de chaînes (`camelCase`, `pascalCase`, `snakeCase`, `dashCase`, `titleCase`), texte (`truncate` garde les balises d'une entrée HTML et ferme celles qu'il coupe, `excerpt` les retire et compte chaque fin de paragraphe comme une espace — tous deux en mots entiers avec un suffixe `...` par défaut, `{ strict: true }` pour couper exactement à la longueur — et `nl2br`), `pluralize`, formatage (`prettyBytes`, `prettyMs`, `ordinal`), `inspect`, et les helpers `html` (`html.attrs`, `html.classNames`, `html.safe`). S'y ajoute `html.jsonLd(data, cspNonce())`, qui écrit les données structurées d'une page en `<script type="application/ld+json">` — la valeur échappée comme le fait `js.stringify`, pour qu'aucune valeur ne ferme la balise, et le nonce sur la balise. Une valeur que JSON ne sait pas tenir (une fonction, un symbole, un bigint, `NaN`/`Infinity`, un cycle, une imbrication de plus de 512 niveaux) est refusée avec `E_INKER_INVALID_JSON_LD` plutôt qu'écrite en données structurées invalides ; le message nomme son chemin, par exemple `offers[1].price is NaN`. Un getter ou un `toJSON` des données qui lève une erreur est signalé par `E_INKER_HELPER_THROW` avec ce chemin, l'erreur d'origine en `cause`.
+- **Globals du cœur** — casse de chaînes (`camelCase`, `pascalCase`, `snakeCase`, `dashCase`, `titleCase`), texte (`truncate` garde les balises d'une entrée HTML et ferme celles qu'il coupe, `excerpt` les retire et compte chaque fin de paragraphe comme une espace — tous deux en mots entiers avec un suffixe `...` par défaut, `{ strict: true }` pour couper exactement à la longueur — et `nl2br`), `pluralize`, formatage (`prettyBytes`, `prettyMs`, `ordinal`, et `toBytes` / `toMs`, qui relisent `'2.5 MB'` ou `'1h'` en nombre et rendent `null` pour tout le reste, en un temps linéaire dans la longueur de l'entrée), `inspect`, et les helpers `html` (`html.attrs`, `html.classNames`, `html.safe`). S'y ajoute `html.jsonLd(data, cspNonce())`, qui écrit les données structurées d'une page en `<script type="application/ld+json">` — la valeur échappée comme le fait `js.stringify`, pour qu'aucune valeur ne ferme la balise, et le nonce sur la balise. Une valeur que JSON ne sait pas tenir (une fonction, un symbole, un bigint, `NaN`/`Infinity`, un cycle, une imbrication de plus de 512 niveaux) est refusée avec `E_INKER_INVALID_JSON_LD` plutôt qu'écrite en données structurées invalides ; le message nomme son chemin, par exemple `offers[1].price is NaN`. Un getter ou un `toJSON` des données qui lève une erreur est signalé par `E_INKER_HELPER_THROW` avec ce chemin, l'erreur d'origine en `cause`.
 - **Helpers enregistrés** — passés au constructeur (option `helpers`) ou câblés par le provider : `t()` (i18n), `route`/`urlFor` et `signedUrlFor`, `asset`, `csrfField` / `csrfMeta`, etc. Un nom enregistré surcharge un global du cœur de même nom.
 
 ```ts
@@ -231,6 +231,29 @@ const templates = new Templates({
 ```
 
 Un helper (ou global) qui retourne une `SafeString` est émis brut — c'est ainsi qu'un helper embarque du markup de confiance (p. ex. un champ caché CSRF, ou un îlot Aurora rendu côté serveur).
+
+### Rendre dans une requête — `ctx.view`
+
+`InkerProvider` donne à chaque contexte HTTP une `view` : un renderer qui lui
+est propre, créé au premier accès et gardé pour la requête, avec `request` déjà
+partagé. Ce qu'un middleware y `share()` atteint le rendu du contrôleur.
+
+```ts
+async create({ view }: HttpContext) {
+  return view.render('posts/create', { categories })
+}
+```
+
+Chaque rendu passé par `ctx.view` (`render`, `renderSync`, `renderString`,
+`renderRaw`, `renderRawSync`, et ceux d'un `clone()`) voit la même requête que
+`inker.render(ctx, …)` : `t()` traduit dans `ctx.locale`, `csrfField()` /
+`csrfMeta()` écrivent le jeton de cette requête, `cspNonce()` rend son nonce.
+
+Le provider a besoin d'un routeur dans le conteneur. `@c9up/rosetta` est
+facultatif : sans lui, le moteur, `ctx.view` et le service `inker` démarrent
+quand même, et inker n'enregistre pas de `t()` à lui — un template qui l'appelle
+échoue avec « 't' is not a helper, a global or a function ». Installe rosetta
+pour traduire.
 
 ## Contribuer depuis un autre paquet
 

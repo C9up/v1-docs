@@ -154,6 +154,25 @@ export default defineConfig({
   `default-src` seulement via `dangerouslyDisableDefaultSrc`.
 - `@nonce` est remplacé à chaque requête par `'nonce-…'` ; la valeur brute est
   `response.nonce`.
+- Tout autre `@mot-clé` est résolu à chaque requête par le résolveur enregistré
+  pour lui : c'est ainsi qu'un paquet apporte une source (serveur d'assets, CDN,
+  serveur de dev). Un mot-clé que rien ne résout lève une erreur à la création
+  du filtre (`E_BLACKHOLE_UNKNOWN_CSP_KEYWORD`) au lieu d'arriver au navigateur
+  comme un hôte nommé `@mot-clé` ; enregistre-le avant la construction du filtre
+  (dans le `register()` d'un provider), les résolveurs étant capturés à ce
+  moment-là :
+
+  ```ts
+  import { cspKeywords } from '@c9up/blackhole'
+
+  // (request, response, nonce) — les objets du framework
+  cspKeywords.register('@assetsUrl', () => env.get('ASSETS_URL'))
+  // csp: { directives: { scriptSrc: ["'self'", '@nonce', '@assetsUrl'] } }
+  ```
+
+  Une réponse vide retire le mot-clé ; une réponse contenant `;`, `,` ou un saut
+  de ligne lève une erreur (`E_BLACKHOLE_INVALID_CSP_KEYWORD_VALUE`) plutôt que
+  de clore la directive.
 - `hsts.maxAge: 0` est valide : il dit au navigateur d'oublier la politique.
 
 Les en-têtes sont posés avant le handler, puis ajoutés après seulement s'ils
@@ -201,9 +220,24 @@ Elle utilise [ammonia](https://crates.io/crates/ammonia) (le parser html5ever ut
 - tout autre type de contenu (`text/plain`, JSON, CSV…) est rendu tel quel : avec `X-Content-Type-Options: nosniff` (un en-tête par défaut), le navigateur ne le lit jamais comme du markup, et l'échapper ne ferait que le corrompre.
 - les fragments perdent `id`, `is`, `slot`, `part` et `data-*` : `<a id="config">` masque `window.config` (DOM clobbering), `is` fabrique un élément personnalisé, les frameworks côté client lisent des liaisons dans `data-*`, et `slot`/`part` atteignent le shadow DOM.
 
-`xss: true` applique la même passe à chaque fragment `text/html` que
-l'application envoie ; un **document complet** rendu côté serveur (commençant
-par `<!doctype>` ou `<html>`) est laissé intact. Elle est **désactivée par
+`xss: true` applique la même passe à chaque corps `text/html` que
+l'application envoie — y compris celui qui commence comme un document
+(`<!doctype html>`, `<html>`, un commentaire) : ces premiers octets sont écrits
+par l'auteur du contenu, et un commentaire non fiable pourrait sinon se faire
+passer pour une page et couper la passe. Une page que l'application rend
+elle-même n'est laissée intacte que si le handler le dit pour cette réponse :
+
+| Adaptateur | Marquer le HTML de la réponse comme celui de l'application |
+| --- | --- |
+| Ream | `ctx.store.set('trustedHtml', true)` |
+| Express | `res.locals.trustedHtml = true` |
+| Fastify | `reply.trustedHtml = true` |
+| Hono | `c.set('trustedHtml', true)` |
+
+Une page rendue par `ctx.aurora.render()` (aurora 0.1.52 ou plus récent) ou
+`ctx.view.render()` (inker 0.1.24 ou plus récent) est marquée par le moteur de
+rendu : rien à ajouter. Seul le littéral `true` compte. Ne marque que des corps dont le template a déjà
+échappé les parties non fiables. Elle est **désactivée par
 défaut** : les partiels de l'application elle-même — un fragment de formulaire avec son
 champ `_csrf`, une icône `<svg>`, une `<video>` — perdraient tout ce qui sort de
 la liste blanche. Ne l'active que là où chaque fragment peut porter du markup
@@ -392,6 +426,26 @@ await login.consume(key)                        // lève une erreur une fois au-
 `remaining`, `availableIn`, `isBlocked` et `clear`. Le comptage est une fenêtre
 fixe par clé, ouverte par sa première requête.
 
+Plusieurs limites à la fois — chaque limiteur sur sa propre clé, dans le store
+par défaut ou dans un store nommé (`limiter.multi('redis', [...])`) :
+
+```ts
+const multi = limiter.multi([
+  { key: `login_${ip}`, requests: 5, duration: '1 minute' },
+  { key: `login_${ip}`, requests: 100, duration: '1 day', blockDuration: '1 hour' },
+])
+
+await multi.consume()                          // lève la première ThrottleException
+const [error, user] = await multi.penalize(() => verify(email, password))
+```
+
+`MultiLimiter` a `consume`, `attempt`, `penalize`, `increment`, `decrement`,
+`get`, `set`, `delete` et `list`. `consume` compte dans l'ordre : les limiteurs
+placés avant celui qui lève ont compté.
+
+`limiter.clear()` oublie les clés de tous les limiteurs distribués jusque-là ;
+`limiter.clear(['redis'])` seulement celles des stores nommés.
+
 Les stores se déclarent sous `limiter` dans `config/blackhole.ts` (par défaut :
 un store en mémoire) :
 
@@ -404,12 +458,37 @@ export default defineConfig({
     stores: {
       memory: limiterStores.memory(),
       redis: limiterStores.redis({ connection: 'main' }),
+      database: limiterStores.database({ tableName: 'rate_limits' }),
     },
   },
 })
 ```
 
-Le `clear()` du store Redis supprime ses propres clés (par préfixe), pas la base.
+Le `clear()` du store Redis supprime ses propres clés (par préfixe), pas la base. Une connexion que quasar retire quand sa stratégie de reconnexion abandonne (statut `end`) n'est plus utilisée : la requête suivant redemande la connexion, si bien que la limitation se rétablit tout seul quand Redis revient. Un client passé directement est gardé tel quel.
+
+Le store base de données compte dans une table SQL (PostgreSQL, MySQL, SQLite),
+pour une application sans Redis. `connection` prend le `db` d'atlas (ou tout
+client doté de `dialect` et de `rawQuery(sql, bindings)`), une fonction qui en
+renvoie un, ou le nom d'une connexion atlas ; omis, la connexion par défaut
+d'atlas, chargée au premier comptage — blackhole ne dépend pas d'atlas. Chaque
+comptage est un seul upsert-incrément atomique ; les lignes expirées sont
+supprimées au fil du comptage ; une clé de plus de 255 caractères est stockée
+sous son SHA-256. Son `clear()` vide la table : donne au limiteur une table à
+lui. La table :
+
+```ts
+// database/migrations/9100_create_rate_limits.ts
+// (stubs/database/migrations/9100_create_rate_limits.stub dans le paquet)
+this.schema.createTable('rate_limits', (t) => {
+  t.string('key', 255).primary()
+  t.integer('points').notNullable().defaultTo(0)
+  t.bigInteger('expire').nullable() // millisecondes epoch
+  t.index('expire')
+})
+```
+
+atlas absent ou pas encore démarré lève `E_BLACKHOLE_DATABASE_UNAVAILABLE` au
+premier comptage ; une autre base, `E_BLACKHOLE_UNSUPPORTED_DATABASE`.
 
 ## Résultats du filtre
 

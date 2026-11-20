@@ -148,9 +148,40 @@ const doubled = memo(() => count() * 2)
 
 `signal()` returns a function. Call it with no args to read, with one arg to write. Signals are tracked automatically inside `effect()` and `memo()` callbacks.
 
+### What runs again, and when
+
+Nothing re-runs unless something it read changed, and then it runs once:
+
+- A write marks what read the signal and runs each marked effect once, after the write. An effect that reads a signal and a `memo` of it runs once per write, never with the memo's old value. Writes inside `batch(() => …)`, or inside a running effect, are applied together when it returns.
+- A `memo` recomputes when it is read after a change. If it returns an equal value (`Object.is`), nothing that reads it runs. A memo that builds a new array or object each time takes `equals` to stay quiet when the content did not change: `memo(() => rows().filter(isOpen), { equals: sameIds })`.
+- An effect or memo created inside an effect, an accessor or an `onMount` ends when that run is replaced or the component unmounts. A root from `render()` or `hydrate()` ends only through its disposer.
+- A slot leaves its nodes alone when its accessor returns what it already shows: the same text, nothing again, or a template from the same `html` call with the same values. A scalar that changed updates its text node in place. Attributes and boolean attributes are written only when their value differs from the element's. A `.prop` is written only when the bound value differs from the last one written, so a field the user typed in keeps its text when something unrelated re-runs the binding.
+
+What still rebuilds is what changed: an accessor that returns a template whose values differ, or a component (its setup runs again). Read the part that changes in an accessor of its own inside a stable template, and use `each` for lists. A plain helper function called from an accessor is tracked by it like any other read. Only a `component()` setup runs untracked.
+
+### Counting re-renders — `countRerenders`
+
+During development, switch the counter on to see what re-runs:
+
+```ts
+import { countRerenders } from '@c9up/aurora'
+
+if (import.meta.env.DEV) {
+  const rerenders = countRerenders({ highlight: true })
+  // later, in the console:
+  rerenders.counts()   // { effect, memo, slot, list, attribute, property, setup }
+  rerenders.top(5)     // the elements re-rendered most, with their count
+  rerenders.setups(5)  // the component setups that ran most, by function name
+}
+```
+
+`highlight` outlines each element as it re-renders. `log` prints every re-run with `console.debug`. `onRerender(event)` receives each one (`kind`, `target`, `name`, `hint`). A slot that rebuilt a whole array carries a hint pointing to `each`. `reset()` starts the tallies over, and `stop()` ends counting. Until a counter starts, the runtime builds no event: each place that could report costs one property read. Give components a named setup function (`component(function UserCard(props) { … })`) so `setups()` can name them.
+
+`E_AURORA_REACTIVE_CYCLE` is thrown when effects keep re-running each other in one update (an effect writes what it, or an effect it triggers, reads). When one effect throws during an update, the other effects still run, and the first error is rethrown afterwards.
+
 ### Lists — `each`
 
-A slot that returns an array, `${() => rows().map(renderRow)}`, rebuilds every row whenever the array changes, even a new array holding the same rows. A list re-read every few seconds then loses its open menus, its focus and its hover each time. `each` keeps one row per key:
+A slot that returns an array, `${() => rows().map(renderRow)}`, rebuilds every row whenever the array changes. Rows that hold an event handler or a component are new on every run, so a new array holding the same rows rebuilds them too. A list re-read every few seconds then loses its open menus, its focus and its hover each time. `each` keeps one row per key:
 
 ```ts
 import { each, html } from '@c9up/aurora'
@@ -316,6 +347,49 @@ Menu({ children: () => html`${() => items().map((item) => MenuItem(item))}` })
 Only `inject` sees them: `provide`, `onMount` and `onUnmount` still belong to a
 component's own setup.
 
+## Host-free core — `@c9up/aurora/core`
+
+`@c9up/aurora` is the browser entry: it carries the DOM renderer, hydration and
+the browser helpers. Code that has to run on **every** host — the server, the
+browser, a phone through a native renderer — imports from `@c9up/aurora/core`
+instead:
+
+```ts
+import { component, html, signal, memo, each, onMount } from '@c9up/aurora/core'
+
+export const Counter = component((props: { label: string }) => {
+  const count = signal(0)
+  return html`<button @click=${() => count((n) => n + 1)}>${props.label}: ${count}</button>`
+})
+```
+
+The entry holds what a component is written with: signals (`signal`, `memo`,
+`effect`, `batch`, `untrack`, `onCleanup`), `html`, `component` and its
+lifecycle and context, `each`, `uid`, `cn`, `command`, `form` and `AuroraError`.
+It loads where there is no DOM, no Node module and no top-level await — a test
+walks its import graph so it stays that way. `@c9up/aurora` re-exports the same
+functions, so an existing app changes nothing, and a component written against
+the core still renders with `render()` and `aurora.render()`.
+
+`byId` is not in the core: it reads `document`.
+
+### Writing a renderer — `@c9up/aurora/renderer`
+
+A renderer for another host reads the same `TemplateResult` as the DOM
+renderer. `@c9up/aurora/renderer` gives it the pieces the built-in renderers
+share, so a component behaves the same everywhere:
+
+| Export | What for |
+|---|---|
+| `TemplateScanner`, `assertBindable`, `assertBindableProperty` | Refuse the slot positions the DOM renderer refuses |
+| `readComponentLifecycle` | The mount hooks and teardowns a `component()` attached to its result |
+| `bindTemplateContext` | Run a slot's function under the context it was written in |
+| `setOwner` | Collect the effects created while a subtree is built, to dispose them with it |
+| `readEach`, `readEachItems` | Keyed lists |
+| `guardUrlAttribute`, `guardUrlProperty` | The URL checks every host applies |
+
+Application code never needs this entry.
+
 ## SSR — `renderToString`
 
 ```ts
@@ -444,7 +518,7 @@ router.get('/dashboard', async (ctx) => {
 That's it. `aurora.render(ctx, name, props)`:
 
 1. Resolves `resources/pages/${name}.js` (dynamic import — picks up edits to the page file on the next request; see [Dev live-reload](#dev-live-reload-hmr) for its transitive imports)
-2. Calls the factory with `props`, runs SSR via `renderToString`
+2. Calls the factory with `props` as the browser will receive them — round-tripped through JSON, so a `Date` is its ISO string and a model is what its `toJSON()` returns (so the columns it hides are absent) — and runs SSR via `renderToString`. Server and browser render from the same data, so a page never hydrates against values it did not have on the server.
 3. Wraps the markup in a full HTML document with:
    - the importmap that aliases `@c9up/aurora` → `/__assets/aurora/index.js`
    - a `<script id="aurora-page-data" type="application/json">` blob carrying `{ name, props, url, rootId }`
@@ -493,6 +567,8 @@ The module-level `aurora.render(ctx, name, props)` (the agnostic core) still wor
 Because **the same module must load in Node AND in the browser**, without a build step on the app side. Aurora's package itself ships JS in `dist/` and is loaded via the importmap. Your pages live in `resources/pages/*.js` and are loaded the same way. If you want types on a page, write a `.d.ts` next to it — your editor will pick it up; the runtime stays JS.
 
 ### Dev live-reload (HMR)
+
+Development behaviour — page reloading, page assets served `no-cache`, the dev warnings — is on only when the environment says so: `ream dev` (`REAM_DEV=true`), or a `NODE_ENV` of `development`, `dev`, `develop`, `test` or `testing` (any case). An unset `NODE_ENV`, `production`, `prod`, `staging` or any other value runs as production: the pages tree is not walked on each render and page assets keep their cache TTL.
 
 Pages are dynamic-imported per request, so aurora dev-busts the **page module** by mtime — a direct edit to `resources/pages/Foo.js` shows up on the next request with no restart. But a page's **transitive** imports (the components, layouts and services it pulls from `resources/pages/**` subfolders) resolve to stable URLs that Node's ESM loader caches for the whole process lifetime. Edit one of those and the SSR HTML stays stale (with a hydration warning) until you restart.
 

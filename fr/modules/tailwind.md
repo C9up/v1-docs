@@ -69,4 +69,4 @@ export default {
 }
 ```
 
-Voir [ream-cli → Assets](/fr/modules/ream-cli). Pas besoin de `concurrently` : arrêter le serveur arrête le watcher.
+Voir [ream-cli → Assets](/fr/modules/ream-cli). Pas besoin de `concurrently` : arrêter le serveur arrête le watcher. `--watch` suffit — le stdin du watcher reste ouvert tant que `ream dev` tourne, il n'a donc pas besoin de `--watch=always`.

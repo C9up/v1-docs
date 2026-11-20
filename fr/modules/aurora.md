@@ -153,9 +153,40 @@ const doubled = memo(() => count() * 2)
 
 `signal()` retourne une fonction. On l'appelle sans arg pour lire, avec un arg pour écrire. Les signaux sont trackés automatiquement à l'intérieur de `effect()` et `memo()`.
 
+### Ce qui se ré-exécute, et quand
+
+Rien ne se ré-exécute sans qu'une valeur lue ait changé, et alors une seule fois :
+
+- Une écriture marque ce qui a lu le signal, puis exécute une fois chaque effet marqué, après l'écriture. Un effet qui lit un signal et un `memo` de ce signal s'exécute une fois par écriture, jamais avec l'ancienne valeur du memo. Les écritures faites dans `batch(() => …)`, ou pendant qu'un effet s'exécute, s'appliquent ensemble à la fin.
+- Un `memo` se recalcule quand on le lit après un changement. S'il rend une valeur égale (`Object.is`), rien de ce qui le lit ne se ré-exécute. Un memo qui construit un nouveau tableau ou objet à chaque fois prend `equals` pour rester muet quand le contenu n'a pas changé : `memo(() => rows().filter(isOpen), { equals: sameIds })`.
+- Un effet ou un memo créé dans un effet, un accesseur ou un `onMount` prend fin quand cette exécution est remplacée ou quand le composant est démonté. Une racine créée par `render()` ou `hydrate()` ne prend fin que par son disposer.
+- Un slot laisse ses nœuds en place quand son accesseur rend ce qu'il affiche déjà : le même texte, encore rien, ou un template du même appel `html` avec les mêmes valeurs. Un scalaire qui change met à jour son nœud texte sur place. Les attributs, booléens compris, ne sont écrits que si leur valeur diffère de celle de l'élément. Une `.prop` n'est écrite que si la valeur liée diffère de la dernière écrite : un champ où l'utilisateur a tapé garde son texte quand une autre dépendance ré-exécute la liaison.
+
+Ce qui se reconstruit encore, c'est ce qui a changé : un accesseur qui rend un template aux valeurs différentes, ou un composant (son setup s'exécute de nouveau). Lisez la partie qui change dans un accesseur à elle, à l'intérieur d'un template stable, et utilisez `each` pour les listes. Une simple fonction utilitaire appelée depuis un accesseur est suivie par lui comme toute autre lecture : seul le setup d'un `component()` s'exécute sans suivi.
+
+### Compter les re-rendus — `countRerenders`
+
+En développement, activez le compteur pour voir ce qui se ré-exécute :
+
+```ts
+import { countRerenders } from '@c9up/aurora'
+
+if (import.meta.env.DEV) {
+  const rerenders = countRerenders({ highlight: true })
+  // plus tard, dans la console :
+  rerenders.counts()   // { effect, memo, slot, list, attribute, property, setup }
+  rerenders.top(5)     // les éléments les plus re-rendus, avec leur nombre
+  rerenders.setups(5)  // les setups de composants les plus exécutés, par nom de fonction
+}
+```
+
+`highlight` entoure brièvement chaque élément re-rendu. `log` affiche chaque ré-exécution avec `console.debug`. `onRerender(event)` les reçoit une à une (`kind`, `target`, `name`, `hint`). Un slot qui a reconstruit un tableau entier porte un indice qui renvoie vers `each`. `reset()` remet les compteurs à zéro, `stop()` arrête le comptage. Tant qu'aucun compteur ne tourne, le runtime ne construit aucun événement : chaque point qui pourrait signaler coûte une lecture de propriété. Donnez aux composants une fonction de setup nommée (`component(function UserCard(props) { … })`) pour que `setups()` puisse les nommer.
+
+`E_AURORA_REACTIVE_CYCLE` est levée quand des effets se relancent sans fin au cours d'une même mise à jour (un effet écrit ce que lui-même, ou un effet qu'il déclenche, lit). Quand un effet lève une erreur pendant une mise à jour, les autres effets s'exécutent quand même, et la première erreur est relancée ensuite.
+
 ### Listes — `each`
 
-Un slot qui rend un tableau, `${() => rows().map(renderRow)}`, reconstruit toutes ses lignes à chaque nouveau tableau, même quand celui-ci contient les mêmes lignes. Une liste relue toutes les quelques secondes perd alors à chaque fois ses menus ouverts, son focus et son survol. `each` garde une ligne par clé :
+Un slot qui rend un tableau, `${() => rows().map(renderRow)}`, reconstruit toutes ses lignes à chaque nouveau tableau. Une ligne qui porte un gestionnaire d'événement ou un composant est neuve à chaque exécution : un nouveau tableau des mêmes lignes les reconstruit donc aussi. Une liste relue toutes les quelques secondes perd alors à chaque fois ses menus ouverts, son focus et son survol. `each` garde une ligne par clé :
 
 ```ts
 import { each, html } from '@c9up/aurora'
@@ -326,6 +357,50 @@ Menu({ children: () => html`${() => items().map((item) => MenuItem(item))}` })
 Seul `inject` les voit : `provide`, `onMount` et `onUnmount` restent réservés au
 setup d'un composant.
 
+## Cœur sans hôte — `@c9up/aurora/core`
+
+`@c9up/aurora` est l'entrée du navigateur : elle embarque le rendu DOM,
+l'hydratation et les utilitaires du navigateur. Le code qui doit tourner sur
+**tous** les hôtes — le serveur, le navigateur, un téléphone via un moteur de
+rendu natif — importe plutôt depuis `@c9up/aurora/core` :
+
+```ts
+import { component, html, signal, memo, each, onMount } from '@c9up/aurora/core'
+
+export const Counter = component((props: { label: string }) => {
+  const count = signal(0)
+  return html`<button @click=${() => count((n) => n + 1)}>${props.label} : ${count}</button>`
+})
+```
+
+Cette entrée contient ce avec quoi on écrit un composant : les signaux
+(`signal`, `memo`, `effect`, `batch`, `untrack`, `onCleanup`), `html`,
+`component` avec son cycle de vie et son contexte, `each`, `uid`, `cn`,
+`command`, `form` et `AuroraError`. Elle se charge là où il n'y a ni DOM, ni
+module Node, ni `await` de haut niveau — un test parcourt son graphe d'imports
+pour que ça le reste. `@c9up/aurora` réexporte les mêmes fonctions : une app
+existante ne change rien, et un composant écrit avec le cœur se rend toujours
+avec `render()` et `aurora.render()`.
+
+`byId` n'est pas dans le cœur : il lit `document`.
+
+### Écrire un moteur de rendu — `@c9up/aurora/renderer`
+
+Un moteur de rendu pour un autre hôte lit le même `TemplateResult` que le rendu
+DOM. `@c9up/aurora/renderer` lui donne les briques que partagent les moteurs
+d'aurora, pour qu'un composant se comporte partout de la même façon :
+
+| Export | À quoi il sert |
+|---|---|
+| `TemplateScanner`, `assertBindable`, `assertBindableProperty` | Refuser les positions de slot que le rendu DOM refuse |
+| `readComponentLifecycle` | Les hooks de montage et de démontage qu'un `component()` a attachés à son résultat |
+| `bindTemplateContext` | Exécuter la fonction d'un slot sous le contexte où elle a été écrite |
+| `setOwner` | Recueillir les effets créés pendant la construction d'un sous-arbre, pour les libérer avec lui |
+| `readEach`, `readEachItems` | Les listes à clé |
+| `guardUrlAttribute`, `guardUrlProperty` | Les contrôles d'URL que tout hôte applique |
+
+Le code applicatif n'a jamais besoin de cette entrée.
+
 ## SSR — `renderToString`
 
 ```ts
@@ -458,7 +533,7 @@ router.get('/dashboard', async (ctx) => {
 C'est tout. `aurora.render(ctx, name, props)` :
 
 1. Résout `resources/pages/${name}.js` (import dynamique — les éditions du fichier de page sont visibles à la requête suivante ; voir [Live-reload en dev](#live-reload-en-dev-hmr) pour ses imports transitifs)
-2. Appelle la factory avec `props`, fait le SSR via `renderToString`
+2. Appelle la factory avec `props` tels que le navigateur les recevra — passés par JSON, donc une `Date` y est sa chaîne ISO et un modèle ce que renvoie son `toJSON()` (les colonnes qu'il masque en sont donc absentes) — et fait le SSR via `renderToString`. Le serveur et le navigateur rendent à partir des mêmes données : une page n'hydrate jamais contre des valeurs qu'elle n'avait pas côté serveur.
 3. Enveloppe le markup dans un document HTML complet avec :
    - l'importmap qui alias `@c9up/aurora` → `/__assets/aurora/index.js`
    - un blob `<script id="aurora-page-data" type="application/json">` qui transporte `{ name, props, url, rootId }`
@@ -507,6 +582,8 @@ Le `aurora.render(ctx, name, props)` au niveau module (le cœur agnostique) marc
 Parce que **le même module doit se charger dans Node ET dans le navigateur**, sans étape de build côté app. Aurora ship son JS dans `dist/` et arrive au navigateur via l'importmap. Tes pages vivent dans `resources/pages/*.js` et arrivent de la même façon. Si tu veux des types sur une page, écris un `.d.ts` à côté — ton éditeur le ramasse, le runtime reste JS.
 
 ### Live-reload en dev (HMR)
+
+Le comportement de développement — rechargement des pages, assets de page servis `no-cache`, avertissements de dev — n'est actif que si l'environnement le dit : `ream dev` (`REAM_DEV=true`), ou un `NODE_ENV` qui vaut `development`, `dev`, `develop`, `test` ou `testing` (casse indifférente). Un `NODE_ENV` absent, `production`, `prod`, `staging` ou toute autre valeur tourne en production : l'arbre des pages n'est pas parcouru à chaque rendu et les assets de page gardent leur durée de cache.
 
 Les pages sont importées dynamiquement à chaque requête, donc aurora bust en dev le **module de page** par mtime — éditer directement `resources/pages/Foo.js` est visible à la requête suivante sans restart. Mais les imports **transitifs** d'une page (les composants, layouts et services qu'elle tire des sous-dossiers de `resources/pages/**`) résolvent vers des URLs stables que le loader ESM de Node garde en cache pour toute la vie du process. Édite l'un d'eux et le HTML SSR reste périmé (avec un warning d'hydratation) jusqu'au redémarrage.
 
