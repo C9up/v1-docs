@@ -116,7 +116,7 @@ Agenda({
 | `now` | `() => Date` | `() => new Date()` | L'horloge de la ligne de l'heure courante, relue chaque minute. |
 | `scrollTo` | `string` | la première plage ou le premier événement | `HH:mm` atteint par défilement au montage. |
 | `class` | `Reactive<string>` | — | Fusionné aux classes de la racine. |
-| `bodyClass` | `string` | `'max-h-[40rem]'` | Classes du corps qui défile : sa hauteur. |
+| `bodyClass` | `string` | `'max-h-[40rem]'` | Classes du corps : sa hauteur, un corps qui défile seul. `''` laisse l'agenda prendre toute sa hauteur dans une page qui défile déjà : une seule barre de défilement, les en-têtes de colonnes collants. |
 | `onActivate` | `(event: AgendaEvent) => void` | — | Un événement cliqué, ou Entrée dessus. |
 | `onRangeActivate` | `(range: AgendaRange) => void` | — | Le libellé d'une plage choisi. |
 | `onSlotActivate` | `(slot: AgendaSlot) => void` | — | Un point vide de la grille cliqué. |

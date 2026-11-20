@@ -116,7 +116,7 @@ Agenda({
 | `now` | `() => Date` | `() => new Date()` | The clock of the now line, read every minute. |
 | `scrollTo` | `string` | the first range or event | `HH:mm` scrolled to when mounted. |
 | `class` | `Reactive<string>` | — | Merged into the root's classes. |
-| `bodyClass` | `string` | `'max-h-[40rem]'` | Classes of the scrolling body: its height. |
+| `bodyClass` | `string` | `'max-h-[40rem]'` | Classes of the body: its height, a body scrolling on its own. `''` lets the agenda take its full height in a page that scrolls already: one scrollbar, the column headers sticky. |
 | `onActivate` | `(event: AgendaEvent) => void` | — | An event clicked, or Enter on it. |
 | `onRangeActivate` | `(range: AgendaRange) => void` | — | A range's label chosen. |
 | `onSlotActivate` | `(slot: AgendaSlot) => void` | — | An empty point of the grid clicked. |
