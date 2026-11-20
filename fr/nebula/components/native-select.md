@@ -144,7 +144,8 @@ Field({
 | `required` | `Reactive<boolean>` | `false` | Pose le `required` natif. |
 | `invalid` | `Reactive<boolean>` | — | Pose `aria-invalid="true"`, qui dessine la bordure dans la couleur destructive. |
 | `describedBy` | `Reactive<string \| undefined>` | — | Pose `aria-describedby`. |
-| `class` | `Reactive<string>` | — | Fusionnée en dernier dans les classes du `<select>`. |
+| `class` | `Reactive<string>` | — | Fusionnée en dernier dans les classes du `<select>`. Pour changer la largeur du contrôle, utiliser `wrapperClass`. |
+| `wrapperClass` | `Reactive<string>` | — | Dimensionne le contrôle entier, chevron compris : fusionnée par-dessus le `w-full` de l'enveloppe, donc `wrapperClass: 'w-40'` donne un contrôle de 10rem. Une largeur passée par `class` ne rétrécit que le `<select>` et laisse le chevron au bout d'une boîte pleine largeur. |
 | `onValueChange` | `(value: string, event: Event) => void` | — | Le `change` natif, avec la valeur choisie. |
 
 `NativeSelectOption` vaut `{ value: string; label: string; disabled?: boolean; group?: string }` — `group` place l'option sous un `<optgroup>` portant ce libellé.
