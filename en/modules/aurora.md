@@ -204,6 +204,29 @@ html`<ul>${() => (empty() ? html`<li>None yet</li>` : each(rows, (row) => row.id
 
 Two elements with the same key throw `E_AURORA_DUPLICATE_KEY`. On the server, `each` renders as the array of its rows; hydration adopts those rows and keeps them by key from then on.
 
+#### Lazy lists
+
+A list of thousands of rows, a conversation or a feed, should cost what the screen shows. `{ lazy }` builds only the rows that intersect the scroll viewport, plus a margin on each side:
+
+```ts
+html`<div class="h-full overflow-y-auto">
+  <div class="flex flex-col gap-2">${each(
+    messages,
+    (message) => message.id,
+    (message) => html`<p>${() => message().text}</p>`,
+    { lazy: { estimate: 64, overscan: 600, from: 'end' } },
+  )}</div>
+</div>`
+```
+
+- `estimate` (default 48) is the height assumed for a row not shown yet, in CSS pixels. Rows are measured once shown, and may have any height.
+- `overscan` (default 600) is how far beyond the viewport rows are built, so a fling does not show blank space.
+- `from: 'end'` starts at the last rows and stays at the end as rows arrive, unless the reader has scrolled up.
+
+The other rows are stood in for by two empty spacers, sized from the measured heights, so the scrollbar keeps the size of the whole list. When a measure corrects an estimate above the viewport, the list scrolls by the difference: what is on screen does not move. A row that leaves the window is disposed and its `onUnmount` runs; it is built again, from its element, when it comes back, so state that must outlive scrolling belongs in the element or a signal, not in the row.
+
+The list scrolls with its nearest scrolling ancestor, or with the page. It lays out in a block or flex container, not a table: its spacers are `div`s. On the server it renders the rows a first viewport takes (from the start, or from the end), between its spacers; hydration adopts those rows and picks the window again once it can measure. A spacer's height is an inline `style`, which a Content-Security-Policy without `'unsafe-inline'` for styles drops until the client sets it. An `estimate` or `overscan` that is not a usable length throws `E_AURORA_INVALID_LAZY`.
+
 ### Component lifecycle
 
 ```ts

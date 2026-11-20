@@ -352,6 +352,7 @@ message starts with the code.
 | `E_AURORA_TEMPLATE_IN_ATTRIBUTE` | — | A nested `html` template reached an attribute value or `.value`. |
 | `E_AURORA_FILE_INPUT_VALUE` | — | `.value` was given a non-empty string on an `<input type="file">`. |
 | `E_AURORA_DUPLICATE_KEY` | — | Two elements of an `each()` list share a key, which names one row. |
+| `E_AURORA_INVALID_LAZY` | — | `each(…, { lazy })` was given an `estimate` that is not a positive length, or an `overscan` that is negative or not a number. |
 | `E_AURORA_REACTIVE_CYCLE` | — | Effects kept re-running each other in one update: one writes what it, or an effect it triggers, reads. |
 | `E_AURORA_INTERNAL` | — | An invariant inside aurora broke: always a bug in aurora itself. |
 

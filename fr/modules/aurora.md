@@ -209,6 +209,29 @@ html`<ul>${() => (empty() ? html`<li>Rien pour l'instant</li>` : each(rows, (row
 
 Deux éléments de même clé lèvent `E_AURORA_DUPLICATE_KEY`. Côté serveur, `each` se rend comme le tableau de ses lignes ; l'hydratation adopte ces lignes, puis les garde par clé.
 
+#### Listes paresseuses
+
+Une liste de milliers de lignes, une conversation ou un fil, doit coûter ce que l'écran montre. `{ lazy }` ne construit que les lignes qui croisent la zone visible du défilement, plus une marge de chaque côté :
+
+```ts
+html`<div class="h-full overflow-y-auto">
+  <div class="flex flex-col gap-2">${each(
+    messages,
+    (message) => message.id,
+    (message) => html`<p>${() => message().text}</p>`,
+    { lazy: { estimate: 64, overscan: 600, from: 'end' } },
+  )}</div>
+</div>`
+```
+
+- `estimate` (48 par défaut) est la hauteur supposée d'une ligne pas encore affichée, en pixels CSS. Une ligne est mesurée dès qu'elle s'affiche, et peut avoir n'importe quelle hauteur.
+- `overscan` (600 par défaut) est la marge construite au-delà de la zone visible, pour qu'un lancer rapide n'affiche pas de vide.
+- `from: 'end'` démarre sur les dernières lignes et reste en bas quand des lignes arrivent, sauf si le lecteur est remonté.
+
+Les autres lignes sont remplacées par deux espaceurs vides, dimensionnés d'après les hauteurs mesurées : la barre de défilement garde la taille de toute la liste. Quand une mesure corrige une estimation au-dessus de la zone visible, la liste défile de la différence : ce qui est à l'écran ne bouge pas. Une ligne qui sort de la fenêtre est disposée et son `onUnmount` est lancé ; elle est reconstruite, depuis son élément, quand elle revient. Un état qui doit survivre au défilement vit donc dans l'élément ou dans un signal, pas dans la ligne.
+
+La liste défile avec son plus proche ancêtre défilant, ou avec la page. Elle se pose dans un conteneur bloc ou flex, pas dans un tableau : ses espaceurs sont des `div`. Côté serveur, elle rend les lignes d'une première zone visible (depuis le début, ou depuis la fin) entre ses espaceurs ; l'hydratation adopte ces lignes, puis recalcule la fenêtre dès qu'elle peut mesurer. La hauteur d'un espaceur est un `style` en ligne, qu'une Content-Security-Policy sans `'unsafe-inline'` pour les styles ignore jusqu'à ce que le client la pose. Un `estimate` ou un `overscan` qui n'est pas une longueur utilisable lève `E_AURORA_INVALID_LAZY`.
+
 ### Cycle de vie d'un composant
 
 ```ts
