@@ -99,8 +99,9 @@ La règle est la composition, pas la complexité. Slider est un atome bien qu'in
 [Toolbar](/fr/nebula/components/toolbar) ·
 [Typography](/fr/nebula/components/typography)
 
-### Organismes (27)
+### Organismes (28)
 
+[Agenda](/fr/nebula/components/agenda) ·
 [AlertDialog](/fr/nebula/components/alert-dialog) ·
 [Calendar](/fr/nebula/components/calendar) ·
 [Carousel](/fr/nebula/components/carousel) ·
