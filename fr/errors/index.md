@@ -642,6 +642,24 @@ Levées par `@c9up/helix-plugin-ream` sous forme d'`Error` simples dont le messa
 | `E_NOVA_QUASAR_MISSING` | — | Un store Redis est configuré et `@c9up/quasar` n'est pas installé. |
 | `E_NOVA_REDIS_INCOMPLETE` | — | La connexion quasar n'a pas ce dont nova a besoin. |
 
+## Erreurs Orbit
+
+| Code | HTTP | Description |
+|------|------|-------------|
+| `E_ORBIT_NO_HOST` | — | `mount` a tourné avant que `useHost` donne à orbit un hôte natif, ou le module n'est pas celui d'orbit. |
+| `E_ORBIT_COMMIT_FAILED` | — | L'hôte natif a refusé une transmission ; le message porte son rapport. |
+| `E_ORBIT_UNSUPPORTED_ELEMENT` | — | Un élément sans correspondance native (`select`, `canvas`, ou `text` / un dégradé dans un `svg`). |
+| `E_ORBIT_BLOCK_IN_TEXT` | — | Un élément bloc dans du texte : un texte natif ne contient que des passages en ligne. |
+| `E_ORBIT_INVALID_MOTION` | — | `motion=${…}` n'était pas un objet de valeurs animées. |
+| `E_ORBIT_INVALID_SCROLL_BINDING` | — | `scroll-y=${…}` n'était pas une valeur animée. |
+| `E_ORBIT_INVALID_COLOR` | — | Une couleur qu'orbit ne sait pas lire. |
+| `E_ORBIT_INSECURE_IMAGE_URL` | — | `<img src>` en http simple : les images ne se chargent qu'en https. |
+| `E_ORBIT_IMAGE_SOURCE` | — | `<img src>` avec un schéma qui n'est pas une source d'image (`data:`, `javascript:`…). |
+| `E_ORBIT_DUPLICATE_KEY` | — | Deux éléments d'une liste `each` partagent une clé. |
+| `E_ORBIT_NO_SCREEN` | — | `useScreen()` dans un composant qu'aucun écran d'une pile n'a construit. |
+| `E_ORBIT_STACK_SHOWN` | — | Une même pile placée à deux endroits : une pile s'affiche une fois. |
+| `E_ORBIT_STYLE_TABLE` | — | `useStyles` a reçu autre chose qu'une table écrite par `ream css:compile`. |
+
 ## Erreurs Parsec
 
 | Code | HTTP | Description |

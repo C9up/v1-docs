@@ -41,6 +41,7 @@ This page lists the current status of ecosystem modules.
 | Visa | `@c9up/visa` | Present | OAuth 2.1 authorization server — issues tokens to other applications; PKCE required, refresh rotation, revocation, introspection |
 | Vellum | `@c9up/vellum` | Present | PDF — generate documents, render to images, read, merge/split/rotate, stamp, sign and verify |
 | Nebula | `@c9up/nebula` | Present | Component set — shadcn/ui ported to Aurora, organised as atomic design, copy-the-source |
+| Orbit | `@c9up/orbit` | Present | Aurora components as native views on Android — a Rust host lays out and diffs, gestures and motion on the UI thread, styles from the app's Tailwind build |
 | Eon | `@c9up/eon` | Present | Time series — TDengine connection, schemaless writes, queries |
 | Ream MCP | `@c9up/ream-mcp` | Present | Model Context Protocol server — grounded docs, introspection, scaffolding for agents |
 | Ream CLI | `@c9up/ream-cli` | Present | The `ream` binary — scaffolding, dev, doctor (Rust) |

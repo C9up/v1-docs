@@ -41,6 +41,7 @@ Cette page liste l'etat des modules de l'ecosysteme.
 | Visa | `@c9up/visa` | Présent | Serveur d'autorisation OAuth 2.1 — délivre des jetons à d'autres applications ; PKCE obligatoire, rotation des refresh, révocation, introspection |
 | Vellum | `@c9up/vellum` | Présent | PDF — génération de documents, rendu en images, lecture, fusion/découpe/rotation, tamponnage, signature et vérification |
 | Nebula | `@c9up/nebula` | Présent | Jeu de composants — shadcn/ui porté sur Aurora, rangé en design atomique, copie-la-source |
+| Orbit | `@c9up/orbit` | Présent | Composants aurora en vues natives sur Android — un hôte Rust met en page et calcule les différences, gestes et animations sur le fil d'affichage, styles issus du build Tailwind de l'app |
 | Eon | `@c9up/eon` | Présent | Séries temporelles — connexion TDengine, écriture sans schéma, requêtes |
 | Ream MCP | `@c9up/ream-mcp` | Présent | Serveur Model Context Protocol — doc ancrée, introspection, génération pour les agents |
 | Ream CLI | `@c9up/ream-cli` | Présent | Le binaire `ream` — échafaudage, dev, doctor (Rust) |

@@ -640,6 +640,24 @@ Raised by `@c9up/helix-plugin-ream` as plain `Error`s whose message starts with 
 | `E_NOVA_QUASAR_MISSING` | — | A Redis store was configured and `@c9up/quasar` is not installed. |
 | `E_NOVA_REDIS_INCOMPLETE` | — | The quasar connection lacks what nova needs. |
 
+## Orbit Errors
+
+| Code | HTTP | Description |
+|------|------|-------------|
+| `E_ORBIT_NO_HOST` | — | `mount` ran before `useHost` gave orbit a native host, or the module is not orbit's. |
+| `E_ORBIT_COMMIT_FAILED` | — | The native host refused a commit; the message carries its report. |
+| `E_ORBIT_UNSUPPORTED_ELEMENT` | — | An element with no native mapping (`select`, `canvas`, or `text` / a gradient inside an `svg`). |
+| `E_ORBIT_BLOCK_IN_TEXT` | — | A block element inside text: native text holds only inline runs. |
+| `E_ORBIT_INVALID_MOTION` | — | `motion=${…}` was not an object of motion values. |
+| `E_ORBIT_INVALID_SCROLL_BINDING` | — | `scroll-y=${…}` was not a motion value. |
+| `E_ORBIT_INVALID_COLOR` | — | A colour orbit cannot read. |
+| `E_ORBIT_INSECURE_IMAGE_URL` | — | `<img src>` over plain http: images are fetched over https only. |
+| `E_ORBIT_IMAGE_SOURCE` | — | `<img src>` with a scheme that is not an image source (`data:`, `javascript:`…). |
+| `E_ORBIT_DUPLICATE_KEY` | — | Two elements of an `each` list share a key. |
+| `E_ORBIT_NO_SCREEN` | — | `useScreen()` in a component no screen of a stack built. |
+| `E_ORBIT_STACK_SHOWN` | — | One stack put in two places: a stack is shown once. |
+| `E_ORBIT_STYLE_TABLE` | — | `useStyles` got something other than a table `ream css:compile` wrote. |
+
 ## Parsec Errors
 
 | Code | HTTP | Description |
