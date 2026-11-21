@@ -109,7 +109,8 @@ the task returns, so the next tick is free again.
 
 `connection` takes the name of a [`@c9up/quasar`](/en/modules/quasar)
 connection — resolved when the first task fires, not while the config file is
-read — or any client answering `set` and `eval`.
+read — or any client answering `set`, `evalsha` and `script` (the release
+script runs by digest and is loaded with `SCRIPT LOAD` when Redis lacks it).
 
 `prefix` renames the key namespace (default `ream:schedule:lock:`).
 

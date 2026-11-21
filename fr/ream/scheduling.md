@@ -113,8 +113,9 @@ tâche rend la main, le tick suivant est donc de nouveau libre.
 
 `connection` accepte le nom d'une connexion
 [`@c9up/quasar`](/fr/modules/quasar) — résolue au premier déclenchement, pas à
-la lecture du fichier de config — ou n'importe quel client répondant à `set` et
-`eval`.
+la lecture du fichier de config — ou n'importe quel client répondant à `set`,
+`evalsha` et `script` (le script de libération s'exécute par son empreinte et
+se charge avec `SCRIPT LOAD` quand Redis ne le connaît pas).
 
 `prefix` renomme l'espace de clés (par défaut `ream:schedule:lock:`).
 
