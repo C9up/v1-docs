@@ -440,6 +440,12 @@ because every-interface is not a link that opens.
 | `h` | show this list |
 | `Ctrl-C` / `Ctrl-D` | quit |
 
+`o` is the server's to ask and `ream dev`'s to do: the application, which
+knows the port it bound, hands the address over through a file `ream dev`
+names in `REAM_DEV_OPEN`, and `ream dev` opens it with the platform's opener
+(`xdg-open`, `open`, `url.dll` on Windows) — the application itself starts no
+process.
+
 The keys need a terminal. `ream dev` reads the one it runs in and passes each
 key to the server through a pseudo-terminal of the server's own, so the
 server answers them while staying out of the terminal's foreground: it can

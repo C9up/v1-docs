@@ -453,6 +453,12 @@ C'est l'adresse **effectivement liée**, port compris — un serveur qui trouve
 | `h` | afficher cette liste |
 | `Ctrl-C` / `Ctrl-D` | quitter |
 
+`o` se demande au serveur et se fait par `ream dev` : l'application, qui
+connaît le port qu'elle a pris, transmet l'adresse par un fichier que
+`ream dev` nomme dans `REAM_DEV_OPEN`, et `ream dev` l'ouvre avec l'ouvreur de
+la plateforme (`xdg-open`, `open`, `url.dll` sous Windows) — l'application ne
+lance elle-même aucun processus.
+
 Les touches demandent un terminal. `ream dev` lit celui dans lequel il tourne
 et passe chaque touche au serveur par un pseudo-terminal propre au serveur :
 le serveur y répond tout en restant hors du premier plan du terminal, et ne
