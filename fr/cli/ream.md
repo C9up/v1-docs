@@ -613,6 +613,74 @@ ou pas un fichier ordinaire, et n'écrit alors rien : juste après un clone,
 c'est le dépôt qui décide de ce que sont ces noms, et un lien porterait
 l'écriture vers un autre fichier de votre compte.
 
+## Applications mobiles
+
+Un projet dont le `reamrc.ts` a un bloc `mobile` construit son app Android avec
+`ream`, à partir des mêmes composants aurora que ses pages. Le projet Android
+est généré dans `.ream/android` à chaque exécution et n'est jamais commité.
+
+```ts
+// reamrc.ts
+export default defineConfig({
+  mobile: {
+    name: 'Tessel',
+    id: 'ch.example.tessel',     // l'identifiant de l'app : pointé, chaque partie commençant par une lettre
+    entry: 'mobile/index.ts',    // appelle run(App) de @c9up/orbit/react-native
+    version: '1.2.0',            // versionName
+    build: 12,                   // versionCode, augmenté à chaque envoi au store
+    icon: 'resources/icon.png',  // facultatif, un PNG
+    android: {
+      permissions: ['CAMERA'],   // android.permission.CAMERA ; un nom pointé est gardé tel quel
+      abis: ['arm64-v8a', 'x86_64'],
+      signing: { keystore: 'android/release.keystore', alias: 'release' },
+    },
+  },
+})
+```
+
+```ts
+// mobile/index.ts
+import { run } from '@c9up/orbit/react-native'
+import { App } from './App.js'
+
+run(App)
+```
+
+```bash
+ream android:run                # build debug sur l'appareil branché, JS servi par Metro
+ream android:run --device <id>  # l'un de plusieurs appareils (adb devices)
+ream android:run --release      # le build release signé, son JS embarqué
+ream android:build              # app-debug.apk
+ream android:build --release    # app-release.apk, signé
+ream android:build --aab        # app-release.aab pour le Play Store, signé
+```
+
+Ce que fait une exécution :
+
+- les dépendances qui déclarent des parties natives (`reamNative` dans leur
+  package.json, comme `@c9up/orbit` : sources de plateforme, CMake, modules
+  C++, specs, crates Rust) sont trouvées, directes ou non, et câblées dans le
+  projet généré ;
+- leurs crates Rust sont compilées pour chaque ABI avec l'éditeur de liens du
+  NDK, pris dans `ANDROID_NDK_HOME`, sinon le NDK le plus récent du SDK. Une
+  cible Rust manquante est nommée avec le `rustup target add` qui l'installe ;
+- Gradle construit l'app. Un build debug est signé avec la clé de debug
+  standard ; un build release avec la keystore de l'app, dont les mots de
+  passe viennent de `REAM_ANDROID_STORE_PASSWORD` et
+  `REAM_ANDROID_KEY_PASSWORD`, jamais d'un fichier ;
+- `android:run` l'installe par adb et la lance. Un build debug charge son JS
+  depuis Metro, que `android:run` démarre d'abord et garde ouvert : une
+  modification enregistrée recharge l'app, sans rebuild.
+
+`react-native`, `@react-native-community/cli` et `@react-native/metro-config`
+sont des dépendances de l'app : React Native fournit le moteur JS (Hermes), le
+registre des modules et l'activité. React lui-même n'est pas utilisé : c'est
+orbit qui rend les vues.
+
+Un téléphone qui refuse une installation par USB (certains constructeurs le
+demandent pour chaque nouvelle app) fait dire à `android:run` le réglage qui
+l'autorise.
+
 ## Diagnostics
 
 ```bash
