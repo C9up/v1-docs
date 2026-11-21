@@ -708,6 +708,55 @@ envoyait le lecteur vers le seul fichier dont on était sûr qu'il allait bien.
 L'erreur d'origine est toujours attachée en `cause`, donc la pile qui désigne la
 ligne survit.
 
+## Visites de pages — `visits: true`
+
+Par défaut, chaque lien charge un document entier : le serveur rend la page et
+le navigateur l'hydrate à nouveau. Avec `visits`, seul le premier chargement le
+fait. Ensuite, un lien de même origine demande au serveur l'objet de la page
+suivante en JSON, et le client la rend dans la racine — le document,
+l'importmap, l'état des modules et tout ce qui est hors de la racine restent.
+C'est le protocole de photon (celui d'Inertia), parlé par aurora :
+[@c9up/photon](/fr/modules/photon) construit les objets page et son routeur
+client mène les visites.
+
+```bash
+pnpm add @c9up/photon
+```
+
+```ts
+// config/aurora.ts
+export default defineConfig({
+  pages: { root: app.makePath('resources/pages') },
+  visits: true,
+  assetsVersion: process.env.BUILD_ID,  // un déploiement recharge les clients d'un build antérieur
+})
+```
+
+Les contrôleurs ne changent pas : `aurora.render(ctx, 'Dashboard', props)`
+répond le document à un premier chargement et l'objet page à une visite
+(`X-Photon: true`). Le middleware d'aurora ajoute ce que le protocole répond
+autour d'une page : `Vary: X-Photon`, un 409 qui fait recharger le document à un
+client d'un build antérieur, un 303 après un PUT / PATCH / DELETE redirigé.
+
+Ce qui vient avec le protocole marche comme dans photon : rechargements
+partiels, props `defer()`, `merge()`, `once()` et `optional()` (importées de
+`@c9up/photon`), retour et avance restaurés depuis l'historique,
+`router.visit()` / `router.put()` de `@c9up/photon/client`. Les props doivent
+être un objet ; `title` dans les options de rendu devient le `<title>` de la
+page et suit une visite.
+
+- Liens : chaque `<a href>` de même origine est suivi en visite.
+  `data-photon="external"`, un `target`, un `download` ou un clic avec
+  modificateur le laissent au navigateur.
+- Une visite quitte d'abord la page : les effets et `onUnmount` de ses
+  composants, et les composants live qu'elle a ouverts (`liveClient`), se
+  terminent avant que la page suivante se rende. Votre code qui doit finir avec
+  la page s'inscrit avec `onPageLeave(end)`.
+- Le module d'une page visitée est importé une fois, puis servi depuis le cache
+  des modules. L'importmap est celle du premier document : une page qui a
+  besoin d'un spécificateur que seule sa propre `importmap` d'appel ajoute doit
+  être atteinte par un chargement complet.
+
 ## Savoir quand le client a pris la main
 
 `hydrate()` s'annonce, donc plus rien n'a besoin de deviner ni de sonder.

@@ -75,6 +75,25 @@ const page = await ctx.photon.page('Dashboard', { stats: defer(() => getStats())
 // page.deferredProps → { default: ['stats'] }, page.props n'a pas de `stats`
 ```
 
+### Le protocole pour un autre moteur de rendu
+
+Un moteur de rendu qui écrit son propre document — aurora le fait, avec son
+importmap et sans étape de build — parle le même protocole avec les pièces de
+photon ; le protocole garde ainsi une seule implémentation :
+
+- serveur : `readRequestInfo(ctx)` lit les en-têtes du protocole,
+  `buildPageObject(component, props, { url, version, framework, partial })`
+  construit l'objet page comme `render()`, et `finishVisit(ctx, res, info,
+  { url, version })` répond ce qu'une visite reçoit à la place d'une page (409
+  sur une version périmée, 303 après une mutation redirigée, 302 pour le
+  `location()` d'un chargement simple) ; `varyOnPhoton(res)` ajoute le `Vary` ;
+- client : `bootPage({ target, resolveComponent, mount })` de
+  `@c9up/photon/client` démarre le routeur avec l'adaptateur du moteur de rendu
+  — `mount` affiche la première page et renvoie `{ update, unmount }`, que
+  chaque visite met à jour. Le `framework` de l'objet page nomme cet adaptateur
+  (celui d'aurora est `aurora`) ; `hydrate()` reste l'entrée des adaptateurs
+  React, Vue et Svelte fournis.
+
 ### Le document HTML — `rootView`
 
 Une première visite reçoit un document HTML. Sans configuration, Photon en écrit un minimal ; `rootView` le rend à l'application — le `<html lang>`, une favicon, des polices, une classe sur le body :

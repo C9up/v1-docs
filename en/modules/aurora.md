@@ -691,6 +691,52 @@ sent the reader to the only file that was certainly fine.
 The original failure is always attached as `cause`, so the stack that points at
 the line survives.
 
+## Page visits — `visits: true`
+
+By default every link loads a whole document: the server renders the page and
+the browser hydrates it again. With `visits` on, only the first load does.
+After it, a same-origin link asks the server for the next page's object as
+JSON and the client renders it into the root — the document, the importmap,
+module state and anything outside the root stay. It is photon's protocol
+(Inertia's), spoken by aurora: [@c9up/photon](/en/modules/photon) builds the
+page objects and its client router drives the visits.
+
+```bash
+pnpm add @c9up/photon
+```
+
+```ts
+// config/aurora.ts
+export default defineConfig({
+  pages: { root: app.makePath('resources/pages') },
+  visits: true,
+  assetsVersion: process.env.BUILD_ID,  // a deploy reloads clients on an older build
+})
+```
+
+Controllers do not change: `aurora.render(ctx, 'Dashboard', props)` answers a
+first load with the document and a visit (`X-Photon: true`) with the page
+object. aurora's middleware adds what the protocol answers around a page: `Vary:
+X-Photon`, a 409 that makes a client on an older build load the document again,
+a 303 after a PUT / PATCH / DELETE that redirected.
+
+What comes with the protocol works as in photon: partial reloads, `defer()`,
+`merge()`, `once()` and `optional()` props (import them from `@c9up/photon`),
+back and forward restored from history, `router.visit()` / `router.put()` from
+`@c9up/photon/client`. Props must be an object; `title` in the render options
+becomes the page's `<title>` and follows a visit.
+
+- Links: every same-origin `<a href>` is followed as a visit.
+  `data-photon="external"`, a `target`, a `download` or a modified click leaves
+  one to the browser.
+- A visit leaves the page first: its components' effects and `onUnmount`, and
+  the live components it opened (`liveClient`), end before the next page
+  renders. Code of yours that must end with the page registers with
+  `onPageLeave(end)`.
+- A visited page's module is imported once, then served from the module cache.
+  The importmap is the first document's: a page that needs a specifier only its
+  own per-call `importmap` adds must be reached with a full load.
+
 ## Knowing when the client has taken over
 
 `hydrate()` announces itself, so nothing has to guess or poll.

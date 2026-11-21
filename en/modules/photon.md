@@ -72,6 +72,25 @@ const page = await ctx.photon.page('Dashboard', { stats: defer(() => getStats())
 // page.deferredProps → { default: ['stats'] }, page.props has no `stats`
 ```
 
+### The protocol for another renderer
+
+A renderer that writes its own document — aurora does, with its importmap and no
+build step — speaks the same protocol through photon's pieces, so the protocol
+keeps one implementation:
+
+- server: `readRequestInfo(ctx)` reads a request's protocol headers,
+  `buildPageObject(component, props, { url, version, framework, partial })`
+  builds the page object as `render()` would, and `finishVisit(ctx, res, info,
+  { url, version })` answers what a visit gets instead of a page (409 on a stale
+  version, 303 after a redirected mutation, 302 for a plain load's
+  `location()`); `varyOnPhoton(res)` adds the `Vary`;
+- client: `bootPage({ target, resolveComponent, mount })` from
+  `@c9up/photon/client` boots the router with the renderer's own adapter —
+  `mount` puts the first page on screen and returns `{ update, unmount }`, which
+  every visit updates. The page object's `framework` names that adapter
+  (aurora's is `aurora`); `hydrate()` stays the entry for the bundled React,
+  Vue and Svelte ones.
+
 ### The HTML document — `rootView`
 
 A first visit is answered with an HTML document. Without configuration Photon writes a minimal one; `rootView` makes it the application's — the `<html lang>`, a favicon, fonts, a body class:
