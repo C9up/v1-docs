@@ -348,7 +348,15 @@ Runtime order:
 
 1. Node loads the prebuilt NAPI binary when available.
 2. Browser builds load the WASM glue when available.
-3. Unsupported platforms transparently use the TypeScript BigInt fallback.
+3. On a phone, React Native's bundler takes atom's JSI loader: the Rust engine
+   through the `NativeAtom` module, which `ream android:*` builds and links
+   into the app from atom's `reamNative` declaration — nothing to wire.
+4. Unsupported platforms transparently use the TypeScript BigInt fallback (an
+   app that did not link the module, too).
+
+On the phone, `bulk.runAsync(outputs)` computes a plan on a worker thread, so a
+long one does not freeze the screen; elsewhere it answers `run`'s result
+asynchronously. The results are the same.
 
 Every path answers the same: the fallback is a second implementation of the
 same contract, held to it by a parity suite that runs both on the same inputs.

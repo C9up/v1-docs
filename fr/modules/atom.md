@@ -355,8 +355,15 @@ Ordre de résolution :
 
 1. Node charge le binaire NAPI préconstruit quand il est disponible.
 2. Les builds navigateur chargent la glue WASM quand elle est disponible.
-3. Les plateformes non supportées passent au repli TypeScript BigInt de façon
-   transparente.
+3. Sur un téléphone, le bundler de React Native prend le chargeur JSI d'atom :
+   le moteur Rust par le module `NativeAtom`, que `ream android:*` construit et
+   lie dans l'app d'après la déclaration `reamNative` d'atom — rien à câbler.
+4. Les plateformes non supportées passent au repli TypeScript BigInt de façon
+   transparente (une app qui n'a pas lié le module aussi).
+
+Sur le téléphone, `bulk.runAsync(outputs)` calcule un plan sur un thread de
+travail, si bien qu'un plan long ne fige pas l'écran ; ailleurs il rend le
+résultat de `run` de façon asynchrone. Les résultats sont les mêmes.
 
 Tous les chemins répondent pareil : le repli est une seconde implémentation du
 même contrat, tenue à ce contrat par une suite de parité qui fait tourner les
