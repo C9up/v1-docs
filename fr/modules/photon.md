@@ -94,6 +94,15 @@ photon ; le protocole garde ainsi une seule implémentation :
   (celui d'aurora est `aurora`) ; `hydrate()` reste l'entrée des adaptateurs
   React, Vue et Svelte fournis.
 
+Hors du navigateur, le routeur tourne sur un hôte : `bootPage({ host, url, … })`
+prend un `PhotonHost` — l'adresse courante de la plateforme, son historique,
+ses requêtes, ses chargements complets et ses événements — et va chercher la
+première page à `url` comme le ferait une visite, faute de document rendu par
+le serveur où la lire. Les [pages pilotées par le serveur](/fr/modules/orbit#pages-pilotees-par-le-serveur)
+d'orbit sont un tel hôte. `@c9up/photon/client/core` est le routeur, `bootPage`
+et les aides de routes sans `hydrate()` ni ses adaptateurs fournis, pour un
+bundler qui suit chaque `import()` (Metro).
+
 ### Le document HTML — `rootView`
 
 Une première visite reçoit un document HTML. Sans configuration, Photon en écrit un minimal ; `rootView` le rend à l'application — le `<html lang>`, une favicon, des polices, une classe sur le body :

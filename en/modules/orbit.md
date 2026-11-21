@@ -143,6 +143,46 @@ const Home = component(() => {
   one pushed long after; a stack can sit in a screen (a tab with its own
   history).
 
+## Server-driven pages
+
+```ts
+import { serverPages } from '@c9up/orbit/pages'
+import Home from './pages/Home.js'
+import Orders from './pages/Orders.js'
+
+run(() => html`${serverPages({ server: 'https://app.example', pages: { Home, Orders } })}`)
+```
+
+The ream server stays the router. The app asks it for the first page object,
+then each link or `router.visit()` asks for the next one through
+[photon](/en/modules/photon)'s protocol — the one the browser speaks after
+aurora's [`visits: true`](/en/modules/aurora). The same controller answers the
+browser and the phone; the phone shows the page it names, an aurora component
+bundled with the app. A page that imports from `@c9up/aurora` and
+`@c9up/photon/client/core` is the very module the browser loads.
+
+- Each page is a screen of a stack: a visit to a new address slides one in;
+  a partial reload, a deferred prop or a redirect to the same address
+  replaces it in place.
+- The back button goes through photon's history: the covered page comes back
+  as it was left, without a request.
+- A stale version (the server was deployed again) starts over from the page
+  asked for, as a browser's full load does.
+- Requests carry the session cookie and echo the `XSRF-TOKEN` the server set.
+  A link off the server goes to `open(url)`.
+- An `<a href>` in a view is a touch target of its own (in a block, each link
+  takes its line); one inside a sentence (`<p>… <a>…</a> …</p>`) is not
+  pressable yet.
+- `server` must be https. Plain http only reaches this machine (`localhost`,
+  through `adb reverse`) or the emulator's host (`10.0.2.2`), and the app must
+  allow cleartext traffic for it.
+- `loading` replaces the blank screen shown until the first page arrives;
+  `failed(error, retry)` replaces the default failure screen.
+
+React Native's `URL` resolves a relative reference by appending it to its
+base; the app entry installs a standard one (`installStandardUrl()` for an app
+wired by hand).
+
 ## Gestures
 
 Every touch goes to orbit-host's recognizer before any view, so the press
@@ -231,3 +271,5 @@ text colour around it, so an icon takes the colour of the text it sits in;
 | `E_ORBIT_NO_SCREEN` | `useScreen()` in a component no screen of a stack built. |
 | `E_ORBIT_STACK_SHOWN` | One stack put in two places: a stack is shown once. |
 | `E_ORBIT_STYLE_TABLE` | `useStyles` got something other than a table `ream css:compile` wrote. |
+| `E_ORBIT_INSECURE_SERVER` | `serverPages({ server })` over plain http to a host that is not this machine or the emulator's. |
+| `E_ORBIT_UNKNOWN_PAGE` | The server named a page the app's `pages` does not have. |

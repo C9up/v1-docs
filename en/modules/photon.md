@@ -91,6 +91,15 @@ keeps one implementation:
   (aurora's is `aurora`); `hydrate()` stays the entry for the bundled React,
   Vue and Svelte ones.
 
+Off the browser, the router runs on a host: `bootPage({ host, url, … })` takes
+a `PhotonHost` — the platform's current address, history, requests, full
+loads and events — and fetches the first page from `url` as a visit would,
+where there is no server-rendered document to read it from. orbit's
+[server-driven pages](/en/modules/orbit#server-driven-pages) are such a host.
+`@c9up/photon/client/core` is the router, `bootPage` and the routes helpers
+without `hydrate()` and its bundled adapters, for a bundler that follows every
+`import()` (Metro).
+
 ### The HTML document — `rootView`
 
 A first visit is answered with an HTML document. Without configuration Photon writes a minimal one; `rootView` makes it the application's — the `<html lang>`, a favicon, fonts, a body class:

@@ -147,6 +147,46 @@ const Home = component(() => {
   même s'il est empilé bien plus tard ; une pile peut se trouver dans un écran
   (un onglet avec son propre historique).
 
+## Pages pilotées par le serveur
+
+```ts
+import { serverPages } from '@c9up/orbit/pages'
+import Home from './pages/Home.js'
+import Orders from './pages/Orders.js'
+
+run(() => html`${serverPages({ server: 'https://app.example', pages: { Home, Orders } })}`)
+```
+
+Le serveur ream reste le routeur. L'app lui demande l'objet de la première
+page, puis chaque lien ou `router.visit()` demande le suivant par le protocole
+de [photon](/fr/modules/photon) — celui que parle le navigateur avec
+[`visits: true`](/fr/modules/aurora) d'aurora. Le même contrôleur répond au
+navigateur et au téléphone ; le téléphone affiche la page nommée, un composant
+aurora livré avec l'app. Une page qui importe depuis `@c9up/aurora` et
+`@c9up/photon/client/core` est le module même que charge le navigateur.
+
+- Chaque page est un écran d'une pile : une visite vers une nouvelle adresse
+  en fait glisser un ; un rechargement partiel, une prop différée ou une
+  redirection vers la même adresse le remplace sur place.
+- Le bouton retour passe par l'historique de photon : la page couverte
+  revient telle qu'on l'a laissée, sans requête.
+- Une version périmée (le serveur a été redéployé) repart de la page demandée,
+  comme le chargement complet d'un navigateur.
+- Les requêtes portent le cookie de session et renvoient le `XSRF-TOKEN` posé
+  par le serveur. Un lien hors du serveur part vers `open(url)`.
+- Un `<a href>` dans une vue est une cible tactile à part entière (dans un
+  bloc, chaque lien prend sa ligne) ; un lien au milieu d'une phrase
+  (`<p>… <a>…</a> …</p>`) n'est pas encore pressable.
+- `server` doit être en https. Le http simple n'atteint que cette machine
+  (`localhost`, via `adb reverse`) ou l'hôte de l'émulateur (`10.0.2.2`), et
+  l'app doit alors autoriser le trafic en clair.
+- `loading` remplace l'écran vide affiché jusqu'à la première page ;
+  `failed(error, retry)` remplace l'écran d'échec par défaut.
+
+Le `URL` de React Native résout une référence relative en l'ajoutant au bout
+de sa base ; l'entrée de l'app en installe un standard (`installStandardUrl()`
+pour une app câblée à la main).
+
 ## Gestes
 
 Chaque toucher passe par le reconnaisseur d'orbit-host avant toute vue : le
@@ -242,3 +282,5 @@ modules d'un QR code purement noirs et blancs.
 | `E_ORBIT_NO_SCREEN` | `useScreen()` dans un composant qu'aucun écran d'une pile n'a construit. |
 | `E_ORBIT_STACK_SHOWN` | Une même pile placée à deux endroits : une pile s'affiche une fois. |
 | `E_ORBIT_STYLE_TABLE` | `useStyles` a reçu autre chose qu'une table écrite par `ream css:compile`. |
+| `E_ORBIT_INSECURE_SERVER` | `serverPages({ server })` en http simple vers un hôte qui n'est ni cette machine ni celui de l'émulateur. |
+| `E_ORBIT_UNKNOWN_PAGE` | Le serveur a nommé une page absente des `pages` de l'app. |
