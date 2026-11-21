@@ -681,6 +681,35 @@ Un téléphone qui refuse une installation par USB (certains constructeurs le
 demandent pour chaque nouvelle app) fait dire à `android:run` le réglage qui
 l'autorise.
 
+### Mises à jour à distance
+
+Avec [@c9up/robledo](https://github.com/C9up/robledo) installé et
+`mobile.updates` renseigné, une modification du JS atteint les apps installées
+sans passer par un store :
+
+```bash
+ream generate:update-key     # robledo.key (hors de git) et la clé publique à coller
+ream android:publish         # bundle, signe, écrit robledo/android/<runtime>/<id>/
+```
+
+```ts
+mobile: {
+  updates: {
+    url: 'https://api.example.com/__robledo',  // le serveur ream de l'app
+    publicKey: '…',
+  },
+}
+```
+
+Le build inscrit dans l'app le serveur, la clé publique et sa **version
+native** (une empreinte de la version de React Native et de chaque paquet
+natif) ; `android:publish` appose la même version sur ce qu'il signe : une mise
+à jour n'atteint que les builds qui ont le code natif dont elle a besoin. La
+clé de signature vient de `REAM_UPDATES_KEY`, sinon de `robledo.key`, et doit
+correspondre à `mobile.updates.publicKey`. Le http en clair n'est accepté que
+vers cette machine (`localhost`, `127.0.0.1`, `10.0.2.2`), pour le
+développement ; l'app n'est alors autorisée en clair que vers cet hôte.
+
 ## Diagnostics
 
 ```bash

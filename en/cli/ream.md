@@ -661,6 +661,35 @@ views.
 A phone that refuses an install over USB (some manufacturers ask for each new
 app) makes `android:run` say so, with the setting that allows it.
 
+### Over-the-air updates
+
+With [@c9up/robledo](https://github.com/C9up/robledo) installed and
+`mobile.updates` set, a change to the JS reaches installed apps without a
+store release:
+
+```bash
+ream generate:update-key     # robledo.key (keep it out of git) and the public key to paste
+ream android:publish         # bundle, sign, write robledo/android/<runtime>/<id>/
+```
+
+```ts
+mobile: {
+  updates: {
+    url: 'https://api.example.com/__robledo',  // the app's ream server
+    publicKey: '…',
+  },
+}
+```
+
+The build writes the server, the public key and the app's **native runtime**
+(a digest of React Native's version and every native package's version) into
+the app; `android:publish` stamps the same runtime on what it signs, so an
+update only reaches the builds that have the native code it needs. The
+signing key comes from `REAM_UPDATES_KEY`, else `robledo.key`, and must match
+`mobile.updates.publicKey`. Plain http is accepted only to this computer
+(`localhost`, `127.0.0.1`, `10.0.2.2`), for development; the app is then
+allowed cleartext to that host alone.
+
 ## Diagnostics
 
 ```bash
