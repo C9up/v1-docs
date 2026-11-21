@@ -629,6 +629,7 @@ export default defineConfig({
     version: '1.2.0',            // versionName
     build: 12,                   // versionCode, augmenté à chaque envoi au store
     icon: 'resources/icon.png',  // facultatif, un PNG
+    css: 'mobile/app.css',       // facultatif, l'entrée Tailwind (voir plus bas)
     android: {
       permissions: ['CAMERA'],   // android.permission.CAMERA ; un nom pointé est gardé tel quel
       abis: ['arm64-v8a', 'x86_64'],
@@ -671,6 +672,17 @@ Ce que fait une exécution :
 - `android:run` l'installe par adb et la lance. Un build debug charge son JS
   depuis Metro, que `android:run` démarre d'abord et garde ouvert : une
   modification enregistrée recharge l'app, sans rebuild.
+
+Les classes Tailwind de l'app la stylent sur le téléphone comme sur le web.
+Chaque build lance Tailwind sur l'app, comme le build web — l'entrée est
+`mobile.css`, sinon `@import "tailwindcss"` qui parcourt le dossier de
+l'entrée mobile — et compile sa sortie en table de styles lue par orbit : les
+variables du thème (clair et sombre), longueurs et couleurs résolues, les
+variantes changées en conditions (`data-*`, `aria-*`, `disabled`, `dark`,
+`group-*`, `peer-*`, `[&_svg]`, `sm:`). La table voyage dans le bundle JS :
+une mise à jour à distance emporte la sienne. Sans Tailwind installé, le build
+le signale et aucune classe ne style rien. `ream css:compile <css> [-o table.json]`
+compile une feuille à la main.
 
 `react-native`, `@react-native-community/cli` et `@react-native/metro-config`
 sont des dépendances de l'app : React Native fournit le moteur JS (Hermes), le
