@@ -639,10 +639,18 @@ ream android:build --aab        # app-release.aab for the Play Store, signed
 
 What a run does:
 
+- what the build needs is checked first, and anything missing is named with
+  the `pnpm add` that installs it — React Native's own tooling (its Gradle
+  plugin, codegen) is taken from where `react-native` really is, so an app
+  under pnpm's isolated linker does not declare it;
 - the dependencies that declare native parts (`reamNative` in their
   package.json, as `@c9up/orbit` does: platform sources, CMake, C++ modules,
-  specs, Rust crates) are found, direct or not, and wired into the generated
-  project;
+  specs, Rust crates, and an `initializer` — a static
+  `(Application) -> Unit` the app calls when it starts, before React Native
+  loads) are found, direct or not, and wired into the generated project.
+  Standard React Native libraries (an `android/build.gradle`, a
+  TurboModule, as `@c9up/orbit-clipboard`) are added by React Native's
+  autolinking;
 - their Rust crates are cross-compiled for each ABI with the NDK's linker,
   taken from `ANDROID_NDK_HOME`, else the newest NDK under the SDK. A missing
   Rust target is named with the `rustup target add` that installs it;
@@ -652,7 +660,10 @@ What a run does:
   file;
 - `android:run` installs it over adb and starts it. A debug build loads its JS
   from Metro, which `android:run` starts first and keeps serving: a saved
-  change reloads the app, no rebuild.
+  change reloads the app, no rebuild. Metro takes port 8081, or the next free
+  one when another Metro holds it; the phone keeps asking 8081 (`adb
+  reverse` maps it). In a monorepo, Metro watches the workspace root, so
+  packages linked from elsewhere in it resolve.
 
 The app's Tailwind classes style it on the phone as on the web. Each build
 runs Tailwind over the app, as the web build does — the entry is

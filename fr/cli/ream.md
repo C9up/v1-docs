@@ -658,10 +658,18 @@ ream android:build --aab        # app-release.aab pour le Play Store, signé
 
 Ce que fait une exécution :
 
+- ce dont le build a besoin est vérifié d'abord, et ce qui manque est nommé
+  avec le `pnpm add` qui l'installe — l'outillage propre de React Native (son
+  plugin Gradle, codegen) est pris là où se trouve vraiment `react-native`, si
+  bien qu'une app sous le linker isolé de pnpm n'a pas à le déclarer ;
 - les dépendances qui déclarent des parties natives (`reamNative` dans leur
   package.json, comme `@c9up/orbit` : sources de plateforme, CMake, modules
-  C++, specs, crates Rust) sont trouvées, directes ou non, et câblées dans le
-  projet généré ;
+  C++, specs, crates Rust, et un `initializer` — une méthode statique
+  `(Application) -> Unit` que l'app appelle à son démarrage, avant le
+  chargement de React Native) sont trouvées, directes ou non, et câblées dans
+  le projet généré. Les bibliothèques React Native standard (un
+  `android/build.gradle`, un TurboModule, comme `@c9up/orbit-clipboard`) sont
+  ajoutées par l'autolinking de React Native ;
 - leurs crates Rust sont compilées pour chaque ABI avec l'éditeur de liens du
   NDK, pris dans `ANDROID_NDK_HOME`, sinon le NDK le plus récent du SDK. Une
   cible Rust manquante est nommée avec le `rustup target add` qui l'installe ;
@@ -671,7 +679,11 @@ Ce que fait une exécution :
   `REAM_ANDROID_KEY_PASSWORD`, jamais d'un fichier ;
 - `android:run` l'installe par adb et la lance. Un build debug charge son JS
   depuis Metro, que `android:run` démarre d'abord et garde ouvert : une
-  modification enregistrée recharge l'app, sans rebuild.
+  modification enregistrée recharge l'app, sans rebuild. Metro prend le port
+  8081, ou le suivant libre quand un autre Metro l'occupe ; le téléphone
+  demande toujours 8081 (`adb reverse` fait la correspondance). Dans un
+  monorepo, Metro surveille la racine du workspace, si bien que les paquets
+  liés depuis ailleurs s'y résolvent.
 
 Les classes Tailwind de l'app la stylent sur le téléphone comme sur le web.
 Chaque build lance Tailwind sur l'app, comme le build web — l'entrée est
