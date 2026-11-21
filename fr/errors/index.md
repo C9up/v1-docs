@@ -357,6 +357,7 @@ simples dont le message commence par le code.
 | `E_AURORA_INVALID_LAZY` | — | `each(…, { lazy })` a reçu un `estimate` qui n'est pas une longueur positive, ou un `overscan` négatif ou non numérique. |
 | `E_AURORA_VISITS_NEED_PHOTON` | — | `visits` est activé mais `@c9up/photon` n'est pas installé, ou trop ancien (le protocole pour aurora est là depuis 0.1.25). |
 | `E_AURORA_VISIT_PROPS` | — | Avec `visits`, les props d'une page (props partagées comprises) n'étaient pas un objet, comme le `page.props` du protocole l'exige. |
+| `E_AURORA_INVALID_MOTION` | — | `motion=${…}` n'était pas un objet de valeurs animées, ou nommait une propriété que l'animation ne pilote pas (rotation, couleur). |
 | `E_AURORA_REACTIVE_CYCLE` | — | Des effets se sont relancés sans fin au cours d'une même mise à jour : l'un écrit ce que lui-même, ou un effet qu'il déclenche, lit. |
 | `E_AURORA_INTERNAL` | — | Un invariant interne d'aurora a cassé : toujours un bug d'aurora. |
 

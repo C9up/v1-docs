@@ -370,6 +370,43 @@ Menu({ children: () => html`${() => items().map((item) => MenuItem(item))}` })
 Only `inject` sees them: `provide`, `onMount` and `onUnmount` still belong to a
 component's own setup.
 
+### Motion values — `MotionValue`, `motion`, `scroll-y`
+
+```ts
+import { html, MotionValue } from '@c9up/aurora/core'
+
+const x = new MotionValue(0)
+const fade = x.interpolate([0, 200], [1, 0.2])
+
+html`<div motion=${{ translateX: x, opacity: fade }}>…</div>`
+
+x.timing(200, { duration: 300 })               // eased tween
+x.timing(300, { duration: 1200, loop: true, yoyo: true })
+x.spring(0, { stiffness: 180, damping: 12 })   // physical spring
+x.set(40)                                      // at once
+x.stop()                                       // where it is
+```
+
+A motion value is a number that animates where the host animates best, bound
+to an element with `motion=${{ opacity, translateX, translateY, scale, visible }}`;
+`scroll-y=${value}` on a scroll container feeds `value` from its scroll
+offset, so a header can fade as a list scrolls. The same component file runs in
+the browser and on a phone ([orbit](/en/modules/orbit#motion)).
+
+- In the browser, each bound property is a Web Animation built from the
+  value's curve: opacity and the `translate` / `scale` properties run on the
+  compositor, so a busy main thread does not stop them. A scroll-fed value
+  drives its bindings through a `ScrollTimeline` where the browser has one
+  (no script per scroll), else on each scroll event. Without the Web
+  Animations API the values are written inline every frame.
+- A `translate-*` or `scale-*` class on a bound element is overridden while
+  it is bound (the binding owns `translate` and `scale`); a `transform`
+  (`rotate-*`) composes with it.
+- `visible` hides at or below 0.5: still laid out, not drawn, not touchable.
+- Rotation and colour are not supported, on either host.
+- On the server nothing of `motion` or `scroll-y` is written; the client binds
+  them when it hydrates.
+
 ## Host-free core — `@c9up/aurora/core`
 
 `@c9up/aurora` is the browser entry: it carries the DOM renderer, hydration and

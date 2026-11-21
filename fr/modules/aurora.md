@@ -380,6 +380,46 @@ Menu({ children: () => html`${() => items().map((item) => MenuItem(item))}` })
 Seul `inject` les voit : `provide`, `onMount` et `onUnmount` restent réservés au
 setup d'un composant.
 
+### Valeurs animées — `MotionValue`, `motion`, `scroll-y`
+
+```ts
+import { html, MotionValue } from '@c9up/aurora/core'
+
+const x = new MotionValue(0)
+const fade = x.interpolate([0, 200], [1, 0.2])
+
+html`<div motion=${{ translateX: x, opacity: fade }}>…</div>`
+
+x.timing(200, { duration: 300 })               // transition adoucie
+x.timing(300, { duration: 1200, loop: true, yoyo: true })
+x.spring(0, { stiffness: 180, damping: 12 })   // ressort physique
+x.set(40)                                      // d'un coup
+x.stop()                                       // là où elle est
+```
+
+Une valeur animée est un nombre qui s'anime là où l'hôte anime le mieux, liée
+à un élément par `motion=${{ opacity, translateX, translateY, scale, visible }}` ;
+`scroll-y=${value}` sur un conteneur défilant alimente `value` avec son
+décalage, si bien qu'un en-tête peut s'estomper quand une liste défile. Le même
+fichier de composant tourne dans le navigateur et sur un téléphone
+([orbit](/fr/modules/orbit#animation)).
+
+- Dans le navigateur, chaque propriété liée est une Web Animation construite
+  à partir de la courbe de la valeur : l'opacité et les propriétés
+  `translate` / `scale` tournent sur le compositeur, si bien qu'un thread
+  principal occupé ne les arrête pas. Une valeur alimentée par le défilement
+  pilote ses liaisons par une `ScrollTimeline` quand le navigateur en a une
+  (aucun script par défilement), sinon à chaque événement de défilement. Sans
+  l'API Web Animations, les valeurs sont écrites en ligne à chaque image.
+- Une classe `translate-*` ou `scale-*` sur un élément lié est remplacée tant
+  qu'il est lié (la liaison possède `translate` et `scale`) ; un `transform`
+  (`rotate-*`) se compose avec elle.
+- `visible` masque à 0,5 ou moins : toujours mis en page, ni dessiné ni
+  touchable.
+- La rotation et la couleur ne sont pas prises en charge, sur aucun hôte.
+- Côté serveur, rien de `motion` ni de `scroll-y` n'est écrit ; le client les
+  lie à l'hydratation.
+
 ## Cœur sans hôte — `@c9up/aurora/core`
 
 `@c9up/aurora` est l'entrée du navigateur : elle embarque le rendu DOM,

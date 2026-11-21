@@ -244,12 +244,13 @@ reçoit le résultat dès qu'il peut.
 
 ## Animation
 
-Une `MotionValue` vit dans l'hôte et s'anime sur le fil d'affichage : le JS
-déclare valeurs, courbes et liaisons une fois, et un fil JS bloqué n'en arrête
-aucune.
+Une `MotionValue` — celle d'aurora, la même dans le navigateur (voir
+[valeurs animées](/fr/modules/aurora#valeurs-animees-—-motionvalue-motion-scroll-y)) —
+vit dans l'hôte et s'anime sur le fil d'affichage : le JS déclare valeurs,
+courbes et liaisons une fois, et un fil JS bloqué n'en arrête aucune.
 
 ```ts
-import { MotionValue } from '@c9up/orbit'
+import { MotionValue } from '@c9up/aurora/core'
 
 const x = new MotionValue(0)
 const fade = x.interpolate([0, 200], [1, 0.2])

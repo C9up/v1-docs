@@ -236,11 +236,13 @@ when it can.
 
 ## Motion
 
-A `MotionValue` lives in the host and animates on the UI thread: JS declares
-values, curves and bindings once, and a blocked JS thread stops none of it.
+A `MotionValue` — aurora's, the same in the browser (see
+[motion values](/en/modules/aurora#motion-values-—-motionvalue-motion-scroll-y)) —
+lives in the host and animates on the UI thread: JS declares values, curves
+and bindings once, and a blocked JS thread stops none of it.
 
 ```ts
-import { MotionValue } from '@c9up/orbit'
+import { MotionValue } from '@c9up/aurora/core'
 
 const x = new MotionValue(0)
 const fade = x.interpolate([0, 200], [1, 0.2])

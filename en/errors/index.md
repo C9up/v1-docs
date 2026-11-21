@@ -355,6 +355,7 @@ message starts with the code.
 | `E_AURORA_INVALID_LAZY` | — | `each(…, { lazy })` was given an `estimate` that is not a positive length, or an `overscan` that is negative or not a number. |
 | `E_AURORA_VISITS_NEED_PHOTON` | — | `visits` is on but `@c9up/photon` is not installed, or too old (0.1.25 and later speak the protocol for aurora). |
 | `E_AURORA_VISIT_PROPS` | — | With `visits` on, a page's props (shared ones merged in) were not an object, as the protocol's `page.props` must be. |
+| `E_AURORA_INVALID_MOTION` | — | `motion=${…}` was not an object of motion values, or named a property motion cannot drive (rotation, colour). |
 | `E_AURORA_REACTIVE_CYCLE` | — | Effects kept re-running each other in one update: one writes what it, or an effect it triggers, reads. |
 | `E_AURORA_INTERNAL` | — | An invariant inside aurora broke: always a bug in aurora itself. |
 
