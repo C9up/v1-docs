@@ -676,8 +676,10 @@ over-the-air update carries its own. Without Tailwind installed, the build
 says so and no class styles anything. `ream css:compile <css> [-o table.json]`
 compiles a stylesheet by hand.
 
-`react-native`, `@react-native-community/cli` and `@react-native/metro-config`
-are the app's dependencies: React Native supplies the JS engine (Hermes), the
+`react-native`, `@react-native-community/cli`, `@react-native/metro-config`
+and `@babel/runtime` (the 7.x line React Native's Babel preset wants) are the
+app's dependencies; a package linked from elsewhere in a monorepo resolves
+them from the app: React Native supplies the JS engine (Hermes), the
 module registry and the activity. React itself is not used — orbit renders the
 views.
 

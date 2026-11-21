@@ -443,8 +443,10 @@ const [error, user] = await multi.penalize(() => verify(email, password))
 `get`, `set`, `delete` et `list`. `consume` compte dans l'ordre : les limiteurs
 placés avant celui qui lève ont compté.
 
-`limiter.clear()` oublie les clés de tous les limiteurs distribués jusque-là ;
-`limiter.clear(['redis'])` seulement celles des stores nommés.
+`limiter.clear()` vide chaque store — les clés Redis sous son préfixe, la table
+de la base, la mémoire des limiteurs distribués — même depuis un processus qui
+ne s'en est pas encore servi (une nouvelle exécution des tests, une seconde
+instance) ; `limiter.clear(['redis'])` seulement les stores nommés.
 
 Les stores se déclarent sous `limiter` dans `config/blackhole.ts` (par défaut :
 un store en mémoire) :

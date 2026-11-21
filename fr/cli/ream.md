@@ -696,8 +696,10 @@ une mise à jour à distance emporte la sienne. Sans Tailwind installé, le buil
 le signale et aucune classe ne style rien. `ream css:compile <css> [-o table.json]`
 compile une feuille à la main.
 
-`react-native`, `@react-native-community/cli` et `@react-native/metro-config`
-sont des dépendances de l'app : React Native fournit le moteur JS (Hermes), le
+`react-native`, `@react-native-community/cli`, `@react-native/metro-config` et
+`@babel/runtime` (la ligne 7.x que veut le preset Babel de React Native) sont
+des dépendances de l'app ; un paquet lié depuis ailleurs dans un monorepo les
+résout depuis l'app : React Native fournit le moteur JS (Hermes), le
 registre des modules et l'activité. React lui-même n'est pas utilisé : c'est
 orbit qui rend les vues.
 

@@ -432,8 +432,10 @@ const [error, user] = await multi.penalize(() => verify(email, password))
 `get`, `set`, `delete` and `list`. `consume` counts in order: the limiters
 before the one that throws have counted.
 
-`limiter.clear()` forgets the keys of every limiter handed out so far;
-`limiter.clear(['redis'])` only those of the named stores.
+`limiter.clear()` empties every store — Redis's keys under its prefix, the
+database's table, the memory of the limiters handed out — even from a process
+that has not used it yet (a fresh test run, a second instance);
+`limiter.clear(['redis'])` only the named stores.
 
 The stores live under `limiter` in `config/blackhole.ts` (default: one memory
 store):
