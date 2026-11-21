@@ -212,11 +212,20 @@ turning `"` into `&quot;` there produces code that does not parse — silently.
 `{{{ }}}` means the same thing, and `escape` turns escaping back on for anyone
 templating markup.
 
+**A stub cannot run code.** The template is read once and interpreted, never
+compiled to JavaScript. An expression is the part of JavaScript a stub needs —
+names, `a.b`, `a?.b`, `a[i]`, calls, `! - + * / %`, comparisons, `&& || ??`,
+`? :`, `[…]` and `{…}` — and it reaches only what it is given: the state's own
+properties and the `length` of a string or a list. No prototype
+(`constructor`, `__proto__`), no global (`process`, `require`), no method a
+value inherits (`name.toUpperCase()` is not a function): a helper is a function
+the state passes, `{{ string.pascalCase(name) }}`.
+
 A value a stub reads and the caller did not pass is an error naming it, not a
 `{{ missing }}` travelling into the generated file.
 
 **The Rust half.** `ream-cli` renders the `make:` stubs, and it cannot evaluate
-the JavaScript the engine compiles to without embedding a runtime. It does the
+the engine's expressions without embedding a runtime. It does the
 substitution itself for a stub that only has placeholders — most of them — and
 hands anything with a block to Node, so both halves read the same grammar.
 

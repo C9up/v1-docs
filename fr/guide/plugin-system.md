@@ -215,11 +215,21 @@ fichier source, et y transformer `"` en `&quot;` produit du code qui ne compile
 pas — en silence. `{{{ }}}` veut dire la même chose, et l'option `escape`
 réactive l'échappement pour qui template du markup.
 
+**Un stub ne peut pas exécuter de code.** Le template est lu une fois puis
+interprété, jamais compilé en JavaScript. Une expression est la part de
+JavaScript dont un stub a besoin — noms, `a.b`, `a?.b`, `a[i]`, appels,
+`! - + * / %`, comparaisons, `&& || ??`, `? :`, `[…]` et `{…}` — et elle
+n'atteint que ce qu'on lui donne : les propriétés propres de l'état et la
+`length` d'une chaîne ou d'une liste. Aucun prototype (`constructor`,
+`__proto__`), aucune globale (`process`, `require`), aucune méthode héritée
+(`name.toUpperCase()` n'est pas une fonction) : un helper est une fonction que
+l'état passe, `{{ string.pascalCase(name) }}`.
+
 Une valeur qu'un stub lit et que l'appelant n'a pas passée est une erreur qui la
 nomme, pas un `{{ missing }}` qui voyage dans le fichier généré.
 
 **La moitié Rust.** `ream-cli` rend les stubs `make:`, et il ne peut pas évaluer
-le JavaScript vers lequel le moteur compile sans embarquer un runtime. Il fait
+les expressions du moteur sans embarquer un runtime. Il fait
 la substitution lui-même pour un stub qui n'a que des placeholders — la plupart
 — et confie à Node tout ce qui porte un bloc : les deux moitiés lisent la même
 grammaire.

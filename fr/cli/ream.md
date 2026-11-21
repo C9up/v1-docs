@@ -147,6 +147,16 @@ pour la configuration des paquets : un seul dialecte de stub dans le framework,
 une seule chose qui le rend. Un stub mal formé est une erreur plutôt qu'un repli
 silencieux sur le template intégré.
 
+**Un stub ne peut pas exécuter de code.** Le template est lu une fois puis
+interprété, jamais compilé en JavaScript. Une expression est la part de
+JavaScript dont un stub a besoin — noms, `a.b`, `a?.b`, `a[i]`, appels,
+`! - + * / %`, comparaisons, `&& || ??`, `? :`, `[…]` et `{…}` — et elle
+n'atteint que ce qu'on lui donne : les propriétés propres de l'état et la
+`length` d'une chaîne ou d'une liste. Aucun prototype (`constructor`,
+`__proto__`), aucune globale (`process`, `require`), aucune méthode héritée
+(`name.toUpperCase()` n'est pas une fonction) : un helper est une fonction que
+l'état passe, `{{ string.pascalCase(name) }}`.
+
 `{{ }}` n'échappe pas le HTML, et `{{{ }}}` veut dire la même chose — un stub
 génère des fichiers source, pas une page web, et échapper un `<T>` dans un type
 généré serait un bug plutôt qu'une protection.

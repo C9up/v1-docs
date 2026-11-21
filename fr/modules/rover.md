@@ -331,6 +331,13 @@ Chaque transport livré s'enregistre au chargement de l'entrée du paquet —
 Il n'y a pas de helper `postmark` : rover n'a pas ce transport, donc une config
 qui le nomme échoue à la **compilation** plutôt qu'au démarrage.
 
+Les transports HTTP (`mailgun`, `sparkpost`, `brevo`, `sendgrid`) acceptent un
+`baseUrl` pour un proxy placé devant le fournisseur. Chaque requête vers lui
+porte la clé d'API : il doit donc être en `https://` — `http://` seulement vers
+`localhost`, pour une imitation locale de l'API — sans identifiants, ni
+paramètres, ni fragment ; sinon la construction du transport échoue avec
+`E_MAIL_PROVIDER_CONFIG`. Omis, c'est l'adresse du fournisseur.
+
 `transports` est l'ancien nom rover de la même table. Il fonctionne toujours —
 une config écrite ainsi n'a rien à changer — mais les nouvelles déclarent
 `mailers`.

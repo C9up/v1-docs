@@ -143,6 +143,15 @@ A stub is a template, not a substitution: besides `{{ expression }}` it takes
 dialect in the framework and one thing that renders it. A malformed stub is an
 error rather than a silent fallback to the built-in.
 
+**A stub cannot run code.** The template is read once and interpreted, never
+compiled to JavaScript. An expression is the part of JavaScript a stub needs —
+names, `a.b`, `a?.b`, `a[i]`, calls, `! - + * / %`, comparisons, `&& || ??`,
+`? :`, `[…]` and `{…}` — and it reaches only what it is given: the state's own
+properties and the `length` of a string or a list. No prototype
+(`constructor`, `__proto__`), no global (`process`, `require`), no method a
+value inherits (`name.toUpperCase()` is not a function): a helper is a function
+the state passes, `{{ string.pascalCase(name) }}`.
+
 `{{ }}` does not escape HTML, and `{{{ }}}` means the same thing — a stub
 generates source files, not a web page, and escaping a `<T>` in a generated
 type would be a bug rather than a protection.
