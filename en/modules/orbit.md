@@ -173,7 +173,7 @@ bundled with the app. A page that imports from `@c9up/aurora` and
 - An `<a href>` in a view is a touch target of its own (in a block, each link
   takes its line); one inside a sentence (`<p>… <a>…</a> …</p>`) is not
   pressable yet.
-- `server` must be https. Plain http only reaches this machine (`localhost`,
+- `server` (an origin, or the connection below) must be https. Plain http only reaches this machine (`localhost`,
   through `adb reverse`) or the emulator's host (`10.0.2.2`), and the app must
   allow cleartext traffic for it.
 - `loading` replaces the blank screen shown until the first page arrives;
@@ -182,6 +182,42 @@ bundled with the app. A page that imports from `@c9up/aurora` and
 React Native's `URL` resolves a relative reference by appending it to its
 base; the app entry installs a standard one (`installStandardUrl()` for an app
 wired by hand).
+
+## Comet and relay
+
+The app's server is one connection, which pages, comet calls and relay
+subscriptions all go through:
+
+```ts
+import { connectServer } from '@c9up/orbit'
+import { serverPages } from '@c9up/orbit/pages'
+import { createRpcClient } from '@c9up/comet/client'
+import { configureRelay, relay } from '@c9up/aurora/relay'
+
+const server = connectServer('https://app.example')
+
+const rpc = createRpcClient({ url: server.url('/rpc'), transport: server.json })
+configureRelay({
+  sseUrl: server.url('/__relay/events'),
+  subscribeUrl: server.url('/__relay/subscribe'),
+  unsubscribeUrl: server.url('/__relay/unsubscribe'),
+  stream: server.stream,
+  fetch: server.fetch,
+})
+
+run(() => html`${serverPages({ server, pages })}`)
+```
+
+- `server.fetch` reaches the server's origin only, sends the session cookie,
+  and echoes the `XSRF-TOKEN` the server set on every mutation — what a
+  browser does for a page, which an app has to be given.
+- `server.json` is comet's transport: a JSON POST, its JSON answer.
+- `server.stream` is server-sent events read from React Native's streaming
+  XHR, as `EventSource` reads them (named events, `retry:`, `Last-Event-ID`
+  on reconnect); an answer that is not an event stream fails it for good.
+- `server.authorize(token)` sends `Authorization: Bearer <token>` with every
+  request and stream from then on — an API's token, which, unlike a browser's
+  `EventSource`, the phone can send on the event stream too.
 
 ## Gestures
 

@@ -525,6 +525,11 @@ channels again, once. A connection refused for a cap (`E_RELAY_MAX_CLIENTS`,
 `configureRelay({ maxReconnectAttempts })`. A broadcast payload is JSON — a
 string arrives as the string — and one that is not is dropped with a warning.
 
+Off the browser, `configureRelay({ stream, fetch })` hands relay the
+platform's event stream and requests: an app on a phone has no `EventSource`
+and no page origin, and passes the ones [orbit's server
+connection](/en/modules/orbit#comet-and-relay) gives.
+
 ### Render it from a controller
 
 ```ts

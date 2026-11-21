@@ -266,7 +266,7 @@ When CSRF is enabled, a `secret` is **required**. `createBlackhole({ csrf: true 
 
 ### How it works
 
-1. **Seed** — On every request the middleware ensures an `XSRF-TOKEN` cookie exists (minting `<random>.<HMAC>` with CSPRNG randomness via `getrandom` if absent) and publishes the token as `ctx.request.csrfToken` and in `ctx.store` (`csrfToken`) for templating.
+1. **Seed** — On every request the middleware ensures an `XSRF-TOKEN` cookie exists (minting `<random>.<HMAC>` with CSPRNG randomness via `getrandom` if absent), sets it on the response — the token the client holds is sent back unchanged, so a client that cannot read its cookie jar (an app on a phone) learns it from any answer — and publishes the token as `ctx.request.csrfToken` and in `ctx.store` (`csrfToken`) for templating.
 2. **Submit** — On an unsafe request the client echoes the same token, via **any** of:
    - the `X-XSRF-TOKEN` header (Axios / Angular `HttpClient` read the cookie automatically),
    - the `X-CSRF-TOKEN` header (manual SPA clients),

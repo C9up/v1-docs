@@ -275,7 +275,7 @@ Quand le CSRF est activé, un `secret` est **obligatoire**. `createBlackhole({ c
 
 ### Fonctionnement
 
-1. **Amorçage** — À chaque requête le middleware s'assure qu'un cookie `XSRF-TOKEN` existe (en générant `<random>.<HMAC>` avec du CSPRNG via `getrandom` s'il est absent) et publie le token dans `ctx.request.csrfToken` et dans `ctx.store` (`csrfToken`) pour le templating.
+1. **Amorçage** — À chaque requête le middleware s'assure qu'un cookie `XSRF-TOKEN` existe (en générant `<random>.<HMAC>` avec du CSPRNG via `getrandom` s'il est absent), le pose sur la réponse — le token que le client détient repart inchangé, si bien qu'un client incapable de lire son magasin de cookies (une app sur un téléphone) l'apprend de n'importe quelle réponse — et publie le token dans `ctx.request.csrfToken` et dans `ctx.store` (`csrfToken`) pour le templating.
 2. **Soumission** — Sur une requête non sûre, le client renvoie le même token, via **l'un** de :
    - le header `X-XSRF-TOKEN` (Axios / Angular `HttpClient` lisent le cookie automatiquement),
    - le header `X-CSRF-TOKEN` (clients SPA manuels),

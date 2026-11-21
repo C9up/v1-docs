@@ -540,6 +540,11 @@ tentative de reconnexion échouée, dans la limite de
 une chaîne arrive telle quelle — et une charge qui n'en est pas est écartée
 avec un avertissement.
 
+Hors du navigateur, `configureRelay({ stream, fetch })` donne à relay le flux
+d'événements et les requêtes de la plateforme : une app sur un téléphone n'a
+ni `EventSource` ni origine de page, et passe ceux que donne [la connexion au
+serveur d'orbit](/fr/modules/orbit#comet-et-relay).
+
 ### La rendre depuis un contrôleur
 
 ```ts
