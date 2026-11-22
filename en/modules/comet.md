@@ -69,7 +69,79 @@ if (!b.ok) console.error(b.error.message);
 Each entry settles on its own. A JSON-RPC error, a missing or duplicated
 response, **and a `parse` that rejects the result** all come back as
 `{ ok: false, error }` for that call only — the others in the round trip are
-unaffected. When a `parse` threw, what it threw is on `error.data`.
+unaffected. When a `parse` threw, what it threw is on `error.cause` (not on
+`error.data`, which is what a server writes on the wire).
+
+### Over a WebSocket
+
+`createWebSocketTransport()` (from `@c9up/comet` or `@c9up/comet/websocket`) is
+a transport that keeps **one socket per endpoint URL** and sends every request,
+notification and batch the client makes there over it. It runs on the platform
+`WebSocket`: the browser's, or Node's global one (Node 24 and later).
+
+```ts
+import { createRpcClient, createWebSocketTransport } from "@c9up/comet";
+
+const socket = createWebSocketTransport();
+const rpc = createRpcClient({ url: "wss://app.example/rpc", transport: socket });
+
+await rpc.call("task.validate", { id: 7 });
+await rpc.notify("audit.log", { event: "login" });
+socket.close(); // closes every socket it opened
+```
+
+The socket opens on the first call and is reused by every call after it. What
+changes from HTTP:
+
+- **Responses are matched by id.** All of them arrive on the same socket, so the
+  transport puts its own id on each request and gives the caller's back on the
+  answer. Two clients sharing one transport never collide.
+- **Nothing waits forever.** Each call has a timeout, connecting included
+  (`timeout`, 30 s by default). A socket that closes fails every call still
+  waiting on it, and the next call opens a new one (`reconnect: false` keeps it
+  closed instead).
+- **A peer that breaks the protocol loses the socket.** A binary frame, text
+  that is not JSON, a message over `maxMessageBytes` (1 MiB by default), or an
+  answer in a shape nothing asked for closes the socket and fails what was
+  waiting on it. An answer that comes after its call timed out is dropped.
+- **Sizes are bounded.** A message over `maxMessageBytes` is refused before it
+  is sent; a send is refused while more than `maxBufferedBytes` (4 MiB) wait in
+  the socket's buffer.
+- **An error with a null id** names no request. It is a request's answer only
+  when that request is the one waiting, with no notification sent within the
+  timeout before. Otherwise every call waiting keeps it, and the one it was for
+  reports it when it times out.
+
+A failure of the transport itself is an `RpcTransportError` with a string
+`code`:
+
+| Code | Meaning |
+|---|---|
+| `E_COMET_CONNECTION_FAILED` | The socket could not be opened: bad URL, network, or a handshake the server refused (an auth guard answering 401). |
+| `E_COMET_CONNECTION_CLOSED` | The socket closed while the call waited (the close code is in the message), or stays closed with `reconnect: false`. |
+| `E_COMET_TRANSPORT_CLOSED` | `close()` was called. |
+| `E_COMET_TIMEOUT` | No answer within `timeout`. |
+| `E_COMET_MESSAGE_TOO_LARGE` | A message over `maxMessageBytes`, sent or received. |
+| `E_COMET_BACKPRESSURE` | More than `maxBufferedBytes` already wait to be sent. |
+| `E_COMET_PROTOCOL_ERROR` | The peer sent what no JSON-RPC server answers; the socket was closed. |
+| `E_COMET_INVALID_MESSAGE` | The message is not JSON-RPC, or cannot be written as JSON (a `BigInt`). |
+
+An aborted `signal` rejects the call with the signal's reason, as `fetch` does.
+
+The standard `WebSocket` constructor takes a URL and subprotocols only. To pass
+anything else — Node's `headers`, a proxy — give the transport the socket
+yourself:
+
+```ts
+createWebSocketTransport({
+  createSocket: (url) => new WebSocket(url, { headers: { authorization: `Bearer ${token}` } }),
+});
+```
+
+In the browser a socket carries the page's cookies, so a session-guarded route
+works as it does over HTTP. Ream accepts a handshake only from the page's own
+origin unless the app allows others, which is what stops another site from
+opening a socket with those cookies.
 
 ### In the browser — use aurora
 

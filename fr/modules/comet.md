@@ -71,7 +71,81 @@ Chaque entrée se résout pour elle-même. Une erreur JSON-RPC, une réponse abs
 ou dupliquée, **et un `parse` qui refuse le résultat** reviennent en
 `{ ok: false, error }` pour ce seul appel — les autres de l'aller-retour ne sont
 pas touchés. Quand c'est un `parse` qui a levé, ce qu'il a levé est sur
-`error.data`.
+`error.cause` (pas sur `error.data`, qui est ce qu'un serveur écrit sur le fil).
+
+### Sur un WebSocket
+
+`createWebSocketTransport()` (depuis `@c9up/comet` ou `@c9up/comet/websocket`)
+est un transport qui garde **un socket par URL d'endpoint** et y envoie chaque
+requête, notification et batch du client. Il s'appuie sur le `WebSocket` de la
+plateforme : celui du navigateur, ou celui que Node fournit en global (Node 24 et
+plus).
+
+```ts
+import { createRpcClient, createWebSocketTransport } from "@c9up/comet";
+
+const socket = createWebSocketTransport();
+const rpc = createRpcClient({ url: "wss://app.example/rpc", transport: socket });
+
+await rpc.call("task.validate", { id: 7 });
+await rpc.notify("audit.log", { event: "login" });
+socket.close(); // ferme tous les sockets qu'il a ouverts
+```
+
+Le socket s'ouvre au premier appel et sert à tous les suivants. Ce qui change par
+rapport à HTTP :
+
+- **Les réponses sont appariées par id.** Elles arrivent toutes sur le même
+  socket : le transport met son propre id sur chaque requête et rend celui de
+  l'appelant sur la réponse. Deux clients qui partagent un transport ne se
+  marchent jamais dessus.
+- **Rien n'attend indéfiniment.** Chaque appel a un délai, connexion comprise
+  (`timeout`, 30 s par défaut). Un socket qui se ferme fait échouer tous les
+  appels qui l'attendaient, et l'appel suivant en ouvre un nouveau
+  (`reconnect: false` le laisse fermé).
+- **Un pair qui enfreint le protocole perd le socket.** Une trame binaire, un
+  texte qui n'est pas du JSON, un message au-delà de `maxMessageBytes` (1 Mio par
+  défaut), ou une réponse d'une forme qu'aucune requête n'a demandée ferme le
+  socket et fait échouer ce qui l'attendait. Une réponse arrivée après
+  l'expiration de son appel est ignorée.
+- **Les tailles sont bornées.** Un message au-delà de `maxMessageBytes` est
+  refusé avant l'envoi ; un envoi est refusé tant que plus de `maxBufferedBytes`
+  (4 Mio) attendent dans le tampon du socket.
+- **Une erreur à id nul** ne désigne aucune requête. Elle n'est la réponse d'une
+  requête que si celle-ci est la seule en attente, sans notification envoyée
+  dans le délai qui précède. Sinon, chaque appel en attente la garde, et celui
+  qu'elle concernait la rapporte à son expiration.
+
+Un échec du transport lui-même est une `RpcTransportError` dont le `code` est une
+chaîne :
+
+| Code | Signification |
+|---|---|
+| `E_COMET_CONNECTION_FAILED` | Le socket n'a pas pu s'ouvrir : URL invalide, réseau, ou poignée de main refusée par le serveur (une garde d'auth qui répond 401). |
+| `E_COMET_CONNECTION_CLOSED` | Le socket s'est fermé pendant l'attente (le code de fermeture est dans le message), ou reste fermé avec `reconnect: false`. |
+| `E_COMET_TRANSPORT_CLOSED` | `close()` a été appelé. |
+| `E_COMET_TIMEOUT` | Pas de réponse dans le délai `timeout`. |
+| `E_COMET_MESSAGE_TOO_LARGE` | Un message au-delà de `maxMessageBytes`, envoyé ou reçu. |
+| `E_COMET_BACKPRESSURE` | Plus de `maxBufferedBytes` attendent déjà l'envoi. |
+| `E_COMET_PROTOCOL_ERROR` | Le pair a envoyé ce qu'aucun serveur JSON-RPC ne répond ; le socket a été fermé. |
+| `E_COMET_INVALID_MESSAGE` | Le message n'est pas du JSON-RPC, ou ne s'écrit pas en JSON (un `BigInt`). |
+
+Un `signal` interrompu rejette l'appel avec la raison du signal, comme `fetch`.
+
+Le constructeur standard de `WebSocket` ne prend qu'une URL et des
+sous-protocoles. Pour passer autre chose — les `headers` de Node, un proxy —,
+fournis toi-même le socket au transport :
+
+```ts
+createWebSocketTransport({
+  createSocket: (url) => new WebSocket(url, { headers: { authorization: `Bearer ${token}` } }),
+});
+```
+
+Dans le navigateur, un socket emporte les cookies de la page : une route gardée
+par session marche comme en HTTP. Ream n'accepte une poignée de main que depuis
+l'origine de la page, sauf si l'app en autorise d'autres : c'est ce qui empêche
+un autre site d'ouvrir un socket avec ces cookies.
 
 ### Côté navigateur — utilise aurora
 
