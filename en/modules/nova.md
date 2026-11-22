@@ -27,7 +27,7 @@ ream nova:vapid:generate
 
 Mints a P-256 key pair with Node's `crypto.generateKeyPairSync('ec')` and upserts the three `NOVA_VAPID_*` env vars into `.env`. Edit `NOVA_VAPID_SUBJECT` to a real `mailto:` address before deploying — push services use it to contact you about subscription issues.
 
-Only the key pair is minted with `node:crypto`. Delivery is built by `web-push`, a dependency of the package: `nova.push()` has it encrypt the payload and sign the VAPID headers, then sends the request through ream's `HttpClient` (`@c9up/ream/http-client`), which refuses non-public addresses.
+The package has no runtime dependency: the key pair, the payload encryption (RFC 8291 `aes128gcm`, one record) and the VAPID token (RFC 8292, ES256, valid 12 hours, its audience the endpoint's origin) are all built with `node:crypto`. `nova.push()` then sends the request through ream's `HttpClient` (`@c9up/ream/http-client`), which refuses non-public addresses.
 
 If `NOVA_VAPID_PRIVATE_KEY` is already set, the command refuses to overwrite. Pass `--force` to rotate.
 
@@ -430,7 +430,7 @@ The 768 cap is not decoration: it is exactly the MySQL InnoDB utf8mb4 primary-ke
 
 ## Testing with `FakeNova`
 
-Replace the real `Nova` instance with an in-memory collector for the duration of a test. `FakeNova` (from `@c9up/nova/testing`) captures every `push` / `pushToUser` call and carries the assertions itself — no `web-push`, no network, no `SubscriptionStore` consultation.
+Replace the real `Nova` instance with an in-memory collector for the duration of a test. `FakeNova` (from `@c9up/nova/testing`) captures every `push` / `pushToUser` call and carries the assertions itself — no encryption, no network, no `SubscriptionStore` consultation.
 
 ```ts
 import { FakeNova } from '@c9up/nova/testing'
@@ -488,4 +488,3 @@ The provider binds the same instance under `'nova.push'` and `'nova'`: override 
 - [RFC 8292 — VAPID](https://www.rfc-editor.org/rfc/rfc8292)
 - [MDN — Push API](https://developer.mozilla.org/en-US/docs/Web/API/Push_API)
 - [MDN — PushSubscription](https://developer.mozilla.org/en-US/docs/Web/API/PushSubscription)
-- [`web-push` npm package](https://github.com/web-push-libs/web-push)

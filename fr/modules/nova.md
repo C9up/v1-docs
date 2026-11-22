@@ -27,7 +27,7 @@ ream nova:vapid:generate
 
 Frappe une paire P-256 via `crypto.generateKeyPairSync('ec')` de Node et upserte les trois variables `NOVA_VAPID_*` dans `.env`. Remplace `NOVA_VAPID_SUBJECT` par une vraie adresse `mailto:` avant déploiement — les services push s'en servent pour te contacter en cas de souci d'abonnement.
 
-Seule la paire de clés est frappée avec `node:crypto`. L'envoi est construit par `web-push`, une dépendance du paquet : `nova.push()` lui fait chiffrer le contenu et signer les en-têtes VAPID, puis envoie la requête par le `HttpClient` de ream (`@c9up/ream/http-client`), qui refuse les adresses non publiques.
+Le paquet n'a aucune dépendance à l'exécution : la paire de clés, le chiffrement du contenu (RFC 8291 `aes128gcm`, un seul enregistrement) et le jeton VAPID (RFC 8292, ES256, valable 12 heures, pour audience l'origine du point de terminaison) sont tous construits avec `node:crypto`. `nova.push()` envoie ensuite la requête par le `HttpClient` de ream (`@c9up/ream/http-client`), qui refuse les adresses non publiques.
 
 Si `NOVA_VAPID_PRIVATE_KEY` est déjà défini, la commande refuse d'écraser. Passe `--force` pour faire tourner la clé.
 
@@ -430,7 +430,7 @@ Le plafond de 768 n'est pas décoratif : c'est exactement le budget d'index de c
 
 ## Tests avec `FakeNova`
 
-Remplace l'instance `Nova` réelle par un collecteur en mémoire pendant un test. `FakeNova` (depuis `@c9up/nova/testing`) capture chaque appel `push` / `pushToUser` et porte lui-même les assertions — pas de `web-push`, pas de réseau, pas de consultation de `SubscriptionStore`.
+Remplace l'instance `Nova` réelle par un collecteur en mémoire pendant un test. `FakeNova` (depuis `@c9up/nova/testing`) capture chaque appel `push` / `pushToUser` et porte lui-même les assertions — pas de chiffrement, pas de réseau, pas de consultation de `SubscriptionStore`.
 
 ```ts
 import { FakeNova } from '@c9up/nova/testing'
@@ -488,4 +488,3 @@ Le provider lie la même instance sous `'nova.push'` et `'nova'` : override le n
 - [RFC 8292 — VAPID](https://www.rfc-editor.org/rfc/rfc8292)
 - [MDN — Push API](https://developer.mozilla.org/fr/docs/Web/API/Push_API)
 - [MDN — PushSubscription](https://developer.mozilla.org/fr/docs/Web/API/PushSubscription)
-- [Package npm `web-push`](https://github.com/web-push-libs/web-push)
