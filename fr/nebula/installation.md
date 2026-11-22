@@ -32,7 +32,7 @@ export default defineConfig({
 | `unocss` | `presetWind4` — même syntaxe de classes, sans PostCSS, plus rapide. | `unocss @unocss/cli` |
 | `css` | Rien. nebula livre une feuille précompilée. | — |
 
-Les trois consomment les mêmes noms de classes, ce qui permet à un seul jeu de composants de les servir tous. Voir aussi la page [Tailwind CSS](/fr/modules/tailwind).
+Les trois consomment les mêmes noms de classes, ce qui permet à un seul jeu de composants de les servir tous. Voir aussi la page [Tailwind CSS](/fr/guides/frontend/tailwind).
 
 **La limite de l'adaptateur `css`, dite franchement.** `nebula.css` est compilé au moment de la release et couvre les composants tels que publiés. Modifiez un composant copié pour y ajouter une utilitaire que nebula n'a jamais employée et rien ne l'émet : la classe ne fait silencieusement rien. Prenez-le quand vous prenez les composants tels quels ; prenez `tailwind` ou `unocss` quand vous comptez les retoucher.
 
@@ -44,7 +44,7 @@ shadcn s'appuie sur Radix, `clsx`, `tailwind-merge`, `class-variance-authority`,
 
 | Ce que shadcn installe | Ce que nebula fait |
 |---|---|
-| `clsx` + `tailwind-merge` | `cn`, déjà écrit à la main dans [Aurora](/fr/modules/aurora) |
+| `clsx` + `tailwind-merge` | `cn`, déjà écrit à la main dans [Aurora](/fr/guides/frontend/aurora/) |
 | `class-variance-authority` | `lib/cva.ts`, réimplémenté, et il passe son résultat dans `cn` |
 | Radix UI | `primitives/` — piège à focus, couches renvoyables, focus itinérant, saisie au clavier, présence, portails |
 | `@floating-ui/dom` | `primitives/floating.ts` — décalage, retournement, glissement, flèche, hauteur disponible |

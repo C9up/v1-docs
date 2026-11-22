@@ -1,0 +1,385 @@
+# Cycle de vie de l’application
+
+Ce guide couvre les phases d'une application :
+
+- `bin/server.ts` — le point d'entrée
+- Constructeur de l'Ignitor
+- Méthodes du builder
+- Phase 1 — REGISTER
+- Phase 2 — BOOT
+- Phase 3 — START
+- Phase 4 — READY
+- Arrêt
+- Hooks de l'application
+- Propriétés d'environnement
+- Singletons de service
+- Récapitulatif du cycle de vie
+- Ordre d'exécution
+- Regles pratiques
+- Recommandation
+- Lifecycle (important)
+
+Ream suit une séquence de démarrage en quatre phases. Chaque provider, fichier de préchargement et fichier de routes de module dispose d'un moment précis où il s'exécute. Comprendre cette séquence vous indique exactement où placer le code d'initialisation.
+
+```
+REGISTER → BOOT → START → READY → [en cours d'exécution] → SHUTDOWN
+```
+
+## `bin/server.ts` — le point d'entrée
+
+Le point d'entrée canonique pour un serveur HTTP Ream :
+
+```typescript
+// bin/server.ts
+import 'reflect-metadata'
+import { Ignitor, prettyPrintError } from '@c9up/ream'
+
+const APP_ROOT = new URL('../', import.meta.url)
+
+new Ignitor(APP_ROOT, { port: 3000 })
+  .tap((app) => {
+    app.listen('SIGTERM', () => app.terminate())
+    app.listenIf(app.managedByPm2, 'SIGINT', () => app.terminate())
+  })
+  .useRcFile((await import('../reamrc.js')).default)
+  .httpServer()
+  .start()
+  .catch((error) => {
+    process.exitCode = 1
+    prettyPrintError(error)
+  })
+```
+
+`import 'reflect-metadata'` doit être la première instruction du fichier. Elle active les métadonnées de décorateurs TypeScript pour l'injection par constructeur.
+
+## Constructeur de l'Ignitor
+
+```typescript
+new Ignitor(APP_ROOT, config)
+```
+
+| Paramètre | Type | Description |
+|---|---|---|
+| `APP_ROOT` | `URL` | `new URL('../', import.meta.url)` depuis `bin/server.ts` |
+| `config.port` | `number` | Port d'écoute (par défaut `3000`) |
+| `config.host` | `string` | Adresse d'écoute. Retombe sur `process.env.HOST`, puis `0.0.0.0` en production et `localhost` ailleurs |
+| `config.serverFactory` | `(port: number, host: string) => HyperServerLike` | Factory qui crée l'instance du serveur HTTP |
+| `config.importer` | `(filePath: string) => Promise<unknown>` | Chargeur de module personnalisé (optionnel) |
+| `config.watchDirs` | `string[]` | Répertoires à surveiller pour le rechargement à chaud en mode dev |
+
+Le constructeur enregistre immédiatement les services du framework dans le conteneur (`'router'`, `'server'`, `'middleware'`, `'app'`) et initialise les singletons de service afin que les fichiers de routes puissent les importer.
+
+## Méthodes du builder
+
+L'Ignitor utilise une API de type builder fluide. Toutes les méthodes sauf `.start()` retournent `this`.
+
+### `.tap(callback)`
+
+Accédez à l'instance `Application` avant le démarrage du cycle de vie. Utilisez-la pour les gestionnaires de signaux et les hooks booting/booted.
+
+```typescript
+.tap((app) => {
+  app.listen('SIGTERM', () => app.terminate())
+  app.listenIf(app.managedByPm2, 'SIGINT', () => app.terminate())
+
+  app.booting(async () => {
+    // s'exécute au début de la phase BOOT, avant le démarrage des providers
+  })
+
+  app.booted(async () => {
+    // s'exécute après que tous les providers ont démarré
+  })
+})
+```
+
+### `.useRcFile(reamrc)`
+
+Charge la configuration de l'application. Passez l'export par défaut de `reamrc.ts`.
+
+```typescript
+.useRcFile((await import('../reamrc.js')).default)
+```
+
+### `.httpServer()`
+
+Définit l'environnement à `'web'`. Requis avant `.start()` lors de l'exécution d'un serveur HTTP. Vérifie qu'un `serverFactory` a été fourni.
+
+### `.start()`
+
+Exécute les quatre phases du cycle de vie dans l'ordre. Retourne `Promise<Ignitor>`. Chaînez `.catch(prettyPrintError)` pour gérer les erreurs au démarrage de manière appropriée.
+
+## Phase 1 — REGISTER
+
+Ce qui se passe, dans l'ordre :
+
+1. L'Ignitor parcourt le répertoire `config/` et importe chaque fichier `.ts` / `.js` qu'il trouve. L'export par défaut de chaque fichier est stocké dans `app.config` sous son nom de fichier (ex. `config/database.ts` → `app.config.get('database')`).
+2. Chaque provider listé dans `reamrc.providers` est importé et instancié.
+3. `provider.register()` est appelé de façon synchrone sur chaque provider dans l'ordre de la liste.
+
+`register()` est la seule méthode de cycle de vie synchrone. N'effectuez pas de travail asynchrone ici. Ne résolvez pas de services qui dépendent d'autres providers — ces providers peuvent ne pas encore s'être enregistrés.
+
+```typescript
+export default class AtlasProvider extends Provider {
+  register(): void {
+    this.app.container.singleton('db', () => {
+      return new DatabaseManager(this.app.config.get('database'))
+    })
+  }
+}
+```
+
+## Phase 2 — BOOT
+
+Ce qui se passe, dans l'ordre :
+
+1. Les hooks `app.booting()` s'exécutent (enregistrés via `.tap()`).
+2. `provider.boot()` est appelé sur chaque provider dans l'ordre de la liste.
+3. Les hooks `app.booted()` s'exécutent.
+
+Au moment où `boot()` s'exécute, chaque provider a déjà enregistré ses liaisons. Il est sûr de résoudre d'autres services ici.
+
+```typescript
+export default class AtlasProvider extends Provider {
+  async boot(): Promise<void> {
+    const db = await this.app.container.make<DatabaseManager>('db')
+    await db.connect()
+    await db.query('SELECT 1') // vérifier la connexion
+  }
+}
+```
+
+## Phase 3 — START
+
+Ce qui se passe, dans l'ordre :
+
+1. `provider.start()` est appelé sur chaque provider.
+2. Les hooks `app.starting()` s'exécutent.
+3. Les fichiers de préchargement issus de `reamrc.preloads` sont importés. C'est à ce moment que `start/kernel.ts` s'exécute et configure le middleware du serveur.
+4. Les routes des modules sont chargées automatiquement. L'Ignitor lit `reamrc.modules.path`, parcourt chaque sous-répertoire et importe tout fichier nommé `routes.ts` (ou les noms de fichiers listés dans `reamrc.modules.autoload`).
+
+Le serveur HTTP n'accepte pas encore de requêtes durant cette phase. C'est le bon moment pour définir les routes, enregistrer les middlewares nommés et préchauffer les caches.
+
+```typescript
+// start/kernel.ts
+import server from '@c9up/ream/services/server'
+import router from '@c9up/ream/services/router'
+
+server.errorHandler(() => import('../app/exceptions/Handler.js'))
+server.use([() => import('../app/middleware/RequestId.js')])
+
+router.use([() => import('../app/middleware/Auth.js')])
+```
+
+```typescript
+// app/modules/users/routes.ts
+import router from '@c9up/ream/services/router'
+import UsersController from './UsersController.js'
+
+router.get('/users', [UsersController, 'index'])
+router.get('/users/:id', [UsersController, 'show'])
+router.post('/users', [UsersController, 'store'])
+```
+
+## Phase 4 — READY
+
+Ce qui se passe, dans l'ordre :
+
+1. L'instance `Server` est démarrée (résout le gestionnaire d'erreurs différé).
+2. Le serveur HTTP est lancé — `serverFactory` est appelé, `onRequest` est connecté au kernel, et `listen()` est attendu.
+3. Le gestionnaire d'erreurs global est installé (intercepte les rejets non gérés et les `uncaughtException`).
+4. `provider.ready()` est appelé sur chaque provider.
+5. Les hooks `app.ready()` s'exécutent.
+6. Le watcher de rechargement à chaud démarre en mode dev, puis l'application est marquée prête (`app.isReady`).
+
+Après le retour de `ready()`, l'application est entièrement opérationnelle. Affichez votre message de disponibilité ici.
+
+```typescript
+export default class AppProvider extends Provider {
+  async ready(): Promise<void> {
+    console.log('Application ready — accepting requests')
+  }
+}
+```
+
+## Arrêt
+
+L'arrêt est déclenché par `app.terminate()` (appelé depuis les gestionnaires de signaux) ou par `ignitor.stop()`. `app.terminate()` exécute les hooks `terminating` dans l'ordre inverse, puis arrête les providers ; l'Ignitor qui a ouvert le serveur HTTP enregistre un hook `terminating` qui appelle `ignitor.stop()`, si bien que tous les chemins vident le serveur. La séquence d'`ignitor.stop()` est :
+
+1. Le watcher de rechargement à chaud est arrêté.
+2. Le serveur HTTP est fermé (aucune nouvelle connexion acceptée, les requêtes en cours se terminent).
+3. Le gestionnaire d'erreurs global est désinstallé.
+4. `provider.shutdown()` est appelé sur les providers dans l'ordre d'enregistrement **inversé**.
+
+Quand il démarre un serveur HTTP, l'Ignitor installe ses propres gestionnaires `SIGTERM` / `SIGINT` (passez `gracefulShutdown: false` dans la config de l'Ignitor pour s'en passer). Le premier signal lance `app.terminate()` avec un **délai de vidage de 30 secondes** ; le processus sort ensuite avec `0`, ou `1` si l'arrêt a levé une erreur ou si le vidage a dépassé le délai. Un second signal pendant le vidage sort aussitôt avec `1`.
+
+```typescript
+export default class AtlasProvider extends Provider {
+  async shutdown(): Promise<void> {
+    const db = await this.app.container.make<DatabaseManager>('db')
+    await db.disconnect()
+  }
+}
+```
+
+## Hooks de l'application
+
+Enregistrez les hooks dans `.tap()` avant d'appeler `.start()`.
+
+```typescript
+new Ignitor(APP_ROOT, config)
+  .tap((app) => {
+    // S'exécute au début de BOOT, avant le démarrage des providers
+    app.booting(async () => {
+      await import('./start/env.js') // valider les variables d'environnement
+    })
+
+    // S'exécute après que tous les providers ont démarré
+    app.booted(async () => {
+      console.log('All providers booted')
+    })
+
+    // Gérer les signaux OS pour un arrêt gracieux
+    app.listen('SIGTERM', () => app.terminate())
+
+    // N'attacher le gestionnaire SIGINT que lorsque géré par PM2
+    app.listenIf(app.managedByPm2, 'SIGINT', () => app.terminate())
+  })
+```
+
+### `app.listen(signal, callback)`
+
+Attache un écouteur `process.on(signal, callback)`.
+
+### `app.listenIf(condition, signal, callback)`
+
+Identique à `app.listen()`, mais ne s'attache que si `condition` est `true`. Utilisé avec `app.managedByPm2` pour éviter d'intercepter `SIGINT` (Ctrl+C) en développement local.
+
+### `app.terminate()`
+
+Exécute les hooks `terminating` dans l'ordre inverse (la fermeture du serveur HTTP en fait partie), puis `app.shutdown()` (tous les providers dans l'ordre inverse). Un second appel pendant qu'un premier tourne est ignoré. Il ne ferme pas le serveur lui-même et n'appelle pas `process.exit()` : le processus se termine quand plus rien ne retient la boucle d'événements, ou quand le gestionnaire de signaux de l'Ignitor a fini son vidage (voir [Arrêt](/fr/guides/concepts/lifecycle#arret)).
+
+### `app.terminating(callback)`
+
+Enregistre un hook que `app.terminate()` exécute avant d'arrêter les providers — dernier enregistré, premier exécuté. Ce qui ouvre un socket ou une ressource durable enregistre le hook qui la ferme.
+
+### `app.booting(callback)`
+
+Enregistre un callback qui s'exécute au début de la phase BOOT, avant la méthode `boot()` de tout provider.
+
+### `app.booted(callback)`
+
+Enregistre un callback qui s'exécute après que tous les providers ont démarré. S'il est appelé après que l'application a déjà démarré, le callback s'exécute immédiatement.
+
+### `app.starting(callback)`
+
+Enregistre un callback qui s'exécute pendant la phase START, après le `start()` de chaque provider et avant les fichiers de préchargement. Un warm-up l'exécute aussi. Retourne l'application, les appels s'enchaînent donc.
+
+### `app.ready(callback)`
+
+Enregistre un callback qui s'exécute une fois que le `ready()` de chaque provider a rendu la main, avant que l'application soit marquée prête. Appelé sur une application déjà prête, le callback s'exécute tout de suite (`await app.ready(...)` l'attend). Un callback qui lève fait échouer le démarrage.
+
+```typescript
+app.ready(async () => {
+  await warmCaches()
+})
+```
+
+### `app.import(id)` et `app.importDefault(id)`
+
+Importent un module à travers l'importeur donné à l'application (`new Ignitor(APP_ROOT, { importer: (filePath) => import(filePath) })`), si bien qu'un sous-chemin `#` comme `#listeners/send_email` se résout par rapport au `package.json` de l'application. `importDefault` retourne l'export par défaut et nomme le module quand il n'en a pas ; il accepte aussi un thunk (`() => import('./x.js')`). Sans importeur, les deux lèvent `E_APP_MISSING_IMPORTER`.
+
+## Propriétés d'environnement
+
+```typescript
+app.inProduction  // process.env.NODE_ENV === 'production'
+app.inDev         // NODE_ENV n'est ni 'production' ni 'test'
+app.inTest        // process.env.NODE_ENV === 'test'
+app.managedByPm2  // 'PM2_HOME' ou 'pm_id' est dans process.env
+```
+
+## Singletons de service
+
+Trois proxies singleton sont initialisés par l'Ignitor avant l'exécution de tout fichier de préchargement. Importez-les dans les fichiers de routes, les fichiers kernel et les providers.
+
+### `@c9up/ream/services/app`
+
+```typescript
+import app from '@c9up/ream/services/app'
+
+await app.container.make(MyService)
+app.config.get('database')
+app.inProduction
+```
+
+### `@c9up/ream/services/router`
+
+```typescript
+import router from '@c9up/ream/services/router'
+
+router.get('/health', ({ response }) => response.json({ status: 'ok' }))
+router.group('/api/v1', () => {
+  router.get('/users', [UsersController, 'index'])
+})
+```
+
+### `@c9up/ream/services/server`
+
+```typescript
+import server from '@c9up/ream/services/server'
+
+server.errorHandler(() => import('../app/exceptions/Handler.js'))
+server.use([() => import('../app/middleware/RequestId.js')])
+```
+
+Ces trois objets sont des `Proxy` qui délèguent à l'instance sous-jacente. Y accéder avant que l'Ignitor les construise lève une erreur descriptive.
+
+## Récapitulatif du cycle de vie
+
+| Phase | Déclenchée par | Async | Rôle |
+|---|---|---|---|
+| REGISTER | `phaseRegister()` | Non (register) | Chargement auto de la config, enregistrement des liaisons dans le conteneur |
+| BOOT | `phaseBoot()` | Oui | Connexion des services, exécution des hooks booting/booted |
+| START | `phaseStart()` | Oui | Import des préchargements, chargement auto des routes de modules, appel de start() |
+| READY | `phaseReady()` | Oui | Démarrage du serveur HTTP, appel de ready() |
+| SHUTDOWN | `stop()` / `terminate()` | Oui | Nettoyage des providers dans l'ordre inverse |
+
+## Ordre d'exécution
+
+1. `register`
+2. `boot`
+3. `start`
+4. `ready`
+5. `shutdown`
+
+## Regles pratiques
+
+- `register`: bindings IoC, pas d'IO lourd
+- `boot`: initialisation DB/bus/cache
+- `start`: ouverture runtime HTTP/console
+- `ready`: application servable
+- `shutdown`: fermeture propre
+
+## Recommandation
+
+Tester explicitement le shutdown (SIGTERM/SIGINT) pour vérifier la fermeture des ressources longues.
+
+## Lifecycle (important)
+
+Ordre d'exécution :
+
+1. `register` - bind container, config, providers.
+2. `boot` - initialisation dépendances externes.
+3. `start` - démarrage server / runtime.
+4. `ready` - application opérationnelle.
+5. `shutdown` - fermeture propre.
+
+Règle pratique :
+
+- `register`: pas d'IO bloquant.
+- `boot`: connexions DB/bus/cache.
+- `shutdown`: close ressources, timeouts, workers.
+
+## Étapes suivantes
+- [Providers](/fr/guides/concepts/providers) — Écrire des providers pour chaque phase du cycle de vie
+- [Conteneur IoC](/fr/guides/concepts/dependency-injection) — Injection de dépendances et résolution de services
+- [Routage](/fr/guides/basics/routing) — Définir les routes dans les fichiers de routes de modules

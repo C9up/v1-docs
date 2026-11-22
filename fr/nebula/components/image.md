@@ -2,7 +2,7 @@
 
 Une `<img>`, avec les attributs qui la rendent rapide déjà écrits : un `srcset` d'une douzaine de largeurs, un `sizes` qui va avec, `width`/`height` pour que la page ne saute pas à l'arrivée des octets, et `loading`/`decoding`. Une `<img src>` nue coûte deux fois à une page — elle envoie des pixels de bureau à un téléphone, et elle ne réserve aucune place avant d'arriver, si bien que tout ce qui est dessous bouge.
 
-Le composant décide seulement *quelles* variantes demander. D'où viennent les octets, c'est l'affaire d'un résolveur que l'application installe une fois ; celui par défaut pointe sur `/__image`, l'endpoint que [Prism](/fr/modules/prism) enregistre. Pour proposer de l'AVIF avec un format de repli, utilisez [Picture](/fr/nebula/components/picture), qui rend ce composant comme son `<img>`.
+Le composant décide seulement *quelles* variantes demander. D'où viennent les octets, c'est l'affaire d'un résolveur que l'application installe une fois ; celui par défaut pointe sur `/__image`, l'endpoint que [Prism](/fr/guides/digging-deeper/images/) enregistre. Pour proposer de l'AVIF avec un format de repli, utilisez [Picture](/fr/nebula/components/picture), qui rend ce composant comme son `<img>`.
 
 ```sh
 ream nebula:add image
@@ -53,7 +53,7 @@ Image({ src: '/banner.jpg', alt: '', layout: 'full-width' })
 
 Toutes les largeurs proposées sortent d'une liste fixe — une petite échelle pour les éléments qui ne font pas la largeur d'un écran (avatars, icônes, vignettes) et une échelle d'appareils au-dessus. **La largeur déclarée n'est jamais émise telle quelle.** `width: 1200` demandant 1200 et 2400, ce serait deux largeurs qu'aucune liste blanche ne contient — et mettre sur liste blanche ce qu'un auteur tape au clavier n'est pas une liste blanche. On arrondit *vers le haut*, aux barreaux qui les couvrent — 1280 et 2560 — parce qu'arrondir vers le bas est la façon dont un écran dense reçoit moins de pixels qu'il ne peut en afficher. Le `src` est arrondi de la même façon : `width: 1200` charge 1280 dans un navigateur qui ignore `srcset`.
 
-Cette liste et le `widths` de [Prism](/fr/modules/prism) sont la même liste, et c'est la seule chose qui ne peut pas changer d'un seul côté. Une largeur que l'endpoint ne sert pas est une entrée de `srcset` qui répond 400, et une page qui retombe silencieusement sur son unique `src`.
+Cette liste et le `widths` de [Prism](/fr/guides/digging-deeper/images/) sont la même liste, et c'est la seule chose qui ne peut pas changer d'un seul côté. Une largeur que l'endpoint ne sert pas est une entrée de `srcset` qui répond 400, et une page qui retombe silencieusement sur son unique `src`.
 
 L'échelle d'appareils est faite de vraies largeurs d'appareils, pas de nombres ronds — 828 est un iPhone XR, 1668 un iPad. C'est sa densité qui rend l'arrondi vers le haut peu coûteux : le barreau au-dessus de 2400 est 2560, six pour cent plus haut.
 
@@ -142,7 +142,7 @@ Image({ src: () => photo().src, alt: () => photo().alt, width: 800, height: 600 
 
 ### D'où viennent les octets
 
-Le composant ne le sait pas. Il demande une URL à un résolveur, et celui par défaut pointe sur `/__image` — l'endpoint que [Prism](/fr/modules/prism) enregistre. Le pointer sur un CDN tient en un appel :
+Le composant ne le sait pas. Il demande une URL à un résolveur, et celui par défaut pointe sur `/__image` — l'endpoint que [Prism](/fr/guides/digging-deeper/images/) enregistre. Le pointer sur un CDN tient en un appel :
 
 ```ts
 import { setImageResolver } from '@c9up/nebula'

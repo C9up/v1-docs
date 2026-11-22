@@ -1,0 +1,240 @@
+# Atomic locks
+
+This guide covers distributed locks with eclipse:
+
+- Why
+- Capabilities
+- Configure
+- Main API
+- Durations
+- Stores
+- Safety
+- With the scheduler
+- Errors
+- Testing
+- Production checklist
+
+Eclipse is the distributed-lock layer in the Ream ecosystem (`@c9up/eclipse`).
+
+One name, one holder. Everything else is a store detail.
+
+## Why
+
+Without a shared lock, every instance of an application does everything: a nightly invoice run goes out N times, a cache miss recomputes N times, a job is processed N times. Nothing in the logs says so.
+
+## Capabilities
+
+- take a lease, immediately or by waiting for the current holder
+- run a callback under a lease and release it automatically
+- extend a lease that outlives its original window
+- hand a held lease to another process (`serialize` / `restoreLock`)
+- owner-checked release, so one holder cannot free another's lease
+- pluggable stores (`Memory`, `Redis`, `Database`)
+
+## Configure
+
+```ts
+// config/lock.ts
+import { defineConfig, stores } from '@c9up/eclipse'
+import env from '#start/env'
+
+export default defineConfig({
+  default: env.get('LOCK_STORE'),
+
+  stores: {
+    memory: stores.memory(),
+    redis: stores.redis({ connection: 'main' }),
+  },
+})
+```
+
+```ts
+// reamrc.ts
+providers: [() => import('@c9up/eclipse/provider')]
+```
+
+`ream configure @c9up/eclipse` writes both files, sets `LOCK_STORE=redis` and declares its validation in `start/env.ts` (`redis` or `memory`), so a typo fails at env validation rather than at boot.
+
+There is no in-process fallback: the provider refuses to boot without `config/lock.ts` (`E_ECLIPSE_MISSING_CONFIG`), and `defineConfig` refuses a config whose `default` is unset or names no declared store. An application that really runs as one process says so with `LOCK_STORE=memory`.
+
+## Main API
+
+```ts
+import locks from '@c9up/eclipse/services/main'
+```
+
+### Run once across every replica
+
+`runImmediately` reports instead of waiting: the instance that loses the race does nothing at all.
+
+```ts
+const [ran, invoices] = await locks
+  .createLock('invoices:nightly', '5m')
+  .runImmediately(async () => generateInvoices())
+```
+
+### Wait for the holder, then proceed
+
+`run` blocks while someone else holds the lease. This is the shape a cache stampede needs — the caller that loses the race wants to wait for the winner and then read what it wrote, not to fail.
+
+```ts
+const [, user] = await locks
+  .createLock(`user:${id}`, '30s')
+  .run(async () => loadAndCacheUser(id))
+```
+
+Both return `[true, result]` or `[false, null]`, so "ran and returned `undefined`" stays distinguishable from "never ran".
+
+### Manual control
+
+```ts
+const lock = locks.createLock('import', '30s')
+
+if (await lock.acquireImmediately()) {
+  try {
+    for (const batch of batches) {
+      await process(batch)
+      await lock.extend('30s')
+    }
+  } finally {
+    await lock.release()
+  }
+}
+```
+
+Prefer a short lease plus `extend()` over a long one. A lease sized for the worst case is also how long the key stays stuck after a crash.
+
+### Bounded waiting
+
+```ts
+const taken = await lock.acquire({
+  retry: { attempts: 10, delay: '100ms', timeout: '2s' },
+})
+```
+
+`acquire()` without options waits indefinitely. `timeout: 0` means "do not wait", and `timeout: null` means "no deadline".
+
+The options are checked before the store is asked anything (`E_ECLIPSE_INVALID_RETRY`): `attempts` is a positive integer or `Infinity`, `delay` a duration from 0 to about 24.8 days, `timeout` a finite duration of 0 or more (`Infinity` is refused: "no deadline" is `null`). A `NaN` from an unset environment variable would otherwise remove the deadline and poll the store every millisecond.
+
+### Across a process boundary
+
+```ts
+const payload = lock.serialize()          // taken by the request
+const restored = locks.restoreLock(payload) // released by the worker
+await restored.release()
+```
+
+### Named stores
+
+```ts
+await locks.use('redis').createLock('k', '1m').acquireImmediately()
+```
+
+## Durations
+
+A bare number is **milliseconds**. Strings take the usual units: `'500ms'`, `'30s'`, `'5m'`, `'2h'`. `null` never expires — and a lease that never expires needs `forceRelease()` to recover from a crash.
+
+Milliseconds because a lease is measured against wall-clock time and Redis takes `PX` in milliseconds. `@c9up/echo` is seconds-native for the same reason in reverse: its drivers are. Each is native to its own layer.
+
+## Stores
+
+- `MemoryStore` — correct while the application runs in **one** process. Two replicas each keep their own map and will both take the same key. It is not a distributed lock.
+- `RedisStore` — what a second replica needs.
+- `DatabaseStore` — a distributed lock through the SQL database the application already has (PostgreSQL, MySQL, SQLite), for one without Redis.
+
+### SQL database
+
+```ts
+stores: {
+  database: stores.database(),                          // atlas' default connection
+  // stores.database({ connection: 'pg', tableName: 'locks' })
+  // stores.database({ connection: db })                 // any client with dialect + rawQuery
+}
+```
+
+The table has three columns — `key` (primary), `owner`, `expiration` (epoch milliseconds, `NULL` never expires); copy the migration from `stubs/database/migrations/9200_create_locks.stub` in the package. Atlas is loaded on the first lock only, and is never a dependency of eclipse.
+
+- Acquiring is one atomic upsert on PostgreSQL and SQLite: it inserts the key, or takes over a lease that has lapsed, never a live one. MySQL, without `RETURNING`, deletes the lapsed lease and then inserts.
+- Expiry is computed and compared on the **database** clock, not the replica's: a replica whose clock runs ahead cannot take a lease its holder is still working under.
+- Release and extend carry the owner in the statement's predicate, so a lapsed holder never removes the next holder's lease.
+- Lapsed rows are swept as locks are taken (at most once a minute), and a key over 255 characters is stored as its SHA-256.
+
+The option is `connection`, not `connectionName`, because it also takes a client. There is no DynamoDB store (named deviation: no AWS client in the ecosystem).
+
+### Redis through Quasar
+
+A store can name a [Quasar](/en/guides/database/redis) connection instead of being handed a client:
+
+```ts
+stores: {
+  redis: stores.redis({ connection: 'main' }),
+}
+```
+
+The client is resolved on the first lock, not while the config is read. `stores.redis({ client })` still works: `@c9up/quasar` is an **optional** peer, and eclipse runs without it. A connection quasar retires once its retry strategy gives up (status `end`) is not used again: the next lock asks for the connection again, so locking (and the scheduler) recovers by itself once Redis is back. A client passed directly is kept as it is.
+
+## Safety
+
+Every lease carries a random owner token, and release and extend compare it **inside** the store — on Redis, in a Lua script, so the check and the delete are one atomic step.
+
+Without that, work that outlives its own TTL deletes the lease a *different* instance has since taken, freeing the name while work is still running under it.
+
+Losing a lease is reported as `E_LOCK_NOT_OWNED`, uniformly across stores — whether the key is gone or held by someone else, the caller no longer owns what it thought it owned.
+
+`run` and `runImmediately` reject with it when the callback succeeded but the lease lapsed while it ran: another holder may have run at the same time, and a clean `[true, result]` would hide it. When the callback itself threw, that error is rethrown unchanged, and a failed release (lost lease or store failure) does not replace it.
+
+## With the scheduler
+
+```ts
+// config/scheduler.ts
+import { defineConfig } from '@c9up/ream/scheduler/config'
+import locks from '@c9up/eclipse/services/main'
+import { schedulerBackend } from '@c9up/eclipse/scheduler'
+
+export default defineConfig({ lock: schedulerBackend(() => locks) })
+```
+
+`@c9up/ream` does not depend on eclipse. The scheduler declares a narrow two-method contract and eclipse satisfies it, so the core works with no lock package installed. This is for the application that wants **one** lock layer behind both its schedule and its own code, rather than two that expire independently.
+
+The lease is renewed every third of its TTL while the task runs, so a task longer than the TTL never runs on two instances at once. The TTL then only bounds how long the name stays taken after an instance dies holding it.
+
+```ts
+schedulerBackend(() => locks, {
+  ttl: '2m', // overrides the single TTL the scheduler passes for every task
+  onLeaseLost: (name, error) => logger.error({ err: error }, `lease lost: ${name}`),
+})
+```
+
+`onLeaseLost` is called when a running task's lease turns out to be held by someone else; without it the loss is emitted as a process warning.
+
+## Errors
+
+| Code | Raised when |
+|---|---|
+| `E_LOCK_NOT_OWNED` | release or extend by something that no longer holds the lease |
+| `E_LOCK_STORAGE_ERROR` | the store failed while saving, reading or deleting |
+| `E_ECLIPSE_INVALID_TTL` | a TTL that is not a positive number of milliseconds up to `Number.MAX_SAFE_INTEGER` |
+| `E_ECLIPSE_INVALID_RETRY` | a retry `attempts`, `delay` or `timeout` that cannot bound the wait |
+| `E_ECLIPSE_UNKNOWN_STORE` | a config or `use()` naming a store that is not declared |
+| `E_ECLIPSE_INVALID_CONFIG` | a lock config without `stores` or `default` |
+| `E_ECLIPSE_MISSING_CONFIG` | the provider is registered but `config/lock.ts` is missing |
+| `E_ECLIPSE_DATABASE_UNAVAILABLE` | a database store asks for atlas, which is not installed or has not booted |
+| `E_ECLIPSE_UNSUPPORTED_DATABASE` | a database store was given a dialect other than PostgreSQL, MySQL or SQLite |
+
+## Testing
+
+```ts
+import { fakeLocks } from '@c9up/eclipse/testing'
+
+const restore = fakeLocks(app.container)
+afterEach(restore)
+```
+
+The teardown puts back the manager the fake replaced. Given the container, the fake also stands behind its `LockManager`, `lock` and `eclipse.lock` bindings, so code that resolves the manager from the container gets it too.
+
+## Production checklist
+
+- name the Redis store in any environment that runs more than one replica — a memory store there silently locks nothing
+- size TTLs by crash-recovery time, not by how long the work takes; use `extend()` for the rest
+- bound `acquire()` with `retry.timeout` anywhere a request is waiting on it
+- reserve `forceRelease()` for operations, not for normal flow

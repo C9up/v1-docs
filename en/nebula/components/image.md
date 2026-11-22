@@ -2,7 +2,7 @@
 
 One `<img>`, with the attributes that make it fast already written: a `srcset` of a dozen widths, a `sizes` that matches, `width`/`height` so the page does not jump when the bytes arrive, and `loading`/`decoding`. A bare `<img src>` costs a page twice — it ships desktop pixels to a phone, and it reserves no space until it arrives, so everything under it moves.
 
-The component only decides *which* variants to ask for. Where the bytes come from is a resolver the app installs once; the default one points at `/__image`, the endpoint [Prism](/en/modules/prism) registers. To offer AVIF alongside a fallback, use [Picture](/en/nebula/components/picture), which renders this component as its `<img>`.
+The component only decides *which* variants to ask for. Where the bytes come from is a resolver the app installs once; the default one points at `/__image`, the endpoint [Prism](/en/guides/digging-deeper/images/) registers. To offer AVIF alongside a fallback, use [Picture](/en/nebula/components/picture), which renders this component as its `<img>`.
 
 ```sh
 ream nebula:add image
@@ -53,7 +53,7 @@ Image({ src: '/banner.jpg', alt: '', layout: 'full-width' })
 
 Every width offered comes off a fixed list — a small ladder for elements that are not the width of a screen (avatars, icons, thumbnails) and a device ladder above it. **The declared width is never emitted literally.** `width: 1200` asking for 1200 and 2400 would be two widths no allow-list contains, and allow-listing whatever an author happens to type is not an allow-list. It rounds *up* to the rungs that cover them — 1280 and 2560 — because rounding down is how a dense screen is handed fewer pixels than it can show. The `src` is snapped the same way: `width: 1200` fetches 1280 in a browser that ignores `srcset`.
 
-That list and [Prism](/en/modules/prism)'s `widths` are the same list, and it is the one thing that cannot be changed on one side alone. A width the endpoint does not serve is a `srcset` entry that 400s, and a page that silently falls back to its single `src`.
+That list and [Prism](/en/guides/digging-deeper/images/)'s `widths` are the same list, and it is the one thing that cannot be changed on one side alone. A width the endpoint does not serve is a `srcset` entry that 400s, and a page that silently falls back to its single `src`.
 
 The device ladder is real device widths, not round numbers — 828 is an iPhone XR, 1668 an iPad. Density is what makes rounding up cheap: the rung above 2400 is 2560, six percent over.
 
@@ -142,7 +142,7 @@ Image({ src: () => photo().src, alt: () => photo().alt, width: 800, height: 600 
 
 ### Where the bytes come from
 
-The component does not know. It asks a resolver for a URL, and the default one points at `/__image` — the endpoint [Prism](/en/modules/prism) registers. Pointing it at a CDN is one call:
+The component does not know. It asks a resolver for a URL, and the default one points at `/__image` — the endpoint [Prism](/en/guides/digging-deeper/images/) registers. Pointing it at a CDN is one call:
 
 ```ts
 import { setImageResolver } from '@c9up/nebula'

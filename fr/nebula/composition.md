@@ -1,6 +1,6 @@
 # Composition et réactivité
 
-Deux règles façonnent chaque appel dans nebula : les composants composés s'assemblent à partir de **parties construites dans un thunk**, et tout ce qui peut changer se passe sous forme d'**accesseur**. Les deux découlent du même fait à propos d'[Aurora](/fr/modules/aurora) : un composant exécute son setup une seule fois et ne re-rend jamais.
+Deux règles façonnent chaque appel dans nebula : les composants composés s'assemblent à partir de **parties construites dans un thunk**, et tout ce qui peut changer se passe sous forme d'**accesseur**. Les deux découlent du même fait à propos d'[Aurora](/fr/guides/frontend/aurora/) : un composant exécute son setup une seule fois et ne re-rend jamais.
 
 ## Les composants composés prennent leurs parties dans un thunk
 

@@ -7,7 +7,7 @@ hero:
   actions:
     - theme: brand
       text: Démarrer
-      link: /fr/guide/introduction
+      link: /fr/start/introduction
     - theme: alt
       text: Voir sur GitHub
       link: https://github.com/C9up/ream-dev

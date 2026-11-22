@@ -1,11 +1,11 @@
 # Nebula — le jeu de composants
 
-`@c9up/nebula` porte l'ensemble shadcn/ui sur [Aurora](/fr/modules/aurora), rangé en design atomique : même balisage, mêmes classes, même comportement, écrits pour un runtime sans étape de build.
+`@c9up/nebula` porte l'ensemble shadcn/ui sur [Aurora](/fr/guides/frontend/aurora/), rangé en design atomique : même balisage, mêmes classes, même comportement, écrits pour un runtime sans étape de build.
 
 Une nébuleuse est la matière d'où naissent les étoiles — celle-ci est la matière d'où naissent les interfaces. Soixante-seize composants sur quatre couches, plus la couche de comportement sans habillage que Radix fournirait ailleurs.
 
 ::: warning Ne pas confondre
-Le paquet cache s'est un temps appelé Nebula avant de devenir [Echo](/fr/modules/echo). Ce nom-là désigne aujourd'hui ce paquet-ci, et rien d'autre.
+Le paquet cache s'est un temps appelé Nebula avant de devenir [Echo](/fr/guides/digging-deeper/cache). Ce nom-là désigne aujourd'hui ce paquet-ci, et rien d'autre.
 :::
 
 ## Deux façons de s'en servir

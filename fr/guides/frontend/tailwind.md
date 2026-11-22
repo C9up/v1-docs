@@ -1,0 +1,81 @@
+# Tailwind CSS
+
+Ce guide couvre Tailwind CSS dans une application ream :
+
+- Installation
+- Brancher dans Vite
+- Importer Tailwind depuis votre entrée CSS
+- Fusionner les classes — `cn`
+- À propos de `@c9up/tailwind`
+- Sans Vite
+
+Tailwind n'est pas livré comme package Ream. Il se branche dans votre projet via Vite — Photon possède déjà le stack Vite, donc l'intégration tient en deux étapes.
+
+## Installation
+
+```sh
+pnpm add -D tailwindcss @tailwindcss/vite
+```
+
+## Brancher dans Vite
+
+Ajoutez `@tailwindcss/vite` aux `plugins[]` de votre `vite.config.ts` :
+
+```typescript
+import { defineConfig } from 'vite'
+import tailwindcss from '@tailwindcss/vite'
+
+export default defineConfig({
+  plugins: [
+    tailwindcss(),
+    // ...vos plugins Photon / framework
+  ],
+})
+```
+
+## Importer Tailwind depuis votre entrée CSS
+
+```css
+/* resources/css/app.css */
+@import "tailwindcss";
+```
+
+C'est tout. Aucune commande de configuration framework, aucun plugin à enregistrer côté Ream. Le dev server Tailwind récupère automatiquement les classes utilisées dans vos TSX/JSX/HTML.
+
+Référence : [Tailwind CSS — Install with Vite](https://tailwindcss.com/docs/installation/using-vite).
+
+## Fusionner les classes — `cn`
+
+Pour composer des classes conditionnellement avec résolution des conflits (le
+pattern `clsx` + `tailwind-merge`), Aurora fournit un `cn` **zéro dépendance**
+conçu pour Tailwind **v4** — aucun paquet supplémentaire à installer :
+
+```ts
+import { cn } from '@c9up/aurora'
+
+cn('px-2', 'px-4')            // → 'px-4'  (la dernière gagne ; c'est le but)
+cn('rounded-lg border', props.class)
+```
+
+Détails complets : [Aurora → Classes Tailwind (`cn`)](/fr/guides/frontend/aurora/browser#classes-tailwind-—-cn).
+
+## À propos de `@c9up/tailwind`
+
+Un package stub `@c9up/tailwind` existait dans le workspace ; il scaffoldait `tailwind.config.ts` + `postcss.config.js` + une entrée `app.css` via `ream configure @c9up/tailwind`. Il n'a jamais été publié sur npm, a été retiré et son dossier workspace supprimé le 2026-05-01. Il n'y a pas de package Ream de remplacement — la recette ci-dessus est l'installation canonique de Tailwind dans Ream.
+
+Raison : `@tailwindcss/vite` fait le travail et Photon couvre déjà le côté Vite. Un stub possédé par le framework n'apporte rien de plus que la recette ci-dessus.
+
+## Sans Vite
+
+Une application qui utilise le CLI Tailwind plutôt que le plugin Vite déclare le watcher dans `reamrc.ts`, et `ream dev` le lance à côté du serveur :
+
+```ts
+export default {
+  assets: {
+    devServer: { command: 'pnpm', args: ['css:watch'] },
+    build: { command: 'pnpm', args: ['css'] },
+  },
+}
+```
+
+Voir [ream-cli → Assets](/fr/guides/command-line/introduction). Pas besoin de `concurrently` : arrêter le serveur arrête le watcher. `--watch` suffit — le stdin du watcher reste ouvert tant que `ream dev` tourne, il n'a donc pas besoin de `--watch=always`.

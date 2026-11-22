@@ -1,6 +1,6 @@
 # Composition and reactivity
 
-Two rules shape every call in nebula: compound components are assembled from **parts built inside a thunk**, and anything that can change is passed as an **accessor**. Both follow from the same fact about [Aurora](/en/modules/aurora) — a component runs its setup once and never re-renders.
+Two rules shape every call in nebula: compound components are assembled from **parts built inside a thunk**, and anything that can change is passed as an **accessor**. Both follow from the same fact about [Aurora](/en/guides/frontend/aurora/) — a component runs its setup once and never re-renders.
 
 ## Compound components take their parts in a thunk
 

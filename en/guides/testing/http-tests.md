@@ -1,0 +1,207 @@
+# HTTP tests
+
+This guide covers testing HTTP endpoints:
+
+- TestClient (HTTP)
+- Ream apps: the `@c9up/helix-plugin-ream` bridge
+- Install
+- Inject a test client
+- Run the suites declared in the rc file
+- What stays in Ream
+
+## TestClient (HTTP)
+
+The fluent client boots an Ignitor on a random port, exposes `port` for
+long-lived connections (SSE / WebSocket), and proxies to the real
+HyperServer — no in-process mock. Same providers, middleware, NAPI
+binaries, and pragmas as production.
+
+```ts
+import { TestClient } from '@c9up/ream/testing'
+import { Ignitor } from '@c9up/ream'
+
+const client = new TestClient(async (port) => {
+  const ignitor = new Ignitor(APP_ROOT, { port }).httpServer()
+  const started = await ignitor.start()
+  return { port: await started.port(), close: async () => started.stop() }
+})
+
+await client.boot()
+
+const res = await client
+  .post('/auth/login')
+  .json({ email: 'a@b.c', password: 'hunter2-strong-1' })
+  .send()
+
+res.expect(200).expectJson({ ok: true })
+```
+
+The socket-level inactivity timeout is **30 s** (matches the
+`helix test --timeout=60000` per-test budget), so signup → argon2 →
+sqlite insert → JWT sign chains have headroom.
+
+## Ream apps: the `@c9up/helix-plugin-ream` bridge
+
+helix knows nothing about Ream, and Ream knows nothing about helix. The plugin
+that joins them is published separately:
+
+```sh
+pnpm add -D @c9up/helix-plugin-ream
+```
+
+```ts
+// tests/bootstrap.ts
+import type { ConfigureOptions, Plugin, RunnerHook } from '@c9up/helix'
+import { apiClient } from '@c9up/helix-plugin-ream'
+import { createTestUtils } from '@c9up/ream/testing/utils'
+
+export const testUtils = createTestUtils((port) => bootApp(port))
+
+export const plugins: Plugin[] = [apiClient({ testUtils })]
+
+export const runnerHooks: { setup: RunnerHook[]; teardown: RunnerHook[] } = {
+  setup: [],
+  teardown: [],
+}
+
+export const configureSuite: ConfigureOptions['configureSuite'] = (suite) => {
+  if (suite.name === 'functional') {
+    return suite.setup(() => testUtils.httpServer().start())
+  }
+}
+```
+
+The bootstrap module **exports** `plugins`, `runnerHooks` and `configureSuite`;
+it never calls `configure()` itself. helix imports it and configures each run
+with those exports and the name of the suite being run — a `configure()` called
+inside the file would run at import time, before any suite exists, so
+`functional` would never start its server. `ream new` writes this file.
+
+Only the `functional` suite starts a server, and `ctx.client` carries a
+`TestClient` pointed at it:
+
+```ts
+test('health', async ({ client }) => {
+  await client.get('/health').assertOk()
+})
+```
+
+`ream test` reads its suites from the rc file through the same package
+(`@c9up/helix-plugin-ream/runner`).
+
+`@c9up/helix-plugin-ream` joins the framework to its test runner. Ream knows nothing about [Helix](/en/guides/testing/introduction), Helix knows nothing about Ream: the package that joins them lives here and declares both sides as peers.
+
+That is what lets Helix's CI go green without publishing Ream, and the other way round. Each keeps its own release cycle.
+
+## Install
+
+```sh
+pnpm add -D @c9up/helix-plugin-ream @c9up/helix
+```
+
+## Inject a test client
+
+The bootstrap module **exports** `plugins`, `runnerHooks` and `configureSuite`;
+it never calls `configure()` itself. helix imports it and configures each run
+with those exports and the name of the suite being run — a `configure()` called
+inside the file would run at import time, before any suite exists, so the suite
+hook would never see `functional`. `ream new` writes this file:
+
+```ts
+// tests/bootstrap.ts
+import type { ConfigureOptions, Plugin, RunnerHook } from '@c9up/helix'
+import { apiClient } from '@c9up/helix-plugin-ream'
+import { createTestUtils } from '@c9up/ream/testing/utils'
+
+export const testUtils = createTestUtils((port) => bootApp(port))
+
+export const plugins: Plugin[] = [apiClient({ testUtils })]
+
+export const runnerHooks: { setup: RunnerHook[]; teardown: RunnerHook[] } = {
+  setup: [],
+  teardown: [],
+}
+
+export const configureSuite: ConfigureOptions['configureSuite'] = (suite) => {
+  if (suite.name === 'functional') {
+    return suite.setup(() => testUtils.httpServer().start())
+  }
+}
+```
+
+```ts
+test('health', async ({ client }) => {
+  await client.get('/health').assertOk()
+})
+```
+
+With `testUtils`, the suite hook owns the server: the plugin reads the client of
+the server that hook started, so both point at one server, and a unit suite that
+declares no hook starts no server and pays nothing. The hook's own teardown
+closes it.
+
+Each test gets its own `ctx.client` over that one server: a header a test sets
+with `withHeader()` — an `authorization` it logs in with — ends with the test
+and never reaches the next. `testClient()` returns the running test's client,
+and outside a test the client of the server itself, for a fixture or a runner
+hook.
+
+### Let the client boot the app
+
+For a project whose suites are not split yet, `boot` lets the client own its
+server instead:
+
+```ts
+export const plugins: Plugin[] = [apiClient({ boot: (port) => bootApp(port) })]
+```
+
+The server starts on the client's **first request**, so a test file that issues
+none pays nothing, and it closes through `api.cleanup` when the run ends.
+Prefer `testUtils`.
+
+## Run the suites declared in the rc file
+
+```ts
+import { runTestsFromRcFile } from '@c9up/helix-plugin-ream/runner'
+```
+
+This is what `ream test` calls.
+
+Options are overrides on top of the rc file: `suites`, `threads`, `reporters`,
+`bail`, `passWithNoTests`, and `coverage` — the last one handed to Helix
+untouched, since coverage is the runner's.
+
+The flags of `ream test` arrive as the rest of the options, and each one
+narrows or tunes the run:
+
+| Option | `ream test` flag | Effect |
+| --- | --- | --- |
+| `filters.files` | `--files` | Keep the matching test files (`user`, `unit/*`, a path suffix) |
+| `filters.tags` | `--tags` | Keep tests carrying a tag; `~@tag` excludes |
+| `filters.groups` | `--groups` | Keep tests of the named groups |
+| `filters.tests` | `--tests` | Keep tests with these exact titles, commas included |
+| `timeout` | `--timeout` | Timeout for every test, beating the suite's and the rc file's |
+| `retries` | `--retries` | Extra attempts for every test of a suite that declares none |
+| `failed` | `--failed` | Run only the tests that failed last time |
+| `watch`, `poll`, `clear` | `--watch`, `--poll`, `--no-clear` | Re-run on a change; poll instead of file-system events; keep the previous output instead of clearing the screen |
+
+A file filter that leaves a named suite empty is not an error; a run left
+with no file at all still exits 1.
+
+`NODE_ENV=test` is set and the `.env` files are loaded (`.env.test` over
+`.env`) before the rc file is imported. A run that finds no test file exits 1,
+and so does a suite named in `suites` that matches nothing, unless
+`passWithNoTests` is set. The rc file's `tests.timeout` is the default a
+plugin's `configure({ timeout })` can override; a suite's own `timeout` beats
+both.
+
+```ts
+await runTestsFromRcFile('./reamrc.ts', {
+  suites: ['unit'],
+  coverage: { enabled: true, include: ['app/**/*.ts'], thresholds: { lines: 80 } },
+})
+```
+
+## What stays in Ream
+
+`TestClient`, `createTestClient`, `RequestBuilder` and `ApiResponse` live in `@c9up/ream/testing`. They drive a Ream server over HTTP and owe nothing to the runner, so they need no plugin, and a project testing with something else uses them as they are.

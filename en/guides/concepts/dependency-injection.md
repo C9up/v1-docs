@@ -1,0 +1,455 @@
+# Dependency injection
+
+This guide covers the IoC container:
+
+- Auto-construction with `make()`
+- Explicit bindings
+- `@Service()` — singleton by default
+- `@inject()` — transient controllers
+- `@Inject(token)` — named parameter injection
+- `@Lazy()` — breaking circular dependencies
+- `Container.call()` — method injection
+- `static containerInjections` — without `emitDecoratorMetadata`
+- Conditional bindings — `container.if()`
+- Observing resolutions — `useEmitter()`
+- Testing — `swap()` and `restore()`
+- Scopes reference
+- Complete controller + service example
+- Recommended pattern
+- Best practices
+- IoC container
+
+The IoC (Inversion of Control) container is the backbone of a Ream application. It auto-constructs classes, manages dependency lifetimes, and provides a testing seam via swaps.
+
+## Auto-construction with `make()`
+
+The primary entry point is `container.make(Class)`. Pass any class — decorated or plain — and the container constructs it, resolving every constructor parameter automatically.
+
+```typescript
+import { Container } from '@c9up/ream'
+
+const container = new Container()
+
+class UserService {
+  findAll() {
+    return [{ id: 1, name: 'Alice' }]
+  }
+}
+
+// No registration needed — the container auto-constructs it
+const service = await container.make(UserService)
+```
+
+`make()` and `resolve()` are **async** — they return `Promise<T>` and must be `await`ed. Forgetting the `await` hands you a pending `Promise`, not the instance, and the next method call fails with `X is not a function`. Pass a type argument — `make<T>()` — instead of casting the result with `as T`.
+
+`make()` is an alias for `resolve()`. Both are interchangeable.
+
+## Explicit bindings
+
+Use explicit bindings when you need to control how an instance is created — for example, to pass config values from a provider.
+
+### `singleton(token, factory)`
+
+The factory runs once. Every subsequent call returns the same cached instance. The factory receives a `resolver` and may be `async` — the container `await`s it. When a factory resolves another binding, make it `async` and `await` the nested `make()`.
+
+```typescript
+container.singleton('db', () => {
+  return new DatabaseManager(config.get('database'))
+})
+
+// A factory that depends on another binding must be async and await it:
+container.singleton('reporting', async (resolver) => {
+  const db = await resolver.make('db')
+  return new ReportingService(db)
+})
+
+const db1 = await container.make('db')
+const db2 = await container.make('db')
+// db1 === db2
+```
+
+### `bind(token, factory)`
+
+The factory runs on every resolution, producing a fresh instance each time (transient scope).
+
+```typescript
+container.bind('requestLogger', () => {
+  return new Logger()
+})
+
+const logger1 = await container.make('requestLogger')
+const logger2 = await container.make('requestLogger')
+// logger1 !== logger2
+```
+
+### `bindValue(token, value)`
+
+Registers a pre-existing value. Stored immediately as a singleton — no factory involved.
+
+```typescript
+const pool = await createConnectionPool(config)
+container.bindValue('pool', pool)
+
+// Anywhere later:
+const p = await container.make('pool') // the exact same pool object
+```
+
+## `@Service()` — singleton by default
+
+Decorate a class with `@Service()` so the container can discover and auto-resolve it. The default scope is `singleton`.
+
+```typescript
+import { Service } from '@c9up/ream'
+
+@Service()
+export class UserRepository {
+  findAll() {
+    return db.query('SELECT * FROM users')
+  }
+}
+```
+
+The container resolves `UserRepository` by class reference:
+
+```typescript
+const repo = await container.make(UserRepository)
+```
+
+Override the scope or register under a custom string token with `as`:
+
+```typescript
+@Service({ scope: 'transient' })
+export class RequestContext { /* ... */ }
+
+@Service({ as: 'PaymentGateway' })
+export class StripeGateway implements PaymentGateway { /* ... */ }
+```
+
+## `@inject()` — transient controllers
+
+`@inject()` is shorthand for `@Service({ scope: 'transient' })`. Use it on controllers so the container builds a fresh instance per request, injecting constructor dependencies automatically.
+
+```typescript
+import { inject } from '@c9up/ream'
+import type { HttpContext } from '@c9up/ream'
+import { UserService } from '../services/UserService.js'
+
+@inject()
+export default class UsersController {
+  constructor(protected userService: UserService) {}
+
+  async index({ response }: HttpContext) {
+    response.json({ data: this.userService.findAll() })
+  }
+}
+```
+
+`UserService` itself should be decorated with `@Service()` so the container knows how to build it:
+
+```typescript
+import { Service } from '@c9up/ream'
+
+@Service()
+export class UserService {
+  findAll() {
+    return [{ id: 1, name: 'Alice' }]
+  }
+}
+```
+
+## `@Inject(token)` — named parameter injection
+
+When a constructor parameter is an interface (no runtime representation), use `@Inject(token)` to tell the container which named binding to resolve for that position.
+
+```typescript
+import { Service, Inject } from '@c9up/ream'
+
+interface PaymentGateway {
+  charge(amount: number): Promise<void>
+}
+
+// Register the implementation under a string token
+container.singleton('PaymentGateway', () => new StripeGateway())
+
+@Service()
+export class OrderService {
+  constructor(
+    @Inject('PaymentGateway') private payment: PaymentGateway,
+  ) {}
+
+  async placeOrder(amount: number) {
+    await this.payment.charge(amount)
+  }
+}
+```
+
+## `@Lazy()` — breaking circular dependencies
+
+When two services depend on each other, the container throws a `E_CIRCULAR_DEPENDENCY` error. Use `@Lazy()` on one constructor parameter to defer resolution until first use.
+
+```typescript
+import { Service, Lazy } from '@c9up/ream'
+
+@Service()
+class OrderService {
+  constructor(
+    @Lazy() private paymentService: PaymentService,
+  ) {}
+
+  processOrder() {
+    // paymentService is resolved here on first access, not at construction time
+    this.paymentService.charge(100)
+  }
+}
+
+@Service()
+class PaymentService {
+  constructor(
+    @Lazy() private orderService: OrderService,
+  ) {}
+
+  refund(orderId: string) {
+    return this.orderService.findById(orderId)
+  }
+}
+```
+
+`@Lazy()` wraps the dependency in a `Proxy`. The real instance is not resolved until a property or method on the proxy is accessed. Once resolved, the instance is cached.
+
+| Approach | Use case |
+|---|---|
+| `@Lazy()` | Two services that legitimately need each other |
+| Restructure the graph | Preferred when one direction of the dependency can be removed |
+| Events | Full decoupling across module boundaries |
+
+## `Container.call()` — method injection
+
+`container.call(instance, 'methodName')` resolves the method's parameter types and invokes it with injected arguments. Useful for middleware, command handlers, or route handlers where you do not control construction.
+
+```typescript
+import { Container } from '@c9up/ream'
+
+class ReportHandler {
+  async handle(reportService: ReportService, mailer: MailService) {
+    const report = await reportService.generate()
+    await mailer.send('admin@example.com', report)
+  }
+}
+
+const handler = new ReportHandler()
+await container.call(handler, 'handle')
+// ReportService and MailService are resolved automatically
+```
+
+Pass extra runtime values that take precedence over injected ones:
+
+```typescript
+await container.call(handler, 'handle', [mySpecificReportService])
+// position 0 uses mySpecificReportService; position 1 is still injected
+```
+
+TypeScript only emits a method's parameter types when the method carries a decorator, so put `@inject()` on the method itself — a controller action, a command's `run()`, a listener's `handle()` — to inject a service there without widening the constructor:
+
+```typescript
+export default class UsersController {
+  @inject()
+  async index(ctx: HttpContext, users: UserService) {
+    return users.findAll()
+  }
+}
+```
+
+The runtime values (`ctx` here) fill the first slots; every slot left open is resolved by its type. `@inject()` on a method does not register the class.
+
+## `static containerInjections` — without `emitDecoratorMetadata`
+
+Runtimes that do not emit TypeScript decorator metadata (Bun native, esbuild without the plugin, some ESM environments) cannot use `Reflect.getMetadata('design:paramtypes', ...)`. Declare a static `containerInjections` property as a fallback — the container reads it with priority.
+
+```typescript
+import { inject } from '@c9up/ream'
+import { UserService } from '../services/UserService.js'
+
+@inject()
+export default class UsersController {
+  static containerInjections = {
+    _constructor: {
+      dependencies: [UserService],
+    },
+  }
+
+  constructor(protected userService: UserService) {}
+
+  async index({ response }: HttpContext) {
+    response.json({ data: this.userService.findAll() })
+  }
+}
+```
+
+The shape must match `{ _constructor: { dependencies: ServiceToken[] } }`. This convention works in any runtime.
+
+A method's dependencies take the same shape under the method's name — `{ handle: { dependencies: [String, UserService] } }` — and `container.call()` reads them.
+
+## Conditional bindings — `container.if()`
+
+A binding chosen per resolution by a predicate: a feature flag, a per-tenant implementation. The conditions are tried in registration order and the first that holds answers; when none does, the regular binding (or the class itself) does.
+
+```typescript
+container.bind(PaymentGateway, () => new StripeGateway())
+container.if((resolver, runtimeValues, parent) => flags.beta).bind(PaymentGateway, () => new BetaGateway())
+container.if(() => tenant.isLegacy).singleton(PaymentGateway, () => new LegacyGateway())
+```
+
+The condition receives the resolver, the runtime values given to `make()` (a class's own dependencies get none) and the class asking (`null` for a direct `make()`); it may be async. A conditional `singleton` keeps one instance per branch — except one built from a request-scoped value, which stays that request's. `container.conditionalBinding(condition, token, factory, isSingleton)` is the same in one call. A swap still wins over it.
+
+## Observing resolutions — `useEmitter()`
+
+```typescript
+container.useEmitter(emitter) // or new Container({ emitter })
+emitter.on('container_binding:resolved', ({ binding, value }) => { /* … */ })
+```
+
+Every resolution emits `container_binding:resolved` with the binding and the value — what a profiler or telemetry panel lists a request's services from. A throwing or rejecting emitter never fails the resolution it reports on.
+
+## Testing — `swap()` and `restore()`
+
+`container.swap(token, factory)` replaces a binding for the duration of a test. The cached singleton is cleared so the fake factory runs fresh.
+
+```typescript
+import { beforeEach, afterEach, test } from '@c9up/helix'
+import app from '@c9up/ream/services/app'
+
+beforeEach(() => {
+  app.container.swap('PaymentGateway', () => ({
+    charge: async () => { /* no-op */ },
+  }))
+})
+
+afterEach(() => {
+  app.container.restore('PaymentGateway')
+})
+
+test('places an order without real payment', async () => {
+  const orders = await app.container.make(OrderService)
+  await orders.placeOrder(100)
+  // assert side-effects without hitting Stripe
+})
+```
+
+Calling `app.container.restore()` with no argument clears all active swaps at once.
+
+## Scopes reference
+
+| Scope | Lifetime | Decorator |
+|---|---|---|
+| `singleton` | One instance for the process | `@Service()` (default) |
+| `transient` | New instance per `make()` call | `@Service({ scope: 'transient' })` or `@inject()` |
+
+## Complete controller + service example
+
+```typescript
+// app/services/UserService.ts
+import { Service } from '@c9up/ream'
+
+@Service()
+export class UserService {
+  findAll() {
+    return [
+      { id: 1, name: 'Alice' },
+      { id: 2, name: 'Bob' },
+    ]
+  }
+
+  findById(id: number) {
+    return this.findAll().find(u => u.id === id) ?? null
+  }
+}
+```
+
+```typescript
+// app/controllers/UsersController.ts
+import { inject } from '@c9up/ream'
+import type { HttpContext } from '@c9up/ream'
+import { UserService } from '../services/UserService.js'
+
+@inject()
+export default class UsersController {
+  constructor(protected userService: UserService) {}
+
+  async index({ response }: HttpContext) {
+    response.json({ data: this.userService.findAll() })
+  }
+
+  async show({ params, response }: HttpContext) {
+    const user = this.userService.findById(Number(params.id))
+    if (!user) return response.status(404).json({ error: 'Not found' })
+    response.json({ data: user })
+  }
+}
+```
+
+```typescript
+// start/routes.ts
+import router from '@c9up/ream/services/router'
+import UsersController from '../app/controllers/UsersController.js'
+
+router.get('/users', [UsersController, 'index'])
+router.get('/users/:id', [UsersController, 'show'])
+```
+
+The container auto-resolves `UserService` from the `UsersController` constructor because `UserService` is decorated with `@Service()` and `UsersController` is decorated with `@inject()`.
+
+The container is the core injection backbone.
+
+## Recommended pattern
+
+```ts
+import { Provider } from '@c9up/ream'
+import { CacheManager, MemoryDriver } from '@c9up/echo'
+
+export default class AppProvider extends Provider {
+  register() {
+    this.app.container.singleton('cache', () => new CacheManager(new MemoryDriver()))
+  }
+}
+```
+
+Resolving is asynchronous: `container.make()` and `container.resolve()` return a `Promise<T>` and must be awaited. Prefer the `make<T>()` generic over an `as` cast:
+
+```ts
+const cache = await this.app.container.make<CacheManager>('cache')
+```
+
+When a factory depends on another binding, make it `async` and await the `resolver` the container passes in:
+
+```ts
+this.app.container.singleton('cache', async (resolver) => {
+  const driver = await resolver.make<MemoryDriver>('driver')
+  return new CacheManager(driver)
+})
+```
+
+## Best practices
+
+- use stable tokens (`db`, `cache`, `bus`)
+- centralize bindings in providers
+- avoid irreversible side effects in factories
+- in tests, prefer suite-scoped overrides
+
+## IoC container
+
+The container is used to:
+
+- register singletons/services,
+- resolve class dependencies,
+- swap implementations (tests/env).
+
+Best practices:
+
+- bind via stable tokens (`'cache'`, `'db'`, `'bus'`),
+- keep factory side effects minimal,
+- centralize bindings in providers.
+
+## Next steps
+- [Providers](/en/guides/concepts/providers) — Register bindings during the boot phase
+- [Lifecycle](/en/guides/concepts/lifecycle) — Understand when the container is available
+- [Routing](/en/guides/basics/routing) — Wire controllers to HTTP routes

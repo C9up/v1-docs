@@ -122,7 +122,7 @@ DataTable<Member>({
 
 `rows` takes an accessor. New rows keep the sort and the filter; by default they also send the table back to the first page, since the page was chosen in data that is gone. `autoResetPage: false` keeps the page for rows refreshed in place, like this polled list. An accessor must return the same array until the data changes — a fresh array on every read counts as new data every time.
 
-Rows are kept by `rowKey`, through aurora's [`each`](/en/modules/aurora#lists-—-each). A row whose key is still there keeps its element, along with an open menu, the focus or the hover inside it, and moves when the sort or the page changes its place. Its cells are redrawn when its element is a different object; a re-read that returns the same objects redraws nothing.
+Rows are kept by `rowKey`, through aurora's [`each`](/en/guides/frontend/aurora/signals#lists-—-each). A row whose key is still there keeps its element, along with an open menu, the focus or the hover inside it, and moves when the sort or the page changes its place. Its cells are redrawn when its element is a different object; a re-read that returns the same objects redraws nothing.
 
 ### In another language
 

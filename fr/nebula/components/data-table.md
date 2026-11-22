@@ -122,7 +122,7 @@ DataTable<Member>({
 
 `rows` prend un accesseur. De nouvelles lignes gardent le tri et le filtre ; par défaut, elles ramènent aussi le tableau à la première page, puisque la page avait été choisie dans des données disparues. `autoResetPage: false` garde la page pour des lignes rafraîchies sur place, comme cette liste interrogée à intervalles. Un accesseur doit rendre le même tableau tant que les données ne changent pas — un tableau neuf à chaque lecture compte à chaque fois comme de nouvelles données.
 
-Les lignes sont gardées par `rowKey`, avec le [`each`](/fr/modules/aurora#listes-—-each) d'aurora. Une ligne dont la clé est toujours là garde son élément, et avec lui un menu ouvert, le focus ou le survol qu'il contient ; elle se déplace quand le tri ou la page change sa place. Ses cellules sont redessinées quand son élément est un autre objet ; une relecture qui rend les mêmes objets ne redessine rien.
+Les lignes sont gardées par `rowKey`, avec le [`each`](/fr/guides/frontend/aurora/signals#listes-—-each) d'aurora. Une ligne dont la clé est toujours là garde son élément, et avec lui un menu ouvert, le focus ou le survol qu'il contient ; elle se déplace quand le tri ou la page change sa place. Ses cellules sont redessinées quand son élément est un autre objet ; une relecture qui rend les mêmes objets ne redessine rien.
 
 ### Dans une autre langue
 

@@ -1,11 +1,11 @@
 # Nebula — the component set
 
-`@c9up/nebula` ports the shadcn/ui set onto [Aurora](/en/modules/aurora), organised as atomic design: the same markup, the same classes, the same behaviour, written for a runtime with no build step.
+`@c9up/nebula` ports the shadcn/ui set onto [Aurora](/en/guides/frontend/aurora/), organised as atomic design: the same markup, the same classes, the same behaviour, written for a runtime with no build step.
 
 A nebula is the matter stars are born from — this one is the matter interfaces are born from. Seventy-six components across four layers, plus the headless behaviour layer Radix would otherwise provide.
 
 ::: warning Not to be confused
-The cache package was called Nebula for a while before it became [Echo](/en/modules/echo). That name now means this package, and nothing else.
+The cache package was called Nebula for a while before it became [Echo](/en/guides/digging-deeper/cache). That name now means this package, and nothing else.
 :::
 
 ## Two ways to use it
