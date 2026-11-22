@@ -195,7 +195,7 @@ Pass constraints directly to `request.file()` to validate as you read:
 const avatar = request.file('avatar', { size: '2mb', extnames: ['jpg', 'png'] })
 ```
 
-`extnames` is validated against the magic-byte-DETECTED type, not the client filename. A binary renamed `evil.png` is therefore caught — detection uses the [`file-type`](https://github.com/sindresorhus/file-type) library.
+`extnames` is validated against the magic-byte-DETECTED type, not the client filename. A binary renamed `evil.png` is therefore caught. Ream reads the signature itself, with no dependency: it recognises the same formats, under the same extensions and MIME types, as the [`file-type`](https://github.com/sindresorhus/file-type) library — images, audio and video containers, PDF, Office and OpenDocument files, archives, fonts and executables.
 
 The canonical controller guard checks all three failure modes:
 
