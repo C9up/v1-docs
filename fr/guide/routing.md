@@ -412,79 +412,18 @@ router.get('/special', [SpecialController, 'index']).use(async (ctx, next) => {
 ## WebSockets
 
 `router.ws()` déclare une route qui accepte des connexions WebSocket. C'est une
-route GET comme une autre — elle prend `.as()`, `.use()`, `.middleware()`, les
-groupes et les préfixes — et son handler reçoit le contexte avec un `socket` :
+route GET comme une autre — groupes, préfixes, noms et middlewares s'appliquent
+— et les middlewares et les gardes s'exécutent sur la poignée de main, avant
+qu'aucun socket ne s'ouvre :
 
 ```typescript
-router.ws('/chat/:room', ({ socket, params, auth }) => {
-  socket.send(JSON.stringify({ joined: params.room }))
-  socket.on('message', (data, isBinary) => {
-    // data : une chaîne pour un message texte, un Uint8Array pour un binaire
-  })
-  socket.on('close', (code, reason) => {})
+router.ws('/chat/:room', ({ socket, params }) => {
+  socket.on('message', (data) => socket.send(data))
 }).use(middleware.auth())
 ```
 
-Les middlewares et les gardes s'exécutent sur la **poignée de main**, avant
-qu'aucun socket n'existe : un client que le middleware d'auth refuse reçoit son
-`401` en HTTP ordinaire et n'obtient jamais de connexion ouverte. C'est seulement
-quand le handler est atteint que la requête reçoit `101 Switching Protocols`. Un
-simple GET sur le même chemin reçoit `426` avec `Upgrade: websocket` ; un handler
-qui lève une erreur répond comme toute autre route, et aucun socket ne s'ouvre.
-
-Un chemin peut porter à la fois une route GET et une route WebSocket : la
-poignée de main va à `router.ws()`, un GET ordinaire à `router.get()`, quel que
-soit l'ordre de déclaration. Un hub SignalR s'en sert : son flux Server-Sent
-Events et son socket partagent l'URL. Deux routes WebSocket sur un même chemin
-sont refusées (`E_DUPLICATE_ROUTE`), comme deux routes GET.
-
-`server.supportsWebSockets()` (depuis `@c9up/ream/services/server`) dit si le
-serveur sous l'application accepte des connexions WebSocket : `true` dès que le
-serveur natif de ream écoute, `false` avant son démarrage, après son arrêt, et
-sur un hôte sans les primitives WebSocket. Un paquet le demande avant de proposer
-un transport WebSocket.
-
-Branche les écouteurs dans le handler : des messages peuvent arriver dès que la
-poignée de main est finie, et un message sans écouteur `message` est perdu.
-
-| Sur `socket` | |
-|---|---|
-| `send(data)` | Une chaîne part en texte, un `Uint8Array` en binaire. `false` quand le socket se ferme, ou quand le message ferait passer l'arriéré du client au-delà de `maxBufferedBytes` — la connexion est alors fermée avec `1013` plutôt que de mettre en mémoire pour un client qui ne lit pas. |
-| `close(code?, reason?)` | Ferme une fois écrit ce qui est en file. `code` vaut `1000` (défaut), `1001`–`1014` ou `3000`–`4999` ; `reason` fait au plus 123 octets. |
-| `on('message' \| 'close', listener)`, `off(...)` | Un écouteur qui lève une erreur est signalé, jamais autorisé à faire tomber le process. |
-| `closed` | Une promesse de `{ code, reason }` : le code de fermeture du client, celui du serveur, ou `1006` quand la connexion a coupé. |
-| `bufferedAmount`, `readyState` | Octets en attente pour le client ; `open`, `closing` ou `closed`. |
-| `acceptProtocol(name)`, `protocol`, `offeredProtocols` | Choisir, dans le handler, un des sous-protocoles proposés par le client (`Sec-WebSocket-Protocol`). |
-
-Avant que ton code ne tourne, le serveur refuse de lui-même une poignée de main
-mal formée (`400`), une version de WebSocket autre que 13 (`426`) et un `Origin`
-de navigateur qu'il n'autorise pas (`403`). Un navigateur envoie les cookies du
-site avec une poignée de main WebSocket depuis n'importe quelle page, et les
-WebSockets ne sont pas couverts par la politique de même origine : par défaut,
-seule l'origine de la requête elle-même est acceptée. Les autres origines se
-listent dans `config/app.ts`, avec les limites des connexions (voir
-[Configuration](/fr/guide/configuration)).
-
-Le WebSocket sur HTTP/2 (RFC 8441) n'est pas proposé : les navigateurs ouvrent
-leurs WebSockets en HTTP/1.1. La compression `permessage-deflate` n'est pas
-négociée.
-
-### Tester une route WebSocket
-
-`TestClient.ws()` ouvre un socket sur l'application démarrée, avec les en-têtes
-par défaut du client. Les messages attendent qu'un test les lise ; une poignée
-de main refusée rejette avec `WebSocketRefused`, qui porte le statut.
-
-```typescript
-import { WebSocketRefused } from '@c9up/ream/testing'
-
-const socket = await client.ws('/chat/general', { headers: { cookie } })
-socket.send('hi')
-expect(await socket.next()).toBe('hi')
-socket.close()
-
-await expect(client.ws('/chat/general')).rejects.toBeInstanceOf(WebSocketRefused)
-```
+Le socket, ses limites, les origines et les tests sont dans
+[WebSockets](/fr/guide/websockets).
 
 ## Raccourcis de route
 

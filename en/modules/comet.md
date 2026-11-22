@@ -77,7 +77,8 @@ unaffected. When a `parse` threw, what it threw is on `error.cause` (not on
 `createWebSocketTransport()` (from `@c9up/comet` or `@c9up/comet/websocket`) is
 a transport that keeps **one socket per endpoint URL** and sends every request,
 notification and batch the client makes there over it. It runs on the platform
-`WebSocket`: the browser's, or Node's global one (Node 24 and later).
+`WebSocket`: the browser's, or Node's global one (Node 24 and later). The
+server side is a ream [WebSocket route](/en/guide/websockets).
 
 ```ts
 import { createRpcClient, createWebSocketTransport } from "@c9up/comet";

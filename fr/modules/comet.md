@@ -79,7 +79,7 @@ pas touchés. Quand c'est un `parse` qui a levé, ce qu'il a levé est sur
 est un transport qui garde **un socket par URL d'endpoint** et y envoie chaque
 requête, notification et batch du client. Il s'appuie sur le `WebSocket` de la
 plateforme : celui du navigateur, ou celui que Node fournit en global (Node 24 et
-plus).
+plus). Côté serveur, c'est une [route WebSocket](/fr/guide/websockets) de ream.
 
 ```ts
 import { createRpcClient, createWebSocketTransport } from "@c9up/comet";

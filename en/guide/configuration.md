@@ -78,7 +78,7 @@ closed after `headersTimeout`; a body that trickles in slower than
 `requestTimeout` is answered `408 E_HTTP_REQUEST_TIMEOUT`. A WebSocket
 connection counts toward `maxConnections` for as long as it is open; the
 `webSocket` values above are its defaults (see
-[WebSockets](/en/guide/routing#websockets)).
+[WebSockets](/en/guide/websockets)).
 
 Request bodies are also limited at the socket, with the limits of
 `config/bodyparser.ts` (see [File uploads](/en/guide/file-uploads)): nothing

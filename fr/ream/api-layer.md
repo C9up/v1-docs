@@ -115,7 +115,8 @@ message binaire reçoit `-32700 Parse error`.
   d'un batch tournent dans l'ordre et reviennent en une seule réponse. Un
   client qui laisse plus de `maxQueued` messages (256) en attente est fermé
   avec `1013`. La taille d'un message est la limite `http.webSocket.maxMessageSize`
-  du serveur (1 Mio par défaut).
+  du serveur (1 Mio par défaut ; voir
+  [WebSockets](/fr/guide/websockets#limites)).
 
 Un client : `createWebSocketTransport` de [`@c9up/comet`](/fr/modules/comet).
 

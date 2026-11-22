@@ -108,7 +108,8 @@ but notifications, gets no reply; a binary message gets `-32700 Parse error`.
   JSON-RPC matches them by `id`. The calls of one batch run in order and come
   back as one reply. A client that keeps more than `maxQueued` messages (256)
   waiting is closed with `1013`. The size of one message is the server's
-  `http.webSocket.maxMessageSize` (1 MiB by default).
+  `http.webSocket.maxMessageSize` (1 MiB by default; see
+  [WebSockets](/en/guide/websockets#limits)).
 
 A client: [`@c9up/comet`](/en/modules/comet)'s `createWebSocketTransport`.
 

@@ -393,7 +393,7 @@ une poignée de main WebSocket à la route WebSocket et un GET ordinaire au flux
 
 Le socket transporte les trames texte du protocole JSON ; un message binaire est
 refusé avec le code de fermeture `1003`. Les limites de ream s'y appliquent
-(`config/app.ts` → `http.webSocket`), et celle de SignalR (`maxFrameSize`,
+(`config/app.ts` → `http.webSocket`, voir [WebSockets](/fr/guide/websockets#limites)), et celle de SignalR (`maxFrameSize`,
 64 Kio) à l'intérieur. À l'arrêt, chaque socket est fermé avec `1001`.
 
 Le customizer passé à `registerRoutes()` s'applique à toutes les routes d'un

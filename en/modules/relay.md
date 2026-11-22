@@ -377,7 +377,7 @@ WebSocket handshake to the WebSocket route and a plain GET to the stream.
 
 The socket carries the JSON protocol's text frames; a binary message is
 refused with close code `1003`. ream's limits apply to it (`config/app.ts` →
-`http.webSocket`), and SignalR's own frame limit (`maxFrameSize`, 64 KiB)
+`http.webSocket`, see [WebSockets](/en/guide/websockets#limits)), and SignalR's own frame limit (`maxFrameSize`, 64 KiB)
 inside them. On shutdown every socket is closed with `1001`.
 
 The route customizer passed to `registerRoutes()` applies to every hub route,

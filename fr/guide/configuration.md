@@ -119,7 +119,7 @@ en-têtes est fermé au bout de `headersTimeout` ; un corps qui arrive plus
 lentement que `requestTimeout` reçoit `408 E_HTTP_REQUEST_TIMEOUT`. Une
 connexion WebSocket compte dans `maxConnections` tant qu'elle est ouverte ; les
 valeurs `webSocket` ci-dessus sont ses défauts (voir
-[WebSockets](/fr/guide/routing#websockets)).
+[WebSockets](/fr/guide/websockets)).
 
 Les corps de requête sont aussi limités au niveau du socket, avec les limites de
 `config/bodyparser.ts` (voir [Envoi de fichiers](/fr/guide/file-uploads)) : rien
