@@ -62,13 +62,23 @@ export const http = {
   requestTimeout: 300_000,   // ms to receive its body once the headers are in → 408
   keepAliveTimeout: 5_000,   // ms an idle keep-alive connection stays open
   maxConnections: 10_000,    // concurrent connections; extra clients wait in the backlog
+  webSocket: {
+    maxMessageSize: '1mb',     // largest incoming message → closed 1009
+    maxFrameSize: '1mb',       // largest incoming frame → closed 1009
+    idleTimeout: 60_000,       // ms of silence: a ping at half, a close (1001) at the end; 0 never
+    maxBufferedBytes: '4mb',   // backlog for a client that reads slowly → closed 1013
+    allowedOrigins: [],        // browser origins besides the request's own; ['*'] for any
+  },
 }
 ```
 
 The values above are the defaults. `0` turns a bound off (`maxConnections: 0`
 means unbounded). A client that connects and never finishes its headers is
 closed after `headersTimeout`; a body that trickles in slower than
-`requestTimeout` is answered `408 E_HTTP_REQUEST_TIMEOUT`.
+`requestTimeout` is answered `408 E_HTTP_REQUEST_TIMEOUT`. A WebSocket
+connection counts toward `maxConnections` for as long as it is open; the
+`webSocket` values above are its defaults (see
+[WebSockets](/en/guide/routing#websockets)).
 
 Request bodies are also limited at the socket, with the limits of
 `config/bodyparser.ts` (see [File uploads](/en/guide/file-uploads)): nothing

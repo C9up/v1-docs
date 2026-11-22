@@ -103,13 +103,23 @@ export const http = {
   requestTimeout: 300_000,   // ms pour recevoir son corps une fois les en-têtes arrivés → 408
   keepAliveTimeout: 5_000,   // ms pendant lesquelles une connexion keep-alive inactive reste ouverte
   maxConnections: 10_000,    // connexions simultanées ; les clients en trop attendent dans la file
+  webSocket: {
+    maxMessageSize: '1mb',     // plus gros message entrant → fermé 1009
+    maxFrameSize: '1mb',       // plus grosse trame entrante → fermé 1009
+    idleTimeout: 60_000,       // ms de silence : un ping à la moitié, une fermeture (1001) au bout ; 0 jamais
+    maxBufferedBytes: '4mb',   // arriéré pour un client qui lit lentement → fermé 1013
+    allowedOrigins: [],        // origines de navigateur en plus de celle de la requête ; ['*'] pour toutes
+  },
 }
 ```
 
 Ces valeurs sont les défauts. `0` désactive une borne (`maxConnections: 0`
 veut dire sans limite). Un client qui se connecte sans jamais finir ses
 en-têtes est fermé au bout de `headersTimeout` ; un corps qui arrive plus
-lentement que `requestTimeout` reçoit `408 E_HTTP_REQUEST_TIMEOUT`.
+lentement que `requestTimeout` reçoit `408 E_HTTP_REQUEST_TIMEOUT`. Une
+connexion WebSocket compte dans `maxConnections` tant qu'elle est ouverte ; les
+valeurs `webSocket` ci-dessus sont ses défauts (voir
+[WebSockets](/fr/guide/routing#websockets)).
 
 Les corps de requête sont aussi limités au niveau du socket, avec les limites de
 `config/bodyparser.ts` (voir [Envoi de fichiers](/fr/guide/file-uploads)) : rien

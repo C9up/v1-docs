@@ -52,6 +52,24 @@ error's `status`.
 | `E_NO_VIEW_ENGINE` | — | `router.on(path).render()` was used and no template engine is installed. |
 | `E_VALIDATOR_NOT_FOUND` | — | A route names a validator that is not registered. |
 
+## WebSocket Errors
+
+| Code | HTTP | Description |
+|------|------|-------------|
+| `E_WEBSOCKET_UPGRADE_REQUIRED` | 426 | A plain request reached a WebSocket route. |
+| `E_WEBSOCKET_UNSUPPORTED` | 501 | A WebSocket route was reached on a server that cannot hold WebSockets. |
+| `E_WEBSOCKET_BAD_HANDSHAKE` | 400 | The handshake is not an HTTP/1.1 GET, lacks `Connection: upgrade`, or its `Sec-WebSocket-Key` is not 16 bytes. Answered by the server, before routing. |
+| `E_WEBSOCKET_VERSION` | 426 | A WebSocket version other than 13. Answered with `Sec-WebSocket-Version: 13`, before routing. |
+| `E_WEBSOCKET_ORIGIN` | 403 | A browser origin that `http.webSocket.allowedOrigins` does not allow (same origin by default). Answered before routing. |
+| `E_WEBSOCKET_PROTOCOL` | 500 | `socket.acceptProtocol()` named a subprotocol the client did not offer. |
+| `E_WEBSOCKET_NOT_REGISTERED` | 500 | A response was `101` without a registered socket. |
+| `E_WEBSOCKET_NOT_UPGRADE` | 500 | A `101` answered a request that was not a WebSocket handshake. |
+| `E_WEBSOCKET_REGISTER` | — | The native server refused a fresh socket id. |
+| `E_WEBSOCKET_CONTEXT` | — | A WebSocket route's handler ran without its socket (called outside the kernel). |
+| `E_WEBSOCKET_CLOSE_CODE` | — | `socket.close()` with a code a close frame may not carry (RFC 6455 §7.4). |
+| `E_WEBSOCKET_CLOSE_REASON` | — | A close reason over 123 bytes. |
+| `E_INVALID_WEBSOCKET_CONFIG` | — | A native WebSocket limit of 0 bytes. |
+
 ## Pipeline Errors
 
 | Code | HTTP | Description |

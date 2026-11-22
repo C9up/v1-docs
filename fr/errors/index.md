@@ -54,6 +54,24 @@ Une erreur HTTP répond `{ "error": { "code": "…", "message": "…" } }` avec 
 | `E_NO_VIEW_ENGINE` | — | `router.on(path).render()` est utilisé alors qu'aucun moteur de templates n'est installé. |
 | `E_VALIDATOR_NOT_FOUND` | — | Une route nomme un validateur qui n'est pas enregistré. |
 
+## Erreurs WebSocket
+
+| Code | HTTP | Description |
+|------|------|-------------|
+| `E_WEBSOCKET_UPGRADE_REQUIRED` | 426 | Une requête ordinaire a atteint une route WebSocket. |
+| `E_WEBSOCKET_UNSUPPORTED` | 501 | Une route WebSocket a été atteinte sur un serveur qui ne sait pas tenir de WebSocket. |
+| `E_WEBSOCKET_BAD_HANDSHAKE` | 400 | La poignée de main n'est pas un GET HTTP/1.1, n'a pas `Connection: upgrade`, ou sa `Sec-WebSocket-Key` ne fait pas 16 octets. Répondu par le serveur, avant le routage. |
+| `E_WEBSOCKET_VERSION` | 426 | Une version de WebSocket autre que 13. Répondu avec `Sec-WebSocket-Version: 13`, avant le routage. |
+| `E_WEBSOCKET_ORIGIN` | 403 | Une origine de navigateur que `http.webSocket.allowedOrigins` n'autorise pas (même origine par défaut). Répondu avant le routage. |
+| `E_WEBSOCKET_PROTOCOL` | 500 | `socket.acceptProtocol()` a nommé un sous-protocole que le client n'a pas proposé. |
+| `E_WEBSOCKET_NOT_REGISTERED` | 500 | Une réponse `101` sans socket enregistré. |
+| `E_WEBSOCKET_NOT_UPGRADE` | 500 | Un `101` en réponse à une requête qui n'était pas une poignée de main WebSocket. |
+| `E_WEBSOCKET_REGISTER` | — | Le serveur natif a refusé un nouvel identifiant de socket. |
+| `E_WEBSOCKET_CONTEXT` | — | Le handler d'une route WebSocket a tourné sans son socket (appelé hors du kernel). |
+| `E_WEBSOCKET_CLOSE_CODE` | — | `socket.close()` avec un code qu'une trame de fermeture ne peut pas porter (RFC 6455 §7.4). |
+| `E_WEBSOCKET_CLOSE_REASON` | — | Une raison de fermeture de plus de 123 octets. |
+| `E_INVALID_WEBSOCKET_CONFIG` | — | Une limite WebSocket native de 0 octet. |
+
 ## Erreurs Pipeline
 
 | Code | HTTP | Description |

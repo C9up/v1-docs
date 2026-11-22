@@ -403,6 +403,69 @@ router.get('/special', [SpecialController, 'index']).use(async (ctx, next) => {
 })
 ```
 
+## WebSockets
+
+`router.ws()` declares a route that accepts WebSocket connections. It is a GET
+route like any other — it takes `.as()`, `.use()`, `.middleware()`, groups and
+prefixes — and its handler receives the context with a `socket` on it:
+
+```typescript
+router.ws('/chat/:room', ({ socket, params, auth }) => {
+  socket.send(JSON.stringify({ joined: params.room }))
+  socket.on('message', (data, isBinary) => {
+    // data: a string for a text message, a Uint8Array for a binary one
+  })
+  socket.on('close', (code, reason) => {})
+}).use(middleware.auth())
+```
+
+The middleware and guards run on the **handshake**, before any socket exists:
+a client the auth middleware refuses gets its `401` as a plain HTTP answer and
+never an open connection. Only once the handler is reached is the request
+answered `101 Switching Protocols`. A plain GET to the same path is answered
+`426` with `Upgrade: websocket`; a handler that throws answers like any other
+route, and no socket opens.
+
+Attach the listeners in the handler: messages can arrive as soon as the
+handshake completes, and one with no `message` listener is dropped.
+
+| On `socket` | |
+|---|---|
+| `send(data)` | A string goes as text, a `Uint8Array` as binary. `false` when the socket is closing, or when the message would take the client's backlog past `maxBufferedBytes` — the connection is then closed with `1013` instead of buffering for a client that does not read. |
+| `close(code?, reason?)` | Closes once what is queued has been written. `code` is `1000` (default), `1001`–`1014`, or `3000`–`4999`; `reason` at most 123 bytes. |
+| `on('message' \| 'close', listener)`, `off(...)` | A listener that throws is reported, never allowed to take the process down. |
+| `closed` | A promise of `{ code, reason }`: the client's close code, the server's, or `1006` when the connection dropped. |
+| `bufferedAmount`, `readyState` | Bytes waiting for the client; `open`, `closing` or `closed`. |
+| `acceptProtocol(name)`, `protocol`, `offeredProtocols` | Choose one of the subprotocols the client offered (`Sec-WebSocket-Protocol`), in the handler. |
+
+Before your code runs, the server refuses on its own a malformed handshake
+(`400`), a WebSocket version other than 13 (`426`), and a browser `Origin` it
+does not allow (`403`). A browser sends the site's cookies with a WebSocket
+handshake from any page, and WebSockets are not covered by the same-origin
+policy: by default only the request's own origin is accepted. Other origins are
+listed in `config/app.ts`, with the connection limits (see
+[Configuration](/en/guide/configuration)).
+
+WebSocket over HTTP/2 (RFC 8441) is not offered: browsers open WebSockets over
+HTTP/1.1. `permessage-deflate` compression is not negotiated.
+
+### Testing a WebSocket route
+
+`TestClient.ws()` opens a socket on the booted application, with the client's
+default headers. Messages queue until a test reads them; a refused handshake
+rejects with `WebSocketRefused`, which carries the status.
+
+```typescript
+import { WebSocketRefused } from '@c9up/ream/testing'
+
+const socket = await client.ws('/chat/general', { headers: { cookie } })
+socket.send('hi')
+expect(await socket.next()).toBe('hi')
+socket.close()
+
+await expect(client.ws('/chat/general')).rejects.toBeInstanceOf(WebSocketRefused)
+```
+
 ## Route Shortcuts
 
 ```typescript
