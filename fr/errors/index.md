@@ -543,8 +543,6 @@ Les limites du moteur de mail sont refusées avant que le message soit analysé 
 | `E_GOLDSTONE_TOO_DEEP` | — | Les parties MIME sont imbriquées plus profond que permis. |
 | `E_GOLDSTONE_TOO_MANY_HEADERS` | — | Un message a plus de headers que permis. |
 | `E_GOLDSTONE_HEADERS_TOO_LARGE` | — | Les headers d'un message dépassent la limite de taille. |
-| `E_GOLDSTONE_MISSING_BOUNDARIES` | — | Un message multipart déclare des délimiteurs qui n'apparaissent jamais. |
-| `E_GOLDSTONE_BOUNDARY_TOO_LONG` | — | Un délimiteur multipart est plus long que permis. |
 | `E_GOLDSTONE_TOO_MANY_ATTACHMENTS` | — | Un message a plus de pièces jointes que permis. |
 | `E_GOLDSTONE_ATTACHMENT_TOO_LARGE` | — | Une pièce jointe dépasse la limite de taille. |
 | `E_GOLDSTONE_HTML_TOO_LARGE` | — | Un corps HTML dépasse la limite de taille. |
