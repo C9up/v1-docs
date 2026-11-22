@@ -113,9 +113,13 @@ reported back — and the `subscribe` / `unsubscribe` events fire on the holder,
 once applied, with the stream's context. A bus that refuses the relay answers
 `503 E_RELAY_BUS_UNAVAILABLE`.
 
-Hubs are different: a hub's tokens and groups live on the instance that opened
-the stream, so route a client's hub requests to one instance — sticky sessions
-on the hub paths — or run one instance for them.
+A hub connection lives on the instance that negotiated it — its token, and the
+groups it joined — so route a client's hub requests to one instance: sticky
+sessions on the hub paths, for the negotiate and then the socket (or the stream
+and its posts). What a hub sends crosses the bus: `ctx.group(name).send()` and
+`ctx.broadcast()` reach the members connected to every instance, each instance
+delivering to the ones it holds, as SignalR's Redis backplane does.
+`ctx.send()` answers the calling client, which is always local.
 
 ```ts
 import { defineConfig, transports } from '@c9up/relay'

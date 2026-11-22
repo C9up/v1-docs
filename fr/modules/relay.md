@@ -117,10 +117,14 @@ canaux) s'applique là-bas sans être renvoyé — et les événements `subscrib
 `unsubscribe` partent du détenteur, une fois appliqués, avec le contexte du flux.
 Un bus qui refuse le relais répond `503 E_RELAY_BUS_UNAVAILABLE`.
 
-Les hubs, eux, restent attachés : les tokens et les groupes d'un hub vivent sur
-l'instance qui a ouvert le flux, donc dirigez les requêtes de hub d'un client
-vers une seule instance — sessions collantes sur les chemins des hubs — ou
-faites-les servir par une seule instance.
+Une connexion de hub vit sur l'instance qui l'a négociée — son token et les
+groupes qu'elle a rejoints —, donc dirigez les requêtes de hub d'un client vers
+une seule instance : sessions collantes sur les chemins des hubs, pour la
+négociation puis le socket (ou le flux et ses POST). Ce qu'un hub envoie passe
+par le bus : `ctx.group(nom).send()` et `ctx.broadcast()` atteignent les membres
+connectés à chaque instance, chacune livrant ceux qu'elle tient, comme le
+backplane Redis de SignalR. `ctx.send()` répond au client qui appelle, toujours
+local.
 
 ```ts
 import { defineConfig, transports } from '@c9up/relay'
