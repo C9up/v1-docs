@@ -52,6 +52,9 @@ export default defineConfig({
   // and then throws at SSR render. Escape the braces in the rendered <code>
   // output: it displays literally and Vue never sees a `{{`.
   markdown: {
+    // Fences Shiki has no grammar under these names: inker templates are Edge
+    // syntax, `.env` files are dotenv. Otherwise they fall back to plain text.
+    languageAlias: { inker: 'edge', env: 'dotenv' },
     config(md) {
       const prev = md.renderer.rules.code_inline
       md.renderer.rules.code_inline = (tokens, idx, options, env, self) => {
@@ -222,6 +225,23 @@ export default defineConfig({
       lang: 'fr',
       link: '/fr/',
       themeConfig: {
+        // The default theme's own labels, which stay English unless translated.
+        outline: { label: 'Sur cette page' },
+        docFooter: { prev: 'Page précédente', next: 'Page suivante' },
+        sidebarMenuLabel: 'Menu',
+        returnToTopLabel: 'Retour en haut',
+        langMenuLabel: 'Changer de langue',
+        darkModeSwitchLabel: 'Apparence',
+        lightModeSwitchTitle: 'Passer au thème clair',
+        darkModeSwitchTitle: 'Passer au thème sombre',
+        skipToContentLabel: 'Aller au contenu',
+        notFound: {
+          title: 'PAGE INTROUVABLE',
+          quote: "Cette page n'existe pas, ou plus.",
+          linkLabel: "Aller à l'accueil",
+          linkText: "Retour à l'accueil",
+          link: '/fr/',
+        },
         nav: [
           { text: 'Guide', link: '/fr/guide/introduction' },
           { text: 'Modules', link: '/fr/modules/' },

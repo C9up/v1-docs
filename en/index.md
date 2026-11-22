@@ -1,8 +1,8 @@
 ---
 layout: home
 hero:
-  name: Ream
-  text: Rust-powered Node.js framework
+  name: REAM
+  text: Rust Engine, Agnostic Modules
   tagline: The comfort of a full-stack framework. The power of Rust. The freedom to choose.
   actions:
     - theme: brand

@@ -1,9 +1,9 @@
 ---
 layout: home
 hero:
-  name: Ream Docs
-  text: Choose your language
-  tagline: Documentation for the Ream ecosystem
+  name: REAM
+  text: Rust Engine, Agnostic Modules
+  tagline: Documentation — choose your language / choisis ta langue
   actions:
     - theme: brand
       text: English
