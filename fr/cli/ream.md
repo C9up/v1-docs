@@ -336,7 +336,7 @@ tourne, le `tsc` du projet compile (`node_modules/.bin`, jusqu'à la racine d'un
 workspace, puis `PATH` — jamais un téléchargement), puis le manifeste, le lockfile et ce que `metaFiles`
 désigne sont copiés à côté de la sortie. Cette dernière étape n'est pas du
 confort : `dist/reamrc.js` importe `#providers/AppProvider.js`, et Node résout
-un specifier `#` contre le `package.json` qui gouverne le fichier importateur —
+un spécifier `#` contre le `package.json` qui gouverne le fichier importateur —
 sans lui dans `dist/`, il remonte jusqu'à celui du projet, dont la map pointe
 sur les sources TypeScript.
 

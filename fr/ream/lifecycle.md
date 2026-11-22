@@ -1,6 +1,6 @@
 # Lifecycle Applicatif
 
-## Ordre d'execution
+## Ordre d'exécution
 
 1. `register`
 2. `boot`
@@ -18,4 +18,4 @@
 
 ## Recommandation
 
-Tester explicitement le shutdown (SIGTERM/SIGINT) pour verifier la fermeture des ressources longues.
+Tester explicitement le shutdown (SIGTERM/SIGINT) pour vérifier la fermeture des ressources longues.

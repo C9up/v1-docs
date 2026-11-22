@@ -1,6 +1,6 @@
 # Ream Core
 
-Cette section documente le noyau `@c9up/ream` en mode reference pratique.
+Cette section documente le noyau `@c9up/ream` en mode référence pratique.
 
 ## Parcours recommande
 
@@ -9,7 +9,7 @@ Cette section documente le noyau `@c9up/ream` en mode reference pratique.
 3. [Container IoC](/fr/ream/ioc-container)
 4. [HTTP kernel et routing](/fr/ream/http-kernel)
 5. [Erreurs et exception handling](/fr/ream/errors)
-6. [Securite et operations](/fr/ream/security-ops)
+6. [Sécurité et opérations](/fr/ream/security-ops)
 
 ## Positionnement
 

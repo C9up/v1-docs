@@ -3,10 +3,10 @@
 Statut : **Présent (architecture de manager, encore en évolution)**.
 
 - Package: `@c9up/rosetta`
-- Role: source i18n unique pour l'ecosysteme (`ream`, `rune`, etc.)
+- Role: source i18n unique pour l'écosystème (`ream`, `rune`, etc.)
 - Runtime: TypeScript pur, aucun binaire natif ni toolchain de build
 
-## Architecture Implantee
+## Architecture Implantée
 
 Rosetta se comporte maintenant comme un vrai manager i18n:
 
@@ -33,7 +33,7 @@ const i18n = new Rosetta({
 })
 ```
 
-Methodes principales:
+Méthodes principales:
 
 - `loadMessages(locale, catalog)`
 - `loadLocale(locale)` et `boot()` (loaders async)
@@ -63,18 +63,18 @@ export default defineConfig({
 })
 ```
 
-## Resolution des Fallbacks
+## Résolution des Fallbacks
 
 L'ordre de recherche des traductions est:
 
-1. locale demandee (`fr-ch`)
+1. locale demandée (`fr-ch`)
 2. locale base (`fr`)
 3. fallback explicite (`fallbackLocales['fr-ch']`)
 4. base du fallback explicite
 5. fallback global
 6. base du fallback global
-7. locale par defaut
-8. base de la locale par defaut
+7. locale par défaut
+8. base de la locale par défaut
 
 Exemple:
 
@@ -108,7 +108,7 @@ const locale = i18n.resolveLocale({
 
 ## Catalogues Imbriques et Interpolation
 
-Les objets imbriques sont flatten avec des cles `dot`:
+Les objets imbriques sont flatten avec des clés `dot`:
 
 ```ts
 i18n.loadMessages('en', {
@@ -128,7 +128,7 @@ Rosetta supporte:
 - placeholders simples: `{name}`
 - syntaxe ICU type `select`:
   - `{gender, select, male {Mr {name}} female {Ms {name}} other {Hello {name}}}`
-- syntaxe ICU type `plural` avec categories CLDR via `Intl.PluralRules`:
+- syntaxe ICU type `plural` avec catégories CLDR via `Intl.PluralRules`:
   - `{count, plural, =0 {No items} one {# item} other {# items}}`
 - `plural` avec `offset`:
   - `{count, plural, offset:1 =0 {...} one {...} other {...}}`
@@ -252,7 +252,7 @@ Migration: retirez toute étape `pnpm build:napi` de votre build. L'export publi
 n'y a plus de binaire. Aucune autre API ne change, et aucun message ne s'affiche
 différemment.
 
-## Integration Rune
+## Intégration Rune
 
 Rune peut consommer Rosetta directement (source i18n unique):
 

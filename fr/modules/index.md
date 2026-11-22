@@ -1,6 +1,6 @@
 # Modules Overview
 
-Cette page liste l'etat des modules de l'ecosysteme.
+Cette page liste l'état des modules de l'écosystème.
 
 ## Statut actuel
 

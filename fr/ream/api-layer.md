@@ -162,7 +162,7 @@ gql.resolver('Mutation', 'createTask', TaskResolver, 'createTask', {
 
 Les classes resolver sont instanciées via `container.make()` à chaque requête,
 donc elles reçoivent leurs dépendances injectées. La réponse est élaguée au
-selection-set du client, donc un resolver peut sans risque renvoyer un objet riche
+sélection-set du client, donc un resolver peut sans risque renvoyer un objet riche
 (p. ex. une entité ORM).
 
 ### Ce que reçoit un resolver
@@ -171,7 +171,7 @@ Le document est vérifié contre le schéma avant qu'aucun resolver ne tourne : 
 mutation ne s'exécute jamais à moitié.
 
 - `args` ne contient que les arguments que le schéma déclare pour ce champ. Un
-  argument non déclaré est refusé (`Unknown argument "role" on field
+  argument non déclaré est refusé (`Unknown argument "rôle" on field
   "Mutation.updateProfile".`) : un resolver qui étale `args` dans un modèle ne
   peut pas recevoir `role` ou `isAdmin`. Un argument obligatoire absent est
   refusé, et la valeur par défaut déclarée est appliquée.

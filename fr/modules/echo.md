@@ -1,10 +1,10 @@
 # Echo — Cache
 
-Echo est la couche cache de l'ecosysteme Ream (`@c9up/echo`).
+Echo est la couche cache de l'écosystème Ream (`@c9up/echo`).
 
-> Statut: en evolution active. Le module converge vers une semantique plus stricte et une observabilite etendue.
+> Statut: en évolution active. Le module converge vers une sémantique plus stricte et une observabilité étendue.
 
-## Capacites
+## Capacités
 
 - get/set/delete
 - getOrSet (récupère-ou-calcule)
@@ -21,7 +21,7 @@ import { CacheManager, MemoryDriver } from '@c9up/echo'
 const cache = new CacheManager(new MemoryDriver())
 ```
 
-### Operations de base
+### Opérations de base
 
 ```ts
 await cache.set('user:1', { id: 1, name: 'Ada' }, 300)
@@ -57,7 +57,7 @@ await users.set('42', { id: 42 })
 await users.get('42') // lit la clé sous-jacente `users:42`
 ```
 
-### Prefix et TTL par defaut
+### Prefix et TTL par défaut
 
 ```ts
 const cache = new CacheManager(driver, {
@@ -116,21 +116,21 @@ Les messages du bus portent le nom du store : des stores qui partagent un canal 
 
 ## Tags
 
-Les drivers exposent `setWithTags/flushTags` (via capacites driver):
+Les drivers exposent `setWithTags/flushTags` (via capacités driver):
 
 ```ts
 await cache.setWithTags('product:10', { id: 10 }, ['products', 'shop'], 120)
 await cache.flushTags(['products'])
 ```
 
-Les deux methodes levent une erreur si le driver configure ne supporte pas l'invalidation par tags.
+Les deux méthodes lèvent une erreur si le driver configure ne supporte pas l'invalidation par tags.
 
 Les tags appartiennent au namespace qui les a écrits : `tenantA.deleteByTag(['user:1'])` laisse tranquilles les entrées de `tenantB` taguées `user:1`, et un `deleteByTag` à la racine n'atteint pas les namespaces.
 
 ## Limites actuelles
 
 - `flush()` Redis parcourt un curseur `SCAN` sur le préfixe — jamais `KEYS`, qui bloque le serveur. Il touche quand même toutes les clés préfixées, donc reste une opération lourde sur un gros jeu de données ; il lève une erreur sur un client sans `scan` plutôt que de retomber sur `KEYS`
-- les capacites tags dependent du driver concret
+- les capacités tags dependent du driver concret
 
 ## Erreurs
 
@@ -170,15 +170,15 @@ ream cache:prune [store]
 
 ## Checklist prod
 
-- definir conventions de cles (`domain:entity:id`)
-- imposer des TTL explicites sur les cles chaudes
-- utiliser invalidation par tags pour coherence metier
+- définir conventions de clés (`domain:entity:id`)
+- imposer des TTL explicites sur les clés chaudes
+- utiliser invalidation par tags pour cohérence métier
 - monitorer hit/miss et latence driver
 
 ## Bonnes pratiques
 
-- definir une politique TTL explicite
-- eviter de mettre en cache des objets tres volumineux sans compression
+- définir une politique TTL explicite
+- éviter de mettre en cache des objets très volumineux sans compression
 - invalider par tags sur les domaines critiques
 
 ## Redis via Quasar

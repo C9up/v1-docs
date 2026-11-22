@@ -1,4 +1,4 @@
-# Atlas - Reference API
+# Atlas - Référence API
 
 Cette page documente l'API réellement exposée aujourd'hui par `@c9up/atlas`.
 
@@ -30,7 +30,7 @@ new BaseRepository(EntityClass, db, options?)
 - `all()` / `allWithTrashed()` / `onlyTrashed()`
 - `where(column, value)`
 
-### Ecritures
+### Écritures
 
 - `create(data)`
 - `createMany(rows)`

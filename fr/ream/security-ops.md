@@ -1,16 +1,16 @@
-# Securite et Operations
+# Sécurité et Opérations
 
 ## Checklist production
 
 1. `NODE_ENV=production`
-2. middleware securite actifs et configures
+2. middleware sécurité actifs et configures
 3. strategy de rate-limit claire
 4. CORS strict (pas de wildcard avec credentials)
-5. graceful shutdown verifie
+5. graceful shutdown vérifie
 6. health/readiness endpoint branches orchestration
 7. correlation id dans logs et erreurs
 
-## Observabilite minimale
+## Observabilité minimale
 
 - latence p95/p99 par route
 - taux 4xx/5xx

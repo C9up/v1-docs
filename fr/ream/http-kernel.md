@@ -1,6 +1,6 @@
 # HTTP Kernel et Routing
 
-Le core compose Router + Middleware + Server pour executer les requetes.
+Le core compose Router + Middleware + Server pour exécuter les requêtes.
 
 ## Exemple
 
@@ -23,10 +23,10 @@ await new Ignitor()
 ## Ordre middleware conseille
 
 1. technique (request id, timing, body parser)
-2. securite (cors, headers, shield, rate limit)
+2. sécurité (cors, headers, shield, rate limit)
 3. auth/permissions
-4. logique metier
+4. logique métier
 
 ## Point d'attention
 
-Eviter les middlewares qui avalent les erreurs sans rethrow/log structuré.
+Éviter les middlewares qui avalent les erreurs sans rethrow/log structuré.

@@ -1,6 +1,6 @@
 # Photon — Rendu Frontend
 
-Photon est le moteur de rendu serveur (SSR) de Ream avec hydratation cote client. Il supporte React, Vue et Svelte nativement, avec le HMR Vite en developpement et des builds optimises pour la production.
+Photon est le moteur de rendu serveur (SSR) de Ream avec hydratation cote client. Il supporte React, Vue et Svelte nativement, avec le HMR Vite en développement et des builds optimises pour la production.
 
 ## Installation
 
@@ -50,7 +50,7 @@ annonce.
 
 ## Rendu des pages
 
-Dans les handlers de route, utilisez `photon.render()` pour ecrire la reponse directement :
+Dans les handlers de route, utilisez `photon.render()` pour écrire la réponse directement :
 
 ```typescript
 router.get('/dashboard', async ({ auth, photon, response }) => {
@@ -64,7 +64,7 @@ router.get('/dashboard', async ({ auth, photon, response }) => {
 })
 ```
 
-Photon effectue le rendu serveur du composant, injecte les props serialisees et envoie une page HTML complete. Cote client, le framework hydrate la page en une application interactive.
+Photon effectue le rendu serveur du composant, injecte les props serialisees et envoie une page HTML complète. Cote client, le framework hydrate la page en une application interactive.
 
 ### L'objet page — `ctx.photon.page()`
 
@@ -409,7 +409,7 @@ Ajoutez `@tailwindcss/vite` aux `plugins[]` et `@import "tailwindcss";` à votre
 
 ## Mode dev — Vite HMR
 
-En developpement, Photon proxifie les assets via le serveur de dev Vite pour un hot module replacement instantane. Aucun redemarrage manuel necessaire lors de la modification des composants.
+En développement, Photon proxifie les assets via le serveur de dev Vite pour un hot module replacement instantané. Aucun redémarrage manuel nécessaire lors de la modification des composants.
 
 ```typescript
 // config/photon.ts
@@ -671,14 +671,14 @@ Le côté SSR émet actuellement toujours `<div id="app">` ; si tu passes un `ta
 | Capacité | Story | Statut |
 |---|---|---|
 | `hydrate({ resolveComponent })` + router de clics | 44.1 | Actif |
-| Mises a jour du `<head>` + decorateur `@Meta` | 44.2 | Actif |
+| Mises a jour du `<head>` + décorateur `@Meta` | 44.2 | Actif |
 | Catalogue d'erreurs + `docsUrl` sur chaque `PhotonError` / `PhotonClientError` | 44.4 | Actif |
 
 ## Navigation SPA (détection côté serveur)
 
 La convention de header `X-Photon: true` est détectée par `PhotonMiddleware`, et `photon.render()` répond directement à une telle requête par le payload JSON props-only — voir la section [Hydratation client](#hydratation-client) ci-dessus pour le router côté navigateur qui émet ce header. Les props sont résolues une seule fois, selon le rechargement partiel demandé par le client : une prop qu'il n'a pas nommée ne voit jamais son resolver appelé, et ni le bundle SSR ni le document HTML ne sont construits pour une requête de props.
 
-Aucune configuration supplementaire n'est necessaire. Photon gere la detection du header `X-Photon` et le changement de format de reponse de maniere transparente.
+Aucune configuration supplémentaire n'est nécessaire. Photon gère la détection du header `X-Photon` et le changement de format de réponse de manière transparente.
 
 ## Build de production
 
@@ -698,7 +698,7 @@ En production (`viteDevUrl` ignoré), Photon sert les assets pré-construits dep
 
 ## SEO et gestion du `<head>`
 
-Photon offre un controle par route sur `<title>`, `<meta>` description, Open Graph, Twitter Cards, URLs canoniques et tags arbitraires personnalises. Les tags se composent en quatre couches (la plus a droite gagne par champ feuille) : `defaultMeta` → decorateur `@Meta` → `ctx.photon.meta()` → argument explicite `render(comp, props, meta)`.
+Photon offre un contrôle par route sur `<title>`, `<meta>` description, Open Graph, Twitter Cards, URLs canoniques et tags arbitraires personnalises. Les tags se composent en quatre couches (la plus a droite gagne par champ feuille) : `defaultMeta` → décorateur `@Meta` → `ctx.photon.meta()` → argument explicite `render(comp, props, meta)`.
 
 ### API imperative — `ctx.photon.meta()`
 
@@ -725,9 +725,9 @@ router.get('/articles/:slug', async ({ params, photon }) => {
 
 Les appels multiples a `meta()` se fusionnent en profondeur. Les sous-objets `og` et `twitter` se fusionnent champ par champ (PAS de remplacement d'objet).
 
-### Decorateur — `@Meta()`
+### Décorateur — `@Meta()`
 
-`@Meta()` attache des metadonnees declarativement a une methode de controleur. Le middleware les lit depuis `ctx.route` (prototype du controleur + nom d'action) et amorce l'accumulateur avant l'execution du handler.
+`@Meta()` attache des métadonnées déclarativement a une méthode de contrôleur. Le middleware les lit depuis `ctx.route` (prototype du contrôleur + nom d'action) et amorce l'accumulateur avant l'exécution du handler.
 
 ```ts
 import { Meta } from '@c9up/photon'
@@ -746,9 +746,9 @@ class HomeController {
 }
 ```
 
-Les appels imperatifs `ctx.photon.meta()` dans le handler conservent la priorite sur les valeurs du decorateur.
+Les appels impératifs `ctx.photon.meta()` dans le handler conservent la priorité sur les valeurs du décorateur.
 
-### Defauts a l'echelle de l'app — `defaultMeta`
+### Défauts a l'échelle de l'app — `defaultMeta`
 
 Dans `config/photon.ts` :
 
@@ -766,7 +766,7 @@ export default defineConfig({
 })
 ```
 
-Les valeurs par route fusionnent par-dessus ces defauts.
+Les valeurs par route fusionnent par-dessus ces défauts.
 
 ### Données structurées (JSON-LD)
 
@@ -799,29 +799,29 @@ Couches, de la plus basse a la plus haute :
 
 | Couche | Source | Quand |
 |---|---|---|
-| 1 | `config.defaultMeta` | Defauts globaux de l'app |
-| 2 | Decorateur `@Meta(...)` | Par methode de controleur |
-| 3 | `ctx.photon.meta(...)` | Imperatif, plusieurs appels fusionnent en profondeur |
+| 1 | `config.defaultMeta` | Défauts globaux de l'app |
+| 2 | Décorateur `@Meta(...)` | Par méthode de contrôleur |
+| 3 | `ctx.photon.meta(...)` | Impératif, plusieurs appels fusionnent en profondeur |
 | 4 | `render(comp, props, meta)` | Override explicite a l'appel render |
 
-Les sous-objets `og` / `twitter` fusionnent champ par champ ; les tableaux `keywords` et `custom` concatenent puis dedoublonnent.
+Les sous-objets `og` / `twitter` fusionnent champ par champ ; les tableaux `keywords` et `custom` concatènent puis dédoublonnent.
 
-### Securite XSS
+### Sécurité XSS
 
-Chaque valeur textuelle (`title`, `description`, og:*, twitter:*, `content` custom) passe par un echappeur d'attribut HTML qui remplace `&`, `<`, `>`, `"`, `'`. Un titre controle par l'utilisateur contenant `<script>...</script>` est rendu en toute securite comme `&lt;script&gt;...&lt;/script&gt;`. **Jamais** desactive — il n'y a pas d'opt-out, par design.
+Chaque valeur textuelle (`title`, `description`, og:*, twitter:*, `content` custom) passe par un echappeur d'attribut HTML qui remplace `&`, `<`, `>`, `"`, `'`. Un titre contrôle par l'utilisateur contenant `<script>...</script>` est rendu en toute sécurité comme `&lt;script&gt;...&lt;/script&gt;`. **Jamais** désactive — il n'y a pas d'opt-out, par design.
 
-## Reference PhotonConfig
+## Référence PhotonConfig
 
-| Propriete | Type | Defaut | Description |
+| Propriété | Type | Défaut | Description |
 |---|---|---|---|
 | `framework` | `'react' \| 'vue' \| 'svelte'` | — | Framework frontend a utiliser |
-| `entryClient` | `string` | — | Chemin vers le point d'entree d'hydratation client (ex. `'resources/app.tsx'`) |
+| `entryClient` | `string` | — | Chemin vers le point d'entrée d'hydratation client (ex. `'resources/app.tsx'`) |
 | `buildDir` | `string` | `'public/build'` | Où le build client est écrit, sur disque |
 | `assetsUrl` | `string` | `'/build'` | URL d'où le build client est servi (chemin depuis la racine ou URL http(s)) |
 | `ssrBuildDir` | `string` | `'build/ssr'` | Où le bundle SSR est écrit ; refusé dans `buildDir` ou `public/` |
-| `viteDevUrl` | `string` | `'http://localhost:5173'` | URL du serveur de dev Vite (developpement uniquement) |
+| `viteDevUrl` | `string` | `'http://localhost:5173'` | URL du serveur de dev Vite (développement uniquement) |
 | `dev` | `boolean` | selon l'environnement | Servir via le serveur de dev Vite ; non défini, seuls `ream dev` ou un `NODE_ENV` de développement/test l'activent |
-| `defaultMeta` | `MetaTags` | — | Tags `<head>` par defaut a l'echelle de l'app (44.2) |
+| `defaultMeta` | `MetaTags` | — | Tags `<head>` par défaut a l'échelle de l'app (44.2) |
 | `ssr.enabled` | `boolean` | `false` | Rendre les pages côté serveur |
 | `ssr.entrypoint` | `string` | `'resources/ssr.tsx'` | Chemin vers le point d'entrée SSR |
 | `ssr.pages` | `string[] \| (ctx, page) => boolean \| Promise<boolean>` | toutes les pages | Les pages rendues côté serveur |
@@ -847,11 +847,11 @@ try {
 
 Voir le [catalogue complet](../errors/#erreurs-photon) pour cause + fix par code.
 
-## Etapes suivantes
+## Étapes suivantes
 
-- [Routing](/fr/guide/routing) — Definir les routes qui rendent des pages Photon
+- [Routing](/fr/guide/routing) — Définir les routes qui rendent des pages Photon
 - [Middleware](/fr/guide/middleware) — Ajouter l'authentification avant le rendu
-- [Warden (Auth)](/fr/modules/warden) — Proteger les pages avec des guards
+- [Warden (Auth)](/fr/modules/warden) — Protéger les pages avec des guards
 
 ## Helpers de props
 

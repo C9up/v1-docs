@@ -2,7 +2,7 @@
 
 Relay est le module de transport realtime client de Ream (`@c9up/relay`) : des événements serveur (SSE) pour diffuser, et des Hubs SignalR, sur WebSocket ou SSE, pour l'échange dans les deux sens. Remplace l'ancien package `@c9up/raytrace`.
 
-## Capacites
+## Capacités
 
 - diffusion server → clients via SSE
 - Hubs bidirectionnels parlant le protocole JSON SignalR, sur WebSocket ou SSE
@@ -197,7 +197,7 @@ ce que porte chaque événement, et vers quel canal, reste dans le listener.
 
 - `GET /__relay/events` connexion SSE
 - `POST /__relay/subscribe` abonnement canal
-- `POST /__relay/unsubscribe` desabonnement
+- `POST /__relay/unsubscribe` désabonnement
 
 Aucune n'existe tant que l'application ne la demande pas — `registerRoutes()`
 les pose, depuis un preload :
@@ -402,6 +402,6 @@ main avant qu'un socket s'ouvre.
 
 ## Bonnes pratiques
 
-- toujours proteger les canaux sensibles
+- toujours protéger les canaux sensibles
 - limiter le nombre de canaux par client
-- tracer les abonnements pour detecter les fuites
+- tracer les abonnements pour détecter les fuites

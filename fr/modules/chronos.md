@@ -1,13 +1,13 @@
-# Chronos — DateTime & Recurrence
+# Chronos — DateTime & Récurrence
 
 Statut: **Present (TS + Rust N-API)**.
 
 - Package: `@c9up/chronos`
-- Objectif: operations calendaires avancees (arithmetique dates + recurrence RRULE), pas un wrapper Date basique.
+- Objectif: opérations calendaires avancées (arithmétique dates + récurrence RRULE), pas un wrapper Date basique.
 
 ## Exemples Rapides
 
-Arithmetique date:
+Arithmétique date:
 
 ```ts
 import { Chronos } from '@c9up/chronos'
@@ -25,7 +25,7 @@ dt.startOf('day').toISO() // 2026-01-15T00:00:00.000Z
 dt.endOf('day').toISO()   // 2026-01-15T23:59:59.999Z
 ```
 
-Recurrence style RRULE:
+Récurrence style RRULE:
 
 ```ts
 // Tous les 15 du mois
@@ -215,7 +215,7 @@ june.length('day')    // 30
 june.length('week')   // 4.285714285714286
 ```
 
-## Reference
+## Référence
 
 `Chronos`:
 - `Chronos.now()`
@@ -229,7 +229,7 @@ june.length('week')   // 4.285714285714286
 
 `DateTime`:
 - Construction: `from`, `now`, `local`, `utc`, `fromISO`, `fromObject`, `fromSQL`, `fromFormat`, `fromMillis`, `fromJSDate`, `fromRFC2822`, `fromHTTP`
-- Arithmetique: `plus`, `minus` (une quantite et une unite, ou une `Duration`), `diff` (une `Duration`), `set`
+- Arithmétique: `plus`, `minus` (une quantité et une unité, ou une `Duration`), `diff` (une `Duration`), `set`
 - Bornes: `startOf`, `endOf`
 - Fuseau et locale: `setZone` (avec `keepLocalTime`), `toUTC`, `setLocale`
 - Sorties: `toFormat` (jetons `yyyy-MM-dd`, `dd LLL yyyy`, `EEEE`), `format` (jetons `YYYY-MM-DD`), `toISO`, `toISODate`, `toISOTime`, `toSQL`, `toSQLDate`, `toSQLTime`, `toLocaleString`, `toDate`, `toMillis`, `valueOf`, `toJSON`
@@ -237,10 +237,10 @@ june.length('week')   // 4.285714285714286
 Mode natif:
 - Le binaire NAPI Rust est requis — pas de fallback JavaScript. Compilez-le avec `cd packages/chronos && pnpm build:napi`.
 
-Cles RRULE supportees par le moteur natif (toute autre cle est une erreur):
+Clés RRULE supportées par le moteur natif (toute autre clé est une erreur):
 - `FREQ`: `SECONDLY | MINUTELY | HOURLY | DAILY | WEEKLY | MONTHLY | YEARLY`
 - `INTERVAL`, `COUNT`, `WKST`
-- `UNTIL` en `YYYYMMDD` (toute la journee incluse), `YYYYMMDDTHHMMSS` (heure locale) ou `YYYYMMDDTHHMMSSZ`
+- `UNTIL` en `YYYYMMDD` (toute la journée incluse), `YYYYMMDDTHHMMSS` (heure locale) ou `YYYYMMDDTHHMMSSZ`
 - `BYDAY` (simple + ordinal, ex: `MO`, `-1SU`, `1MO`)
 - `BYMONTHDAY`, `BYMONTH`, `BYWEEKNO`, `BYYEARDAY`, `BYSETPOS`
 - `BYHOUR`, `BYMINUTE`, `BYSECOND` (multi-valeurs)

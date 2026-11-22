@@ -34,5 +34,5 @@ this.app.container.singleton('cache', async (resolver) => {
 
 - utiliser des tokens stables (`db`, `cache`, `bus`)
 - centraliser les bindings dans les providers
-- eviter les side effects irreversibles dans les factories
-- sur tests, preferer override/local binding par suite
+- éviter les side effects irréversibles dans les factories
+- sur tests, préférer override/local binding par suite

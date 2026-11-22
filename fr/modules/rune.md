@@ -278,7 +278,7 @@ non un tableau de `type`, et les tuples passent par `prefixItems`, qui n'existe
 qu'en `draft-2020-12`. Un rendu approximatif silencieux produirait un document
 qui valide autrement que le validateur qu'il prétend décrire.
 
-### Règles custom
+## Règles custom
 
 ```typescript
 rules.string().custom(
@@ -288,7 +288,7 @@ rules.string().custom(
 )
 ```
 
-### Messages d'erreur personnalisés
+## Messages d'erreur personnalisés
 
 ```typescript
 rules.string()
@@ -300,7 +300,7 @@ rules.string()
 
 La méthode `.message()` remplace le message de la **dernière** règle ajoutée.
 
-#### D'où vient un fournisseur de messages
+### D'où vient un fournisseur de messages
 
 Un fournisseur fournit les messages de classes entières de règles d'un coup, au
 lieu d'un `.message()` à la fois. rune lit trois portées, de la plus étroite à la
@@ -328,7 +328,7 @@ CreateUser.validateResult({}, {
 Mettez `validator.messagesProvider = null` pour retomber sur celui du processus.
 Les trois mêmes portées valent pour `errorReporter`.
 
-#### Les messages par défaut, et la clé à laquelle chaque règle répond
+### Les messages par défaut, et la clé à laquelle chaque règle répond
 
 Chaque message par défaut vit dans un seul catalogue, indexé par le nom que la
 règle rapporte. Ce nom est aussi la clé que consulte un fournisseur : lire le
@@ -378,6 +378,21 @@ Signup.messagesProvider = new SimpleMessagesProvider({
 
 Un `.message()` explicite l'emporte toujours sur n'importe quel fournisseur.
 
+## Transformations
+
+Les transformations modifient la valeur **avant** l'exécution des règles de validation :
+
+```typescript
+const s = schema({
+  name: rules.string().trim().min(3),
+})
+
+s.validateResult({ name: '  Al  ' })
+// Trim vers 'Al', puis min(3) échoue
+// errors: [{ field: 'name', rule: 'min',
+//            message: 'The name field must be at least 3', meta: { min: 3 } }]
+```
+
 ## Résultat de validation
 
 ```typescript
@@ -392,21 +407,6 @@ interface ValidationError {
   rule: string     // Règle qui a échoué (ex: 'min', 'email', 'required')
   message: string  // Message lisible
 }
-```
-
-## Transformations
-
-Les transformations modifient la valeur **avant** l'exécution des règles de validation :
-
-```typescript
-const s = schema({
-  name: rules.string().trim().min(3),
-})
-
-s.validateResult({ name: '  Al  ' })
-// Trim vers 'Al', puis min(3) échoue
-// errors: [{ field: 'name', rule: 'min',
-//            message: 'The name field must be at least 3', meta: { min: 3 } }]
 ```
 
 ## Dans les handlers de route

@@ -1,6 +1,6 @@
 # Ignitor et Bootstrap
 
-`Ignitor` est le point d'entree du core: il configure et demarre l'application.
+`Ignitor` est le point d'entrée du core: il configure et démarre l'application.
 
 ## Bootstrap minimal
 
@@ -19,9 +19,9 @@ await new Ignitor({ port: 3333 })
 
 - `httpServer()` pour API/web
 - `console()` pour commandes
-- `testMode()` pour scenarios tests
+- `testMode()` pour scénarios tests
 
-## Points cle
+## Points clé
 
 - `useRcFile()` pour charger la config framework
 - `provider()` pour ajouter des providers inline

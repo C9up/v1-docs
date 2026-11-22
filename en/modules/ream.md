@@ -344,8 +344,6 @@ directory is the public one.
 
 ## Module integration
 
-## Module integration
-
 The core is the orchestrator. Modules remain standalone, but Ream simplifies composition:
 
 - `atlas` ORM,

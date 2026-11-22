@@ -4,7 +4,7 @@ Ream (`@c9up/ream`) est le noyau du framework: bootstrap applicatif, IoC, provid
 
 > Statut : en évolution active. L'objectif est une DX « batteries incluses », guidée par les conventions, avec une architecture modulaire agnostique.
 
-## Ce que le core fait vraiment
+## Ce que le cœur fait vraiment
 
 1. Initialise et configure l'application via `Ignitor`.
 2. Charge la configuration et les providers.
@@ -27,11 +27,11 @@ await new Ignitor({ port: 3333 })
   .start()
 ```
 
-## Modes d'execution
+## Modes d'exécution
 
 - `httpServer()` pour API/web.
 - `console()` pour commandes CLI.
-- `testMode()` pour scenarios de test.
+- `testMode()` pour scénarios de test.
 
 ```ts
 const ignitor = new Ignitor({ port: 3333 }).httpServer()
@@ -40,21 +40,21 @@ await ignitor.start()
 
 ## Lifecycle (important)
 
-Ordre d'execution:
+Ordre d'exécution :
 
 1. `register` - bind container, config, providers.
-2. `boot` - initialisation dependances externes.
-3. `start` - demarrage server / runtime.
-4. `ready` - application operationnelle.
+2. `boot` - initialisation dépendances externes.
+3. `start` - démarrage server / runtime.
+4. `ready` - application opérationnelle.
 5. `shutdown` - fermeture propre.
 
-Regle pratique:
+Règle pratique :
 
 - `register`: pas d'IO bloquant.
 - `boot`: connexions DB/bus/cache.
 - `shutdown`: close ressources, timeouts, workers.
 
-## Providers (pattern recommande)
+## Providers (pattern recommandé)
 
 ```ts
 import { Provider } from '@c9up/ream'
@@ -71,16 +71,16 @@ export default class AppProvider extends Provider {
 
 ## Container IoC
 
-Le container sert a:
+Le container sert à :
 
 - enregistrer des singletons/services,
-- resoudre les dependances des classes,
-- remplacer des implementations (tests/env).
+- résoudre les dépendances des classes,
+- remplacer des implémentations (tests/env).
 
-Bonnes pratiques:
+Bonnes pratiques :
 
 - binder par token stable (`'cache'`, `'db'`, `'bus'`),
-- eviter les side effects dans les factories,
+- éviter les side effects dans les factories,
 - centraliser les bindings dans les providers.
 
 ## Routing et middleware
@@ -101,12 +101,12 @@ await new Ignitor()
   .start()
 ```
 
-Pipeline recommande:
+Pipeline recommandé :
 
 1. middleware techniques (request-id, timing, body parser),
-2. middleware securite (cors, headers, rate limit, shield),
+2. middleware sécurité (cors, headers, rate limit, shield),
 3. middleware auth/acl,
-4. logique metier route/controller.
+4. logique métier route/controller.
 
 ## Gestion des erreurs
 
@@ -120,15 +120,15 @@ if (!token) {
 }
 ```
 
-Regles:
+Règles :
 
 - ne pas retourner d'erreur brute interne au client,
 - logger le contexte utile sans fuite de secrets,
-- mapper les erreurs metier vers des codes HTTP coherents.
+- mapper les erreurs métier vers des codes HTTP cohérents.
 
-## Services exposes par le core
+## Services exposés par le core
 
-Le core exporte notamment:
+Le core exporte notamment :
 
 - `Ignitor`, `Application`, `Provider`,
 - `Router`, `Server`, `HttpContext`, `Request`, `Response`,
@@ -352,9 +352,9 @@ répertoire servi n'est pas publié par accident. La règle porte sur le chemin
 décodé : `/%2eenv` est le même fichier caché que `/.env`. Un fichier sans point initial
 l'est : le répertoire est le répertoire public.
 
-## Integration modules
+## Intégration des modules
 
-Le core est l'orchestrateur. Les modules restent utilisables seuls, mais Ream simplifie leur composition:
+Le core est l'orchestrateur. Les modules restent utilisables seuls, mais Ream simplifie leur composition :
 
 - `atlas` pour ORM,
 - le bus d'événements (core),
@@ -367,22 +367,22 @@ Le core est l'orchestrateur. Les modules restent utilisables seuls, mais Ream si
 ## Checklist production
 
 1. `NODE_ENV=production`.
-2. Security middleware actif (shield/rate limit/cors configure).
-3. Exception handling centralise et non verbeux.
-4. Graceful shutdown verifie (SIGTERM/SIGINT).
+2. Security middleware actif (shield/rate limit/cors configuré).
+3. Exception handling centralisé et non verbeux.
+4. Graceful shutdown vérifié (SIGTERM/SIGINT).
 5. Timeouts explicites (DB, HTTP externes, jobs).
-6. Correlation ID present dans logs et erreurs.
-7. Endpoints health/readiness utilises en orchestration.
+6. Correlation ID présent dans logs et erreurs.
+7. Endpoints health/readiness utilisés en orchestration.
 
 ## Limites actuelles connues
 
-- surface API encore en evolution,
+- surface API encore en évolution,
 - certaines zones de doc restent moins profondes que la cible,
 - les conventions continuent de se resserrer.
 
 ## Liens utiles
 
-- Guide lifecycle: `/fr/guide/lifecycle`
-- Guide providers: `/fr/guide/providers`
-- Guide routing: `/fr/guide/routing`
-- Guide middleware: `/fr/guide/middleware`
+- Guide lifecycle : `/fr/guide/lifecycle`
+- Guide providers : `/fr/guide/providers`
+- Guide routing : `/fr/guide/routing`
+- Guide middleware : `/fr/guide/middleware`

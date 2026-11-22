@@ -1,6 +1,6 @@
 # Rover — Transport de mail
 
-Rover est le module de mail de Ream. Il supporte SMTP, un transport log pour le developpement, et des transports personnalises. Rover est autonome — il fonctionne dans toute application Node.js sans requierir Ream.
+Rover est le module de mail de Ream. Il supporte SMTP, un transport log pour le développement, et des transports personnalises. Rover est autonome — il fonctionne dans toute application Node.js sans requierir Ream.
 
 ## Installation
 
@@ -8,7 +8,7 @@ Rover est le module de mail de Ream. Il supporte SMTP, un transport log pour le 
 pnpm add @c9up/rover
 ```
 
-Pour une application Ream, executez la commande de configuration pour generer le fichier de config et enregistrer le provider :
+Pour une application Ream, exécutez la commande de configuration pour générer le fichier de config et enregistrer le provider :
 
 ```bash
 ream configure @c9up/rover
@@ -16,7 +16,7 @@ ream configure @c9up/rover
 
 ## Configuration
 
-Creez `config/mail.ts` :
+Créez `config/mail.ts` :
 
 ```typescript
 import { defineConfig } from '@c9up/rover'
@@ -49,7 +49,7 @@ réutilisé. Un mailer par lequel l'application n'envoie jamais, comme une entr�
 de configuration est levée à sa première utilisation. `closeAll()` ferme les
 transports construits jusque-là.
 
-En developpement, utilisez `default: 'log'` pour afficher les emails dans la console sans les envoyer.
+En développement, utilisez `default: 'log'` pour afficher les emails dans la console sans les envoyer.
 
 ## Enregistrement du provider
 
@@ -87,7 +87,7 @@ await mail.send((message) => {
 })
 ```
 
-L'adresse `from` par defaut de la configuration est appliquee automatiquement. Vous pouvez la surcharger par message :
+L'adresse `from` par défaut de la configuration est appliquée automatiquement. Vous pouvez la surcharger par message :
 
 ```typescript
 await mail.send((message) => {
@@ -105,7 +105,7 @@ await mail.send((message) => {
 })
 ```
 
-Pour utiliser un transport nomme specifique au lieu du transport par defaut :
+Pour utiliser un transport nomme spécifique au lieu du transport par défaut :
 
 ```typescript
 await mail.send((message) => {
@@ -126,7 +126,7 @@ const { messageId } = await mail.send((message) => {
 
 ## API MessageBuilder
 
-| Methode | Description |
+| Méthode | Description |
 |---|---|
 | `.from(address, name?)` | Adresse expéditeur (surcharge le défaut de la config) |
 | `.to(address, name?)` / `.to([...])` | Ajouter un destinataire (appel multiple, ou un tableau d'adresses et de `{ address, name }`) |
@@ -242,7 +242,7 @@ L'enveloppe : SES la transmet en `Source` et `Destinations`, SparkPost en
 d'enveloppe mais pas l'expéditeur d'enveloppe, et les API JSON la refusent
 (`E_MAIL_FIELD_UNSUPPORTED`).
 
-### Log (developpement)
+### Log (développement)
 
 Affiche les destinataires et le sujet de chaque message dans la console. Aucune connexion réseau n'est établie. Utile en développement et dans les environnements CI. Le corps n'est pas affiché sauf avec `logBody: true` : un mailer laissé sur `log` par erreur copierait sinon les liens de réinitialisation et les codes à usage unique dans les journaux. Chaque champ est encodé en JSON, si bien qu'un saut de ligne dans un sujet ne peut pas forger une ligne de journal.
 
@@ -257,7 +257,7 @@ Le provider refuse de démarrer quand aucun `config/mail.ts` n'est enregistré (
 
 ### Transports personnalises
 
-Implementez l'interface `MailTransport` et enregistrez une factory via `registerTransport()` :
+Implémentez l'interface `MailTransport` et enregistrez une factory via `registerTransport()` :
 
 ```typescript
 import { registerTransport } from '@c9up/rover'
@@ -288,7 +288,7 @@ d'un fichier de preload, par exemple).
 
 ## Utilisation autonome
 
-Rover ne necessite pas Ream. Instanciez `Mail` directement avec un objet de configuration :
+Rover ne nécessite pas Ream. Instanciez `Mail` directement avec un objet de configuration :
 
 ```typescript
 import { Mail } from '@c9up/rover'
@@ -306,10 +306,10 @@ await mail.send((msg) => {
 })
 ```
 
-## Etapes suivantes
+## Étapes suivantes
 
-- [Warden (Auth)](/fr/modules/warden) — Envoyer des emails de reinitialisation de mot de passe ou de verification
-- [Bay (Queue)](/fr/modules/bay) — Mettre les emails en file d'attente pour un envoi en arriere-plan
+- [Warden (Auth)](/fr/modules/warden) — Envoyer des emails de réinitialisation de mot de passe ou de vérification
+- [Bay (Queue)](/fr/modules/bay) — Mettre les emails en file d'attente pour un envoi en arrière-plan
 
 ## Configuration
 
