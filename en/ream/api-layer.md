@@ -6,7 +6,7 @@ serializer base for shaping responses. Each is wired by a **provider** and is
 
 | Provider | Mounts | Purpose |
 |---|---|---|
-| `RpcProvider` | `POST /rpc` | JSON-RPC 2.0 method dispatch |
+| `RpcProvider` | `POST /rpc` (and a WebSocket on it, opt-in) | JSON-RPC 2.0 method dispatch |
 | `GraphQLProvider` | `GET`/`POST /graphql` | GraphQL gateway (Rust query parsing, TS resolvers) |
 | `OpenApiProvider` | `GET /docs`, `GET /api-docs` | Swagger UI + auto-generated OpenAPI 3.1 spec |
 | `ApiResource` | — | Entity → response serializer base class |
@@ -74,7 +74,43 @@ JSON-RPC error the handler threw on purpose (one with a numeric `code`) is an
 answer, not a failure, and is not logged.
 
 Config: `config.rpc.path` overrides the mount path (default `/rpc`);
-`config.rpc.contentTypes` replaces the accepted media types.
+`config.rpc.contentTypes` replaces the accepted media types;
+`config.rpc.webSocket` also serves the methods over a WebSocket (below).
+
+### Over a WebSocket
+
+The same methods answer over one WebSocket per client, which saves a request
+per call and keeps the connection open for what the server pushes:
+
+```ts
+// config/rpc.ts — on the POST path, behind the same `guards`
+export default { guards: ['web'], webSocket: true }
+
+// or by hand, on any route
+router.ws('/rpc', rpc.webSocket({ maxInFlight: 16, maxQueued: 256 })).use(middleware.auth())
+```
+
+Each text message is one JSON-RPC message, single or batch, and takes the path
+a POST body takes: the same parse, batch limit, guards, roles, permissions,
+middleware, validators and error codes. A notification, or a batch of nothing
+but notifications, gets no reply; a binary message gets `-32700 Parse error`.
+
+- **Auth is the handshake's.** The route's middleware and guards run on the
+  upgrade request; a refused client gets plain HTTP (401) and never a socket.
+  Every call on the socket then runs with that request's `ctx`, so `ctx.auth`
+  is the user who connected. A role removed while the socket is open counts
+  from the next connection; a `.permission()` gate asks the auth layer on
+  every call. Close a user's sockets yourself when they sign out.
+- **Calls share that `ctx`**, as the calls of a batch do: keep per-call state
+  in the handler, not on `ctx`. The session is the one the handshake read.
+- **Bounded.** Up to `maxInFlight` messages of a socket run at once (16 by
+  default) and answer as they finish, so replies can come out of order —
+  JSON-RPC matches them by `id`. The calls of one batch run in order and come
+  back as one reply. A client that keeps more than `maxQueued` messages (256)
+  waiting is closed with `1013`. The size of one message is the server's
+  `http.webSocket.maxMessageSize` (1 MiB by default).
+
+A client: [`@c9up/comet`](/en/modules/comet)'s `createWebSocketTransport`.
 
 > `RpcRouter` keeps its routing DSL (`method`/`group`/`namespace`/`guard`/`validate`)
 > and pipeline (DI, middleware, warden auth), but the JSON-RPC envelope, parsing,

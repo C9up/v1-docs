@@ -7,7 +7,7 @@ app pour l'activer.
 
 | Provider | Monte | Rôle |
 |---|---|---|
-| `RpcProvider` | `POST /rpc` | dispatch de méthodes JSON-RPC 2.0 |
+| `RpcProvider` | `POST /rpc` (et un WebSocket dessus, sur demande) | dispatch de méthodes JSON-RPC 2.0 |
 | `GraphQLProvider` | `GET`/`POST /graphql` | passerelle GraphQL (parsing Rust, resolvers TS) |
 | `OpenApiProvider` | `GET /docs`, `GET /api-docs` | Swagger UI + spec OpenAPI 3.1 auto-générée |
 | `ApiResource` | — | classe de base sérialiseur entité → réponse |
@@ -77,7 +77,47 @@ exprès (avec un `code` numérique) est une réponse, pas une panne : elle n'est
 pas journalisée.
 
 Config : `config.rpc.path` change le chemin de montage (défaut `/rpc`) ;
-`config.rpc.contentTypes` remplace les types de média acceptés.
+`config.rpc.contentTypes` remplace les types de média acceptés ;
+`config.rpc.webSocket` sert aussi les méthodes sur un WebSocket (ci-dessous).
+
+### Sur un WebSocket
+
+Les mêmes méthodes répondent sur un WebSocket par client, ce qui économise une
+requête par appel et garde la connexion ouverte pour ce que le serveur pousse :
+
+```ts
+// config/rpc.ts — sur le chemin du POST, derrière les mêmes `guards`
+export default { guards: ['web'], webSocket: true }
+
+// ou à la main, sur n'importe quelle route
+router.ws('/rpc', rpc.webSocket({ maxInFlight: 16, maxQueued: 256 })).use(middleware.auth())
+```
+
+Chaque message texte est un message JSON-RPC, simple ou batch, et suit le
+chemin d'un corps de POST : même parsing, même limite de batch, mêmes guards,
+rôles, permissions, middleware, validateurs et codes d'erreur. Une
+notification, ou un batch qui n'en contient que, ne reçoit pas de réponse ; un
+message binaire reçoit `-32700 Parse error`.
+
+- **L'auth est celle de la poignée de main.** Les middleware et guards de la
+  route tournent sur la requête d'upgrade ; un client refusé reçoit du HTTP
+  ordinaire (401) et jamais de socket. Chaque appel sur le socket tourne
+  ensuite avec le `ctx` de cette requête : `ctx.auth` est l'utilisateur qui
+  s'est connecté. Un rôle retiré pendant que le socket est ouvert compte à la
+  connexion suivante ; un garde `.permission()` interroge la couche d'auth à
+  chaque appel. Ferme toi-même les sockets d'un utilisateur qui se déconnecte.
+- **Les appels partagent ce `ctx`**, comme les appels d'un batch : garde l'état
+  propre à un appel dans le handler, pas sur `ctx`. La session est celle que la
+  poignée de main a lue.
+- **Borné.** Au plus `maxInFlight` messages d'un socket tournent en même temps
+  (16 par défaut) et répondent dans l'ordre où ils finissent, donc les réponses
+  peuvent arriver dans le désordre — JSON-RPC les apparie par `id`. Les appels
+  d'un batch tournent dans l'ordre et reviennent en une seule réponse. Un
+  client qui laisse plus de `maxQueued` messages (256) en attente est fermé
+  avec `1013`. La taille d'un message est la limite `http.webSocket.maxMessageSize`
+  du serveur (1 Mio par défaut).
+
+Un client : `createWebSocketTransport` de [`@c9up/comet`](/fr/modules/comet).
 
 > Le `RpcRouter` garde son DSL de routage (`method`/`group`/`namespace`/`guard`/`validate`)
 > et son pipeline (DI, middleware, auth warden), mais l'enveloppe JSON-RPC, le
