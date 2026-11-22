@@ -1,11 +1,11 @@
 # Relay — Realtime
 
-Relay est le module de transport realtime client de Ream (`@c9up/relay`) avec SSE + WebSocket Hub + SignalR. Remplace l'ancien package `@c9up/raytrace`.
+Relay est le module de transport realtime client de Ream (`@c9up/relay`) : des événements serveur (SSE) pour diffuser, et des Hubs SignalR, sur WebSocket ou SSE, pour l'échange dans les deux sens. Remplace l'ancien package `@c9up/raytrace`.
 
 ## Capacites
 
 - diffusion server → clients via SSE
-- Hubs bidirectionnels parlant le protocole JSON SignalR sur SSE
+- Hubs bidirectionnels parlant le protocole JSON SignalR, sur WebSocket ou SSE
 - canaux subscribables
 - autorisation de canaux
 - diffusion multi-instances via un bus Redis
@@ -309,7 +309,15 @@ dans son propre POST — et non contre celle qui a ouvert le flux : un rôle ret
 depuis cesse de fonctionner à l'appel suivant, et un rôle accordé fonctionne
 sans reconnexion. `ctx.auth` dans la méthode est celui de cette même requête.
 Un POST doit venir de l'utilisateur qui a ouvert le flux, et un flux ouvert
-anonymement n'accepte que des POST anonymes (`403 E_RELAY_NOT_OWNER`).
+anonymement n'accepte que des POST anonymes (`403 E_RELAY_NOT_OWNER`). Le
+premier usage d'un jeton — le flux, le socket ou un POST — est réservé à qui
+l'a négocié : un jeton lu dans un journal avant que son titulaire se connecte
+n'ouvre rien.
+
+Sur WebSocket, une connexion n'a qu'une requête, sa poignée de main : chaque
+invocation reçue sur le socket est donc vérifiée contre l'authentification de
+la poignée de main. Un rôle retiré en cours de connexion prend effet à la
+connexion suivante, comme avec le transport WebSocket d'ASP.NET Core SignalR.
 
 `guards` nomme les gardes par lesquels la requête a pu s'authentifier — ce que
 Warden expose comme `auth.authenticatedViaGuard`. `roles` est satisfait par
@@ -361,22 +369,32 @@ déjà été refusée, et une annulation vise un flux qui n'a jamais démarré.
 
 ### Le fil
 
-Le transport est le **Server-Sent Events**, que relay sert déjà et qui est un
-transport SignalR de première classe. Un client `@microsoft/signalr` standard configuré en
-`HttpTransportType.ServerSentEvents` le parle sans modification :
+Deux transports SignalR de première classe : un client `@microsoft/signalr`
+standard parle à un hub sans modification, quel que soit celui qu'il choisit.
 
 | Route | Rôle |
 |---|---|
-| `POST <path>/negotiate` | émet un `connectionId` + `connectionToken` |
-| `GET <path>?id=<token>` | le flux, serveur → client |
-| `POST <path>?id=<token>` | messages encadrés, client → serveur |
+| `POST <path>/negotiate` | émet un `connectionId` + `connectionToken`, et les transports proposés |
+| `WS <path>?id=<token>` | **WebSockets** : un seul socket, les trames dans les deux sens |
+| `GET <path>?id=<token>` | **Server-Sent Events** : le flux, serveur → client |
+| `POST <path>?id=<token>` | le sens montant du SSE : messages encadrés, client → serveur |
 
-`negotiate` n'annonce que les transports que le serveur sait réellement servir.
-Annoncer WebSockets alors que rien ne peut faire l'upgrade envoie chaque client
-dans une impasse : le défaut est donc `ServerSentEvents` seul.
+`negotiate` n'annonce que les transports que le serveur sait réellement servir :
+WebSockets en premier — SignalR les essaie dans l'ordre — quand le serveur sous
+l'application peut faire l'upgrade (`server.supportsWebSockets()`, vrai dès que
+le serveur natif de ream écoute), Server-Sent Events toujours. Annoncer
+WebSockets alors que rien ne peut faire l'upgrade enverrait chaque client dans
+une impasse. Le socket et le flux SSE partagent le chemin du hub : ream confie
+une poignée de main WebSocket à la route WebSocket et un GET ordinaire au flux.
 
-Le customizer passé à `registerRoutes()` s'applique aussi aux trois routes d'un
-hub — un hub a autant besoin du middleware `auth` que le flux d'événements.
+Le socket transporte les trames texte du protocole JSON ; un message binaire est
+refusé avec le code de fermeture `1003`. Les limites de ream s'y appliquent
+(`config/app.ts` → `http.webSocket`), et celle de SignalR (`maxFrameSize`,
+64 Kio) à l'intérieur. À l'arrêt, chaque socket est fermé avec `1001`.
+
+Le customizer passé à `registerRoutes()` s'applique à toutes les routes d'un
+hub, celle du WebSocket comprise : un middleware `auth` refuse la poignée de
+main avant qu'un socket s'ouvre.
 
 ## Bonnes pratiques
 

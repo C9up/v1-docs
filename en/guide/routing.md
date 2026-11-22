@@ -426,6 +426,18 @@ answered `101 Switching Protocols`. A plain GET to the same path is answered
 `426` with `Upgrade: websocket`; a handler that throws answers like any other
 route, and no socket opens.
 
+A path can carry a GET route and a WebSocket route at once: the handshake goes
+to `router.ws()`, a plain GET to `router.get()`, whatever the order they were
+declared in. A SignalR hub does it — its Server-Sent Events stream and its
+socket share the URL. Two WebSocket routes on one path are refused
+(`E_DUPLICATE_ROUTE`), as two GET routes are.
+
+`server.supportsWebSockets()` (from `@c9up/ream/services/server`) says whether
+the server under the application accepts WebSocket connections: `true` once
+ream's native server is listening, `false` before it starts, after it stops,
+and on a host without the WebSocket primitives. A package asks it before it
+offers a WebSocket transport.
+
 Attach the listeners in the handler: messages can arrive as soon as the
 handshake completes, and one with no `message` listener is dropped.
 

@@ -432,6 +432,18 @@ quand le handler est atteint que la requête reçoit `101 Switching Protocols`. 
 simple GET sur le même chemin reçoit `426` avec `Upgrade: websocket` ; un handler
 qui lève une erreur répond comme toute autre route, et aucun socket ne s'ouvre.
 
+Un chemin peut porter à la fois une route GET et une route WebSocket : la
+poignée de main va à `router.ws()`, un GET ordinaire à `router.get()`, quel que
+soit l'ordre de déclaration. Un hub SignalR s'en sert : son flux Server-Sent
+Events et son socket partagent l'URL. Deux routes WebSocket sur un même chemin
+sont refusées (`E_DUPLICATE_ROUTE`), comme deux routes GET.
+
+`server.supportsWebSockets()` (depuis `@c9up/ream/services/server`) dit si le
+serveur sous l'application accepte des connexions WebSocket : `true` dès que le
+serveur natif de ream écoute, `false` avant son démarrage, après son arrêt, et
+sur un hôte sans les primitives WebSocket. Un paquet le demande avant de proposer
+un transport WebSocket.
+
 Branche les écouteurs dans le handler : des messages peuvent arriver dès que la
 poignée de main est finie, et un message sans écouteur `message` est perdu.
 

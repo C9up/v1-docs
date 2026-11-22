@@ -5,7 +5,7 @@ Relay is Ream's realtime module (`@c9up/relay`): server-sent events for broadcas
 ## Capabilities
 
 - server → client broadcasting through SSE
-- bidirectional Hubs speaking the SignalR JSON protocol over SSE
+- bidirectional Hubs speaking the SignalR JSON protocol, over WebSockets or SSE
 - channel subscriptions
 - channel authorization
 - multi-instance broadcast over a Redis bus
@@ -297,7 +297,14 @@ arrives on its own POST — not against the request that opened the stream: a
 role revoked since then stops working on the next call, and one granted works
 without reconnecting. `ctx.auth` in the method is that same request's. A POST
 must come from the user the stream was opened by, and a stream opened
-anonymously takes anonymous POSTs only (`403 E_RELAY_NOT_OWNER`).
+anonymously takes anonymous POSTs only (`403 E_RELAY_NOT_OWNER`). A token's
+first use — the stream, the socket or a POST — is held to whoever negotiated
+it: a token read in a log before its owner connects opens nothing.
+
+Over WebSockets a connection has one request, its handshake, so every
+invocation on the socket is checked against the handshake's auth: a role
+revoked mid-connection takes effect on the next connection, as with ASP.NET
+Core SignalR's WebSocket transport.
 
 `guards` names the guards the request may have authenticated through — what
 Warden reports as `auth.authenticatedViaGuard`. `roles` is satisfied by **any**
@@ -346,23 +353,32 @@ refused, and a cancel targets a stream that was never started.
 
 ### The wire
 
-The transport is **Server-Sent Events**, which relay already serves and which
-is a first-class SignalR transport. A
-stock `@microsoft/signalr` client configured with
-`HttpTransportType.ServerSentEvents` speaks it unchanged:
+Two first-class SignalR transports, so a stock `@microsoft/signalr` client
+speaks to a hub unchanged, whichever it picks:
 
 | Route | Role |
 |---|---|
-| `POST <path>/negotiate` | issues a `connectionId` + `connectionToken` |
-| `GET <path>?id=<token>` | the stream, server → client |
-| `POST <path>?id=<token>` | framed messages, client → server |
+| `POST <path>/negotiate` | issues a `connectionId` + `connectionToken`, and the transports on offer |
+| `WS <path>?id=<token>` | **WebSockets**: one socket, frames both ways |
+| `GET <path>?id=<token>` | **Server-Sent Events**: the stream, server → client |
+| `POST <path>?id=<token>` | SSE's upstream: framed messages, client → server |
 
-`negotiate` announces only the transports the server can actually serve.
-Advertising WebSockets while nothing can upgrade sends every client down a road
-that dead-ends, so the default is `ServerSentEvents` alone.
+`negotiate` announces only the transports the server can actually serve:
+WebSockets first — SignalR tries them in order — when the server under the
+application can upgrade (`server.supportsWebSockets()`, true once ream's
+native server is listening), Server-Sent Events always. Advertising
+WebSockets while nothing can upgrade would send every client down a road that
+dead-ends. The socket and the SSE stream share the hub's path: ream hands a
+WebSocket handshake to the WebSocket route and a plain GET to the stream.
 
-The route customizer passed to `registerRoutes()` applies to a hub's three
-routes too — a hub needs `auth` middleware as much as the event stream does.
+The socket carries the JSON protocol's text frames; a binary message is
+refused with close code `1003`. ream's limits apply to it (`config/app.ts` →
+`http.webSocket`), and SignalR's own frame limit (`maxFrameSize`, 64 KiB)
+inside them. On shutdown every socket is closed with `1001`.
+
+The route customizer passed to `registerRoutes()` applies to every hub route,
+the WebSocket one included — an `auth` middleware refuses the handshake before
+any socket opens.
 
 ## Best practices
 
