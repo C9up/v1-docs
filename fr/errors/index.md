@@ -446,7 +446,8 @@ La plupart des refus d'eon sont des `Error` simples dont le message commence par
 | `E_EON_CHILD_COLLISION` | — | Deux jeux de tags distincts mènent à la même table enfant ; eon refuse d'écrire des lignes discordantes sous un seul jeu de tags. |
 | `E_EON_CHILD_MIGRATION` | — | `migrateChildTableNames()` a lu une ligne de la liste des enfants sans nom de table. |
 | `E_EON_BATCH_SIZE` | — | `batchSize` n'est pas un entier positif. |
-| `E_EON_DECIMAL_STMT` | — | Une super-table avec des colonnes DECIMAL est passée par le chemin STMT en colonnes, qui ne sait pas les lier. Utilisez `ingestSql()`. |
+| `E_EON_BIND` | — | Une valeur ne peut pas être écrite telle quelle dans son paramètre STMT : mauvais type, ou décimal que la colonne ne peut pas tenir exactement. |
+| `E_EON_SERVER_VERSION` | — | Le chemin STMT en colonnes demande TDengine 3.3.6.0 ou plus récent (stmt2). |
 | `E_EON_TYPE` | — | Une colonne ou un tag a un type inconnu ou absent. |
 | `E_EON_TS_TYPE` | — | Un timestamp n'est ni un bigint ni un nombre entier sûr. |
 | `E_EON_PARAM_PRECISION` | — | Un timestamp numérique n'est pas un entier sûr ; passez les timestamps en nanosecondes en bigint. |
@@ -455,7 +456,10 @@ La plupart des refus d'eon sont des `Error` simples dont le message commence par
 | `E_EON_TEMPLATE` | — | Le compilateur n'a rendu aucune instruction pour le template d'insertion STMT. |
 | `E_EON_LITERAL_INSERT` | — | Une insertion littérale pour une table enfant s'est compilée en autre chose qu'une seule instruction. |
 | `E_EON_HYDRATE_BIGINT` | — | Une colonne bigint ou timestamp est revenue avec une valeur non entière. |
-| `E_EON_DECODE` | — | Une requête a rendu des lignes sans métadonnées de colonnes : elles ne peuvent pas être décodées. |
+| `E_EON_DECODE` | — | Une réponse du serveur ou un bloc de résultat ne suit pas le protocole (tronqué, type inconnu, lignes sans métadonnées de colonnes) ; une trame qui ne peut plus être crue ferme la connexion. |
+| `E_EON_TIMEOUT` | — | Une requête à TDengine n'a pas eu de réponse dans le délai `timeoutMs`. |
+| `E_EON_CLOSED` | — | La connexion TDengine s'est fermée alors qu'une requête attendait, ou une requête a été envoyée sur une connexion fermée. |
+| `E_EON_CONNECT` | — | Le WebSocket vers taosAdapter n'a pas pu s'ouvrir : URL invalide, connexion refusée, ou pas de handshake dans le délai. |
 | `E_EON_SCHEMALESS_SCHEMA` | — | Un type de champ n'a pas de forme line-protocol. |
 | `E_EON_SCHEMALESS_FIELD` | — | Une valeur de champ line-protocol sort de la plage de son type. |
 | `E_EON_SCHEMALESS_TAG` | — | Une valeur de tag line-protocol ne peut pas être écrite. |

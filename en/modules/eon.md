@@ -1,6 +1,6 @@
 # Eon — Time-Series
 
-Eon is Ream's time-series data layer, backed by [TDengine](https://tdengine.com). Statement descriptions compile to parameterised TDengine SQL through a Rust `eon-query` compiler exposed over NAPI, and the transport is ws-first (over `@tdengine/websocket`).
+Eon is Ream's time-series data layer, backed by [TDengine](https://tdengine.com). Statement descriptions compile to parameterised TDengine SQL through a Rust `eon-query` compiler exposed over NAPI, and the transport is ws-first (eon's own client for taosAdapter, on Node's built-in `WebSocket`).
 
 ## The compile boundary
 
@@ -54,7 +54,9 @@ Time-window clauses (`INTERVAL` / `SLIDING` / `FILL` / `PARTITION BY`), selector
 
 ## Transport / connection
 
-Eon is **ws-first**: it talks to TDengine over the official `@tdengine/websocket` connector — ws-only via taosAdapter, no `libtaos`, no native FFI. A future native `taos` transport is deferred behind the same seam, not descoped.
+Eon is **ws-first**: it talks to TDengine through taosAdapter's WebSocket API with a client of its own, built on Node's built-in `WebSocket` (Node 24 or later) — no driver package, no `libtaos`, no native FFI, no install script, and nothing that touches the process (no signal handlers, no log files). A future native `taos` transport is deferred behind the same seam, not descoped.
+
+The client bounds what the server can do to it: every request has a deadline (`timeoutMs`, 60 s by default), a frame over 256 MiB or one that does not decode closes the connection, and closing it — from either side — rejects whatever is still waiting. Those failures carry `E_EON_TIMEOUT`, `E_EON_DECODE`, `E_EON_CLOSED` or `E_EON_CONNECT`; a refusal from the server carries the server's numeric `code` instead.
 
 ### Configuration
 
@@ -78,7 +80,7 @@ export default defineConfig({
 
 `ream configure @c9up/eon` writes this file, declares the four variables in `start/env.ts` (the password is optional, for token auth) and seeds `.env` with `TDENGINE_PASSWORD=change-me`: a placeholder that authenticates nowhere. Set the real password before the first run; never keep TDengine's factory `taosdata`, which every image ships with. The config has no fallback values, so a deployment missing a variable fails at boot instead of connecting to localhost.
 
-Put credentials in `user` / `password` / `token`: they go through the connector's setters. The connector also accepts them in the URL (`ws://user:pass@host`, `?token=`); eon masks the password and every query value of the URL in its error messages. There is no connection pool — eon holds a single long-lived connection (the connector has none); `connectRetries` covers the initial-connect race (docker/k8s cold start), not per-query reconnection.
+Put credentials in `user` / `password` / `token`: the user and password go in the connection request, the token in the URL's query, as taosAdapter expects. They are also accepted in the URL (`ws://user:pass@host`, `?token=`, a database as the path); eon masks the password and every query value of the URL in its error messages. There is no connection pool — eon holds a single long-lived connection; `connectRetries` covers the initial-connect race (docker/k8s cold start), not per-query reconnection.
 
 ### The `EonConnection` seam
 
@@ -96,22 +98,12 @@ interface EonConnection {
 }
 ```
 
-### Shutting down: `close()` is not enough
+### Shutting down
 
-`close()` closes one connection and deliberately leaves the connector's
-process-global handles alone. Those handles keep Node alive, so a service that
-closed every connection would still **hang forever instead of exiting**. Call
-`destroyEonConnector()` once, after the last connection is closed:
-
-```typescript
-import { destroyEonConnector } from '@c9up/eon'
-
-await conn.close()
-await destroyEonConnector()   // now the process can exit
-```
-
-`EonProvider.shutdown()` already does this for you (only when a real ws
-connection was open). It is reversible — a later boot reconnects normally.
+`close()` closes the connection's socket, and that is everything a connection
+holds: once every connection and consumer is closed, the process can exit.
+`destroyEonConnector()` is still exported for code that calls it; it does
+nothing.
 
 `exec` / `query` take **literal SQL only**. TDengine binds positional `?` placeholders exclusively through the STMT path (the bulk-ingest work), so the compiler's `params` array is not threaded through `exec` — a param-free compiled statement runs as literal SQL.
 
@@ -272,32 +264,29 @@ await repo.ingestSql(points)   // → { rowsAffected }
 
 ### Null cells
 
-A SQL `NULL` comes back as `null` for every column type that cannot hold the
-four characters `NULL` as a value — numbers, timestamps, booleans, decimals.
+A SQL `NULL` comes back as `null` for every column type, text and binary
+included: eon reads the result's null bitmap, so an empty `VARCHAR` is `null`
+and a cell holding the four characters `NULL` stays the string `"NULL"`.
 
 ```ts
 const row = await repo.query().where('ts', t).first()   // repo: the prices super-table
 row?.amount   // null, not "NULL"
 ```
 
-**Text and binary columns are the exception.** For `VARCHAR`, `NCHAR`, `JSON`,
-`VARBINARY`, `BLOB` and `GEOMETRY`, an empty cell is indistinguishable from one
-holding the string `"NULL"` by the time the value reaches eon, so those are
-handed back untouched and a null cell reads as `"NULL"`. Treat a nullable text
-column accordingly, or keep the column non-null and use a sentinel you choose.
+### Numbers keep their digits
+
+`FLOAT` reads back as the shortest decimal that is the same binary32 value
+(`0.1`, not `0.10000000149011612`), `DOUBLE` as stored, and `DECIMAL` as an
+exact string at the column's scale (`'61.9900000000'` for `DECIMAL(20,10)`).
 
 ### Ingesting a decimal
 
-`ingestMany()` refuses a super-table with a `DECIMAL` column:
-
-```
-[E_EON_DECIMAL_STMT] super-table 'prices' has DECIMAL column(s) amount, which
-the columnar STMT path cannot bind […] Use ingestSql() for this super-table.
-```
-
-The columnar path stores an unrelated number for a decimal instead of the value
-given, and a different one on each run. `ingestSql()` writes the same points
-correctly and is the path to use for those super-tables.
+A `DECIMAL` column round-trips exactly through all three paths. `ingestMany()`
+binds each value as an exact integer at the column's scale, read from the
+server's schema; a value it cannot hold exactly — more fractional digits than
+the scale, more digits than the precision, an exponent — is refused with
+`E_EON_BIND` rather than rounded. Pass decimals as strings (`'61.99'`): a
+`number` has already been rounded to binary by the time eon sees it.
 
 ## Time-series queries
 
@@ -495,5 +484,5 @@ insert routed to the deterministic child table (`childTableName`) — not the
 
 ## Pinned versions
 
-- TDengine server: `3.3.6.13`
-- `@tdengine/websocket`: `3.5.0`
+- TDengine server: `3.3.6.13` (tested); `ingestMany` uses stmt2 and needs `3.3.6.0` or later — on an older server it fails with `E_EON_SERVER_VERSION`, while `ingestSql` and `ingestSchemaless` still work.
+- Node: `24` or later (built-in `WebSocket`).

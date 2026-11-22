@@ -444,7 +444,8 @@ Most eon refusals are plain `Error`s whose message starts with `[CODE]`; the que
 | `E_EON_CHILD_COLLISION` | — | Two distinct tag sets map to the same child table; eon refuses to write mismatched rows under one tag set. |
 | `E_EON_CHILD_MIGRATION` | — | `migrateChildTableNames()` read a child listing row without a table name. |
 | `E_EON_BATCH_SIZE` | — | `batchSize` is not a positive integer. |
-| `E_EON_DECIMAL_STMT` | — | A super-table with DECIMAL columns went through the columnar STMT path, which cannot bind them. Use `ingestSql()`. |
+| `E_EON_BIND` | — | A value cannot be written to its STMT placeholder as given: the wrong type, or a decimal the column cannot hold exactly. |
+| `E_EON_SERVER_VERSION` | — | The columnar STMT path needs TDengine 3.3.6.0 or later (stmt2). |
 | `E_EON_TYPE` | — | A column or tag has an unknown or missing type. |
 | `E_EON_TS_TYPE` | — | A timestamp is neither a bigint nor a safe-integer number. |
 | `E_EON_PARAM_PRECISION` | — | A timestamp number is not a safe integer; pass nanosecond timestamps as bigint. |
@@ -453,7 +454,10 @@ Most eon refusals are plain `Error`s whose message starts with `[CODE]`; the que
 | `E_EON_TEMPLATE` | — | The compiler returned no statement for the STMT insert template. |
 | `E_EON_LITERAL_INSERT` | — | A literal insert for one child table compiled to other than exactly one statement. |
 | `E_EON_HYDRATE_BIGINT` | — | A bigint or timestamp column came back with a non-integer value. |
-| `E_EON_DECODE` | — | A query returned rows without column metadata, so they cannot be decoded. |
+| `E_EON_DECODE` | — | A server reply or result block does not match the protocol (truncated, unknown type, rows without column metadata); a frame that cannot be trusted closes the connection. |
+| `E_EON_TIMEOUT` | — | A request to TDengine got no reply within `timeoutMs`. |
+| `E_EON_CLOSED` | — | The TDengine connection closed while a request was waiting, or a request was sent on a closed one. |
+| `E_EON_CONNECT` | — | The WebSocket to taosAdapter could not be opened: a bad URL, a refused connection, or no handshake within the deadline. |
 | `E_EON_SCHEMALESS_SCHEMA` | — | A field type has no line-protocol form. |
 | `E_EON_SCHEMALESS_FIELD` | — | A line-protocol field value is outside its type's range. |
 | `E_EON_SCHEMALESS_TAG` | — | A line-protocol tag value cannot be written. |
