@@ -3,3 +3,4 @@ dist/
 .vitepress/cache
 .vitepress/dist
 .DS_Store
+.wrangler/
