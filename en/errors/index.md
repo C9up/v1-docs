@@ -541,6 +541,8 @@ The mail engine's limits are refused before the message is parsed further.
 | `E_GOLDSTONE_TOO_DEEP` | — | MIME parts are nested deeper than allowed. |
 | `E_GOLDSTONE_TOO_MANY_HEADERS` | — | A message has more headers than allowed. |
 | `E_GOLDSTONE_HEADERS_TOO_LARGE` | — | A message's headers are over the size limit. |
+| `E_GOLDSTONE_MISSING_BOUNDARIES` | — | A multipart message declares boundaries that never appear. |
+| `E_GOLDSTONE_BOUNDARY_TOO_LONG` | — | A multipart boundary is longer than allowed. |
 | `E_GOLDSTONE_TOO_MANY_ATTACHMENTS` | — | A message has more attachments than allowed. |
 | `E_GOLDSTONE_ATTACHMENT_TOO_LARGE` | — | An attachment is over the size limit. |
 | `E_GOLDSTONE_HTML_TOO_LARGE` | — | An HTML body is over the size limit. |
