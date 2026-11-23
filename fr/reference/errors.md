@@ -74,7 +74,7 @@ diagnostic en développement :
 │ [E_CONTAINER_NOT_FOUND] No binding found for 'mailer'. Did you mean 'mail'?
 │
 │ Hint: Register it with container.singleton() or decorate with @inject().
-│ Docs: https://r-eam.com/en/reference/errors#e-container-not-found
+│ Docs: https://reamjs.com/en/reference/errors#e-container-not-found
 └──────────────────────────────────────────────┘
 ```
 

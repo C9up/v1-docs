@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // The packages point their users at this site: an error's `docsUrl`, a warning's
-// "See https://r-eam.com/…", a README. Two things must hold in the built site:
+// "See https://reamjs.com/…", a README. Two things must hold in the built site:
 //
-// 1. every https://r-eam.com/… URL written in a package's sources reaches a page,
+// 1. every https://reamjs.com/… URL written in a package's sources reaches a page,
 //    and its #anchor an id on that page;
 // 2. every error code a package raises (`E_…` in a string, comments left out, or
 //    a bare code that an error class prefixes itself)
@@ -19,7 +19,7 @@ import { join, relative } from 'node:path'
 
 const dist = process.argv[2] ?? '.vitepress/dist'
 const packages = process.argv[3] ?? '../packages'
-const SITE = 'https://r-eam.com'
+const SITE = 'https://reamjs.com'
 const LANGS = ['en', 'fr']
 
 for (const dir of [dist, packages]) {
@@ -69,7 +69,7 @@ for (const pkg of readdirSync(packages)) {
     const text = readFileSync(file, 'utf8')
     const where = relative(packages, file)
 
-    for (const m of text.matchAll(/https:\/\/r-eam\.com(\/[^\s"'`)<>\]]*)?/g)) {
+    for (const m of text.matchAll(/https:\/\/reamjs\.com(\/[^\s"'`)<>\]]*)?/g)) {
       const url = m[0].replace(/[.,;:]+$/, '')
       if (url.includes('${')) continue // built at run time, e.g. errorDocsUrl(code): checked by (2)
       const [path, fragment] = (url.slice(SITE.length) || '/').split('#')
@@ -146,4 +146,4 @@ if (problems.length > 0) {
   for (const line of [...new Set(problems)].sort()) console.error(`  ${line}`)
   process.exit(1)
 }
-console.log(`${codes.size} error codes and every r-eam.com link of the packages resolve.`)
+console.log(`${codes.size} error codes and every reamjs.com link of the packages resolve.`)
