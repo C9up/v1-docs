@@ -19,6 +19,8 @@ JS thread does not freeze the screen.
 React Native supplies the JS engine (Hermes), the module registry and the
 activity; React itself is not used.
 
+![The mobile side. On the phone: your aurora component (the same component as the web pages) runs in orbit on the JS thread, where signals patch a tree of native nodes; orbit-host, in Rust, lays it out with taffy and diffs it; native Android views show it, with gestures and animations on the UI thread. React Native supplies Hermes; React is not used. Over-the-air updates: ream android:publish bundles the JS and signs it with robledo.key; your ream server serves the update at /__robledo; the phone checks that the signature and the native runtime match; an update that crashes before its first screen is rolled back at the next launch.](/images/mobile-en.webp){width=640 height=640 loading=lazy}
+
 ## Installation
 
 ```bash
