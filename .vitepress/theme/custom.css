@@ -72,3 +72,35 @@
 .VPFeature .VPImage {
   border-radius: 14px;
 }
+
+/* A home card: its illustration beside the title rather than alone on a line,
+   then the text and the link across the whole card. */
+.VPFeature .box {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto 1fr auto;
+  column-gap: 1rem;
+}
+
+.VPFeature .box > .VPImage {
+  grid-column: 1;
+  grid-row: 1;
+  margin-bottom: 0;
+  width: 56px;
+  height: 56px;
+}
+
+.VPFeature .box > .title {
+  grid-column: 2;
+  grid-row: 1;
+  align-self: center;
+}
+
+.VPFeature .box > .details,
+.VPFeature .box > .link-text {
+  grid-column: 1 / -1;
+}
+
+.VPFeature .box > .details {
+  padding-top: 0.875rem;
+}
