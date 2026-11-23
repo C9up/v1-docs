@@ -18,6 +18,8 @@ This guide covers background jobs with bay:
 
 Bay is the job queue module in the Ream ecosystem (`@c9up/bay`).
 
+![The life of a queued job. await SendEmail.dispatch({ to }).toQueue('emails') puts it in delayed when it has a delay ('10s'), otherwise straight in pending. A worker (ream queue:work --concurrency=10) takes it: active, where execute() runs and a timeout ('1m') aborts this.signal. If it returns, the job is completed. If it throws or times out and attempts are left (maxRetries: 5), it goes back to pending after exponentialBackoff; otherwise it is failed, failed(error) runs once and queue.failedJobs() lists it.](/images/queues-en.webp){width=640 height=640 loading=lazy}
+
 ## Use cases
 
 - async background processing
