@@ -15,6 +15,8 @@ It combines:
 
 > Status: production-ready core. The API below matches the current codebase.
 
+![How an Atlas query reaches the database. Your code, in TypeScript, declares a model (@Column() declare email: string) and builds a query (await User.query().where('role', 'admin').exec()). The SQL compiler, in Rust, validates every table and column name (an unsafe name raises E_UNSAFE_IDENTIFIER), turns values into bound parameters and writes SQL for the connection's dialect. The driver, in Rust with sqlx, talks to PostgreSQL, MySQL or SQLite and never silently drops TLS. The rows come back as User instances, with their relations. Schema changes are applied with ream migration:run.](/images/atlas-en.webp){width=640 height=640 loading=lazy}
+
 ## Recommended path
 
 1. [Getting Started](/en/guides/database/orm/getting-started)
