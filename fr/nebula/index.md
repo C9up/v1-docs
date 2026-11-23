@@ -4,10 +4,6 @@
 
 Une nébuleuse est la matière d'où naissent les étoiles — celle-ci est la matière d'où naissent les interfaces. Soixante-seize composants sur quatre couches, plus la couche de comportement sans habillage que Radix fournirait ailleurs.
 
-::: warning Ne pas confondre
-Le paquet cache s'est un temps appelé Nebula avant de devenir [Echo](/fr/guides/digging-deeper/cache). Ce nom-là désigne aujourd'hui ce paquet-ci, et rien d'autre.
-:::
-
 ## Deux façons de s'en servir
 
 ```ts
