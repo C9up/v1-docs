@@ -4,6 +4,8 @@ Ce guide couvre les paquets de l'écosystème et l'état de chacun.
 
 Cette page liste l'état des modules de l'écosystème.
 
+![Les paquets de ream par domaine. Cœur : ream, ream-cli, lumen. API : rune, comet, neutrino. Frontend : aurora, photon, inker, nebula, ephemeris. Données : atlas, quasar, eon. Authentification et sécurité : warden, transit, visa, sigil, blackhole. Temps réel : relay. Mobile : orbit, orbit-clipboard, orbit-secure-store, robledo. Services : archive, atom, bay, chronos, echo, eclipse, goldstone, nova, parsec, prism, rosetta, rover, spectrum, station, vellum. Tests et outils : helix, helix-plugin-ream, ream-mcp. Chaque paquet s'installe et fonctionne seul.](/images/packages-en.webp){width=640 height=640 loading=lazy}
+
 ## Statut actuel
 
 | Module | Package | Statut | Notes |

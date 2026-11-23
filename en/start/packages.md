@@ -4,6 +4,8 @@ This guide covers the packages of the ecosystem and where each one stands.
 
 This page lists the current status of ecosystem modules.
 
+![The packages of ream by domain. Core: ream, ream-cli, lumen. APIs: rune, comet, neutrino. Frontend: aurora, photon, inker, nebula, ephemeris. Data: atlas, quasar, eon. Auth and security: warden, transit, visa, sigil, blackhole. Realtime: relay. Mobile: orbit, orbit-clipboard, orbit-secure-store, robledo. Services: archive, atom, bay, chronos, echo, eclipse, goldstone, nova, parsec, prism, rosetta, rover, spectrum, station, vellum. Testing and tools: helix, helix-plugin-ream, ream-mcp. Every package installs and works on its own.](/images/packages-en.webp){width=640 height=640 loading=lazy}
+
 ## Current status
 
 | Module | Package | Status | Notes |
