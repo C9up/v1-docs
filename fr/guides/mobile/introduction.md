@@ -20,7 +20,7 @@ occupé ne fige pas l'écran.
 React Native fournit le moteur JS (Hermes), le registre des modules et
 l'activité ; React lui-même n'est pas utilisé.
 
-![Le côté mobile. Sur le téléphone : votre composant aurora (le même que celui des pages web) tourne dans orbit sur le thread JS, où les signaux mettent à jour un arbre de nœuds natifs ; orbit-host, en Rust, le met en page avec taffy et calcule les différences ; les vues Android natives l'affichent, avec les gestes et les animations sur le thread UI. React Native fournit Hermes ; React n'est pas utilisé. Mises à jour à distance : ream android:publish regroupe le JS et le signe avec robledo.key ; votre serveur ream sert la mise à jour sur /__robledo ; le téléphone vérifie que la signature et le runtime natif correspondent ; une mise à jour qui plante avant son premier écran est annulée au lancement suivant.](/images/mobile-en.webp){width=640 height=640 loading=lazy}
+![Le côté mobile. Sur le téléphone : votre composant aurora (le même que celui des pages web) tourne dans orbit sur le thread JS, où les signaux mettent à jour un arbre de nœuds natifs ; orbit-host, en Rust, le met en page avec taffy et calcule les différences ; les vues Android natives l'affichent, avec les gestes et les animations sur le thread UI. React Native fournit Hermes ; React n'est pas utilisé. Mises à jour à distance : ream android:publish regroupe le JS et le signe avec robledo.key ; votre serveur ream sert la mise à jour sur /__robledo ; le téléphone vérifie que la signature et le runtime natif correspondent ; une mise à jour qui plante avant son premier écran est annulée au lancement suivant.](/images/mobile-fr.webp){width=640 height=640 loading=lazy}
 
 ## Installation
 
