@@ -1,115 +1,287 @@
 # atlas
 
-This guide covers the atlas API:
+`@c9up/atlas`: the ORM: entities and models, repositories, a query builder compiled to SQL by a Rust engine, migrations, a schema builder, seeders, factories and test helpers, on PostgreSQL, MySQL and SQLite. Guide: [ORM](/en/guides/database/orm/).
 
-- Main exports
-- BaseRepository
-- ModelQuery
-- Migrations API
-- Strict mode
-- Minimal example
+## Installation
 
-This page documents the concrete API exposed today by `@c9up/atlas`.
-
-## Main exports
-
-- `BaseEntity`
-- `BaseRepository`
-- `ModelQuery`
-- `QueryBuilder`, `RawSql`
-- `Schema`, `TableBuilder`
-- `Migration`, `MigrationRunner`
-- `transaction`, `createNapiConnection`
-- decorators: `Entity`, `Column`, `column`, `PrimaryKey`, `computed`, relations, hooks, `scope`, `SoftDeletes`
-- strict mode helpers: `setAtlasStrictMode`, `isAtlasStrictMode`
-
-## BaseRepository
-
-### Constructor
-
-```ts
-new BaseRepository(EntityClass, db, options?)
+```bash
+pnpm add @c9up/atlas
 ```
 
-### Query entrypoints
+`ream configure @c9up/atlas` registers the provider and the `@c9up/atlas/commands` commands, writes `config/database.ts` and adds `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USER` and `DB_PASSWORD` to `.env`. Factories that use faker need `@faker-js/faker`; the `db()` test plugin needs `@c9up/helix` (both optional peers).
 
-- `query()`
-- `find(id)` / `findOrFail(id)`
-- `findBy(column, value)`
-- `all()` / `allWithTrashed()` / `onlyTrashed()`
-- `where(column, value)`
+## Entry points
 
-### Writes
+| Import | Contents |
+|---|---|
+| `@c9up/atlas` | Everything below except the services: models, repositories, queries, decorators, schema and migrations, seeders, factories, test helpers, commands, events, errors |
+| `@c9up/atlas/provider` | `AtlasProvider` (default export) |
+| `@c9up/atlas/services/db` | `db` (default export), the connection registry and `createDbService` |
+| `@c9up/atlas/orm` | `BaseEntity`, `BaseModel`, `BaseRepository`, the entity decorators and the hooks |
+| `@c9up/atlas/schema` | `Migration` (also as `BaseSchema`), `Schema`, `TableBuilder`, `ColumnBuilder`, `ForeignKeyBuilder`, `AlterViewBuilder`, `SchemaDumper`, `RawSql` |
+| `@c9up/atlas/factories` | `factory`, `Factory`, `FactoryBuilder`, `makeFactoryCommand` |
+| `@c9up/atlas/seeders` | `BaseSeeder`, `Seeder`, `runSeeders`, `runSeederDirectory`, `dbSeedCommand`, `makeSeederCommand` |
+| `@c9up/atlas/testing` | `useTransaction`, `truncateAll`, `testUtils`, `createDbAssertions`, `db` (helix plugin), `Database`, `factory` |
+| `@c9up/atlas/types/relations` | The relation property types `HasOne`, `BelongsTo`, `HasMany`, `ManyToMany`, `HasOneThrough`, `HasManyThrough` |
+| `@c9up/atlas/commands` | The command loader: `getMetaData`, `getCommand`, `primaryConnectionName` |
+| `@c9up/atlas/configure` | `configure(codemods)`, run by `ream configure` |
 
-- `create(data)`
-- `createMany(rows)`
-- `save(entity)`
-- `saveMany(entities)`
-- `upsert(data, uniqueBy)`
-- `firstOrCreate(where, create?)`
-- `firstOrNew(where, create?)`
-- `updateOrCreate(where, data)`
-- `updateById(id, data)`
-- `updateWhere(column, value, data)`
-- `delete(entity)` / `forceDelete(entity)` / `restore(entity)`
+## Exports
 
-### Counters
+### `@c9up/atlas`
 
-- `increment(id, column, amount?)`
-- `increment(id, { colA: 1, colB: 2 })`
-- `decrement(id, column, amount?)`
-- `decrement(id, { colA: 1, colB: 2 })`
+**Models and repositories**
 
-### Relations and hydration helpers
+| Export | Kind | Description |
+|---|---|---|
+| `BaseModel` | class | Active-record base: static finders and writers on the model's connection, instance `save()` / `delete()`. |
+| `BaseEntity` | class | Base of an entity: dirty tracking, fill and merge, relations, serialization, domain events. |
+| `BaseRepository` | class | Data-mapper access to one entity class on a given connection. |
+| `ModelQuery` | class | The query a model or repository builds; resolves to entity instances. |
+| `Paginator` | class | A page of results: `items`, `meta` (`total`, `perPage`, `currentPage`, `lastPage`, `firstPage`), URL helpers. |
+| `setAtlasStrictMode` | function | `setAtlasStrictMode(enabled: boolean): void`: raw SQL entry points (`whereRaw`, `joinRaw`…) throw in application code. |
+| `isAtlasStrictMode` | function | `isAtlasStrictMode(): boolean`. |
+| `DomainEvent` | type | An event an entity records, flushed after it is saved. |
+| `CreateOptions` | interface | `{ quiet?: boolean; allowExtraProperties?: boolean }`. |
+| `RepositoryOptions` | interface | `{ dialect?: AtlasDialect; scope?: QueryScope }`. |
+| `DatabaseConnection` | interface | What a repository runs on: `dialect?`, `execute`, `query`, `transaction?`. |
+| `QueryScope` | type | `(query: ModelQuery<BaseEntity>, table: string) => void`. |
+| `ScopedPivot` | interface | Pivot constraints of a scoped many-to-many query. |
 
-- `loadRelation(entity, relationName, callback?)`
-- `relatedProxy(entity, relationName)`
-- `loadCount(entity, relationName, alias?)`
-- `loadAggregate(entity, relationName, builder)`
-- `refresh(entity)`
-- `fresh(entity)`
+**Decorators and hooks**
 
-### Transactions and low-level
+| Export | Kind | Description |
+|---|---|---|
+| `Entity` | function | `Entity(tableName: string): ClassDecorator`. |
+| `Column` / `column` | function | `column(options?: ColumnOptions)`, with `column.date(options?)`, `column.dateTime(options?)` and `column.json(options?)`. Date columns hydrate to a chronos `DateTime`. |
+| `PrimaryKey` | function | `PrimaryKey(options?): PropertyDecorator`. |
+| `computed` | function | `computed(): MethodDecorator`: a getter included in serialization. |
+| `BelongsTo` / `HasOne` / `HasMany` / `HasOneThrough` / `HasManyThrough` / `ManyToMany` | function | Relation decorators; the lower-case forms (`belongsTo`…) are the same functions. |
+| `SoftDeletes` | function | `SoftDeletes(): ClassDecorator`: `delete()` sets `deleted_at`; queries leave deleted rows out. |
+| `hasSoftDeletes` | function | `hasSoftDeletes(target): boolean`. |
+| `scope` | function | Declare a reusable query scope on a model. |
+| `beforeSave`, `afterSave`, `beforeCreate`, `afterCreate`, `beforeUpdate`, `afterUpdate`, `beforeDelete`, `afterDelete`, `beforeFind`, `afterFind`, `beforeFetch`, `afterFetch`, `beforePaginate`, `afterPaginate` | function | Lifecycle hook decorators: `(): MethodDecorator`. |
+| `addHook` / `removeHook` | function | Register or drop a hook without a decorator. |
+| `getEntityMetadata`, `getColumnMetadata`, `getRelationMetadata`, `getPrimaryKey`, `getDateColumnConfig` | function | Read what the decorators recorded. |
+| `ColumnOptions` | interface | `{ type?; nullable?; default?; columnName?; serializeAs?; serialize?; … }`. |
+| `DateTimeColumnOptions` / `DateColumnConfig` | interface | `{ autoCreate?: boolean; autoUpdate?: boolean }` and the recorded config. |
+| `JsonColumnOptions` | interface | `ColumnOptions & { type?: 'json' \| 'jsonb' }`; `jsonb` by default. |
+| `ColumnAdapter` | interface | `{ consume(raw): T; prepare(value): unknown }`: converts a column between the database and the entity. |
+| `ManyToManyOptions` | interface | Pivot table, keys and pivot columns of a many-to-many relation. |
+| `ColumnMetadata` / `EntityMetadata` / `RelationMetadata` | interface | Recorded metadata. |
+| `HookEvent` / `HookHandler` / `HookKind` | type | Hook names and handler signature. |
+| `ScopeFn` | type | A scope's function. |
 
-- `useTransaction(trx)`
-- `raw(sql, ...params)`
-- `getTableName()`
-- `getPrimaryKeyColumn()`
+**Queries and connections**
 
-## ModelQuery
+| Export | Kind | Description |
+|---|---|---|
+| `QueryBuilder` | class | A table query builder compiled by the Rust engine: `select`, `where`, `whereIn`, `whereNull`, `whereExists`, `orderBy`, `groupBy`, `having`, `limit`, `offset`, `union`, `with`, `paginate`, `toSQL`. |
+| `RawSql` | class | A raw SQL fragment with its bindings, built by `db.raw()`. |
+| `transaction` | function | `transaction<T>(db: DatabaseConnection, callback: (trx: TransactionClient) => Promise<T> \| T, options?: TransactionOptions): Promise<T>`. |
+| `createNapiConnection` | function | `createNapiConnection(url: string, poolMin = 1, poolMax = 10, pragmas?, retry?: ConnectRetryOptions, observability?: ObservabilityOptions): Promise<AsyncDatabaseConnection>`. |
+| `getAtlasDialect` / `setAtlasDialect` | function | The process-wide default dialect. |
+| `registerColumnCast` / `registerTableCasts` | function | `registerColumnCast(table, column, type)`: cast a bound value to a column type (PostgreSQL). |
+| `SQLITE_PROD_PRAGMAS` | const | `{ journal_mode: 'WAL', synchronous: 'NORMAL' }`. |
+| `CamelCaseNamingStrategy` / `defaultNamingStrategy` / `getNamingStrategy` | class / const / function | How property names map to column names, and relations to keys. |
+| `AsyncDatabaseConnection` | interface | `{ dialect; query; execute; runInTransaction(batch); transaction?(); listen?; close(); ping() }`. |
+| `TransactionClient` | interface | A connection bound to one transaction, with query builders and nested savepoints. |
+| `TransactionOptions` | interface | `{ isolationLevel?: IsolationLevel; … }`. |
+| `IsolationLevel` | type | `'read uncommitted' \| 'read committed' \| 'repeatable read' \| 'serializable'`. |
+| `ConnectRetryOptions` / `ObservabilityOptions` / `QueryMeta` | interface | Connect retries, query events, the model a query belongs to. |
+| `ListenFn` / `ListenOptions` / `Notification` / `NotificationHandler` / `Unlisten` | type | PostgreSQL LISTEN / NOTIFY through `db.listen()`. |
+| `AtlasDialect` | type | `'sqlite' \| 'postgres' \| 'mysql'`. |
+| `WhereOperator` / `WhereClause` / `ExistsClause` / `OrderByClause` / `CteDefinition` / `QueryResult` | type | Query builder shapes. |
+| `NamingStrategy` / `RelationKind` | type | |
 
-### Filtering
+**Schema, migrations and seeders**
 
-- `where(...)`, `orWhere(...)`
-- `whereNull`, `whereNotNull`, `whereNot`
-- `whereIn`, `whereNotIn`
-- `whereBetween`, `whereNotBetween`
-- `whereLike`, `whereILike`
-- `whereRaw(sql, bindings)`
-- `whereExpr(column, operator, value)`
-- `whereExpr(column, extraExpression, operator, value)`
-- `useTransaction(trx)`
+| Export | Kind | Description |
+|---|---|---|
+| `Migration` / `BaseSchema` | class | Abstract base of a migration. |
+| `MigrationRunner` | class | Runs a directory of migrations on a `DatabaseAdapter`. |
+| `Schema` | class | DDL builder: tables, views, indexes, schemas. |
+| `TableBuilder` / `ColumnBuilder` | class | Columns, keys, indexes and checks of one table. |
+| `SchemaDumper` | class | Writes the live schema to a `.sql` file and a manifest. |
+| `readSchemaDumpManifest` / `schemaDumpManifestPath` | function | Read the manifest next to a dump. |
+| `renderPgCreateTable` / `renderPgForeignKeyDdl` | function | PostgreSQL DDL of an introspected table. |
+| `introspectTable` | function | `introspectTable(db, dialect, table, schema?): Promise<IntrospectedColumn[] \| null>`. |
+| `checkSchema` | function | `checkSchema(entities, db, dialect): Promise<SchemaFinding[]>`: compare models' columns with the live schema. |
+| `verifySchema` | function | Same, then throw (`mode: 'throw'`, default) or warn on drift. |
+| `runSchemaCheck` | function | Same, printed; resolves to an exit code. |
+| `formatSchemaFindings` / `suggestColumn` / `typesCompatible` | function | Helpers of the schema check. |
+| `BaseSeeder` / `Seeder` | class | Abstract base of a seeder: `run()`, `this.db`, `static environment`. |
+| `runSeeders` / `runSeederDirectory` | function | Run seeder instances, or every seeder file of a directory. |
+| `DatabaseAdapter` | interface | What `MigrationRunner` runs on; `runInTransaction(batch)` makes each migration atomic. |
+| `MigrationRecord` / `MigrationState` / `MigrationStatus` | type | Migration tracking. |
+| `SchemaFinding` / `SchemaFindingKind` | type | `'missing-table' \| 'missing-in-db' \| 'type-mismatch' \| 'missing-in-model'`. |
+| `IntrospectedColumn` / `PgForeignKey` / `SchemaDumperOptions` / `SchemaDumpManifest` / `SchemaDumpResult` | type | |
+| `ColumnDefinition` / `ColumnType` / `DefaultValue` / `AlterOperation` / `CheckExpression` / `CheckOperator` / `CheckValue` / `ColumnPosition` / `ForeignKeyReference` / `IndexDefinition` / `ReferentialAction` / `TableConstraintSpec` / `TableOptionsSpec` / `TextVariant` | type | Schema builder shapes. |
 
-### Relations
+**Commands, factories, testing, events, errors**
 
-- `preload(relation, callback?)`
-- `whereHas`, `orWhereHas`
-- `whereDoesntHave`, `orWhereDoesntHave`
-- `has`, `orHas`, `doesntHave`
+| Export | Kind | Description |
+|---|---|---|
+| `defineConfig` | function | `defineConfig(config: AtlasDatabaseConfig): AtlasDatabaseConfig`. |
+| `configure` | function | The `ream configure` hook. |
+| `makeMigrationCommand`, `migrationRunCommand`, `migrationRollbackCommand`, `migrationStatusCommand`, `migrationResetCommand`, `migrationRefreshCommand`, `migrationFreshCommand`, `migrationUnlockCommand`, `dbWipeCommand`, `dbSeedCommand`, `makeSeederCommand`, `makeFactoryCommand`, `schemaDumpCommand`, `schemaGenerateCommand`, `schemaCheckCommand` | function | Build each command class with its options (see `@c9up/atlas/commands`). |
+| `generateSchemaFile` / `renderSchemaFile` | function | What `schema:generate` writes. |
+| `argument` / `flag` | function | Command argument and flag metadata. |
+| `MigrationCommandOptions` / `SeederCommandOptions` / `FactoryCommandOptions` / `SchemaDumpCommandOptions` / `SchemaGenerateOptions` / `AtlasCommandClass` / `CommandOptions` / `ArgumentMetaData` / `FlagMetaData` | type | |
+| `factory` / `Factory` | function / const | Model factories (see `@c9up/atlas/factories`). |
+| `FactoryContext` | interface | What a factory callback receives. |
+| `useTransaction` / `truncateAll` | function | Test isolation (see `@c9up/atlas/testing`). |
+| `TestTransaction` | interface | `{ trx: TransactionClient; rollback: () => Promise<void> }`. |
+| `onDbQuery` | function | `onDbQuery(listener: DbQueryListener): () => void`: every statement of a connection with `debug: true`. |
+| `prettyPrintQuery` | function | `prettyPrintQuery(event: DbQueryEvent): string`. |
+| `onUnsafeStatement` | function | `onUnsafeStatement(listener: UnsafeStatementListener): () => void`: every statement the Rust compiler refused. |
+| `clearDbQueryListeners` / `clearUnsafeStatementListeners` | function | |
+| `DbQueryEvent` / `DbQueryListener` / `UnsafeStatementEvent` / `UnsafeStatementListener` | type | |
+| `AtlasError` | error | Base of every atlas error: `code` (a code without `E_` gets `E_ATLAS_`) and `hint?`. |
+| `EntityNotFoundError` | error | `E_ROW_NOT_FOUND`, status 404; `entityClass`, `criteria`. |
+| `MassAssignmentError` | error | `E_MASS_ASSIGNMENT`; `entityClass`, `attribute`. |
+| `OptimisticLockError` | error | `E_OPTIMISTIC_LOCK`; `entityClass`, `primaryKey`, `expectedVersion`. |
+| `RelationNotLoadedError` | error | `E_RELATION_NOT_LOADED`; `entityClass`, `relationName`. |
 
-### Aggregates / extras
+### `@c9up/atlas/provider`
 
-- `withCount(relation, callback?)`
-- `withAggregate(relation, callback)`
-- `count`, `sum`, `avg`, `min`, `max`
-- `countDistinct`, `sumDistinct`, `avgDistinct`
-- `distinct`, `exists`, `doesntExist`, `pluck`
-- `as(alias)`
+| Export | Kind | Description |
+|---|---|---|
+| `default` (`AtlasProvider`) | provider | Reads `config/database.ts` (the `database` key), opens every connection, seats the default one on `services/db`, verifies the schema when `verifySchema` is set, runs pending migrations at boot only when `migrations.autoRun` is on, and closes the connections on shutdown. |
+| `AtlasAppContext` | interface | The host the provider needs. |
+| `ConnectionConfig` / `AtlasDatabaseConfig` | interface | See Configuration. |
 
-The eight aggregates share one signature. Each takes a column — with an alias
-inline, as a second argument, or as the key of an object — and returns the
-builder. The value comes back as a column of the result row, in `$extras` on the
-model builder:
+### `@c9up/atlas/services/db`
+
+| Export | Kind | Description |
+|---|---|---|
+| `default` (`db`) | const | The `DbService` of the default connection. |
+| `createDbService` | function | `createDbService(resolve: () => AsyncDatabaseConnection, readOnly?: boolean): DbService`. |
+| `setDb` / `getDb` / `clearDb` | function | Seat, read and drop the default connection. |
+| `registerConnection` / `unregisterConnection` / `getConnection` | function | Named connections: `registerConnection(name, connection, config?)`. |
+| `connectionManager` | function | `connectionManager(): ConnectionManager`. |
+| `setDatabaseConfig` / `getDatabaseConfig` / `clearDatabaseConfig` / `connectionConfigFor` / `primaryConnectionName` | function | The config the provider booted with; `connectionConfigFor(name?)` merges a connection over the top level. |
+| `DbService` | interface | See below. |
+| `DbQueryOptions` | interface | `{ client?: QueryExecutor; mode?: 'read' \| 'write' }`. |
+| `ConnectionOptions` | interface | `{ mode?: 'read' \| 'write' }`. |
+
+| Member of `DbService` | Signature | Description |
+|---|---|---|
+| `from` / `table` / `query` | `from(table: string): DatabaseQueryBuilder` | A table query; `from()` also takes a subquery and an alias. |
+| `insertQuery` | `insertQuery(options?: DbQueryOptions): DatabaseQueryBuilder` | An insert. |
+| `rawQuery` | `rawQuery<T>(sql: string, bindings?: unknown[] \| Record<string, unknown>): RawQueryBuilder<T>` | Raw SQL with positional or named bindings. |
+| `raw` / `ref` | `raw(sql: string, params?): RawSql` | A raw fragment, a column reference. |
+| `modelQuery` | `modelQuery<Q>(model: { query(): Q }): Q` | A model's query on this connection. |
+| `connection` | `connection(name?: string, options?: ConnectionOptions): DbService` | Another connection, or a read replica with `mode: 'read'`. |
+| `execute` | `execute(sql: string, params?: unknown[]): Promise<{ rowsAffected: number }>` | |
+| `transaction` / `runInTransaction` | as on the connection | Managed or manual transaction; a batch run atomically. |
+| `listen` | as on the connection | PostgreSQL LISTEN / NOTIFY. |
+| `truncate` / `truncateAllTables` | `truncate(table: string, cascade?: boolean): Promise<void>` | |
+| `getAdvisoryLock` / `releaseAdvisoryLock` | `getAdvisoryLock(key: string \| number): Promise<boolean>` | |
+| `manager` / `dialect` | getters | |
+| `ping` / `close` | `ping(): Promise<void>` | |
+
+### `@c9up/atlas/testing`
+
+| Export | Kind | Description |
+|---|---|---|
+| `useTransaction` | function | `useTransaction(db: AsyncDatabaseConnection): Promise<TestTransaction>`: run a test inside a transaction rolled back after it. |
+| `truncateAll` | function | `truncateAll(db: AsyncDatabaseConnection, ignoreTables?: readonly string[]): Promise<void>`. |
+| `testUtils` | function | `testUtils(conn, options?: DbTestUtilsOptions): { db(): DbTestUtils }`: `migrate()`, `truncate()`, `seed(files?)`, `withGlobalTransaction()`. |
+| `createDbAssertions` | function | `createDbAssertions(conn: DbConnectionLike): DbAssertions`: `assertHas`, `assertMissing`, `assertCount`, `assertEmpty`. |
+| `db` | function | `db(conn: DbConnectionLike): Plugin`: helix plugin setting `ctx.db` to the assertions. |
+| `Database` | class | A small async database for tests: `query`, `queryWithParams`, `execute`, `close`, `asAdapter()`. |
+| `factory` / `Factory` / `FactoryBuilder` | function / const / interface | As in `@c9up/atlas/factories`. |
+| `DbTestUtils` / `DbTestUtilsOptions` | interface | `{ migrationsDir?; seedersDir?; ignoreTables? }`. |
+| `DbAssertions` / `DbConnectionLike` | interface | |
+
+### `@c9up/atlas/factories`
+
+| Export | Kind | Description |
+|---|---|---|
+| `factory` | function | `factory<T extends BaseEntity>(entityClass, defaults): FactoryBuilder<T>`. |
+| `Factory` | const | `Factory.define(entityClass, defaults).build()`, and `Factory.stubId(generator?)`. |
+| `FactoryBuilder` | interface | `merge`, `mergeRecursive`, `state`, `apply`, `client`, `connection`, `relation`, `with`, `tap`, `newUp`, `pivotAttributes`, `query`, `before`, `after`, `make`, `makeMany`, `makeStubbed`, `makeStubbedMany`, `create(db?)`, `createMany(count, db?)`. |
+| `makeFactoryCommand` | function | The `make:factory` command. |
+
+### `@c9up/atlas/commands`
+
+| Command | Description |
+|---|---|
+| `migration:run` | Run pending migrations (`--schema-path` bootstraps from a dump). |
+| `migration:rollback` | Roll back the latest batch, or `--batch=N`; `--force` in production. |
+| `migration:status` | Applied and pending migrations. |
+| `migration:reset` | Roll back every migration. |
+| `migration:refresh` | Roll back every migration, then run them again. |
+| `migration:fresh` | Drop every table, then run every migration. |
+| `migration:unlock` | Clear a stuck migration lock. |
+| `db:wipe` | Drop every table, the migrations table included. |
+| `db:seed` | Run seeders (`--files=A,B`, `--connection=name`). |
+| `make:migration` | Scaffold a timestamped migration. |
+| `make:seeder` | Scaffold a seeder. |
+| `make:factory` | Scaffold a factory. |
+| `schema:dump` | Dump the schema to a `.sql` file and a manifest (`--prune`, `--connection`, `--path`). |
+| `schema:generate` | Introspect the database and generate model classes. |
+| `atlas:check` | Compare the models with the live schema. |
+
+Commands that destroy data refuse to run in production without `--force` while `migrations.disableRollbacksInProduction` is on.
+
+### `BaseModel`
+
+| Group | Members |
+|---|---|
+| Find | `find`, `findOrFail`, `findBy`, `findByOrFail`, `findMany`, `findManyBy`, `first`, `firstOrFail`, `all`, `query(options?)` |
+| Write | `create`, `createMany`, `createQuietly`, `createManyQuietly`, `firstOrCreate`, `firstOrNew`, `updateOrCreate`, `updateOrCreateMany`, `fetchOrCreateMany`, `fetchOrNewUpMany`, `truncate` |
+| Connection | `static connection`, `$connection()`, `$repo(options?)`, `transaction(callback, options?)` or `transaction(options?)` |
+| Instance | `save()`, `saveQuietly()`, `delete()`, `deleteQuietly()`, `useTransaction(trx)`, `useConnection(name)`, `$trx` |
+
+### `BaseEntity`
+
+| Group | Members |
+|---|---|
+| State | `$isNew`, `$isPersisted`, `$isLocal`, `$isDeleted`, `$isDirty`, `$dirty`, `$primaryKeyValue`, `isDirty(...)` |
+| Attributes | `fill(values)`, `merge(values)`, `setExtra` / `getExtra`, `enableForceUpdate()` |
+| Relations | `load`, `loadOnce`, `loadCount`, `loadAggregate`, `related(name)`, `associate`, `dissociate`, `attach`, `detach`, `sync` |
+| Reload | `refresh()`, `fresh()` |
+| Output | `serialize(options?)`, `toJSON()`, `toObject()` |
+| Domain events | `addDomainEvent`, `getDomainEvents`, `hasDomainEvents`, `domainEventCount`, `clearDomainEvents`, `flushDomainEvents` |
+
+### `BaseRepository`
+
+`new BaseRepository(entityClass, db: DatabaseConnection, options?: RepositoryOptions)`.
+
+| Group | Members |
+|---|---|
+| Query | `query()`, `find(id)`, `findOrFail(id)`, `findBy(column, value)`, `findByOrFail`, `findMany`, `findManyBy`, `all()`, `allWithTrashed()`, `onlyTrashed()`, `where(column, value)` |
+| Write | `create(data, options?)`, `createMany(rows)`, `createQuietly`, `createManyQuietly`, `save(entity)`, `saveQuietly`, `saveMany(entities)`, `upsert(data, uniqueBy)`, `firstOrCreate(where, create?)`, `firstOrNew(where, create?)`, `updateOrCreate(where, data)`, `updateOrCreateMany`, `fetchOrCreateMany`, `fetchOrNewUpMany`, `updateById(id, data)`, `updateWhere(column, value, data)` |
+| Delete | `delete(entity)`, `deleteQuietly`, `forceDelete(entity)`, `restore(entity)`, `truncate()` |
+| Counters | `increment(id, column, amount?)` or `increment(id, { colA: 1 })`; `decrement` likewise |
+| Relations | `loadRelation(entity, name, callback?)`, `relatedProxy(entity, name)`, `loadCount(entity, name, alias?)`, `loadAggregate(entity, name, builder)`, `refresh(entity)`, `fresh(entity)` |
+| Low level | `useTransaction(trx)`, `raw(sql, ...params)`, `execute`, `getTableName()`, `getPrimaryKeyColumn()` |
+
+### `ModelQuery`
+
+A `ModelQuery` is `PromiseLike`: `await` runs it. Every `where*` and `having*` method has `and*` and `or*` forms.
+
+| Group | Members |
+|---|---|
+| Where | `where`, `whereNot`, `whereNull`, `whereNotNull`, `whereIn`, `whereNotIn`, `whereBetween`, `whereNotBetween`, `whereLike`, `whereILike`, `whereColumn`, `whereNotColumn`, `whereExists`, `whereNotExists`, `whereRaw(sql, bindings)`, `whereExpr(column, operator, value)`, `whereJson`, `whereNotJson`, `whereJsonPath`, `whereJsonSubset` / `whereJsonSuperset` and their `Of` and `Not` forms |
+| Relations | `preload(relation, callback?)`, `preloadOnce`, `sideload`, `has`, `doesntHave`, `whereHas`, `whereDoesntHave`, `withCount(relation, callback?)`, `withAggregate(relation, callback)` |
+| Pivot | `wherePivot`, `whereNotPivot`, `wherePivotIn`, `whereInPivot`, `whereNotInPivot`, `whereNullPivot`, `whereNotNullPivot`, `pivotColumns` |
+| Select and aggregates | `select`, `distinct`, `distinctOn`, `count`, `countDistinct`, `sum`, `sumDistinct`, `avg`, `avgDistinct`, `min`, `max`, `selectAggregate`, `as(alias)` |
+| Joins | `join`, `innerJoin`, `leftJoin`, `leftOuterJoin`, `rightJoin`, `rightOuterJoin`, `fullOuterJoin`, `crossJoin`, `joinOn(table, left, right)`, `joinRaw(fragment)`, with `on`, `onVal`, `onIn`, `onNull`, `onBetween`, `onExists` and their negations |
+| Grouping | `groupBy`, `groupByRaw`, `having*`, `groupLimit`, `groupOrderBy` |
+| Order and pages | `orderBy`, `orderByRaw`, `limit`, `offset`, `forPage`, `paginate(page, perPage)`, `cursorPaginate({ perPage, cursor, orderBy })` |
+| Sets and CTEs | `union`, `unionAll`, `intersect`, `intersectAll`, `except`, `exceptAll`, `with`, `withRecursive`, `withMaterialized`, `withNotMaterialized` |
+| Scopes and conditions | `apply(callback)`, `withScopes(callback)`, `if`, `unless`, `ifDialect`, `unlessDialect`, `match` |
+| Soft deletes | `withTrashed`, `onlyTrashed`, `restore`, `forceDelete` |
+| Locking | `forUpdate`, `forShare`, `forNoKeyUpdate`, `forKeyShare`, `skipLocked`, `noWait`, `timeout` |
+| Run | `exec()`, `first()`, `firstOrFail()`, `sole()`, `exists()`, `doesntExist()`, `pluck(column)`, `all()` |
+| Write | `update(patch, returning?)`, `delete(returning?)`, `increment(column, amount)` or `increment({ … })`, `decrement` likewise |
+| Inspect | `toSQL()`, `toQuery()`, `toNative()`, `debug(flag)`, `comment(text)`, `reporterData`, `clone()`, `useTransaction(trx)` |
+| Clear | `clearSelect`, `clearWhere`, `clearOrder`, `clearHaving`, `clearLimit`, `clearOffset` |
+
+The eight aggregates share one signature. Each takes a column, with an alias inline, as a second argument, or as the key of an object, and returns the builder. The value comes back as a column of the result row, in `$extras` on the model builder:
 
 ```ts
 const [row] = await db.from('sales').count('* as total')
@@ -119,65 +291,177 @@ const [order] = await Order.query().sum('amount as spent').countDistinct('sku', 
 Number(order.$extras.spent)
 ```
 
-None of them runs the query on its own, so `count` and `countDistinct` answer
-the same thing for the same argument.
+None of them runs the query on its own.
 
-### Joins / scope / locking
+The `DatabaseQueryBuilder` that `db.from()` returns has the same filtering, join, grouping, set and locking methods, plus `insert`, `multiInsert`, `returning`, `onConflict(...).ignore()` / `.merge()`, `update`, `delete` / `del`, `increment`, `decrement`, `withSchema` and `paginate`.
 
-- `innerJoin`, `leftJoin`, `rightJoin`, `crossJoin`
-- `joinOn(table, left, right)`
-- `joinRaw(fragment)`
-- `apply(callback)` / `withScopes(callback)`
-- `forUpdate()` / `forShare()`
+### `Migration`
 
-### Pagination and execution
+| Member | Signature | Description |
+|---|---|---|
+| `up` / `down` | `abstract up(): Promise<void> \| void` | The change and its reverse. |
+| `schema` | `readonly schema: Schema` | The DDL builder. |
+| `defer` | `defer(callback: (db) => Promise<void> \| void): void` | Run code against the connection after the schema statements, in the migration's transaction. |
+| `raw` | `raw(expression: string): RawSql` | A raw SQL expression for a column default, written as is. |
+| `now` | `now(): RawSql` | `CURRENT_TIMESTAMP` on SQLite, `NOW()` elsewhere, for a column default. |
+| `disableTransactions` | `static disableTransactions = false` | Run this migration outside a transaction. |
+| `dryRun` | `dryRun = false` | Set while the runner collects SQL without writing. |
+| `getUpSQL` / `getDownSQL` | `getUpSQL(): Promise<string[]>` | The compiled statements. |
 
-- `orderBy`, `limit`, `offset`, `forPage`
-- `paginate(page, perPage)`
-- `cursorPaginate({ perPage, cursor, orderBy })`
-- `first()`, `firstOrFail()`, `exec()`
-- `toSQL()`, `toQuery()`, `debug(flag)`, `clone()`
+### `MigrationRunner`
 
-### Bulk mutation from query
+`new MigrationRunner(db: DatabaseAdapter, options?: { migrationsDir?; dialect?; tableName?; … })`; `database/migrations` and table `ream_migrations` by default.
 
-- `update(patch, returning?)`
-- `delete(returning?)`
-- `increment(column, amount)` / `increment({ ... })`
-- `decrement(column, amount)` / `decrement({ ... })`
+| Member | Signature | Description |
+|---|---|---|
+| `init` | `init(): Promise<void>` | Create the tracking table. |
+| `status` | `status(): Promise<MigrationStatus[]>` | |
+| `migrate` | `migrate(options?: { schemaPath?: string }): Promise<string[]>` | Run pending migrations, each atomically when the adapter has `runInTransaction`. |
+| `rollback` | `rollback(options?: { batch?: number; force?: boolean }): Promise<string[]>` | The last batch, or batch `N`. |
+| `reset` / `refresh` | `refresh(): Promise<{ rolled: string[]; executed: string[] }>` | Roll back everything; `refresh` then migrates again. |
+| `fresh` | `fresh(options?: { force?: boolean; schemaPath?: string }): Promise<{ rolled: string[]; executed: string[] }>` | Drop every table, then migrate. |
+| `wipe` | `wipe(options?: { force?: boolean }): Promise<void>` | Drop every table. |
+| `dryRun` | `dryRun()` | The SQL pending migrations would run, without writing. |
+| `loadDump` | `loadDump(sqlPath: string): Promise<void>` | Run the statements of a schema dump. |
+| `forceUnlock` | `forceUnlock(): Promise<boolean>` | Clear a stale lock. |
 
-## Migrations API
+### `Schema` and `TableBuilder`
 
-### MigrationRunner
+| Builder | Members |
+|---|---|
+| `Schema` | `createTable`, `createTableIfNotExists`, `createTableLike`, `alterTable` / `table`, `renameTable`, `dropTable`, `dropTableIfExists`, `hasTable`, `hasColumn`, `createIndex`, `dropIndex`, `createView`, `createViewOrReplace`, `alterView`, `renameView`, `dropView`, `dropViewIfExists`, `createMaterializedView`, `refreshMaterializedView`, `dropMaterializedView`, `dropMaterializedViewIfExists`, `createSchema`, `createSchemaIfNotExists`, `dropSchema`, `dropSchemaIfExists`, `withSchema`, `raw`, `toSQL`, `reset` |
+| `TableBuilder` columns | `increments`, `bigIncrements`, `id`, `integer`, `bigInteger`, `smallint`, `tinyint`, `mediumint`, `float`, `double`, `decimal`, `boolean`, `string`, `text`, `binary`, `uuid`, `enum`, `json`, `jsonb`, `date`, `time`, `dateTime`, `timestamp`, `timestamptz`, `timestamps`, `specificType` |
+| `TableBuilder` keys and constraints | `primary`, `unique`, `uniqueIndex`, `index`, `foreign`, `check`, `checkBetween`, `checkIn`, `checkNotIn`, `checkLength`, `checkPositive`, `checkNegative`, `checkRegex` |
+| `TableBuilder` alterations | `renameColumn`, `dropColumn`, `dropColumns`, `dropPrimary`, `dropUnique`, `dropIndex`, `dropForeign`, `dropChecks`, `dropTimestamps`, `setNullable`, `dropNullable`, `engine`, `charset`, `collate`, `comment` |
+| `ColumnBuilder` | `notNullable`, `nullable`, `defaultTo`, `unsigned`, `primary`, `unique`, `index`, `references`, `inTable`, `onDelete`, `onUpdate`, `comment`, `first`, `after`, `alter`, `check*` |
 
-- `init()`
-- `status()`
-- `migrate()`
-- `rollback()`
-- `refresh()`
-- `fresh()`
-- `reset()`
-- `dryRun()`
+## Configuration
 
-`DatabaseAdapter` can provide `runInTransaction(batch)` for atomic migrations.
+`config/database.ts`, read under the `database` key.
 
-## Strict mode
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `connection` | `string` | `'primary'` | The default connection when `connections` is set (`default` is accepted as an older alias). |
+| `connections` | `Record<string, ConnectionConfig>` | — | Named connections. |
+| `verifySchema` | `{ entities; mode?: 'throw' \| 'warn' }` | unset | Compare these models with the live schema after boot; `throw` by default. |
+| `prettyPrintDebugQueries` | `boolean` | `false` | Print each statement of a `debug` connection. |
+| `<connection>.url` / `.connection` | `string` | — | `sqlite:data/app.db`, `postgres://…`, `mysql://…`. `url` wins. |
+| `<connection>.pool` | `{ min?: number; max?: number }` | `{ min: 1, max: 10 }` | Pool size (`poolMin` / `poolMax` are accepted too). |
+| `<connection>.debug` | `boolean` | `false` | Emit a `db:query` event per statement. |
+| `<connection>.pragmas` | `Record<string, string \| number>` | — | SQLite pragmas, such as `SQLITE_PROD_PRAGMAS`. |
+| `<connection>.connectRetries` | `number` | `0` | Extra attempts of the first connection. |
+| `<connection>.connectBackoffMs` | `number` | `200` | Base of the exponential backoff, capped at 30 s. |
+| `<connection>.connectTimeoutMs` | `number` | — | Per-attempt acquire timeout. |
+| `<connection>.migrations.paths` | `string[]` | `['database/migrations']` | Migration directories. |
+| `<connection>.migrations.tableName` | `string` | `'ream_migrations'` | Tracking table; a plain identifier. |
+| `<connection>.migrations.disableRollbacksInProduction` | `boolean` | `true` | Refuse rollback, reset, refresh, fresh and wipe in production without `--force`. |
+| `<connection>.migrations.autoRun` | `boolean` | `false` | Run pending migrations at boot; ignored in development. |
+| `<connection>.migrations.naturalSort` | `boolean` | `false` | Sort `2_x` before `10_x`. |
+| `<connection>.migrations.disableTransactions` | `boolean` | `false` | Run every migration outside a transaction. |
+| `<connection>.seeders.paths` | `string[]` | `['database/seeders']` | Seeder directory (the first is used). |
+| `<connection>.seeders.naturalSort` | `boolean` | `false` | |
+| `<connection>.factories.path` | `string` | `'database/factories'` | Where `make:factory` writes. |
+| `<connection>.schemaGeneration` | `SchemaGenerateOptions` | — | `outputPath` and options of `schema:generate`. |
 
-```ts
-setAtlasStrictMode(true)
-```
+## Container bindings
 
-When enabled, unsafe entrypoints (`whereRaw`, `joinRaw`) throw in user code and force structured query paths.
+| Token | Resolves to |
+|---|---|
+| `'atlas.db'` / `'db'` | The default `AsyncDatabaseConnection` |
+| `'atlas.db.connection'` / `'db.connection'` | The same connection |
+| `'atlas.db:<name>'` / `'db:<name>'` | A named connection |
 
-## Minimal example
+All are typed on `ContainerBindings` once `@c9up/atlas` is imported.
 
-```ts
-const users = new BaseRepository(User, db)
+## Errors
 
-const page = await users
-  .query()
-  .where('status', 'active')
-  .whereExpr('total', '>=', 100)
-  .withCount('posts', (q) => q.as('postsCount'))
-  .orderBy('id', 'desc')
-  .cursorPaginate({ perPage: 20, orderBy: ['id'] })
-```
+Codes without the `E_` prefix get `E_ATLAS_`. The Rust compiler's refusals (`E_UNSAFE_*`, `E_INJECTION_PATTERN`, `E_UNSUPPORTED`) are plain `Error`s whose message starts with the code. See [Error handling](/en/guides/database/orm/error-handling) for the typed subclasses.
+
+| Code | Raised when |
+|---|---|
+| [`E_ROW_NOT_FOUND`](/en/reference/errors#e-row-not-found) | A query that must return a row found none: `findOrFail`, `findByOrFail`, `refresh`, `fresh`, `firstOrFail()`, `sole()`. |
+| [`E_MASS_ASSIGNMENT`](/en/reference/errors#e-mass-assignment) | `fill()` / `merge()` (and `create`, `createMany`, `updateOrCreate`) set an attribute outside `fillable`, or listed in `guarded`. |
+| [`E_EXTRA_PROPERTIES`](/en/reference/errors#e-extra-properties) | A fill named a property that is not a declared column. |
+| [`E_UNKNOWN_COLUMN`](/en/reference/errors#e-unknown-column) | A value was assigned to a key that is not a column. Pass `{ allowExtraProperties: true }` to keep unknown keys in `$extras`. |
+| [`E_INVALID_COLUMN`](/en/reference/errors#e-invalid-column) | A query names a column the entity does not declare. |
+| [`E_INVALID_FIND_VALUE`](/en/reference/errors#e-invalid-find-value) | `find()` was called without a usable primary key value. |
+| [`E_MODEL_NOT_PERSISTED`](/en/reference/errors#e-model-not-persisted) | An operation that needs a stored row (`delete()`, `refresh()`, `load*()`…) ran on a local instance. |
+| [`E_MISSING_PRIMARY_KEY`](/en/reference/errors#e-missing-primary-key) | The same operation ran on a persisted projection that holds no primary key. |
+| [`E_MODEL_DELETED`](/en/reference/errors#e-model-deleted) | `save()` was called on a deleted instance. |
+| [`E_MISSING_OWNER_KEY`](/en/reference/errors#e-missing-owner-key) | `associate()` was given a parent whose key is not set. |
+| [`E_RELATION_NOT_LOADED`](/en/reference/errors#e-relation-not-loaded) | A relation was read before it was loaded. Call `.preload()` on the query or `.load()` on the instance. |
+| [`E_OPTIMISTIC_LOCK`](/en/reference/errors#e-optimistic-lock) | A save lost an optimistic lock: another transaction modified the row since it was read. |
+| [`E_STRICT_MODE`](/en/reference/errors#e-strict-mode) | Raw SQL refused by strict mode (a repository's `raw()`, or a `db.raw()` value written by a repository). |
+| [`E_NO_INTERACTIVE_TRANSACTION`](/en/reference/errors#e-no-interactive-transaction) | The connection has no interactive `transaction()` (a model transaction, or `useTransaction()` in tests). |
+| [`E_ARRAY_PARAM`](/en/reference/errors#e-array-param) | A list was bound to a single placeholder. Expand it into one placeholder per element. |
+| [`E_ATLAS_MISSING_CONNECTION`](/en/reference/errors#e-atlas-missing-connection) | A model or repository names a connection that is not configured. |
+| [`E_ATLAS_EMPTY_SELECT`](/en/reference/errors#e-atlas-empty-select) | `select()` was called with no columns. Provide at least one column name. |
+| [`E_ATLAS_INVALID_PAGE`](/en/reference/errors#e-atlas-invalid-page) | `paginate()` was called with `page < 1`. |
+| [`E_ATLAS_INVALID_PER_PAGE`](/en/reference/errors#e-atlas-invalid-per-page) | `paginate()` was called with `perPage < 1`. |
+| [`E_ATLAS_INVALID_PAGINATION`](/en/reference/errors#e-atlas-invalid-pagination) | A page, page size or row count that is not a finite, non-negative integer. |
+| [`E_ATLAS_INVALID_CTE_NAME`](/en/reference/errors#e-atlas-invalid-cte-name) | A CTE name must be a valid identifier (letters, numbers, underscores). |
+| [`E_ATLAS_INVALID_OPERATOR`](/en/reference/errors#e-atlas-invalid-operator) | A `where()` or `wherePivot()` operator outside the allowed list. |
+| [`E_ATLAS_INVALID_INCREMENT`](/en/reference/errors#e-atlas-invalid-increment) | `increment()` / `decrement()` was given an amount that is not a finite number. |
+| [`E_ATLAS_INVALID_DATE_COLUMN_VALUE`](/en/reference/errors#e-atlas-invalid-date-column-value) | A date column was given a value that is not a valid date. |
+| [`E_ATLAS_UNDEFINED_BINDING`](/en/reference/errors#e-atlas-undefined-binding) | A query value is `undefined`. Validate the input first; use `whereNull()` to match NULL. |
+| [`E_ATLAS_DIALECT_MISMATCH`](/en/reference/errors#e-atlas-dialect-mismatch) | `useTransaction(trx)` was given a transaction of another dialect than the query was built for. Start the transaction on the query's connection, or build the query from the transaction. |
+| [`E_ATLAS_RAW_BINDINGS`](/en/reference/errors#e-atlas-raw-bindings) | A raw query has placeholders with no binding. |
+| [`E_ATLAS_RAW_VALUE`](/en/reference/errors#e-atlas-raw-value) | `defaultTo(db.raw())` was given bindings, which a column default cannot carry. |
+| [`E_ATLAS_NON_FINITE_NUMBER`](/en/reference/errors#e-atlas-non-finite-number) | `defaultTo()` was given a number that is not a SQL number (`NaN`, `Infinity`). |
+| [`E_ATLAS_FACTORY_FAKER_MISSING`](/en/reference/errors#e-atlas-factory-faker-missing) | A factory uses faker, an optional peer of atlas that is not installed. |
+| [`E_ATLAS_NAPI_NOT_FOUND`](/en/reference/errors#e-atlas-napi-not-found) | The Rust query compiler is not loaded. A plain `Error` whose message starts with the code. See [Troubleshooting](/en/guides/database/orm/troubleshooting). |
+| [`E_ATLAS_INSECURE_SSLMODE`](/en/reference/errors#e-atlas-insecure-sslmode) | The connection asks for `sslmode=prefer` or `allow` (URL or `PGSSLMODE`), which fall back to plaintext without saying so. Use `disable` or `verify-full`. See [Encrypted connections](/en/guides/database/orm/connections#encrypted-connections-tls). |
+| [`E_ATLAS_LISTEN_UNSUPPORTED`](/en/reference/errors#e-atlas-listen-unsupported) | LISTEN / NOTIFY was used on a connection that is not PostgreSQL. |
+| [`E_ATLAS_LISTEN_CONNECT`](/en/reference/errors#e-atlas-listen-connect) | The listener could not open its own PostgreSQL connection. |
+| [`E_ATLAS_LISTEN_CONNECTION`](/en/reference/errors#e-atlas-listen-connection) | The listener's connection failed; every subscription is told. |
+| [`E_ATLAS_LISTEN_CHANNEL`](/en/reference/errors#e-atlas-listen-channel) | A LISTEN channel name is empty, longer than 63 bytes, or holds a NUL. |
+| [`E_ATLAS_LISTEN_CLOSED`](/en/reference/errors#e-atlas-listen-closed) | The listener was closed while a request was pending. |
+| [`E_ATLAS_LISTEN_EVENT`](/en/reference/errors#e-atlas-listen-event) | The native listener reported an event atlas does not define. |
+| [`E_ATLAS_MIGRATION_INVALID_TABLE_NAME`](/en/reference/errors#e-atlas-migration-invalid-table-name) | `migrations.tableName` is not a plain identifier. |
+| [`E_ATLAS_MIGRATION_NOT_FOUND`](/en/reference/errors#e-atlas-migration-not-found) | A migration to run or roll back has no file in the migrations directory. |
+| [`E_ATLAS_MIGRATION_INVALID`](/en/reference/errors#e-atlas-migration-invalid) | A migration file does not default-export a class. |
+| [`E_ATLAS_MIGRATION_DUPLICATE`](/en/reference/errors#e-atlas-migration-duplicate) | Two migration files share a name. |
+| [`E_ATLAS_MIGRATION_COMPILE_EMPTY`](/en/reference/errors#e-atlas-migration-compile-empty) | A migration compiled to no SQL statement. |
+| [`E_MIGRATION_LOCKED`](/en/reference/errors#e-migration-locked) | Another run holds the migration lock. Wait for it, or clear a stale lock with `migration:unlock`. |
+| [`E_ROLLBACK_DISABLED_IN_PRODUCTION`](/en/reference/errors#e-rollback-disabled-in-production) | A rollback, reset, refresh, fresh or wipe in production without `--force`. |
+| [`E_ATLAS_DRY_RUN_WRITE`](/en/reference/errors#e-atlas-dry-run-write) | A migration tried to write while running under `dryRun()`. |
+| [`E_DEFER_REQUIRES_TRANSACTION`](/en/reference/errors#e-defer-requires-transaction) | A migration uses `this.defer()` on an adapter without an interactive `transaction()`. |
+| [`E_MYSQL_FK_REQUIRES_TRANSACTION`](/en/reference/errors#e-mysql-fk-requires-transaction) | Suspending MySQL foreign-key checks needs an interactive `transaction()` to restore them. |
+| [`E_SCHEMA_DUMP_DIALECT_MISMATCH`](/en/reference/errors#e-schema-dump-dialect-mismatch) | The schema dump was made for another dialect. |
+| [`E_SCHEMA_DUMP_TABLE_MISMATCH`](/en/reference/errors#e-schema-dump-table-mismatch) | The schema dump uses another migrations tracking table. |
+| [`E_SEEDER_DIR_NOT_FOUND`](/en/reference/errors#e-seeder-dir-not-found) | The seeders directory does not exist. |
+| [`E_SEEDER_INVALID`](/en/reference/errors#e-seeder-invalid) | A seeder file does not export a seeder class. |
+| [`E_SEEDER_INVALID_PATH`](/en/reference/errors#e-seeder-invalid-path) | A seeder path resolves outside the seeders directory. |
+| [`E_NO_CONNECTION`](/en/reference/errors#e-no-connection) | `schema.<method>()` needs a live connection; it is available inside a migration, not on a standalone `Schema`. |
+| [`E_ALTER_EMPTY`](/en/reference/errors#e-alter-empty) | `schema.alterTable()` declared no operation. |
+| [`E_ALTER_MISUSE`](/en/reference/errors#e-alter-misuse) | `.alter()` does not follow a column definition, or an alter-only method was used on a new table. |
+| [`E_CHECK_EMPTY`](/en/reference/errors#e-check-empty) | A check constraint (or `checkBetween`) was given no value or interval. |
+| [`E_CHECK_RANGE`](/en/reference/errors#e-check-range) | `checkBetween` was given an interval that is not `[min, max]`. |
+| [`E_CONSTRAINT_EMPTY`](/en/reference/errors#e-constraint-empty) | A constraint lists no columns. |
+| [`E_ENUM_EMPTY`](/en/reference/errors#e-enum-empty) | An enum column declares no values. |
+| [`E_EMPTY_VIEW_SELECT`](/en/reference/errors#e-empty-view-select) | A view has no SELECT, or a materialized view was asked of a dialect that has none. |
+| [`E_SPECIFIC_TYPE_EMPTY`](/en/reference/errors#e-specific-type-empty) | `specificType()` was given an empty type. |
+| [`E_SQLITE_DECIMAL_PRECISION`](/en/reference/errors#e-sqlite-decimal-precision) | A decimal precision SQLite cannot store exactly. |
+| [`E_UNSUPPORTED`](/en/reference/errors#e-unsupported) | A SQL feature the connection's dialect does not have (`DISTINCT ON` off Postgres, `UNION ALL` variants on SQLite…). |
+| [`E_UNSAFE_IDENTIFIER`](/en/reference/errors#e-unsafe-identifier) | The Rust compiler refused an identifier. |
+| [`E_UNSAFE_SQL`](/en/reference/errors#e-unsafe-sql) | The Rust compiler refused a SQL fragment. |
+| [`E_UNSAFE_EXPRESSION`](/en/reference/errors#e-unsafe-expression) | The Rust compiler refused an expression. |
+| [`E_UNSAFE_LITERAL`](/en/reference/errors#e-unsafe-literal) | The Rust compiler refused a literal value. |
+| [`E_INJECTION_PATTERN`](/en/reference/errors#e-injection-pattern) | The Rust compiler refused an input that looks like an injection attempt. |
+| `E_ATLAS_FACTORY_INVALID` | `make:factory` was given a name that is not a safe file name. |
+| `E_ATLAS_SEEDER_INVALID` | `make:seeder` was given a name that is not a safe file name. |
+
+## See also
+
+- [ORM introduction](/en/guides/database/orm/)
+- [Entities](/en/guides/database/orm/entities)
+- [Query builder](/en/guides/database/orm/query-builder)
+- [Repositories](/en/guides/database/orm/repositories)
+- [Relations](/en/guides/database/orm/relations)
+- [Migrations](/en/guides/database/orm/migrations)
+- [Schema builder](/en/guides/database/orm/schema-builder)
+- [Seeders](/en/guides/database/orm/seeders)
+- [Factories](/en/guides/database/orm/factories)
+- [Transactions and locks](/en/guides/database/orm/transactions-and-locks)
+- [SQL security](/en/guides/database/orm/security)
+- [Database commands](/en/guides/command-line/database)

@@ -1,115 +1,209 @@
 # inker
 
-This guide covers the inker API, cache, errors and production checklist:
+`@c9up/inker`: server-side templates in `.inker` files, parsed in Rust, rendered with HTML escaping by default. Guide: [Templates](/en/guides/frontend/templates/).
 
-- Main API
-- Cache semantics
-- Errors
-- Production checklist
+## Installation
 
-## Main API
-
-```ts
-import { Templates, InkerRenderError } from '@c9up/inker'
-
-const templates = new Templates({
-  root: '/abs/path/to/templates',
-  cacheMode: 'auto',  // 'auto' (default) | 'mtime' | 'never'
-  helpers: new Map(), // optional registered helpers
-})
-
-await templates.render(name, data)      // async; loads <root>/<name>.inker
-templates.renderString(source, data)    // sync; renders an in-memory string (no disk directives)
-templates.registerTag(definition)       // register a custom @tag (clears the cache)
-templates.clearCache()                  // drop the entire AST cache
-templates.mount('admin', '/abs/admin')  // named disk → render 'admin::dashboard'
-templates.unmount('admin')              // remove a named disk
+```bash
+pnpm add @c9up/inker
 ```
 
-### `render(name, data)`
+Register the provider in `reamrc.ts` (`providers: [() => import('@c9up/inker/provider')]`); the package has no configure hook. `@c9up/rosetta`, an optional peer dependency, supplies the `t()` helper. The parser is a native binary: a platform without one raises `E_INKER_NAPI_REQUIRED`.
 
-Async. Resolves `<root>/<name>.inker` from disk, parses (cached), composes layouts / partials / components, and renders with the supplied data. Missing templates throw `InkerRenderError({ code: 'E_INKER_TEMPLATE_NOT_FOUND', context: { templatePath } })` — strict by default; the original `fs.readFile` ENOENT is preserved on `.cause`.
+## Entry points
 
-### `renderString(source, data)`
+| Import | Contents |
+|---|---|
+| `@c9up/inker` | `Templates`, `TemplateRenderer`, `SafeString`, `Stacks`, `Processor`, `InkerRenderError` and the types. The default export is the plugin registrar (`plugins`). |
+| `@c9up/inker/provider` | `InkerProvider` (default export) and `InkerProviderConfig`. |
+| `@c9up/inker/services/main` | The booted `InkerRenderer` (default export), plus `setInker`, `getInker`, `clearInker`. Reading it before the provider has started throws. |
+| `@c9up/inker/testing` | `createTestTemplates`, an engine over in-memory templates. |
 
-Sync. Renders an in-memory string. It cannot resolve disk-backed directives (`@layout`, `@include`, `@component`, `{{> body }}`) — those throw `E_INKER_DISK_REQUIRED`; use `render(name, data)` instead. Custom tags and every in-string directive (`@if`, `@each`, …) work.
+## Exports
 
-### `mount(diskName, dir)` / `unmount(diskName)`
+### `@c9up/inker`
 
-Named **disks**. Mount a second templates directory under a namespace, then address its templates as `diskName::template`:
+| Export | Kind | Description |
+|---|---|---|
+| `Templates` | class | The engine: disks, rendering, globals, tags, plugins, cache. |
+| `TemplateRenderer` | class | A renderer with shared state of its own; `ctx.view` is one. |
+| `SafeString` | class | A string emitted without escaping. |
+| `Stacks` | class | The store behind `@stack`, `@pushTo` and `@pushOnceTo`. |
+| `Processor` | class | Source (`raw`) and output (`output`) transforms; `templates.processor`. |
+| `InkerRenderError` | error | Every inker error, with a `code` and a `context`. |
+| `plugins` (also the default export) | const | Registrar: plugins pushed here reach every engine the provider builds. |
+| `TemplatesOptions` | interface | `{ root: string; cacheMode?: CacheMode; helpers?: ReadonlyMap<string, HelperFn> }`. |
+| `InkerPluginFn` | type | `(templates: Templates, firstRun: boolean, options: T \| undefined) => void`. |
+| `InkerPluginOptions` | interface | `{ readonly recurring?: boolean }`: run the plugin before every render, not only the first. |
+| `InkerSharedRenderer` | interface | `{ render(template: string, data?: Readonly<Record<string, unknown>>): Promise<string> }`, what `plugins.share()` returns. |
+| `InkerTag` | interface | A custom tag: `tagName`, `block`, `seekable`, `noNewLine?`, `compile(parser, buffer, token)`. |
+| `InkerTagBuffer` | interface | `writeRaw(text)`, `outputExpression(jsExpression, filename, line, shouldEscape)`. |
+| `InkerTagToken` | interface | `properties.jsArg` (the argument source), `filename`, `loc`, `renderBody(locals?)`, `evaluate(expression)`. |
+| `InkerTagParser` | interface | `{ readonly utils: Readonly<Record<string, never>> }`. |
+| `RawProcessorValue` | interface | `{ raw: string; path?: string }`. |
+| `OutputProcessorValue` | interface | `{ output: string; template?: string }`. |
+| `InkerErrorCode` | type | Union of the `E_INKER_*` codes below. |
+| `InkerErrorContext` | interface | `{ templatePath?; templateName?; line?; column?; expression? }`; `line` and `column` are 1-based. |
+| `HelperFn` | type | `(...args: readonly unknown[]) => unknown`. |
+| `THelper` | type | `(key: string, params?: Record<string, unknown>) => string`. |
+| `UrlHelper` | type | `(name: string, params?: Record<string, unknown>) => string`. |
+| `AssetHelper` | type | `(name: string) => string`. |
+| `CsrfFieldHelper`, `CsrfMetaHelper` | type | `() => SafeString`. |
+| `CspNonceHelper` | type | `() => string`. |
 
-```ts
-templates.mount('admin', '/abs/path/to/admin-templates')
+### `Templates`
 
-await templates.render('admin::dashboard')   // <admin>/dashboard.inker
-await templates.render('home')                // <default root>/home.inker
-```
+| Member | Signature | Description |
+|---|---|---|
+| constructor | `new Templates(options: TemplatesOptions)` | `root` is canonicalised and is the containment boundary of every path. |
+| `create` | `static create(options: TemplatesOptions): Templates` | Same as the constructor. |
+| `render` | `render(name: string, data?: Readonly<Record<string, unknown>>): Promise<string>` | Renders `<root>/<name>.inker` with its layouts, partials and components. |
+| `renderSync` | `renderSync(name: string, data?: Readonly<Record<string, unknown>>): string` | Same, synchronously; an `await` in the template raises `E_INKER_ASYNC_NOT_SUPPORTED`. |
+| `renderString` / `renderRawSync` | `renderRawSync(source: string, data?: Readonly<Record<string, unknown>>, templatePath?: string): string` | Renders a string. It cannot load other templates: `@layout`, `@include`, `@component` and `{{> body }}` raise `E_INKER_DISK_REQUIRED`; use `render`. `renderString` takes no `templatePath`. |
+| `renderRaw` | `renderRaw(source: string, data?: Readonly<Record<string, unknown>>, templatePath?: string): Promise<string>` | Async form of `renderRawSync`. |
+| `compile` | `compile(name: string): void` | Parses a template without rendering it; throws `InkerRenderError` with `line` and `column` when it does not parse. |
+| `compileRaw` | `compileRaw(source: string, templateName?: string): void` | Same, for a string. |
+| `mount` | `mount(dir: string \| URL): void` / `mount(diskName: string, dir: string \| URL): void` | Without a name, re-points the default disk. With one, templates are addressed as `diskName::template`. Re-mounting a name to another directory raises `E_INKER_DISK_COLLISION`. |
+| `unmount` | `unmount(diskName: string): void` | No-op when absent. |
+| `mounted` | `get mounted(): Readonly<Record<string, string>>` | Disk name to root; `default` is the root in force. |
+| `makePath` | `makePath(name: string): string` | The absolute path a name resolves to, without touching the disk. |
+| `resolve` | `resolve(name: string): { template: string }` | A template's source; a registered template wins over the disk. |
+| `registerTemplate` | `registerTemplate(name: string, contents: { template: string }): void` | An in-memory template, which wins over a file of the same name. A name already registered raises `E_INKER_TEMPLATE_COLLISION`. |
+| `removeTemplate` | `removeTemplate(name: string): void` | |
+| `templates` | `get templates(): Readonly<Record<string, { template: string }>>` | The registered templates. |
+| `listComponents` | `listComponents(): { diskName: string; components: { componentName: string; tagName: string }[] }[]` | Every component reachable as a tag: `components/form/input.inker` is `@form.input`. |
+| `registerTag` | `registerTag(tag: InkerTag): void` | Registers `@tagName(...)`. `compile` runs at render time and may be async; a `block` tag reads its rendered body with `token.renderBody()`. Clears the cache. |
+| `tags` | `get tags(): ReadonlyMap<string, InkerTag>` | |
+| `global` | `global(name: string, value: unknown): void` | A value in every render; render data wins over it. |
+| `globals` | `get globals(): ReadonlyMap<string, unknown>` | |
+| `use` | `use<T extends InkerPluginOptions>(plugin: InkerPluginFn<T>, options?: T): this` | Queues a plugin, run just before the first render. |
+| `createRenderer` | `createRenderer(): TemplateRenderer` | |
+| `onRender` | `onRender(callback: (renderer: TemplateRenderer) => void): this` | Runs on every renderer created. |
+| `share` | `share(data: Readonly<Record<string, unknown>>): TemplateRenderer` | `createRenderer().share(data)`. |
+| `processor` | `readonly processor: Processor` | `processor.process('raw', fn)` or `processor.process('output', fn)`; a `raw` transform clears the cache. |
+| `configure` | `configure(options: Readonly<{ cacheMode?: CacheMode }>): void` | Changes the cache mode, dropping the cache. |
+| `clearCache` | `clearCache(): void` | Drops every parsed template. |
 
-A **bare** name resolves against the default disk — the constructor `root`, until `templates.mount(dir)` (or `mount('default', dir)`) re-points it; `templates.mounted.default` reports the root in force. A `disk::name` name resolves against the mounted disk. An in-memory template (`registerTemplate`) answers only the name it was registered under, disk prefix included. A name already registered is refused with `E_INKER_TEMPLATE_COLLISION` rather than replaced — two packages shipping a template under one name would otherwise render each other's markup; `removeTemplate(name)` first is the explicit replace. References inside a template resolve the same way, so cross-disk composition is explicit:
+### `TemplateRenderer`
 
-```inker
-@layout('admin::layout')
-@include('admin::partials/sidebar')
-@component('admin::button', { label: 'Save' })
-```
+| Member | Signature | Description |
+|---|---|---|
+| `share` | `share(data: Readonly<Record<string, unknown>>): this` | Merges `data` into the shared state, deeply. |
+| `render` | `render(name: string, data?: Readonly<Record<string, unknown>>): Promise<string>` | |
+| `renderSync` | `renderSync(name: string, data?: Readonly<Record<string, unknown>>): string` | |
+| `renderString` | `renderString(source: string, data?: Readonly<Record<string, unknown>>): string` | |
+| `renderRawSync` / `renderRaw` | `renderRawSync(source: string, data?: Readonly<Record<string, unknown>>, templatePath?: string): string` | `renderRaw` returns a `Promise<string>`. |
+| `clone` | `clone(): TemplateRenderer` | A renderer with a copy of the shared state. |
+| `getState` | `getState(): Record<string, unknown>` | Engine globals with the shared values on top. |
 
-This is how a **package ships its own views**: it resolves the host's shared renderer, `mount`s its package templates dir under its own namespace, and renders `pkg::template` — see how [Station](/en/guides/digging-deeper/admin/) mounts its admin views. Containment is enforced against each disk's **own** root (the same path-shape validation and symlink guard as the default root), so mounting a directory never widens traversal out of any root. A disk name must be identifier-shaped (`[A-Za-z0-9_-]+`); path separators and `::` are rejected. `unmount(name)` removes a disk (no-op if absent). Re-mounting a name overwrites its directory.
+### `InkerRenderer` (`@c9up/inker/services/main`)
 
-## Cache semantics
+| Member | Signature | Description |
+|---|---|---|
+| `render` | `render(ctx: InkerHttpContext, name: string, data: Readonly<Record<string, unknown>>): Promise<void>` | Renders and sends the page as `text/html; charset=utf-8`. |
+| `renderToString` | `renderToString(ctx: InkerHttpContext, name: string, data: Readonly<Record<string, unknown>>): Promise<string>` | |
+| `mount` / `unmount` | `mount(diskName: string, dir: string): void` | On the shared engine, for a package that ships its own templates. |
+| `templates` | `get templates(): Templates` | The engine. |
 
-The cache is a per-instance `Map<absPath, { ast, mtimeMs }>` (two `Templates` instances with different roots do NOT share entries — keep `Templates` per-tenant).
+### `plugins`
 
-The `cacheMode` option resolves ONCE at construction:
+| Member | Signature | Description |
+|---|---|---|
+| `use` | `use<T extends InkerPluginOptions>(plugin: InkerPluginFn<T>, options?: T): this` | Queues a plugin for every engine, including one already built. |
+| `share` | `share(state: Readonly<Record<string, unknown>>): InkerSharedRenderer` | Renders outside a request, with shared state; raises `E_INKER_ENGINE_MISSING` before the provider has started. |
+| `size` | `get size(): number` | Plugins queued. |
 
-| Mode      | Behaviour                                                                           |
-|-----------|-------------------------------------------------------------------------------------|
-| `'auto'`  | `process.env.NODE_ENV === 'production' ? 'never' : 'mtime'`                          |
-| `'mtime'` | Dev posture — `stat()` on every render; reparse when mtime advances                 |
-| `'never'` | Prod posture — **never invalidate**; first render wins forever (until `clearCache`) |
+### `SafeString`, `Stacks`, `InkerRenderError`
 
-`'never'` means "never re-stat / never invalidate", not "never cache" — cached forever is the prod posture. Use `clearCache()` (or `registerTag`, which clears it) to force a re-read.
+| Member | Signature | Description |
+|---|---|---|
+| `SafeString` constructor | `new SafeString(value: string)` | Only for markup you wrote or escaped: wrapping user input is an XSS. |
+| `SafeString#value` | `readonly value: string` | |
+| `Stacks#create` | `create(name: string, context?: InkerErrorContext): string` | A placeholder; a second `@stack` of one name throws. |
+| `Stacks#pushTo` / `pushToTop` | `pushTo(name: string, contents: string): this` | |
+| `Stacks#pushOnceTo` / `pushOnceToTop` | `pushOnceTo(name: string, sourceId: string, contents: string): this` | Once per `sourceId`. |
+| `Stacks#hasSource` | `hasSource(name: string, sourceId: string): boolean` | |
+| `Stacks#fillPlaceholders` | `fillPlaceholders(contents: string): string` | |
+| `InkerRenderError` constructor | `new InkerRenderError(code: InkerErrorCode, message: string, context?: InkerErrorContext, options?: { cause?: unknown })` | |
+| `InkerRenderError#code` / `#context` | `readonly code: InkerErrorCode` | The original error, when there is one, is on `cause`. |
+
+### `@c9up/inker/testing`
+
+| Export | Kind | Description |
+|---|---|---|
+| `createTestTemplates` | function | `createTestTemplates(options?: CreateTestTemplatesOptions): TestTemplates`. Templates registered in memory, `cacheMode: 'never'`. |
+| `CreateTestTemplatesOptions` | interface | `{ templates?: Readonly<Record<string, string>>; helpers?: ReadonlyMap<string, HelperFn>; globals?: Readonly<Record<string, unknown>> }`. |
+| `TestTemplates` | interface | `{ engine: Templates; render(name, data?); renderString(source, data?); dispose() }`. `dispose()` removes the temporary root. |
+
+### Globals and helpers
+
+Every render has the core globals (`camelCase`, `pascalCase`, `snakeCase`, `dashCase`, `capitalCase`, `sentenceCase`, `dotCase`, `noCase`, `titleCase`, `truncate`, `excerpt`, `nl2br`, `pluralize`, `sentence`, `prettyBytes`, `toBytes`, `prettyMs`, `toMs`, `ordinal`, `inspect`, `html.attrs`, `html.classNames`, `html.safe`, `html.escape`, `html.jsonLd`, `js.stringify`). The provider adds `app` and `qs` and the helpers `t`, `url` / `urlFor` / `route`, `signedUrlFor` / `signedRoute`, `routes`, `routesJSON`, `asset`, `config`, `csrfField`, `csrfMeta`, `cspNonce` and `formAttributes`. See [Helpers and custom tags](/en/guides/frontend/templates/extending).
+
+## Configuration
+
+`config/inker.ts`, read by the provider:
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `templatesRoot` | `string` | `<appRoot>/resources/templates` | Absolute, or relative to the application root. |
+| `cacheMode` | `'auto' \| 'mtime' \| 'never'` | `'auto'` | `auto` is `never` in production, `mtime` elsewhere. Any other value throws at start. |
+| `assetManifest` | `Readonly<Record<string, string>>` | `<appRoot>/public/manifest.json` | What `asset()` resolves against. |
+| `additionalHelpers` | `Readonly<Record<string, HelperFn>>` | none | Merged over the provider's helpers; overriding one warns once. |
+
+| Cache mode | Behaviour |
+|---|---|
+| `mtime` | Stats the file on every render and reparses when its mtime moves. |
+| `never` | Never re-stats: a template is parsed once and kept until `clearCache()`, `registerTag()` or a `raw` processor. |
+
+The cache belongs to one `Templates`: two engines with different roots share nothing.
+
+## Container bindings
+
+| Token | Resolves to |
+|---|---|
+| `InkerRenderer` (class), `'inker'` | The `InkerRenderer`. Resolving it before the provider has started throws. |
+
+`'inker'` is declared on `ContainerBindings`. The provider also gives every HTTP context a `view` (`ctx.view: TemplateRenderer`), seeded with the request, and sets `app.usingInker` to `true`.
 
 ## Errors
 
-Inker has a single typed error class with a discriminated `code`:
+| Code | Raised when |
+|---|---|
+| [`E_INKER_TEMPLATE_NOT_FOUND`](/en/reference/errors#e-inker-template-not-found) | No template has this name; the `ENOENT` is on `cause`. |
+| [`E_INKER_PARSE_ERROR`](/en/reference/errors#e-inker-parse-error) | The template cannot be parsed. |
+| [`E_INKER_UNKNOWN_IDENTIFIER`](/en/reference/errors#e-inker-unknown-identifier) | An expression names something not in scope, or reads a property of `null` / `undefined`. |
+| [`E_INKER_INVALID_PATH`](/en/reference/errors#e-inker-invalid-path) | An invalid root, template name, disk name, tag definition or plugin. |
+| [`E_INKER_UNCLOSED_INTERPOLATION`](/en/reference/errors#e-inker-unclosed-interpolation) | A `{{` has no matching `}}`. |
+| [`E_INKER_UNCLOSED_BLOCK_TAG`](/en/reference/errors#e-inker-unclosed-block-tag) | A block tag is not closed. |
+| [`E_INKER_UNCLOSED_BLOCK`](/en/reference/errors#e-inker-unclosed-block) | A block has no `@end`. |
+| [`E_INKER_UNMATCHED_BLOCK_END`](/en/reference/errors#e-inker-unmatched-block-end) | An `@end` closes no block. |
+| [`E_INKER_MISMATCHED_BLOCK_END`](/en/reference/errors#e-inker-mismatched-block-end) | An `@end` closes another block than the open one. |
+| [`E_INKER_UNKNOWN_DIRECTIVE`](/en/reference/errors#e-inker-unknown-directive) | A directive the engine does not know. |
+| [`E_INKER_UNKNOWN_TAG`](/en/reference/errors#e-inker-unknown-tag) | No tag is registered under this name. |
+| [`E_INKER_INVALID_LAYOUT_POSITION`](/en/reference/errors#e-inker-invalid-layout-position) | `@layout` is not the first statement. |
+| [`E_INKER_DUPLICATE_LAYOUT`](/en/reference/errors#e-inker-duplicate-layout) | A template declares more than one layout. |
+| [`E_INKER_NESTED_LAYOUT_UNSUPPORTED`](/en/reference/errors#e-inker-nested-layout-unsupported) | A layout extends another layout. |
+| [`E_INKER_LAYOUT_IN_PARTIAL`](/en/reference/errors#e-inker-layout-in-partial) | A partial declares a layout. |
+| [`E_INKER_CIRCULAR_INCLUDE`](/en/reference/errors#e-inker-circular-include) | Templates include each other in a loop. |
+| [`E_INKER_MISSING_SLOT`](/en/reference/errors#e-inker-missing-slot) | A component requires a slot the caller did not fill. |
+| [`E_INKER_UNKNOWN_SLOT`](/en/reference/errors#e-inker-unknown-slot) | The caller fills a slot the component does not declare. |
+| [`E_INKER_DISK_REQUIRED`](/en/reference/errors#e-inker-disk-required) | A string render (`renderString`, `renderRaw`) uses `@layout`, `@include`, `@component` or `{{> body }}`. |
+| [`E_INKER_DISK_COLLISION`](/en/reference/errors#e-inker-disk-collision) | A disk name is mounted again on another directory. |
+| [`E_INKER_TEMPLATE_COLLISION`](/en/reference/errors#e-inker-template-collision) | `registerTemplate` was given a name already registered. |
+| [`E_INKER_INVALID_EXPRESSION`](/en/reference/errors#e-inker-invalid-expression) | An expression cannot be evaluated, or `SafeString` was given a non-string. |
+| [`E_INKER_INVALID_ITERABLE`](/en/reference/errors#e-inker-invalid-iterable) | `@each` was given something that is not iterable. |
+| [`E_INKER_HELPER_THROW`](/en/reference/errors#e-inker-helper-throw) | A helper threw during the render. |
+| [`E_INKER_ASYNC_NOT_SUPPORTED`](/en/reference/errors#e-inker-async-not-supported) | `await` in a synchronous render. |
+| [`E_INKER_RENDER_DEPTH`](/en/reference/errors#e-inker-render-depth) | Partials or components nested too deep, or a helper overflowed the stack. |
+| [`E_INKER_DUMP_DIE`](/en/reference/errors#e-inker-dump-die) | `@dd()` stopped the render. |
+| [`E_INKER_INVALID_JSON_LD`](/en/reference/errors#e-inker-invalid-json-ld) | `html.jsonLd` was given a value JSON-LD cannot hold. |
+| [`E_INKER_TEMPLATE_ERROR`](/en/reference/errors#e-inker-template-error) | A template raised an error itself. |
+| [`E_INKER_ENGINE_MISSING`](/en/reference/errors#e-inker-engine-missing) | The `plugins` singleton rendered before the provider built an engine. |
+| [`E_INKER_NAPI_REQUIRED`](/en/reference/errors#e-inker-napi-required) | There is no native inker binary for this platform. |
 
-```ts
-import { InkerRenderError } from '@c9up/inker'
+## See also
 
-try {
-  await templates.render('invoice', {})
-} catch (e) {
-  if (e instanceof InkerRenderError) {
-    console.error(e.code)                 // 'E_INKER_UNKNOWN_IDENTIFIER'
-    console.error(e.context.line)         // 4
-    console.error(e.context.column)       // 12
-    console.error(e.context.templatePath) // '/abs/path/invoice.inker'
-  }
-}
-```
-
-| Code                              | When                                                                                     |
-|-----------------------------------|------------------------------------------------------------------------------------------|
-| `E_INKER_TEMPLATE_NOT_FOUND`      | The `<root>/<name>.inker` file does not exist (ENOENT). Original error on `.cause`.       |
-| `E_INKER_PARSE_ERROR`             | Lexer or parser rejected the source.                                                     |
-| `E_INKER_UNKNOWN_IDENTIFIER`      | An expression navigated into `null`/`undefined`.                                          |
-| `E_INKER_INVALID_EXPRESSION`      | An expression failed to compile or produced a non-interpolable value.                    |
-| `E_INKER_INVALID_ITERABLE`        | `@each` was given a value that is not an array / object / Map / Set.                      |
-| `E_INKER_RENDER_DEPTH`            | Partials/components nested more than 100 deep, or a helper overflowed the stack.          |
-| `E_INKER_ENGINE_MISSING`          | `inker.share().render()` ran before `InkerProvider` built an engine.                      |
-| `E_INKER_UNKNOWN_TAG`             | A `@tag` was parsed as a custom tag but no handler is registered.                         |
-| `E_INKER_DISK_REQUIRED`          | A disk-backed directive (`@layout`/`@include`/`@component`) was used from `renderString`. |
-| `E_INKER_INVALID_PATH`            | Invalid constructor `root`, disk name, or `registerTag` definition.                      |
-| `E_INKER_TEMPLATE_COLLISION`      | `registerTemplate` was given a name already registered (`removeTemplate` it first).      |
-| `E_INKER_UNCLOSED_INTERPOLATION` / `E_INKER_UNCLOSED_BLOCK` / `E_INKER_MISMATCHED_BLOCK_END` | Structural source errors (unbalanced braces / block tags). |
-
-All errors include `context.line` / `context.column` (1-based) when the failure is source-locatable.
-
-## Production checklist
-
-- Resolve `root` to an absolute path against your project layout — do not pass relative paths.
-- Leave `cacheMode` on `'auto'` so prod gets the fast cached-forever posture without ceremony.
-- Register all custom tags at boot (before the first render) — `registerTag` clears the cache.
-- Wrap every `render()` / `renderString()` call in a `try/catch` only at the route boundary — let the strict-by-default errors bubble through helpers and view models so misconfiguration is loud.
-- Bind `Templates` as a container singleton (the `InkerProvider` does this) — never re-instantiate per request.
-- For multi-tenant scenarios with different template roots, keep one `Templates` instance per tenant — the cache is per-instance by design.
+- [Templates](/en/guides/frontend/templates/)
+- [Layouts and components](/en/guides/frontend/templates/layouts)
+- [Helpers and custom tags](/en/guides/frontend/templates/extending)
+- [Admin panel](/en/guides/digging-deeper/admin/): a package that mounts its own templates.

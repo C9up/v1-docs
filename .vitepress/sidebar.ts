@@ -912,34 +912,220 @@ export const sidebar_en = {
         {
           "text": "Errors",
           "link": "/en/reference/errors"
+        }
+      ]
+    },
+    {
+      "text": "Core",
+      "items": [
+        {
+          "text": "ream",
+          "link": "/en/reference/ream"
         },
         {
-          "text": "atlas",
-          "link": "/en/reference/atlas"
+          "text": "lumen",
+          "link": "/en/reference/lumen"
         },
         {
-          "text": "inker",
-          "link": "/en/reference/inker"
+          "text": "ream-cli",
+          "link": "/en/reference/ream-cli"
+        }
+      ]
+    },
+    {
+      "text": "APIs",
+      "items": [
+        {
+          "text": "rune",
+          "link": "/en/reference/rune"
+        },
+        {
+          "text": "comet",
+          "link": "/en/reference/comet"
+        },
+        {
+          "text": "neutrino",
+          "link": "/en/reference/neutrino"
+        }
+      ]
+    },
+    {
+      "text": "Frontend",
+      "items": [
+        {
+          "text": "aurora",
+          "link": "/en/reference/aurora"
         },
         {
           "text": "photon",
           "link": "/en/reference/photon"
         },
         {
+          "text": "inker",
+          "link": "/en/reference/inker"
+        },
+        {
+          "text": "ephemeris",
+          "link": "/en/reference/ephemeris"
+        }
+      ]
+    },
+    {
+      "text": "Data layer",
+      "items": [
+        {
+          "text": "atlas",
+          "link": "/en/reference/atlas"
+        },
+        {
+          "text": "quasar",
+          "link": "/en/reference/quasar"
+        },
+        {
+          "text": "eon",
+          "link": "/en/reference/eon"
+        }
+      ]
+    },
+    {
+      "text": "Auth",
+      "items": [
+        {
+          "text": "warden",
+          "link": "/en/reference/warden"
+        },
+        {
+          "text": "transit",
+          "link": "/en/reference/transit"
+        },
+        {
+          "text": "visa",
+          "link": "/en/reference/visa"
+        },
+        {
           "text": "sigil",
           "link": "/en/reference/sigil"
+        }
+      ]
+    },
+    {
+      "text": "Security",
+      "items": [
+        {
+          "text": "blackhole",
+          "link": "/en/reference/blackhole"
+        }
+      ]
+    },
+    {
+      "text": "Realtime",
+      "items": [
+        {
+          "text": "relay",
+          "link": "/en/reference/relay"
+        }
+      ]
+    },
+    {
+      "text": "Mobile",
+      "items": [
+        {
+          "text": "orbit",
+          "link": "/en/reference/orbit"
+        },
+        {
+          "text": "orbit-clipboard",
+          "link": "/en/reference/orbit-clipboard"
+        },
+        {
+          "text": "orbit-secure-store",
+          "link": "/en/reference/orbit-secure-store"
+        },
+        {
+          "text": "robledo",
+          "link": "/en/reference/robledo"
+        }
+      ]
+    },
+    {
+      "text": "Digging deeper",
+      "items": [
+        {
+          "text": "archive",
+          "link": "/en/reference/archive"
+        },
+        {
+          "text": "atom",
+          "link": "/en/reference/atom"
+        },
+        {
+          "text": "bay",
+          "link": "/en/reference/bay"
+        },
+        {
+          "text": "chronos",
+          "link": "/en/reference/chronos"
+        },
+        {
+          "text": "echo",
+          "link": "/en/reference/echo"
+        },
+        {
+          "text": "eclipse",
+          "link": "/en/reference/eclipse"
+        },
+        {
+          "text": "goldstone",
+          "link": "/en/reference/goldstone"
+        },
+        {
+          "text": "nova",
+          "link": "/en/reference/nova"
+        },
+        {
+          "text": "parsec",
+          "link": "/en/reference/parsec"
+        },
+        {
+          "text": "prism",
+          "link": "/en/reference/prism"
+        },
+        {
+          "text": "rosetta",
+          "link": "/en/reference/rosetta"
+        },
+        {
+          "text": "rover",
+          "link": "/en/reference/rover"
         },
         {
           "text": "spectrum",
           "link": "/en/reference/spectrum"
         },
         {
-          "text": "warden",
-          "link": "/en/reference/warden"
+          "text": "station",
+          "link": "/en/reference/station"
         },
         {
-          "text": "ream-cli",
-          "link": "/en/reference/ream-cli"
+          "text": "vellum",
+          "link": "/en/reference/vellum"
+        },
+        {
+          "text": "ream-mcp",
+          "link": "/en/reference/ream-mcp"
+        }
+      ]
+    },
+    {
+      "text": "Testing",
+      "items": [
+        {
+          "text": "helix",
+          "link": "/en/reference/helix"
+        },
+        {
+          "text": "helix-plugin-ream",
+          "link": "/en/reference/helix-plugin-ream"
         }
       ]
     },
@@ -1866,34 +2052,220 @@ export const sidebar_fr = {
         {
           "text": "Erreurs",
           "link": "/fr/reference/errors"
+        }
+      ]
+    },
+    {
+      "text": "Cœur",
+      "items": [
+        {
+          "text": "ream",
+          "link": "/fr/reference/ream"
         },
         {
-          "text": "atlas",
-          "link": "/fr/reference/atlas"
+          "text": "lumen",
+          "link": "/fr/reference/lumen"
         },
         {
-          "text": "inker",
-          "link": "/fr/reference/inker"
+          "text": "ream-cli",
+          "link": "/fr/reference/ream-cli"
+        }
+      ]
+    },
+    {
+      "text": "API",
+      "items": [
+        {
+          "text": "rune",
+          "link": "/fr/reference/rune"
+        },
+        {
+          "text": "comet",
+          "link": "/fr/reference/comet"
+        },
+        {
+          "text": "neutrino",
+          "link": "/fr/reference/neutrino"
+        }
+      ]
+    },
+    {
+      "text": "Frontend",
+      "items": [
+        {
+          "text": "aurora",
+          "link": "/fr/reference/aurora"
         },
         {
           "text": "photon",
           "link": "/fr/reference/photon"
         },
         {
+          "text": "inker",
+          "link": "/fr/reference/inker"
+        },
+        {
+          "text": "ephemeris",
+          "link": "/fr/reference/ephemeris"
+        }
+      ]
+    },
+    {
+      "text": "Couche de données",
+      "items": [
+        {
+          "text": "atlas",
+          "link": "/fr/reference/atlas"
+        },
+        {
+          "text": "quasar",
+          "link": "/fr/reference/quasar"
+        },
+        {
+          "text": "eon",
+          "link": "/fr/reference/eon"
+        }
+      ]
+    },
+    {
+      "text": "Authentification",
+      "items": [
+        {
+          "text": "warden",
+          "link": "/fr/reference/warden"
+        },
+        {
+          "text": "transit",
+          "link": "/fr/reference/transit"
+        },
+        {
+          "text": "visa",
+          "link": "/fr/reference/visa"
+        },
+        {
           "text": "sigil",
           "link": "/fr/reference/sigil"
+        }
+      ]
+    },
+    {
+      "text": "Sécurité",
+      "items": [
+        {
+          "text": "blackhole",
+          "link": "/fr/reference/blackhole"
+        }
+      ]
+    },
+    {
+      "text": "Temps réel",
+      "items": [
+        {
+          "text": "relay",
+          "link": "/fr/reference/relay"
+        }
+      ]
+    },
+    {
+      "text": "Mobile",
+      "items": [
+        {
+          "text": "orbit",
+          "link": "/fr/reference/orbit"
+        },
+        {
+          "text": "orbit-clipboard",
+          "link": "/fr/reference/orbit-clipboard"
+        },
+        {
+          "text": "orbit-secure-store",
+          "link": "/fr/reference/orbit-secure-store"
+        },
+        {
+          "text": "robledo",
+          "link": "/fr/reference/robledo"
+        }
+      ]
+    },
+    {
+      "text": "Pour aller plus loin",
+      "items": [
+        {
+          "text": "archive",
+          "link": "/fr/reference/archive"
+        },
+        {
+          "text": "atom",
+          "link": "/fr/reference/atom"
+        },
+        {
+          "text": "bay",
+          "link": "/fr/reference/bay"
+        },
+        {
+          "text": "chronos",
+          "link": "/fr/reference/chronos"
+        },
+        {
+          "text": "echo",
+          "link": "/fr/reference/echo"
+        },
+        {
+          "text": "eclipse",
+          "link": "/fr/reference/eclipse"
+        },
+        {
+          "text": "goldstone",
+          "link": "/fr/reference/goldstone"
+        },
+        {
+          "text": "nova",
+          "link": "/fr/reference/nova"
+        },
+        {
+          "text": "parsec",
+          "link": "/fr/reference/parsec"
+        },
+        {
+          "text": "prism",
+          "link": "/fr/reference/prism"
+        },
+        {
+          "text": "rosetta",
+          "link": "/fr/reference/rosetta"
+        },
+        {
+          "text": "rover",
+          "link": "/fr/reference/rover"
         },
         {
           "text": "spectrum",
           "link": "/fr/reference/spectrum"
         },
         {
-          "text": "warden",
-          "link": "/fr/reference/warden"
+          "text": "station",
+          "link": "/fr/reference/station"
         },
         {
-          "text": "ream-cli",
-          "link": "/fr/reference/ream-cli"
+          "text": "vellum",
+          "link": "/fr/reference/vellum"
+        },
+        {
+          "text": "ream-mcp",
+          "link": "/fr/reference/ream-mcp"
+        }
+      ]
+    },
+    {
+      "text": "Tests",
+      "items": [
+        {
+          "text": "helix",
+          "link": "/fr/reference/helix"
+        },
+        {
+          "text": "helix-plugin-ream",
+          "link": "/fr/reference/helix-plugin-ream"
         }
       ]
     },

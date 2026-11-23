@@ -1,94 +1,180 @@
 # sigil
 
-Ce guide couvre l'API de sigil, ses notes de migration et son dépannage :
+`@c9up/sigil` : hachage de mots de passe avec argon2, bcrypt et scrypt, exécuté par un moteur Rust natif. Guide : [Hachage](/fr/guides/security/hashing).
 
-- API publique
-- Migration depuis l'ancien `Hash` de `@c9up/ream`
-- Migration depuis le hachage interne de Warden
-- Dépannage — `E_SIGIL_NAPI_REQUIRED`
-- Statut et feuille de route
-
-## API publique
-
-| Export | Type | Rôle |
-|---|---|---|
-| `Hash` | classe | `new Hash(config)`. Méthodes d'instance : `make(value)`, `verify(hash, value)`, `needsReHash(hash)`, `use(name?)`. |
-| `HashDriver` | interface | À implémenter pour brancher un driver custom. Requis : `make`, `verify`, `needsReHash`. Type de retour de `hash.use(name)`. |
-| `HashConfig` | type | `{ default: string; drivers: Record<string, { driver: string; ...}> }`. |
-| `defineConfig` | helper | Authoring de config typé. |
-| `SigilProvider` | provider | Enregistre `Hash` (et le token `'hash'`) dans le container Ream. Importé via `@c9up/sigil/provider`. |
-| `SigilError` | classe | Base de toutes les erreurs de sigil ; `error.code` est le nom `E_SIGIL_*` de la sous-classe. |
-| `E_SIGIL_NAPI_REQUIRED` | classe | Un driver a tourné sans le moteur natif chargé. |
-| `E_SIGIL_UNKNOWN_DRIVER` | classe | Un hasher de la config nomme un driver que sigil n'a pas ; levée à la construction de `Hash`. |
-| `E_SIGIL_UNKNOWN_HASHER` | classe | `default` (à la construction de `Hash`) ou `use(name)` nomme un hasher que la config ne déclare pas. |
-| `E_SIGIL_NOT_BOOTED` | classe | `@c9up/sigil/services/main` utilisé avant le boot de `SigilProvider`. |
-
-## Migration depuis l'ancien `Hash` de `@c9up/ream`
-
-Les versions précédentes de `@c9up/ream` exposaient une classe `Hash` interne, un `HashProvider` et les helpers bruts `argon2Hash` / `argon2Verify` / `bcryptHash` / `bcryptVerify`. Tout a été supprimé — Sigil est le hasher canonical. Remplacer par la classe `Hash` de Sigil :
-
-```diff
-- import { Hash } from '@c9up/ream'
-+ import { Hash } from '@c9up/sigil'
-```
-
-```diff
-- import { argon2Hash, argon2Verify } from '@c9up/ream'
-+ import { Hash } from '@c9up/sigil'
-
-- const hashed = await argon2Hash(password)
-- const ok = await argon2Verify(password, hashed)
-+ const hash = new Hash({ default: 'argon2', drivers: { argon2: { driver: 'argon2' } } })
-+ const hashed = await hash.make(password)
-+ const ok = await hash.verify(hashed, password)
-```
-
-Dans une application Ream, préférer le `Hash` résolu via le container (cf. Exemples rapides) plutôt que d'en construire un inline.
-
-## Migration depuis le hachage interne de Warden
-
-`@c9up/warden` exposait historiquement `hashPasswordArgon2` / `verifyPasswordArgon2` / `hashPasswordBcrypt` / `verifyPasswordBcrypt` sur son interface `NativeWarden` — elles n'ont jamais été câblées dans `SessionStrategy` (qui délègue la vérification du mot de passe à l'appelant ; cf. `SessionStrategy.ts:33-37`) et n'avaient aucun appelant TS dans le workspace. La story 40.3 les a retirées de la surface TS. Le crate Rust sous-jacent embarque toujours ces fonctions dans l'artefact `.node` prébuild (une story de durcissement à venir trace leur suppression). Si votre application appelait directement ces fonctions, basculez sur la classe `Hash` de Sigil.
-
-## Dépannage — `E_SIGIL_NAPI_REQUIRED`
-
-Si cette erreur survient à l'exécution (la classe est `E_SIGIL_NAPI_REQUIRED`, une `SigilError` dont le `code` vaut `'E_SIGIL_NAPI_REQUIRED'` ; testez `error.code`, pas le message) :
-
-```
-[E_SIGIL_NAPI_REQUIRED] The <driver> Rust engine is required but not loaded.
-  Fix: cd packages/sigil && pnpm build:napi
-```
-
-Le placeholder `<driver>` est interpolé au moment du throw avec le nom du driver concerné (`argon2`, `bcrypt`, ou `scrypt`).
-
-Le binaire `.node` prébuild n'a pas été trouvé à `packages/sigil/index.<platform>.node`. Sigil n'a aucun fallback JS/TS — chaque driver (argon2id, bcrypt, scrypt) est porté par Rust NAPI.
-
-**Récupération — développement local :**
+## Installation
 
 ```bash
-cd packages/sigil
-pnpm build:napi
+pnpm add @c9up/sigil
 ```
 
-Cette commande lance `cargo build --release -p sigil-engine-napi` puis copie la bibliothèque produite vers `index.<platform>.node` (via `scripts/copy-napi.mjs`). La toolchain Rust (`cargo`) est requise.
+`ream configure @c9up/sigil` enregistre le provider, écrit `config/hash.ts` et ajoute `HASH_DRIVER=argon2` aux fichiers d'environnement. Le paquet embarque son moteur natif pour linux x64 et arm64 (glibc), macOS x64 et arm64, et Windows x64 ; aucune toolchain Rust n'est nécessaire. Il n'existe pas de repli JavaScript : sans le moteur, le hachage lève `E_SIGIL_NAPI_REQUIRED`.
 
-**Plateformes supportées (prébuild CI) :**
+## Points d'entrée
 
-| Suffix | Runner GitHub Actions |
+| Import | Contenu |
 |---|---|
-| `linux-x64-gnu` | `ubuntu-latest` |
-| `linux-arm64-gnu` | `ubuntu-24.04-arm` |
-| `darwin-x64` | `macos-13` |
-| `darwin-arm64` | `macos-14` |
-| `win32-x64-msvc` | `windows-latest` |
+| `@c9up/sigil` | `Hash`, `Hasher`, `defineConfig`, `drivers`, les classes d'erreur et les types de configuration |
+| `@c9up/sigil/provider` | `SigilProvider` (export par défaut) |
+| `@c9up/sigil/services/main` | L'instance `Hash` de l'application (export par défaut) |
+| `@c9up/sigil/configure` | `configure()`, exécuté par `ream configure @c9up/sigil` |
 
-Chacune est buildée via `pnpm build:napi` sur un runner natif (pas de cross-compilation) et uploadée comme artefact de workflow dans le pipeline `sigil-ci`.
+## Exports
 
-**Plateformes non supportées :** si votre plateforme ne figure pas dans la matrice ci-dessus, buildez depuis les sources via `cargo build --release -p sigil-engine-napi` et copiez le `target/release/libsigil_engine_napi.{so,dylib,dll}` produit vers `index.<votre-suffix>.node` à côté de `package.json`. Ouvrez une issue avec votre `${platform}-${arch}` pour que la matrice soit étendue.
+### `@c9up/sigil`
 
-## Statut et feuille de route
+| Export | Nature | Description |
+|---|---|---|
+| `Hash` | classe | Gestionnaire de hachage : détient les hashers configurés et délègue à celui par défaut |
+| `HashManager` | classe | Autre nom de `Hash` |
+| `Hasher` | classe | Un hasher, tel que le renvoie `hash.use(name)` |
+| `defineConfig` | fonction | `defineConfig(config: HashConfig): HashConfig`, type `config/hash.ts` |
+| `drivers` | const | `drivers.argon2(options?)`, `drivers.bcrypt(options?)`, `drivers.scrypt(options?)` : construisent un `HashDriverConfig` |
+| `SigilProvider` | provider | Même classe que `@c9up/sigil/provider` |
+| `SigilError` | erreur | Classe de base de toutes les erreurs de sigil ; `code` porte le nom `E_SIGIL_*` |
+| `E_SIGIL_NAPI_REQUIRED` | erreur | Un driver a tourné sans le moteur natif |
+| `E_SIGIL_NOT_BOOTED` | erreur | `@c9up/sigil/services/main` utilisé avant le boot du provider |
+| `E_SIGIL_UNKNOWN_DRIVER` | erreur | Un hasher nomme un driver que sigil n'a pas |
+| `E_SIGIL_UNKNOWN_HASHER` | erreur | Un nom de hasher que la configuration ne déclare pas |
+| `HashConfig` | interface | `{ default: string; list?: Record<string, HashDriverConfig>; drivers?: Record<string, HashDriverConfig> }` |
+| `HashDriverConfig` | interface | `{ driver: string; [key: string]: unknown }` |
+| `HashDriver` | interface | Ce qu'un driver implémente : `isValidHash`, `make`, `verify`, `needsReHash` |
+| `Argon2Options` | interface | Options de `drivers.argon2()` |
+| `BcryptOptions` | interface | Options de `drivers.bcrypt()` |
+| `ScryptOptions` | interface | Options de `drivers.scrypt()` |
+| `ReleasableSecret` | interface | `{ release(): string }`, la forme d'un `Secret` d'environnement |
 
-- **40.1** *(cette story)* — README + docs module EN/FR + décision d'architecture enregistrée. Stubs qui levaient dans `@c9up/ream/security/crypto` supprimés (jamais déployés). Le fallback de `SigilProvider` corrigé de `scrypt` vers `argon2` pour matcher le défaut documenté.
-- **40.3** — Warden délègue la vérification de mot de passe à Sigil ; le test d'intégration couvre les trois drivers via `Hash.make` → `Hash.verify` → `Warden.SessionStrategy`.
-- **40.4** — Binaires NAPI précompilés en CI pour les 5 plateformes cibles. Détection à l'exécution durcie avec le chemin d'erreur `E_SIGIL_NAPI_REQUIRED` et un script `pnpm build:napi`.
+### `Hash`
 
-> La story 40.2 (initialement « ream/crypto délègue à Sigil ») est en ré-évaluation : 40.1 a supprimé les stubs au lieu de les convertir en façades. Le chemin argon2 dupliqué dans `@c9up/warden` est indépendant et reste tracé par la story 40.3.
+`new Hash(config: HashConfig)`. Le constructeur valide chaque hasher : un driver inconnu, une option hors limites (`TypeError`) ou un `default` qui ne nomme aucun hasher échoue ici, au boot.
+
+| Membre | Signature | Description |
+|---|---|---|
+| `config` | `readonly config: HashConfig` | La configuration, chaque `secret` argon2 enveloppé pour que sa journalisation n'affiche pas le poivre |
+| `make` | `make(value: string): Promise<string>` | Hache `value` avec le hasher par défaut |
+| `verify` | `verify(hash: string, value: string): Promise<boolean>` | Vérifie `value` contre un `hash` stocké ; le hash vient en premier |
+| `isValidHash` | `isValidHash(hash: string): boolean` | Indique si `hash` a le format et les coûts du driver par défaut ; aucune dérivation |
+| `needsReHash` | `needsReHash(hash: string): boolean` | Indique si `hash` a été produit par un autre algorithme ou d'autres paramètres que la configuration actuelle |
+| `assertEquals` | `assertEquals(hash: string, value: string): Promise<void>` | Lève une `AssertionError` quand `value` ne se vérifie pas ; le message ne contient jamais `value` |
+| `assertNotEquals` | `assertNotEquals(hash: string, value: string): Promise<void>` | Lève une `AssertionError` quand `value` se vérifie |
+| `use` | `use(name?: string): Hasher` | Le hasher nommé, ou celui par défaut ; lève `E_SIGIL_UNKNOWN_HASHER` pour un nom non déclaré |
+| `fake` | `fake(): { [Symbol.dispose](): void }` | Remplace chaque hasher par un faux : `make` renvoie la valeur, `verify` compare les chaînes. `using guard = hash.fake()` restaure en sortie de portée |
+| `restore` | `restore(): void` | Quitte le mode factice |
+
+### `Hasher`
+
+`new Hasher(driver: HashDriver)`. Il a les mêmes membres `isValidHash`, `make`, `verify`, `needsReHash`, `assertEquals` et `assertNotEquals` que `Hash`, exécutés sur son propre driver.
+
+`make` et `verify` exécutent la dérivation sur le pool de threads de libuv (4 threads sauf si `UV_THREADPOOL_SIZE` en décide autrement), jamais sur la boucle d'événements. `make` lève une erreur pour une valeur de plus de 1024 octets. Le `make` de bcrypt lève une erreur pour une valeur de plus de 72 octets plutôt que de la tronquer, et son `verify` répond `false`.
+
+`verify` répond `false` sans dériver quand un hash stocké coûte plus que toute configuration réelle : `memory × iterations` argon2 au-delà de 2^20, un coût bcrypt au-delà de 16, un `N × r × p` scrypt au-delà de 2^22 ou un espace de travail `128 × r × (N + p + 2)` au-delà de `maxMemory`. Une configuration au-delà de ces limites lève une erreur à la construction du driver.
+
+### `@c9up/sigil/provider`
+
+| Export | Nature | Description |
+|---|---|---|
+| `default` | provider | `SigilProvider` : lie `Hash` depuis la configuration `hash` et remplit `@c9up/sigil/services/main` au boot |
+| `SigilAppContext` | interface | `{ container, config }`, ce dont le provider a besoin de l'application |
+
+### `@c9up/sigil/services/main`
+
+| Export | Nature | Description |
+|---|---|---|
+| `default` | const | `hash: Hash`, le `Hash` de l'application une fois `SigilProvider` démarré ; toute lecture d'un membre avant lève `E_SIGIL_NOT_BOOTED` |
+
+```ts
+import hash from '@c9up/sigil/services/main'
+
+const digest = await hash.make(password)
+if (await hash.verify(digest, password) && hash.needsReHash(digest)) {
+  user.password = await hash.make(password)
+}
+```
+
+### `@c9up/sigil/configure`
+
+| Export | Nature | Description |
+|---|---|---|
+| `configure` | fonction | `configure(codemods): Promise<void>` : ajoute `HASH_DRIVER`, enregistre `@c9up/sigil/provider`, écrit `config/hash.ts` |
+
+## Configuration
+
+`config/hash.ts`, lu sous la clé `hash`. Sans lui, le provider utilise `{ default: 'argon2', list: { argon2: { driver: 'argon2' } } }`.
+
+```ts
+import { defineConfig, drivers } from '@c9up/sigil'
+import env from '#start/env'
+
+export default defineConfig({
+  default: env.get('HASH_DRIVER', 'argon2'),
+  list: {
+    argon2: drivers.argon2({ secret: env.get('APP_KEY') }),
+    bcrypt: drivers.bcrypt({ rounds: 12 }),
+  },
+})
+```
+
+| Option | Type | Défaut | Description |
+|---|---|---|---|
+| `default` | `string` | — | Nom du hasher qu'utilisent `make`, `verify` et `use()` |
+| `list` | `Record<string, HashDriverConfig>` | — | Les hashers, par nom |
+| `drivers` | `Record<string, HashDriverConfig>` | — | Ancien nom de `list` ; les deux sont lus, `list` l'emporte sur une clé commune |
+
+`drivers.argon2(options)` (driver argon2) :
+
+| Option | Type | Défaut | Description |
+|---|---|---|---|
+| `variant` | `'d' \| 'i' \| 'id'` | `'id'` | Variante d'argon2 |
+| `memory` | `number` | `65536` | Mémoire en Kio, au moins `8 × parallelism` ; `memoryKib` est lu comme alias |
+| `iterations` | `number` | `3` | Passes, au moins 2 |
+| `parallelism` | `number` | `4` | Voies |
+| `saltSize` | `number` | `16` | Octets de sel, de 8 à 48 |
+| `hashLength` | `number` | `32` | Octets de sortie, de 10 à 64 |
+| `secret` | `string \| ReleasableSecret` | — | Poivre mêlé à chaque hash et non stocké dedans ; la vérification exige le même secret |
+
+`drivers.bcrypt(options)` (driver bcrypt) :
+
+| Option | Type | Défaut | Description |
+|---|---|---|---|
+| `rounds` | `number` | `12` | Coût, de 10 à 16 |
+| `version` | `number` | `98` | `97` écrit `$2a$`, `98` écrit `$2b$`, `121` écrit `$2y$` |
+| `saltSize` | `number` | `16` | Seul 16 est accepté |
+
+`drivers.scrypt(options)` (driver scrypt) :
+
+| Option | Type | Défaut | Description |
+|---|---|---|---|
+| `cost` | `number` | `16384` | N, une puissance de deux |
+| `blockSize` | `number` | `8` | r |
+| `parallelization` | `number` | `1` | p |
+| `keyLength` | `number` | `64` | Octets de clé, de 64 à 128 |
+| `saltSize` | `number` | `16` | Octets de sel, de 8 à 1024 ; `saltLength` est lu comme alias |
+| `maxMemory` | `number` | `33554432` | Octets, au moins l'espace de travail `128 × r × (N + p + 2)` ; borne aussi `verify` |
+
+bcrypt écrit la forme MCF (`$2b$12$…`) et vérifie aussi la forme PHC `$bcrypt$v=98$r=…$…$…`, pour laquelle `needsReHash` répond `true`. scrypt écrit la forme PHC `$scrypt$n=…,r=…,p=…$<salt>$<hash>`.
+
+## Liaisons du conteneur
+
+| Token | Résout vers |
+|---|---|
+| `Hash` (classe) | Le `Hash` construit depuis la configuration `hash` |
+| `'sigil.hash'` | Le même `Hash` |
+| `'hash'` | Le même `Hash` |
+
+`'sigil.hash'` et `'hash'` sont déclarés dans `ContainerBindings` : `container.make('sigil.hash')` est typé.
+
+## Erreurs
+
+| Code | Levée quand |
+|---|---|
+| [`E_SIGIL_UNKNOWN_DRIVER`](/fr/reference/errors#e-sigil-unknown-driver) | Un hasher de la configuration nomme un driver autre que `argon2`, `bcrypt` ou `scrypt` ; levée par le constructeur de `Hash` |
+| [`E_SIGIL_UNKNOWN_HASHER`](/fr/reference/errors#e-sigil-unknown-hasher) | `default` (dans le constructeur) ou `use(name)` nomme un hasher que la configuration ne déclare pas |
+| [`E_SIGIL_NAPI_REQUIRED`](/fr/reference/errors#e-sigil-napi-required) | `make` ou `verify` a tourné sans le moteur natif chargé |
+| [`E_SIGIL_NOT_BOOTED`](/fr/reference/errors#e-sigil-not-booted) | `@c9up/sigil/services/main` a été lu avant `SigilProvider.boot()` |
+
+Toutes sont des `SigilError` ; testez `error.code`. Une option hors limites lève une `TypeError` à la construction du driver.
+
+## Voir aussi
+
+- [Hachage](/fr/guides/security/hashing)
+- [Vérifier des identifiants](/fr/guides/auth/verifying-credentials)

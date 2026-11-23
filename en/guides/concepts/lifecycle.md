@@ -21,9 +21,7 @@ This guide covers the phases of an application:
 
 Ream follows a four-phase startup sequence. Every provider, preload file, and module route file has a defined moment when it runs. Understanding this sequence tells you exactly where to put initialization code.
 
-```
-REGISTER → BOOT → START → READY → [running] → SHUTDOWN
-```
+![The lifecycle of a ream application, started by bin/server.ts. 1 REGISTER, synchronous: load every file of config/, instantiate the providers of reamrc.ts, provider.register() binds services in the container. 2 BOOT: booting hooks (start/env.ts validates the environment), provider.boot() connects services, booted hooks. 3 START, no request served yet: provider.start(), starting hooks, preloads start/routes.ts and start/kernel.ts, module routes and events of app/modules. 4 READY: the HTTP server listens, provider.ready(), ready hooks. 5 SHUTDOWN, on SIGTERM, SIGINT or app.terminate(): terminating hooks, the HTTP server drains in-flight requests for up to 30 seconds, provider.shutdown() in reverse order.](/images/lifecycle-en.webp){width=640 height=640 loading=lazy}
 
 ## `bin/server.ts` — the entry point
 

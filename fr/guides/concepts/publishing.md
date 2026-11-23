@@ -158,7 +158,7 @@ généralement parce que :
 Chaque paquet livrant du NAPI porte sa propre section de dépannage dans sa
 doc module :
 
-- [`@c9up/sigil`](/fr/reference/sigil#depannage-—-e-sigil-napi-required)
+- [`@c9up/sigil`](/fr/reference/errors#e-sigil-napi-required)
 
 Les autres paquets gagneront des sections équivalentes au fur et à mesure
 qu'ils adopteront le pattern `E_<PKG>_NAPI_REQUIRED`.
