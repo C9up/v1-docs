@@ -1,4 +1,4 @@
-import { defineConfig } from 'vitepress'
+import { defineConfig, type HeadConfig } from 'vitepress'
 import { nav_en, nav_fr, sidebar_en, sidebar_fr } from './sidebar'
 
 // Nebula's components by layer, as the registry files them. Each one has a
@@ -47,6 +47,27 @@ export default defineConfig({
   description: 'Rust Engine, Agnostic Modules',
   head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }]],
 
+  // What a link to the docs shows when it is shared (Slack, Discord, X,
+  // LinkedIn…): the page's own title and description, and the card image of
+  // its language. Crawlers need absolute URLs, so they name the public domain.
+  transformHead({ pageData, title, description }): HeadConfig[] {
+    const site = 'https://reamjs.com'
+    const lang = pageData.relativePath.startsWith('fr/') ? 'fr' : 'en'
+    const path = `/${pageData.relativePath.replace(/(^|\/)index\.md$/, '$1').replace(/\.md$/, '')}`
+    return [
+      ['meta', { property: 'og:type', content: 'website' }],
+      ['meta', { property: 'og:site_name', content: 'REAM' }],
+      ['meta', { property: 'og:locale', content: lang === 'fr' ? 'fr_FR' : 'en_US' }],
+      ['meta', { property: 'og:title', content: title }],
+      ['meta', { property: 'og:description', content: description }],
+      ['meta', { property: 'og:url', content: `${site}${path}` }],
+      ['meta', { property: 'og:image', content: `${site}/images/og-${lang}.jpg` }],
+      ['meta', { property: 'og:image:width', content: '1200' }],
+      ['meta', { property: 'og:image:height', content: '630' }],
+      ['meta', { name: 'twitter:card', content: 'summary_large_image' }],
+    ]
+  },
+
   // Inline code containing Vue-mustache syntax (`{{ … }}`) — common in the
   // inker / blackhole template docs — must not be compiled as a Vue
   // interpolation. VitePress applies `v-pre` to code BLOCKS but not to inline
@@ -76,6 +97,7 @@ export default defineConfig({
     en: {
       label: 'English',
       lang: 'en',
+      description: 'Rust Engine, Agnostic Modules. The comfort of a full-stack framework, the power of Rust, the freedom to choose.',
       link: '/en/',
       themeConfig: {
         nav: nav_en,
@@ -85,6 +107,7 @@ export default defineConfig({
     fr: {
       label: 'Français',
       lang: 'fr',
+      description: "Rust Engine, Agnostic Modules. Le confort d'un framework complet, la puissance de Rust, la liberté de choisir.",
       link: '/fr/',
       themeConfig: {
         // The default theme's own labels, which stay English unless translated.
