@@ -2,7 +2,7 @@
 
 Chaque paquet s'installe et fonctionne seul : une application ream prend ceux dont elle a besoin, et la plupart tournent aussi dans une autre application Node.js. Chacun a une page de référence qui liste toute son API, et un guide quand il en a un.
 
-![Les paquets de ream par domaine. Cœur : ream, ream-cli, lumen. API : rune, comet, neutrino. Frontend : aurora, photon, inker, nebula, ephemeris. Données : atlas, quasar, eon. Authentification et sécurité : warden, transit, visa, sigil, blackhole. Temps réel : relay. Mobile : orbit, orbit-clipboard, orbit-secure-store, robledo. Services : archive, atom, bay, chronos, echo, eclipse, goldstone, nova, parsec, prism, rosetta, rover, spectrum, station, vellum. Tests et outils : helix, helix-plugin-ream, ream-mcp. Chaque paquet s'installe et fonctionne seul.](/images/packages-en.webp){width=640 height=640 loading=lazy}
+![Les paquets de ream par domaine. Cœur : ream, ream-cli, lumen. API : rune, comet, neutrino. Frontend : aurora, photon, inker, nebula, ephemeris. Données : atlas, quasar, eon. Authentification et sécurité : warden, transit, visa, sigil, blackhole. Temps réel : relay. Mobile : orbit, orbit-clipboard, orbit-secure-store, robledo. Services : archive, atom, bay, chronos, echo, eclipse, goldstone, nova, parsec, prism, rosetta, rover, spectrum, station, vellum. Tests et outils : helix, helix-plugin-ream, ream-mcp. Chaque paquet s'installe et fonctionne seul.](/images/packages-fr.webp){width=640 height=640 loading=lazy}
 
 ## Cœur
 
