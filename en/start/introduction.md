@@ -12,6 +12,8 @@ This guide covers what ream is and how it is built:
 
 Ream is a TypeScript server framework for Node.js with a Rust-powered HTTP core. It is built on familiar conventions — providers, dependency injection, a fluent router, a defined lifecycle, and modular architecture — while running the HTTP layer through a native Rust binary (HyperServer) via NAPI.
 
+![Your TypeScript application (routes, controllers, middleware, entities, services) sits on NAPI bindings; under them, a compiled Rust core runs HTTP and WebSockets (hyper and tokio), the event bus, SQL compilation with the PostgreSQL, MySQL and SQLite drivers, and password hashing and JWTs. Template parsing, images, PDF and the scheduler are in Rust too.](/images/architecture-en.webp){width=640 height=640 loading=lazy}
+
 ## What Ream Is
 
 **TypeScript-first.** Decorators, typed HTTP context, typed config, typed errors. Everything flows through well-defined types rather than loosely typed dictionaries.
