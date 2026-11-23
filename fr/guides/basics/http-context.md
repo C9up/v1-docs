@@ -154,7 +154,7 @@ indéfiniment en table.
 Un balayage en échec ne fait jamais échouer la requête qui l'a tiré — la
 session a été écrite, c'est ce dont la requête avait besoin, et la prochaine
 écriture tirée réessaiera. Mettre `gcProbability: 0` et appeler `driver.prune()`
-depuis une tâche planifiée si tu préfères contrôler le moment du DELETE.
+depuis une tâche planifiée si vous préférez contrôler le moment du DELETE.
 
 ### Cycle de vie de la session
 
@@ -234,7 +234,7 @@ suivie d'une écriture laisserait la course ouverte.
 aussi bien pour « aucune session ici » que pour « une session qui se trouve être
 vide ». La différence porte : un cookie peut survivre à la ligne qu'il désigne,
 et cette session paraissait vivante — `commit()` allait alors toucher une ligne
-absente. Renvoie `null` pour une entrée absente, expirée, détruite ou illisible.
+absente. Renvoyez `null` pour une entrée absente, expirée, détruite ou illisible.
 :::
 
 Le stockage fait autorité sur l'existence : `initiate()` marque donc une session

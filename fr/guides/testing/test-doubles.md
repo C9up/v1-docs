@@ -12,7 +12,7 @@ import { override, test, useContainer } from '@c9up/helix'
 import { FakeMail } from '@c9up/rover/testing'
 
 test('sends the welcome mail', async () => {
-  useContainer(container)              // le container de ton app, une fois par fichier de test ou dans un hook
+  useContainer(container)              // le container de votre app, une fois par fichier de test ou dans un hook
   override('mail', new FakeMail())
   override('logger', captureLogger)
   // ...

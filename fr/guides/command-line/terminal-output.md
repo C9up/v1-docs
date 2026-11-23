@@ -6,7 +6,7 @@ Ce guide couvre la sortie terminal avec lumen :
 - Niveaux
 - Actions
 - Widgets
-- Piloter la sortie toi-même
+- Piloter la sortie vous-même
 - Les couleurs seules
 - Mise en page
 - La moitié Rust
@@ -32,7 +32,7 @@ ui.logger.warning("config/mail.ts n'a pas d'expéditeur")
 ui.table().head(['Nom', 'Lot']).row(['create_users_table', '1']).render()
 ```
 
-Dans une commande console tu l'as déjà : `this.logger`, `this.colors` et
+Dans une commande console vous l'avez déjà : `this.logger`, `this.colors` et
 `this.ui` sont ce paquet — voir
 [Commandes console](/fr/guides/command-line/creating-commands).
 
@@ -56,7 +56,7 @@ rien en aval ne relit l'environnement. L'ordre :
    défaut, donc il ne cède qu'à l'étape 1 ;
 3. un flux qui n'est pas un terminal reçoit du texte nu, même en CI :
    `ream cmd > out.txt` dans un job GitHub n'écrit aucun code d'échappement.
-   Pose `FORCE_COLOR=1` dans le workflow pour des logs de CI en couleur (Azure
+   Posez `FORCE_COLOR=1` dans le workflow pour des logs de CI en couleur (Azure
    Pipelines est reconnu tout seul) ;
 4. `TERM=dumb`, les services de CI connus et ce que le terminal dit de lui-même
    (`TERM`, `COLORTERM`, `TERM_PROGRAM`) tranchent le reste. Un terminal qui ne
@@ -191,8 +191,8 @@ couleur sont montrés, pas exécutés.
 
 `logger.log()`, `logger.logError()`, `logger.logUpdate()` et `ui.write()` sont
 la sortie brute : ils écrivent ce qu'on leur donne, pour une commande qui
-imprime ses propres séquences exprès. Ne leur passe jamais de texte non fiable
-— fais-le d'abord passer par `sanitize()` :
+imprime ses propres séquences exprès. Ne leur passez jamais de texte non fiable
+— faites-le d'abord passer par `sanitize()` :
 
 ```ts
 import { sanitize } from '@c9up/lumen'
@@ -200,7 +200,7 @@ import { sanitize } from '@c9up/lumen'
 ui.write(`${lien} ${sanitize(nomDeFichier)}`)
 ```
 
-## Piloter la sortie toi-même
+## Piloter la sortie vous-même
 
 Chaque ligne peut être construite sans être écrite — `logger.prepareInfo(msg)`,
 `logger.prepareFatal(error)`, `action.prepareSucceeded()`, `table.prepare()`,

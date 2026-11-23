@@ -36,12 +36,12 @@ export default defineConfig({
 
 ### Entrée client — `resources/app.tsx`
 
-`createPhotonApp`, depuis le sous-chemin de ton framework, lit la page envoyée
+`createPhotonApp`, depuis le sous-chemin de votre framework, lit la page envoyée
 par le serveur, la monte et démarre le routeur. `resolvePageComponent` découpe
 chaque page en chunk via un `import.meta.glob` paresseux.
 
 ```tsx
-import './app.css' // ton entrée CSS / Tailwind (optionnel)
+import './app.css' // votre entrée CSS / Tailwind (optionnel)
 import { createPhotonApp } from '@c9up/photon/react'
 import { resolvePageComponent } from '@c9up/photon/client'
 
@@ -52,8 +52,8 @@ createPhotonApp({
 ```
 
 Sans `setup`, `App` est hydraté quand le serveur a rendu la page, et monté
-sinon (SSR désactivé). Donne un `setup` pour envelopper `App` dans tes propres
-providers, ou pour le monter toi-même :
+sinon (SSR désactivé). Donnez un `setup` pour envelopper `App` dans vos propres
+providers, ou pour le monter vous-même :
 
 ```tsx
 import { hydrateRoot } from 'react-dom/client'

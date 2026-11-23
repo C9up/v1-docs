@@ -51,7 +51,7 @@ ce qu'il appelle — visa lui-même n'importe rien.
 Tout le reste implémente `VisaStore`.
 
 `saveClient` est optionnelle, pour des clients qui vivent dans une table qui ne
-t'appartient pas. Sans elle, `registerClient` lève une erreur, et un serveur
+vous appartient pas. Sans elle, `registerClient` lève une erreur, et un serveur
 avec `registration.enabled` refuse de démarrer plutôt que de répondre 500 à
 chaque enregistrement.
 
@@ -61,8 +61,8 @@ Le secret d'un client peut expirer — un `client_secret_expires_at` répondu à
 l'enregistrement — et cette expiration est appliquée à chaque authentification
 du client, d'après la colonne `secret_expires_at` (`null` : le secret n'expire
 pas). `AtlasStore` écrit cette colonne pour chaque client, et une table
-`visa_clients` créée par visa 0.1.3 ou antérieur ne l'a pas. Relance
-`ream configure @c9up/visa` avant de mettre à jour : ta migration
+`visa_clients` créée par visa 0.1.3 ou antérieur ne l'a pas. Relancez
+`ream configure @c9up/visa` avant de mettre à jour : votre migration
 `9000_create_visa_tables` existante est laissée telle quelle,
 `9001_add_visa_client_secret_expiry` arrive à côté, et `migration:run` ajoute la
 colonne.

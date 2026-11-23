@@ -11,7 +11,7 @@ Ce guide couvre le serveur OAuth 2.1 :
 **d'autres** applications au nom d'un utilisateur.
 
 Il n'authentifie personne — ça reste le travail de [warden](/fr/guides/auth/introduction).
-Visa demande à ton application qui est connecté, et s'occupe de tout le reste.
+Visa demande à votre application qui est connecté, et s'occupe de tout le reste.
 Son image miroir est [transit](/fr/guides/auth/social/), qui *consomme* un
 fournisseur ; visa en *est* un.
 
@@ -35,7 +35,7 @@ ream configure @c9up/visa
 
 `/authorize` n'est **pas** monté, et c'est une décision, pas un oubli : il lui
 faut un utilisateur connecté et un écran de consentement, qui appartiennent
-tous les deux à ton application. Une route qui devinerait l'un ou l'autre
+tous les deux à votre application. Une route qui devinerait l'un ou l'autre
 serait fausse d'une manière difficile à voir — un serveur qui n'affiche aucun
 écran de consentement accorde en silence.
 
@@ -108,7 +108,7 @@ migration déjà présente dans le projet est laissée telle quelle. La commande
 provider enregistré et une config écrite sans tables dessous, c'est pire que
 s'arrêter.
 
-Le store et la route `/authorize` restent les tiens — ce
+Le store et la route `/authorize` restent les vôtres — ce
 sont des décisions, pas du boilerplate, et une supposition générée pour l'un ou
 l'autre est fausse d'une manière qui n'apparaît qu'en production.
 

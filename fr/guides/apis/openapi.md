@@ -4,7 +4,7 @@ Ce guide couvre le document OpenAPI et Swagger UI.
 
 ## OpenAPI + Swagger UI
 
-`OpenApiProvider` sert une doc interactive **de tes routes REST**. La spec est
+`OpenApiProvider` sert une doc interactive **de vos routes REST**. La spec est
 générée **paresseusement à la première requête** sur `/api-docs`, donc toute route
 enregistrée pendant le boot est incluse.
 
@@ -26,7 +26,7 @@ La spec est dérivée des routes enregistrées + des validateurs Rune + des mét
 de guard (les réponses `401`/`403` sont inférées depuis `@Guard`/`@Role`/`@Permission`).
 Le versioning de route (`route.version()`, `route.deprecates()`) est reflété dans la spec.
 
-> OpenAPI est de la **documentation**, pas un style d'API. Il décrit tes routes
+> OpenAPI est de la **documentation**, pas un style d'API. Il décrit vos routes
 > REST ; JSON-RPC et GraphQL sont des styles d'appel alternatifs.
 
 La spec est générée une fois puis **cachée** après la première requête. Les routes

@@ -10,7 +10,7 @@ Ce guide couvre l’hydratation côté client et la navigation :
 `createPhotonApp` (plus haut) est l'entrée client d'une app. En dessous,
 `hydrate()` de `@c9up/photon/client` fait la même chose sans sous-chemin de
 framework : il choisit l'adapteur du framework d'après les données de la page
-et monte lui-même le composant de page. Utilise-le quand tu n'as pas besoin de
+et monte lui-même le composant de page. Utilisez-le quand vous n'avez pas besoin de
 `setup` :
 
 ```typescript
@@ -39,9 +39,9 @@ La même forme fonctionne pour Vue (`./pages/*.vue`) et Svelte (`./pages/*.svelt
    serveur l'a rendue (`data-server-rendered`) et la monte sinon :
    - **React** — `hydrateRoot(target, createElement(Component, props))`, ou `createRoot(target).render(…)`.
    - **Vue** — `createSSRApp(…).mount(target)`, ou `createApp(…).mount(target)`.
-   - **Svelte** — `hydrate(Component, { target, props })`, ou `mount(…)` (Svelte 5+). Passe `svelteRoot: PhotonRoot` pour qu'une page garde son état quand ses props changent.
+   - **Svelte** — `hydrate(Component, { target, props })`, ou `mount(…)` (Svelte 5+). Passez `svelteRoot: PhotonRoot` pour qu'une page garde son état quand ses props changent.
 5. Installe un listener `click` + `popstate` au niveau du document (le router SPA-nav ci-dessous).
-6. Appelle `onHydrated()` si tu en fournis un.
+6. Appelle `onHydrated()` si vous en fournissez un.
 
 ### `HydrateOptions`
 
@@ -57,11 +57,11 @@ La même forme fonctionne pour Vue (`./pages/*.vue`) et Svelte (`./pages/*.svelt
 Une app écrite avec `hydrate()` et un export nommé `render` continue de
 fonctionner. Pour la passer à `createPhotonApp` :
 
-1. Entrée client : remplace `hydrate({ resolveComponent })` par
-   `createPhotonApp({ resolve })` depuis le sous-chemin de ton framework.
+1. Entrée client : remplacez `hydrate({ resolveComponent })` par
+   `createPhotonApp({ resolve })` depuis le sous-chemin de votre framework.
    `resolve` peut renvoyer le composant ou son module, directement ou en
    promesse.
-2. Entrée SSR : exporte `render(page)` par défaut et renvoie
+2. Entrée SSR : exportez `render(page)` par défaut et renvoyez
    `createPhotonApp({ page, render, resolve })` (Svelte : `setup` au lieu de
    `render`). L'enveloppe `PhotonPage` / `PhotonRoot` écrite à la main
    disparaît : `App` fournit la page à `usePage()` côté serveur.
@@ -86,7 +86,7 @@ Inscription par lien :
 <a href="/orders" data-photon>Commandes</a>
 ```
 
-Les ancres sont à inscrire parce qu'un lien simple peut mener n'importe où — un lien magique à usage unique, un export, une page qui n'est pas une page Photon. Le fetcher d'abord puis le recharger quand la réponse n'est pas une page demanderait deux fois la même URL ; n'inscris que les ancres qui mènent à des pages Photon.
+Les ancres sont à inscrire parce qu'un lien simple peut mener n'importe où — un lien magique à usage unique, un export, une page qui n'est pas une page Photon. Le fetcher d'abord puis le recharger quand la réponse n'est pas une page demanderait deux fois la même URL ; n'inscrivez que les ancres qui mènent à des pages Photon.
 
 Si le fetch SPA-nav d'une ancre inscrite échoue (réponse non-2xx, mauvais `Content-Type`, JSON malformé, URL cross-origin retournée par le serveur, adapteur qui throw), Photon retombe sur `location.href = url` — l'utilisateur arrive toujours sur la page cliquée, même si l'interactivité est cassée. Ce repli demande l'URL une deuxième fois : c'est pourquoi seules les ancres vers des pages Photon s'inscrivent.
 
@@ -94,7 +94,7 @@ Si le fetch SPA-nav d'une ancre inscrite échoue (réponse non-2xx, mauvais `Con
 
 **Clics sur la même URL** utilisent `history.replaceState` plutôt que `pushState`, donc les clics répétés sur le même lien ne gonflent pas l'historique de retour.
 
-**Les `<a>` SVG ne sont PAS interceptés** — `SVGAElement` a une forme `href` différente (`SVGAnimatedString`), donc les ancres SVG retombent sur le comportement par défaut du navigateur. Si tu veux du SPA-nav depuis un lien d'icône SVG, enveloppe-le dans un `<a>` HTML.
+**Les `<a>` SVG ne sont PAS interceptés** — `SVGAElement` a une forme `href` différente (`SVGAnimatedString`), donc les ancres SVG retombent sur le comportement par défaut du navigateur. Si vous voulez du SPA-nav depuis un lien d'icône SVG, enveloppez-le dans un `<a>` HTML.
 
 **Apps en sous-chemin** avec un élément `<base href="/admin/">` dans le document sont gérées correctement : les ancres relatives sont résolues contre `document.baseURI` plutôt que `location.href`.
 
@@ -146,7 +146,7 @@ router.get('/orders', async ({ photon, response }) => {
 
 ### Codes d'erreur
 
-Le point d'entrée `hydrate()` lance `PhotonClientError` (re-exporté depuis `@c9up/photon/client`). Attrape-le via `instanceof` et inspecte le `code` :
+Le point d'entrée `hydrate()` lance `PhotonClientError` (re-exporté depuis `@c9up/photon/client`). Attrapez-le via `instanceof` et inspectez le `code` :
 
 | Code | Quand |
 |---|---|
@@ -159,7 +159,7 @@ Le point d'entrée `hydrate()` lance `PhotonClientError` (re-exporté depuis `@c
 
 ### Apps en sous-chemin et cible de mount personnalisée
 
-Tu héberges Photon sous un sous-chemin ? Override le sélecteur de cible :
+Vous hébergez Photon sous un sous-chemin ? Surchargez le sélecteur de cible :
 
 ```typescript
 hydrate({
@@ -168,7 +168,7 @@ hydrate({
 })
 ```
 
-Le côté SSR émet actuellement toujours `<div id="app">` ; si tu passes un `target` custom, override le template SSR pour matcher (par ex. `#admin-app`). Quand le renderer ne trouve pas la cible au moment de l'hydratation, il lève `E_PHOTON_HYDRATION_NO_TARGET` — voir le [catalogue d'erreurs](/fr/reference/errors#e-photon-hydration-no-target).
+Le côté SSR émet actuellement toujours `<div id="app">` ; si vous passez un `target` custom, surchargez le template SSR pour matcher (par ex. `#admin-app`). Quand le renderer ne trouve pas la cible au moment de l'hydratation, il lève `E_PHOTON_HYDRATION_NO_TARGET` — voir le [catalogue d'erreurs](/fr/reference/errors#e-photon-hydration-no-target).
 
 ### Ce qui livre par story
 

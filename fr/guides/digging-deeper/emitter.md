@@ -136,14 +136,14 @@ Les deux sont des promesses, et la fonction de désabonnement est
 `() => Promise<void>` plutôt que `() => void`. S'abonner et se désabonner
 traversent la frontière NAPI vers le bus Rust, et rendre la main avant que
 l'appel n'atterrisse perdrait des events. Elle reste assignable partout où
-un `() => void` est attendu — attends-la quand l'assertion suivante
+un `() => void` est attendu — attendez-la quand l'assertion suivante
 dépend de la souscription réellement disparue.
 :::
 
 ## Câblage
 
-`EventsProvider` binde le bus dans le container. Enregistre-le (il fait partie du
-set de providers recommandé), puis résous l'emitter via le token `events`.
+`EventsProvider` binde le bus dans le container. Enregistrez-le (il fait partie du
+set de providers recommandé), puis résolvez l'emitter via le token `events`.
 
 ```ts
 // providers de reamrc.ts
@@ -181,7 +181,7 @@ apps sans events ne paient rien (le bus natif n'est même pas chargé).
 ## Events de lifecycle du core
 
 Le core ream émet lui-même quelques events de domaine via le bus (uniquement si
-les events sont câblés). Souscris-y comme à n'importe quel event :
+les events sont câblés). Souscrivez-y comme à n'importe quel event :
 
 | Event | Quand | Payload |
 |---|---|---|

@@ -15,7 +15,7 @@ Quel que soit celui qui est sélectionné, un abonnement est vérifié contre le
 
 Un fichier JSON, réécrit atomiquement, en `0600`. Il contient les endpoints et le secret `auth` que chaque navigateur a émis, ce qui suffit à envoyer des notifications au nom de l'application à tous les abonnés.
 
-**Un seul processus.** Les écritures sont sérialisées à l'intérieur de l'instance, donc une rafale d'abonnements ne peut pas s'entrelacer — mais rien ne prend un verrou que le système d'exploitation fait respecter, donc deux processus qui écrivent le même fichier s'écrasent. Derrière un cluster, `pm2 -i`, ou plusieurs conteneurs, prends le store SQL ou Redis.
+**Un seul processus.** Les écritures sont sérialisées à l'intérieur de l'instance, donc une rafale d'abonnements ne peut pas s'entrelacer — mais rien ne prend un verrou que le système d'exploitation fait respecter, donc deux processus qui écrivent le même fichier s'écrasent. Derrière un cluster, `pm2 -i`, ou plusieurs conteneurs, prenez le store SQL ou Redis.
 
 ### `stores.sql({ connection, table })`
 
@@ -29,11 +29,11 @@ La table `push_subscriptions` que la migration ci-dessous crée. La connexion es
 
 Une clé par abonnement et un set par utilisateur. `connection` prend un client, une fonction qui en rend un, ou le **nom** d'une connexion `@c9up/quasar` — résolu au runtime, pour que quasar reste un peer optionnel et n'entre jamais dans le graphe de build de Nova. Le store émet trois commandes, `get`, `evalsha` et `script` ; une connexion à qui en manque une est refusée en la nommant, plutôt que d'échouer au premier abonnement. Un client doit répondre à EVALSHA et à SCRIPT LOAD (EVAL seul ne suffit plus) : chaque script tourne par son SHA1 et est chargé la première fois que le serveur répond NOSCRIPT, parce que les scanners de chaîne d'approvisionnement signalent un appel de méthode nommé d'après EVAL comme de l'exécution de code dynamique, et EVALSHA évite de renvoyer le script. Une connexion que quasar retire quand sa stratégie de reconnexion abandonne (statut `end`) n'est plus utilisée : l'appel suivant redemande la connexion, si bien que le Web Push se rétablit tout seul quand Redis revient. Un client passé directement est gardé tel quel.
 
-`prefix` vaut `nova:push` par défaut ; change-le pour faire tourner deux applications sur une même base Redis.
+`prefix` vaut `nova:push` par défaut ; changez-le pour faire tourner deux applications sur une même base Redis.
 
-La durabilité est celle du serveur, pas celle du store : un Redis sans persistance perd tous les abonnements au redémarrage. Les navigateurs se réabonnent à leur prochaine visite, donc le coût est une notification manquée et non un compte cassé — mais si ça compte, prends un Redis persistant ou le store SQL.
+La durabilité est celle du serveur, pas celle du store : un Redis sans persistance perd tous les abonnements au redémarrage. Les navigateurs se réabonnent à leur prochaine visite, donc le coût est une notification manquée et non un compte cassé — mais si ça compte, prenez un Redis persistant ou le store SQL.
 
-### Écrire le tien
+### Écrire le vôtre
 
 `SubscriptionStore`, c'est trois méthodes. Les URL d'endpoint sont globalement uniques par service push, donc `delete(endpoint)` retire l'abonnement quel qu'en soit le propriétaire, et `save()` réattribue un endpoint plutôt que de le laisser attaché à deux comptes — un navigateur réutilisé au fil d'une déconnexion/reconnexion continuerait sinon à livrer les notifications de l'ancien compte au nouvel utilisateur. Il ne le réattribue que si le nouveau propriétaire poste les mêmes `p256dh` et `auth` que ceux stockés : le navigateur qui détient l'abonnement le fait, quelqu'un qui a seulement appris l'endpoint non. Sinon `save()` lance `NovaError('E_NOVA_SUBSCRIPTION_CONFLICT')`, que la route d'abonnement traduit en `409`. `listByUser()` liste du plus ancien au plus récent : le plafond par utilisateur retire par le début.
 
@@ -47,11 +47,11 @@ export class MySubscriptionStore implements SubscriptionStore {
 }
 ```
 
-Passe une instance en `store`, ou enveloppe-la dans une factory sous `stores`.
+Passez une instance en `store`, ou enveloppez-la dans une factory sous `stores`.
 
 ### Migration
 
-`ream configure @c9up/nova` écrit `database/migrations/0048_create_push_subscriptions.ts` (idempotent — sauté s'il existe déjà). Le template livré est aussi consultable à `node_modules/@c9up/nova/migrations/create_push_subscriptions.ts`. Lance ensuite ton workflow de migration habituel (`ream migrations:run`).
+`ream configure @c9up/nova` écrit `database/migrations/0048_create_push_subscriptions.ts` (idempotent — sauté s'il existe déjà). Le template livré est aussi consultable à `node_modules/@c9up/nova/migrations/create_push_subscriptions.ts`. Lancez ensuite votre workflow de migration habituel (`ream migrations:run`).
 
 ```ts
 import { Migration } from '@c9up/atlas'
@@ -80,14 +80,14 @@ Le plafond de 768 n'est pas décoratif : c'est exactement le budget d'index de c
 
 ## Tests avec `FakeNova`
 
-Remplace l'instance `Nova` réelle par un collecteur en mémoire pendant un test. `FakeNova` (depuis `@c9up/nova/testing`) capture chaque appel `push` / `pushToUser` et porte lui-même les assertions — pas de chiffrement, pas de réseau, pas de consultation de `SubscriptionStore`.
+Remplacez l'instance `Nova` réelle par un collecteur en mémoire pendant un test. `FakeNova` (depuis `@c9up/nova/testing`) capture chaque appel `push` / `pushToUser` et porte lui-même les assertions — pas de chiffrement, pas de réseau, pas de consultation de `SubscriptionStore`.
 
 ```ts
 import { FakeNova } from '@c9up/nova/testing'
 import { override, test, useContainer } from '@c9up/helix'
 
 test('subscribe + welcome push', async () => {
-  useContainer(container)        // le container de ton app
+  useContainer(container)        // le container de votre app
   const fake = new FakeNova()
   override('nova.push', fake)    // le token que lie le provider nova
 
@@ -97,7 +97,7 @@ test('subscribe + welcome push', async () => {
 })
 ```
 
-Le provider lie la même instance sous `'nova.push'` et `'nova'` : override le nom que résout le code testé (les deux, s'il utilise les deux). L'`override` de helix lève hors d'un test et s'annule de lui-même à la fin du test, par la queue de cleanup per-test de helix.
+Le provider lie la même instance sous `'nova.push'` et `'nova'` : surchargez le nom que résout le code testé (les deux, s'il utilise les deux). L'`override` de helix lève hors d'un test et s'annule de lui-même à la fin du test, par la queue de cleanup per-test de helix.
 
 ### Formes de prédicat
 
@@ -128,4 +128,4 @@ Le provider lie la même instance sous `'nova.push'` et `'nova'` : override le n
 
 ### Pourquoi `pushToUser` retourne `[]` sous le fake
 
-`FakeNova.pushToUser` ne consulte PAS le `SubscriptionStore` ; il capture l'appel (userId + payload + options) et retourne `[]`. L'assertion porte sur l'**intention** d'appel, pas sur la livraison par device. Si ton test a besoin du fan-out réel par device (plusieurs entrées `PushResult`, cleanup 410 contre un vrai store), construis un vrai `Nova` avec un `MemorySubscriptionDriver` pré-chargé avec des fixtures — ce chemin exécute la vraie logique de livraison.
+`FakeNova.pushToUser` ne consulte PAS le `SubscriptionStore` ; il capture l'appel (userId + payload + options) et retourne `[]`. L'assertion porte sur l'**intention** d'appel, pas sur la livraison par device. Si votre test a besoin du fan-out réel par device (plusieurs entrées `PushResult`, cleanup 410 contre un vrai store), construisez un vrai `Nova` avec un `MemorySubscriptionDriver` pré-chargé avec des fixtures — ce chemin exécute la vraie logique de livraison.

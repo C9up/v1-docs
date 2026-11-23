@@ -38,8 +38,8 @@ class PaymentFailed extends Exception {
 | `E_HTTP_EXCEPTION` | configurable | `new E_HTTP_EXCEPTION(message, status)` | Erreur HTTP générique. Préférer une sous-classe spécifique quand elle existe. |
 | `E_UNAUTHORIZED` | 401 | `new E_UNAUTHORIZED('Bearer token required')` | Self-handle vers `{ error: { code, message } }`. Message par défaut : `Authentication required`. |
 | `E_FORBIDDEN` | 403 | `new E_FORBIDDEN('Insufficient permissions', ['admin'])` | `required: string[]` optionnel des rôles/permissions manquants, exposé dans le body de réponse. |
-| `E_VALIDATION_ERROR` | 422 | `new E_VALIDATION_ERROR(errors)` | Le body de réponse est `{ errors }` directement (pas wrappé). `errors: unknown[]` est ce que ton validateur émet. |
-| `E_ROUTE_NOT_FOUND` | 404 | lancé en interne par le router quand aucune route ne matche | Auto-émis ; tu ne l'instancies normalement pas. |
+| `E_VALIDATION_ERROR` | 422 | `new E_VALIDATION_ERROR(errors)` | Le body de réponse est `{ errors }` directement (pas wrappé). `errors: unknown[]` est ce que votre validateur émet. |
+| `E_ROUTE_NOT_FOUND` | 404 | lancé en interne par le router quand aucune route ne matche | Auto-émis ; vous ne l'instanciez normalement pas. |
 | `E_ROW_NOT_FOUND` | 404 | `new E_ROW_NOT_FOUND('User')` | À coupler avec un lookup côté service qui retourne `null`. Le nom de modèle optionnel est interpolé dans le message par défaut. |
 | `E_UNKNOWN` | 500 | fallback pour les throws non-Exception attrapés par `ExceptionHandler` | Surface en 500 générique. |
 
@@ -61,7 +61,7 @@ router.post('/orders', async ({ auth, request }) => {
 
 ## Self-handling vs `ExceptionHandler` global
 
-Les exceptions intégrées surchargent `handle(error, ctx)` et bypassent donc le handler global. Tes propres sous-classes peuvent faire pareil :
+Les exceptions intégrées surchargent `handle(error, ctx)` et bypassent donc le handler global. Vos propres sous-classes peuvent faire pareil :
 
 ```ts
 class TenantSuspended extends Exception {
@@ -85,7 +85,7 @@ Quand une exception ne définit PAS `handle`, `ExceptionHandler.handle()` (le ha
 
 ## Reporting
 
-Override `report(error, ctx)` sur une exception custom (ou sur une sous-classe d'`ExceptionHandler`) pour envoyer l'échec vers ta stack de monitoring. Le reporter par défaut log sur `stderr` et skip les statuts dans `ignoreStatuses` (défauts : `400`, `401`, `404`, `422`).
+Surchargez `report(error, ctx)` sur une exception custom (ou sur une sous-classe d'`ExceptionHandler`) pour envoyer l'échec vers votre stack de monitoring. Le reporter par défaut log sur `stderr` et skip les statuts dans `ignoreStatuses` (défauts : `400`, `401`, `404`, `422`).
 
 ```ts
 class Handler extends ExceptionHandler {
@@ -102,7 +102,7 @@ class Handler extends ExceptionHandler {
 
 - Ne jamais laisser fuiter une stack trace interne en production. Mettre `ExceptionHandler.debug = false` (ou tester `app.inProduction`).
 - Mapper les erreurs métier vers des statuts HTTP au plus tôt — un service qui throw `E_ROW_NOT_FOUND` est plus clair qu'un service qui retourne `null` et oblige chaque appelant à se rappeler du 404.
-- Réserve `E_HTTP_EXCEPTION` aux codes one-off que tu ne prévois pas de typer. Pour tout ce que tu throw plus de deux fois, écris une sous-classe nommée.
+- Réservez `E_HTTP_EXCEPTION` aux codes one-off que vous ne prévoyez pas de typer. Pour tout ce que vous levez plus de deux fois, écrivez une sous-classe nommée.
 
 ## Gestion des erreurs
 

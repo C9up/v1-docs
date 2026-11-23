@@ -8,20 +8,20 @@ Ce guide couvre l'endpoint d'autorisation et les clients :
 
 ## Câbler `/authorize`
 
-La décision est celle de visa ; la page est la tienne. La page de consentement
+La décision est celle de visa ; la page est la vôtre. La page de consentement
 est le seul endroit où un utilisateur confie ses données à une application :
 trois choses n'y sont pas optionnelles.
 
 - **Le POST de consentement est protégé contre le CSRF.** Sans cela, une page
   d'un autre site soumet le formulaire toute seule — son propre client, son
   propre challenge PKCE, `approve=1` — et un utilisateur connecté autorise
-  l'application de l'attaquant sans rien voir. Active le CSRF de blackhole
-  (`csrf: true` dans `config/blackhole.ts`) et place `{{ csrfField() }}` dans le
+  l'application de l'attaquant sans rien voir. Activez le CSRF de blackhole
+  (`csrf: true` dans `config/blackhole.ts`) et placez `{{ csrfField() }}` dans le
   formulaire.
 - **La page de consentement ne peut pas être encadrée.** Une page dans une
   iframe permet à un autre site de poser son propre bouton sur « Autoriser ».
-  Envoie `X-Frame-Options: DENY` depuis cette page, et `frame-ancestors 'none'`
-  si tu construis toi-même sa `Content-Security-Policy`.
+  Envoyez `X-Frame-Options: DENY` depuis cette page, et `frame-ancestors 'none'`
+  si vous construisez vous-même sa `Content-Security-Policy`.
 - **Le POST accorde ce que la page a montré, pas ce que dit le POST.** La
   requête validée reste sur le serveur, dans un ticket à usage unique lié à la
   session et à l'utilisateur. Le formulaire ne porte que l'id du ticket.

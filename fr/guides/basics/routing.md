@@ -230,7 +230,7 @@ async show({ params }: HttpContext) {
 }
 ```
 
-Utilise `request.param()` plutôt que d'écrire ton propre accesseur. Il rend
+Utilisez `request.param()` plutôt que d'écrire votre propre accesseur. Il rend
 `string | undefined`, et joint un attrape-tout
 avec `/` :
 

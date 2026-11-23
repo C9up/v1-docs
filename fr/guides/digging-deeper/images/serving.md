@@ -38,7 +38,7 @@ La réponse est redimensionnée, réencodée, marquée d'un `ETag` et déclarée
 
 Il n'y a pas de bloc `serve` par défaut. Une route qui lit des fichiers sur le disque et dépense du CPU à la demande n'est pas quelque chose qu'un paquet doit ajouter à une application sous prétexte qu'il est installé. En déclarer une sans `roots` fait échouer le démarrage au lieu de le laisser passer : elle répondrait 404 à chaque image, et cette erreur se trouve mieux au démarrage qu'en production.
 
-Hors de Ream il n'y a pas de `router` dans le conteneur, et rien n'est monté non plus. Branche-la toi-même :
+Hors de Ream il n'y a pas de `router` dans le conteneur, et rien n'est monté non plus. Branchez-la vous-même :
 
 ```ts
 import { registerImageRoute } from '@c9up/prism'
@@ -59,7 +59,7 @@ Rien n'est donc validé pour sa vraisemblance ; chaque axe est vérifié contre 
 | `f` | `formats` | AVIF, WebP, JPEG, PNG |
 | `q` | `qualities` | l'unique `quality` configurée |
 
-Le nombre de réponses distinctes reste donc à (fichiers × largeurs × formats × qualités), un nombre que tu as choisi. Tout ce qui sort des listes est un 400 et n'est jamais décodé — refuser avant le travail est tout l'intérêt. Les paramètres sont lus comme de simples chiffres décimaux : `0x190` et `4e2` sont refusés au lieu de devenir discrètement 400.
+Le nombre de réponses distinctes reste donc à (fichiers × largeurs × formats × qualités), un nombre que vous avez choisi. Tout ce qui sort des listes est un 400 et n'est jamais décodé — refuser avant le travail est tout l'intérêt. Les paramètres sont lus comme de simples chiffres décimaux : `0x190` et `4e2` sont refusés au lieu de devenir discrètement 400.
 
 La hauteur et le recadrage sont absents à dessein. Ce sont les deux axes qu'on ne peut pas mettre sur liste blanche sans rendre le composant inutilisable, et aucun n'est nécessaire : une image responsive se recadre avec `object-fit`, dans le navigateur, gratuitement.
 

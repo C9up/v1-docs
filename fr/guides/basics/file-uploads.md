@@ -53,7 +53,7 @@ Il portait `image/png` en entier ; il porte désormais `image`, avec
 `subtype` à côté. TypeScript ne peut rien y faire : une
 comparaison telle que `file.type === 'image/png'` ne casse pas à la
 compilation, elle cesse simplement de correspondre.
-Cherche-la dans ton code, et utilise **`file.mime`** pour une liste blanche.
+Cherchez-la dans votre code, et utilisez **`file.mime`** pour une liste blanche.
 
 Une app a vécu exactement ça : `if (!ALLOWED_MIME.has(file.type)) reject()`
 compilait, ne correspondait plus, et tous les téléversements d'avatar sont morts

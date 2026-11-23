@@ -238,7 +238,7 @@ deux prennent la cible liée, la cible intermédiaire, et un objet d'options
 
 ## Clés étrangères par défaut
 
-Toute relation dont tu ne nommes pas la clé étrangère la dérive de la stratégie
+Toute relation dont vous ne nommez pas la clé étrangère la dérive de la stratégie
 de nommage du modèle et de sa **vraie clé primaire**, en snake_case — via le
 `relationForeignKey` / `relationPivotForeignKey` de la stratégie :
 

@@ -79,7 +79,7 @@ attendant 500ms → 1s → 2s → … entre elles.
 
 > **Pourquoi `connectTimeoutMs` est important.** sqlx retente déjà *l'établissement*
 > de la connexion en interne pendant toute la durée de son acquire timeout (~30s par
-> défaut). Donc sans `connectTimeoutMs`, chacune de tes tentatives `connectRetries`
+> défaut). Donc sans `connectTimeoutMs`, chacune de vos tentatives `connectRetries`
 > peut bloquer ~30s avant d'abandonner — `connectRetries: 5` ferait ~150s. Baisser
 > `connectTimeoutMs` fait échouer chaque tentative vite, pour que les retries pollent
 > à la cadence voulue.

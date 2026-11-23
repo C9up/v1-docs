@@ -8,7 +8,7 @@ Ce guide couvre blackhole et les en-têtes de sécurité :
 - En-têtes de protection
 - Résultats du filtre
 
-`@c9up/blackhole` est un filtre de sécurité Rust-natif pour tout framework Node.js. Les vérifications s'exécutent en Rust via NAPI — une requête rejetée reçoit sa réponse avant que ton handler ne s'exécute. Utilisable avec Ream (provider + middleware) ou standalone avec Express / Fastify.
+`@c9up/blackhole` est un filtre de sécurité Rust-natif pour tout framework Node.js. Les vérifications s'exécutent en Rust via NAPI — une requête rejetée reçoit sa réponse avant que votre handler ne s'exécute. Utilisable avec Ream (provider + middleware) ou standalone avec Express / Fastify.
 
 ## Installation
 
@@ -24,7 +24,7 @@ Le package expose ces points d'entrée :
 - `@c9up/blackhole/express` — `blackholeExpress(options)` pour Express
 - `@c9up/blackhole/fastify` — `blackholeFastify(options)` plugin Fastify
 - `@c9up/blackhole/hono` — `blackholeHono(options)` middleware Hono
-- `@c9up/blackhole` — API bas-niveau `createBlackhole(options)` pour wirer n'importe quel framework toi-même
+- `@c9up/blackhole` — API bas-niveau `createBlackhole(options)` pour wirer n'importe quel framework vous-même
 
 Tous les adaptateurs partagent un seul pipeline (`./core`) : aucune logique de sécurité dupliquée entre eux.
 
@@ -73,9 +73,9 @@ router. Quand l'application a une config de session (`config/session.ts`) et
 que blackhole passe en premier, chaque requête est refusée avec
 `E_BLACKHOLE_SESSION_NOT_READY` plutôt que de recevoir un token lié à rien.
 
-Hono n'a pas d'adresse client indépendante du runtime : passe `clientIp` (par
+Hono n'a pas d'adresse client indépendante du runtime : passez `clientIp` (par
 défaut, la socket de `@hono/node-server`). Le schéma et l'hôte comparés à
-l'Origin sont ceux de l'URL de la requête ; derrière un proxy, passe `protocol`
+l'Origin sont ceux de l'URL de la requête ; derrière un proxy, passez `protocol`
 et `host`.
 
 ## Architecture
@@ -90,7 +90,7 @@ ton handler →   │ headers de sécurité → XSS (xss: true)     │ → Rép
                 └───────────────────────────────────────────┘
 ```
 
-Les vérifications du filtre de requête s'exécutent en Rust (les requêtes rejetées sont répondues avant ton handler). Les headers de sécurité + CORS sont calculés dans la fine façade TS (logique de headers, pas CPU-bound). La sanitization XSS, quand `xss` est activé, s'applique au corps de la **réponse**.
+Les vérifications du filtre de requête s'exécutent en Rust (les requêtes rejetées sont répondues avant votre handler). Les headers de sécurité + CORS sont calculés dans la fine façade TS (logique de headers, pas CPU-bound). La sanitization XSS, quand `xss` est activé, s'applique au corps de la **réponse**.
 
 ## Configuration
 
@@ -149,10 +149,10 @@ export default defineConfig({
 
 - Sans `directives` ni `policy`, la CSP est
   `default-src 'self'; base-uri 'self'; form-action 'self'; object-src 'none'; script-src 'self' @nonce`.
-- `directives` fusionne une base durcie sous les tiennes (`useDefaults: false`
+- `directives` fusionne une base durcie sous les vôtres (`useDefaults: false`
   pour partir de rien ; `getDefaultDirectives()` la renvoie, pour étendre une
   directive plutôt que la remplacer). Le `scriptSrc` de cette base n'a pas de
-  `@nonce` : nomme-le à nouveau quand tu poses `scriptSrc`.
+  `@nonce` : nommez-le à nouveau quand vous posez `scriptSrc`.
 - `policy` prend l'en-tête entier sous forme de chaîne, à la place de
   `directives`.
 - Les deux sont validés à la création du filtre : un mot-clé sans guillemets
@@ -166,7 +166,7 @@ export default defineConfig({
   pour lui : c'est ainsi qu'un paquet apporte une source (serveur d'assets, CDN,
   serveur de dev). Un mot-clé que rien ne résout lève une erreur à la création
   du filtre (`E_BLACKHOLE_UNKNOWN_CSP_KEYWORD`) au lieu d'arriver au navigateur
-  comme un hôte nommé `@mot-clé` ; enregistre-le avant la construction du filtre
+  comme un hôte nommé `@mot-clé` ; enregistrez-le avant la construction du filtre
   (dans le `register()` d'un provider), les résolveurs étant capturés à ce
   moment-là :
 
@@ -194,7 +194,7 @@ La phase requête se résout en l'un de :
 
 | Résultat | Signification |
 |----------|---------------|
-| `Allow` | La requête a passé toutes les vérifications — ton handler s'exécute |
+| `Allow` | La requête a passé toutes les vérifications — votre handler s'exécute |
 | `Reject` | Requête bloquée — `400` (`E_BLACKHOLE_PATH_TRAVERSAL` / `E_BLACKHOLE_PARAMETER_POLLUTION` / `E_BLACKHOLE_MISSING_IP`), `403` (`E_BAD_CSRF_TOKEN` / `E_BLACKHOLE_CSRF_ORIGIN_MISMATCH`) ou `429` (`E_BLACKHOLE_RATE_LIMITED`) |
 
 Un rejet porte les mêmes en-têtes de protection (CSP, HSTS, `nosniff`…) qu'une

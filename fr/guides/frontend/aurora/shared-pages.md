@@ -45,26 +45,26 @@ lui — un guard qui rend une page de connexion, par exemple — trouve
 parser et la session ne coûte rien.
 
 Le provider d'aurora :
-- met `pages.root` par défaut sur `<projectRoot>/resources/pages` — il suffit de poser tes pages dedans ;
+- met `pages.root` par défaut sur `<projectRoot>/resources/pages` — il suffit de poser vos pages dedans ;
 - sert `/__assets/aurora/*` (le `dist/` pré-compilé d'aurora) ;
-- sert `/__assets/pages/*` (ton dossier de pages) ;
+- sert `/__assets/pages/*` (votre dossier de pages) ;
 - sert `/__assets/<package>/dist/*` pour chaque entrée de `browserPackages`.
 
 Ce sont des **middlewares serveur**, pas des routes, servis avant le routage.
 Une page est livrée sans bundler : un
 chargement, c'est des dizaines de requêtes `.js`. En routes, chacune traversait
-toute ta pile de middlewares, et une application qui résout un utilisateur
+toute votre pile de middlewares, et une application qui résout un utilisateur
 depuis un cookie de session payait un `SELECT` par fichier pour des octets
 identiques pour tout le monde. Servies avant le routage, elles n'atteignent
-jamais ton kernel — et tu n'as pas à écrire l'exemption toi-même. Seuls `GET`
-et `HEAD` sont captés ; le reste retombe sur tes routes.
+jamais votre kernel — et vous n'avez pas à écrire l'exemption vous-même. Seuls `GET`
+et `HEAD` sont captés ; le reste retombe sur vos routes.
 
 Un chemin dont un segment commence par `.` — `.env`, `.git/config`, le fichier
 d'échange d'un éditeur — répond 404 sur chaque montage, lien qui y pointe compris :
-le montage des pages est ton dossier de sources. `serveAssets({ root, dotFiles: "allow" })`
-les sert sur un montage à toi.
+le montage des pages est votre dossier de sources. `serveAssets({ root, dotFiles: "allow" })`
+les sert sur un montage à vous.
 
-Pour utiliser un autre dossier, change `pages.root` dans `config/aurora.ts` :
+Pour utiliser un autre dossier, changez `pages.root` dans `config/aurora.ts` :
 
 ```ts
 import { defineConfig } from '@c9up/aurora/server'
@@ -138,7 +138,7 @@ C'est tout. `aurora.render(ctx, name, props)` :
    - un blob `<script id="aurora-page-data" type="application/json">` qui transporte `{ name, props, url, rootId }`
    - un `<script type="module">` inline qui importe aurora + le même module de page et appelle `hydrate(root, () => Page(data.props))`
 
-Côté navigateur, aurora adopte le DOM SSR en place, attache signaux + écouteurs d'événements + hooks de cycle de vie. Le `onMount` que tu as écrit s'exécute une fois l'arbre vivant.
+Côté navigateur, aurora adopte le DOM SSR en place, attache signaux + écouteurs d'événements + hooks de cycle de vie. Le `onMount` que vous avez écrit s'exécute une fois l'arbre vivant.
 
 ### Lié au contexte — `ctx.aurora.render(name, props)`
 
@@ -178,23 +178,23 @@ Le `aurora.render(ctx, name, props)` au niveau module (le cœur agnostique) marc
 
 ### Pourquoi JS pur (pas TS) ?
 
-Parce que **le même module doit se charger dans Node ET dans le navigateur**, sans étape de build côté app. Aurora ship son JS dans `dist/` et arrive au navigateur via l'importmap. Tes pages vivent dans `resources/pages/*.js` et arrivent de la même façon. Si tu veux des types sur une page, écris un `.d.ts` à côté — ton éditeur le ramasse, le runtime reste JS.
+Parce que **le même module doit se charger dans Node ET dans le navigateur**, sans étape de build côté app. Aurora ship son JS dans `dist/` et arrive au navigateur via l'importmap. Vos pages vivent dans `resources/pages/*.js` et arrivent de la même façon. Si vous voulez des types sur une page, écrivez un `.d.ts` à côté — votre éditeur le ramasse, le runtime reste JS.
 
 ### Live-reload en dev (HMR)
 
 Le comportement de développement — rechargement des pages, assets de page servis `no-cache`, avertissements de dev — n'est actif que si l'environnement le dit : `ream dev` (`REAM_DEV=true`), ou un `NODE_ENV` qui vaut `development`, `dev`, `develop`, `test` ou `testing` (casse indifférente). Un `NODE_ENV` absent, `production`, `prod`, `staging` ou toute autre valeur tourne en production : l'arbre des pages n'est pas parcouru à chaque rendu et les assets de page gardent leur durée de cache.
 
-Les pages sont importées dynamiquement à chaque requête, donc aurora bust en dev le **module de page** par mtime — éditer directement `resources/pages/Foo.js` est visible à la requête suivante sans restart. Mais les imports **transitifs** d'une page (les composants, layouts et services qu'elle tire des sous-dossiers de `resources/pages/**`) résolvent vers des URLs stables que le loader ESM de Node garde en cache pour toute la vie du process. Édite l'un d'eux et le HTML SSR reste périmé (avec un warning d'hydratation) jusqu'au redémarrage.
+Les pages sont importées dynamiquement à chaque requête, donc aurora bust en dev le **module de page** par mtime — éditer directement `resources/pages/Foo.js` est visible à la requête suivante sans restart. Mais les imports **transitifs** d'une page (les composants, layouts et services qu'elle tire des sous-dossiers de `resources/pages/**`) résolvent vers des URLs stables que le loader ESM de Node garde en cache pour toute la vie du process. Éditez l'un d'eux et le HTML SSR reste périmé (avec un warning d'hydratation) jusqu'au redémarrage.
 
-La forme la plus vicieuse de ce piège, c'est un export présent sur le disque mais absent du module chargé. Ajoute une fonction à `services/portfolio.js`, utilise-la depuis une page, et la requête échoue sur :
+La forme la plus vicieuse de ce piège, c'est un export présent sur le disque mais absent du module chargé. Ajoutez une fonction à `services/portfolio.js`, utilisez-la depuis une page, et la requête échoue sur :
 
 ```
 The requested module './services/portfolio.js' does not provide an export named 'amountParts'
 ```
 
-L'export est pourtant bien dans le fichier. La page a été relue ; le module qu'elle importe, non. Si ta suite e2e passe sur le même code — elle démarre un process neuf à chaque exécution — c'est la confirmation. Redémarre, ou câble hot-hook ci-dessous.
+L'export est pourtant bien dans le fichier. La page a été relue ; le module qu'elle importe, non. Si votre suite e2e passe sur le même code — elle démarre un process neuf à chaque exécution — c'est la confirmation. Redémarrez, ou câblez hot-hook ci-dessous.
 
-[`hot-hook`](https://github.com/Julien-R44/hot-hook) comble ce manque — un loader-hook Node qui suit le graphe ESM et invalide **tout le sous-arbre** d'une boundary au changement. Câble-le dans ton app ; aurora n'a besoin d'aucune modif (son `import()` calculé est déjà compatible graph-aware, et son bust `?v=` de dev coexiste avec le versioning propre de hot-hook) :
+[`hot-hook`](https://github.com/Julien-R44/hot-hook) comble ce manque — un loader-hook Node qui suit le graphe ESM et invalide **tout le sous-arbre** d'une boundary au changement. Câblez-le dans votre app ; aurora n'a besoin d'aucune modif (son `import()` calculé est déjà compatible graph-aware, et son bust `?v=` de dev coexiste avec le versioning propre de hot-hook) :
 
 ```bash
 pnpm add -D hot-hook @hot-hook/runner
@@ -214,7 +214,7 @@ pnpm add -D hot-hook @hot-hook/runner
 
 Désormais, éditer une page **ou** n'importe quel composant/layout/service qu'elle importe recharge le SSR à chaud, sans restart. Les éditions hors de l'arbre des pages (`app/`, `config/`, `start/`, `providers/`) déclenchent un restart complet via `hot-runner`, exactement comme avant.
 
-> **Vise les `boundaries` sur les _entrées_ de page uniquement** — `./resources/pages/*.js` (enfants directs), **pas** `**/*.js`. hot-hook exige que tout fichier matché par `boundaries` soit importé dynamiquement ; un composant importé statiquement mais qui matche la glob est marqué « wrongly imported » et force un restart complet. Garde les pages en enfants directs de `resources/pages/` et les composants dans des sous-dossiers (`atoms/`, `molecules/`, …) — ils deviennent hot-reloadables en tant que dépendances en aval d'une page boundary.
+> **Visez les `boundaries` sur les _entrées_ de page uniquement** — `./resources/pages/*.js` (enfants directs), **pas** `**/*.js`. hot-hook exige que tout fichier matché par `boundaries` soit importé dynamiquement ; un composant importé statiquement mais qui matche la glob est marqué « wrongly imported » et force un restart complet. Gardez les pages en enfants directs de `resources/pages/` et les composants dans des sous-dossiers (`atoms/`, `molecules/`, …) — ils deviennent hot-reloadables en tant que dépendances en aval d'une page boundary.
 
 ### Servir un autre paquet au navigateur
 
@@ -242,8 +242,8 @@ livre une build navigateur séparée a une entrée `import` qui va chercher
 `node:fs`. Une cible TypeScript (un paquet de workspace qui exporte
 `./src/index.ts`) est ignorée. Sans `exports` exploitable, l'entrée est
 `dist/index.js`. Une entrée déclarée hors de `dist/` — le seul répertoire servi —
-est refusée par une erreur qui la nomme : déclare alors ce paquet
-toi-même avec `importmap` dans `config/aurora.ts`.
+est refusée par une erreur qui la nomme : déclarez alors ce paquet
+vous-même avec `importmap` dans `config/aurora.ts`.
 
 Le montage se fait sur deux racines étroites, jamais sur la racine du paquet :
 un paquet adossé à du wasm importe `../wasm/…` — un frère de son `dist` — et le

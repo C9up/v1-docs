@@ -172,8 +172,8 @@ attend le réseau.
 
 Un `timeout` fait échouer la tentative et déclenche `this.signal` (le second
 argument du `handle` d'un handler enregistré). Il ne **tue pas** le handler, parce
-que rien dans Node n'interrompt une promesse en cours : passe le signal aux E/S du
-job — `fetch(url, { signal: this.signal })` — ou teste `this.signal.aborted` entre
+que rien dans Node n'interrompt une promesse en cours : passez le signal aux E/S du
+job — `fetch(url, { signal: this.signal })` — ou testez `this.signal.aborted` entre
 deux étapes. Tant que le handler n'a pas rendu la main, il garde sa place dans le
 worker : `concurrency` borne ce qui tourne réellement.
 
@@ -242,7 +242,7 @@ Ce qu'un driver stocke, sous le nom `JobRecord` :
 - `id`, `payload`
 - `name` — le `static options.name` de la classe de job quand elle en déclare
   un, son nom de classe sinon. Deux classes qui répondent au même nom sont
-  refusées à l'enregistrement : donne un `options.name` à l'une d'elles, ou quand
+  refusées à l'enregistrement : donnez un `options.name` à l'une d'elles, ou quand
   un bundler renomme les classes
 - `attempts`, `maxAttempts`
 - `status` (`pending`, `processing`, `completed`, `failed`)
@@ -263,7 +263,7 @@ le même nom.
 
 - si la tentative échoue et que `attempts < maxAttempts`, le job repasse en `pending`
 - sinon il passe en `failed`, `failed()` est appelé une fois, et il est conservé
-- tu peux lire les échecs via `failedJobs()`
+- vous pouvez lire les échecs via `failedJobs()`
 
 ```ts
 const failed = await queue.failedJobs()

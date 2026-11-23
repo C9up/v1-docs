@@ -98,8 +98,8 @@ donc il se porte inchangé. `useTimestamps: false` utilise `dateTime` ;
 > Les helpers `id()` et les raccourcis à default Postgres existent pour les
 > migrations d'app utilisateur où le dialecte cible est connu comme étant
 > Postgres. `id()` défaut à `gen_random_uuid()`, que SQLite et MySQL ne
-> fournissent pas — ne l'utilise **pas** dans une migration censée tourner sur
-> n'importe quel dialecte. Écris la colonne explicitement et fournis l'UUID au
+> fournissent pas — ne l'utilisez **pas** dans une migration censée tourner sur
+> n'importe quel dialecte. Écrivez la colonne explicitement et fournissez l'UUID au
 > moment de l'insert.
 
 ## Clés auto-incrémentées

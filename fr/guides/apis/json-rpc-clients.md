@@ -24,9 +24,9 @@ hand-roller chacun l'enveloppe et les codes `-32xxx`.
 pnpm add @c9up/comet
 ```
 
-Dans une app Ream tu l'installes rarement directement — tu obtiens le client via
-`@c9up/aurora` (navigateur) et le serveur via `@c9up/ream`. Utilise `comet`
-directement quand tu as besoin d'un client JSON-RPC **hors** navigateur/aurora
+Dans une app Ream vous l'installez rarement directement — vous obtenez le client via
+`@c9up/aurora` (navigateur) et le serveur via `@c9up/ream`. Utilisez `comet`
+directement quand vous avez besoin d'un client JSON-RPC **hors** navigateur/aurora
 (un service Node appelant l'API JSON-RPC d'un autre service).
 
 ## Client
@@ -34,7 +34,7 @@ directement quand tu as besoin d'un client JSON-RPC **hors** navigateur/aurora
 Le client possède la logique JSON-RPC — construction de l'enveloppe, `id`
 auto-incrémenté, appel simple vs batch, ré-appariement des réponses de batch par
 id, mapping des erreurs vers `RpcError` — et délègue les octets à un **transport
-injecté**. C'est cette couture qui le rend isomorphe : passe un transport
+injecté**. C'est cette couture qui le rend isomorphe : passez un transport
 navigateur ou Node.
 
 ```ts
@@ -142,7 +142,7 @@ Un `signal` interrompu rejette l'appel avec la raison du signal, comme `fetch`.
 
 Le constructeur standard de `WebSocket` ne prend qu'une URL et des
 sous-protocoles. Pour passer autre chose — les `headers` de Node, un proxy —,
-fournis toi-même le socket au transport :
+fournissez vous-même le socket au transport :
 
 ```ts
 createWebSocketTransport({
@@ -155,9 +155,9 @@ par session marche comme en HTTP. Ream n'accepte une poignée de main que depuis
 l'origine de la page, sauf si l'app en autorise d'autres : c'est ce qui empêche
 un autre site d'ouvrir un socket avec ces cookies.
 
-### Côté navigateur — utilise aurora
+### Côté navigateur — utilisez aurora
 
-Dans une page Ream, préfère le `createRpcClient` d'aurora : il branche le
+Dans une page Ream, préférez le `createRpcClient` d'aurora : il branche le
 `HttpClient` d'aurora (base URL, en-têtes d'auth, timeouts) comme transport et
 s'associe à `command()`. Il re-exporte la surface de comet, donc `RpcError` /
 `isRpcError` / les types viennent de `@c9up/aurora` sans changement.
@@ -250,8 +250,8 @@ son URL de base, ses en-têtes d'auth et ses timeouts.
 > [`@c9up/comet`](/fr/guides/apis/json-rpc-clients) — aurora branche `HttpClient` comme transport
 > de comet et re-exporte sa surface (`RpcError`, `isRpcError`, les types). Comme le
 > RPC est opt-in, il vit sur le sous-chemin **`@c9up/aurora/rpc`** (pas le barrel
-> principal) et `@c9up/comet` est une **dépendance peer optionnelle** — installe-la
-> seulement si tu utilises le RPC ; les projets qui ne l'utilisent pas ne la tirent
+> principal) et `@c9up/comet` est une **dépendance peer optionnelle** — installez-la
+> seulement si vous utilisez le RPC ; les projets qui ne l'utilisent pas ne la tirent
 > jamais.
 >
 > Aucun câblage navigateur : quand comet est installé, `AuroraProvider` sert
@@ -287,16 +287,16 @@ await rpc.notify('audit.log', { event: 'login' })
 
 Un point d'entrée authentifié par cookie/session est protégé par le double-submit
 signé : le serveur compare le cookie `XSRF-TOKEN` à un en-tête `X-XSRF-TOKEN`. Le
-cookie part tout seul ; l'en-tête est ce qui atteste que la requête vient de ta
+cookie part tout seul ; l'en-tête est ce qui atteste que la requête vient de votre
 propre page, puisqu'un appelant tiers peut faire partir le cookie mais ne peut
 pas le lire.
 
 **C'est `HttpClient` qui le pose, donc tout ce qui est bâti dessus en hérite** —
 `form()`, `command()`, `createRpcClient()` et les poignées de main du relais. À
-chaque requête vers ta propre origine, il lit le cookie et le renvoie. C'est un
+chaque requête vers votre propre origine, il lit le cookie et le renvoie. C'est un
 no-op hors navigateur, quand le cookie est absent (une API authentifiée par
 Bearer est immunisée au CSRF et n'en pose aucun) et — délibérément — quand la
-cible est une autre origine : le jeton authentifie ta session, et un client dont
+cible est une autre origine : le jeton authentifie votre session, et un client dont
 le `baseURL` pointe une API tierce le lui livrerait.
 
 ```ts
@@ -318,12 +318,12 @@ createRpcClient({ xsrf: false })     // mêmes interrupteurs, transmis à son cl
 > comparée ; une URL irrésoluble compte comme étrangère.
 
 
-Un en-tête que tu poses toi-même l'emporte toujours. La valeur du cookie est
+Un en-tête que vous posez vous-même l'emporte toujours. La valeur du cookie est
 renvoyée **telle quelle**, jamais décodée : le serveur la lit brute dans l'en-tête
 `Cookie` et compare octet par octet — décoder enverrait un jeton qu'il n'a jamais
 stocké.
 
-Le 3ᵉ argument est un objet d'**options** par appel. Passe `parse` pour valider le
+Le 3ᵉ argument est un objet d'**options** par appel. Passez `parse` pour valider le
 résultat au runtime au lieu de l'assertion `T` non vérifiée (même principe que le
 `parse` de `HttpClient`), et `signal` pour rendre l'appel annulable :
 

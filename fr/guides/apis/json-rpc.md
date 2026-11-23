@@ -2,9 +2,9 @@
 
 Ce guide couvre JSON-RPC côté serveur.
 
-Ream fournit trois façons alternatives d'exposer tes services à côté de REST, plus
+Ream fournit trois façons alternatives d'exposer vos services à côté de REST, plus
 une base de sérialisation pour façonner les réponses. Chacune est câblée par un
-**provider** et est **opt-in** — ajoute le provider à la liste des providers de ton
+**provider** et est **opt-in** — ajoutez le provider à la liste des providers de votre
 app pour l'activer.
 
 | Provider | Monte | Rôle |
@@ -19,13 +19,13 @@ comme les contrôleurs — donc les handlers bénéficient de l'injection de dé
 
 ## JSON-RPC
 
-Ajoute `RpcProvider`, puis enregistre des méthodes sur le routeur `rpc` lié au
+Ajoutez `RpcProvider`, puis enregistrez des méthodes sur le routeur `rpc` lié au
 container.
 
 ```ts
 import { RpcProvider } from '@c9up/ream/rpc/provider'
 
-// 1. Enregistrer le provider (dans ta liste de providers).
+// 1. Enregistrer le provider (dans votre liste de providers).
 
 // 2. Enregistrer les méthodes — n'importe quand après boot, via le container.
 const rpc = await app.container.make('rpc')
@@ -107,8 +107,8 @@ message binaire reçoit `-32700 Parse error`.
   ensuite avec le `ctx` de cette requête : `ctx.auth` est l'utilisateur qui
   s'est connecté. Un rôle retiré pendant que le socket est ouvert compte à la
   connexion suivante ; un garde `.permission()` interroge la couche d'auth à
-  chaque appel. Ferme toi-même les sockets d'un utilisateur qui se déconnecte.
-- **Les appels partagent ce `ctx`**, comme les appels d'un batch : garde l'état
+  chaque appel. Fermez vous-même les sockets d'un utilisateur qui se déconnecte.
+- **Les appels partagent ce `ctx`**, comme les appels d'un batch : gardez l'état
   propre à un appel dans le handler, pas sur `ctx`. La session est celle que la
   poignée de main a lue.
 - **Borné.** Au plus `maxInFlight` messages d'un socket tournent en même temps
@@ -127,6 +127,6 @@ Un client : `createWebSocketTransport` de [`@c9up/comet`](/fr/guides/apis/json-r
 > parsing, la règle de notification et les codes d'erreur viennent du cœur de
 > protocole agnostique [`@c9up/comet`](/fr/guides/apis/json-rpc-clients) — le même cœur que le
 > client d'aurora, donc la logique de la spec est définie une seule fois. Le
-> `@c9up/comet` est un peer optionnel — enregistre le RPC depuis le sous-chemin
+> `@c9up/comet` est un peer optionnel — enregistrez le RPC depuis le sous-chemin
 > `@c9up/ream/rpc/provider`. Le client navigateur est `createRpcClient` de
 > `@c9up/aurora/rpc`.

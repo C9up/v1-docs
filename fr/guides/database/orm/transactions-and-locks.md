@@ -88,11 +88,11 @@ commit de cette transaction externe, jamais au release du savepoint interne.
 
 Conséquence observable : sur un chemin **transactionnel** (tout ce qui passe par
 une transaction managée — `firstOrCreate`, `updateOrCreateMany`,
-`related().create`, …), un échec de ton sink `onDomainEvents` est **avalé** —
+`related().create`, …), un échec de votre sink `onDomainEvents` est **avalé** —
 l'écriture est déjà committée, un effet de bord tardif ne peut pas l'annuler. Sur
 un `create()` / `save()` non transactionnel, le dispatch est inline et un échec du
 sink **remonte** à l'appelant (la ligne est quand même écrite — le dispatch suit
-l'INSERT). Si tu dois observer les échecs de dispatch, fais-le dans le sink.
+l'INSERT). Si vous devez observer les échecs de dispatch, faites-le dans le sink.
 
 > Ne jamais émuler une transaction en envoyant `BEGIN`/`COMMIT` via
 > `db.execute()` sur une connexion du pool : chaque appel peut atterrir sur une

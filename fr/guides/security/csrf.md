@@ -23,12 +23,12 @@ token rejoué.
 
 `csrf.session` rend le lien obligatoire : une requête qui atteint le contrôle
 sans session est refusée avec `E_BLACKHOLE_SESSION_NOT_READY` (500). Le
-provider Ream l'active quand l'application a une config de session ; pose
+provider Ream l'active quand l'application a une config de session ; posez
 `csrf: { session: false }` pour une application dont les routes protégées par
 CSRF tournent sans.
 
 ::: warning Nécessite un secret (breaking)
-Quand le CSRF est activé, un `secret` est **obligatoire**. `createBlackhole({ csrf: true })` sans secret **throw** — il n'y a aucun fallback silencieux vers un token non signé. Passe `secret: env.get('APP_KEY')` dans `config/blackhole.ts` (le provider retombe aussi sur `process.env.APP_KEY`). `secret` prend une chaîne ou un `Secret`, comme celui que renvoie `Env.schema.secret()` : il est libéré une seule fois, à la construction du filtre, et la config le garde enveloppé. Le secret doit être une valeur stable à haute entropie (utilise ton `APP_KEY`) et **partagée entre les instances** — un token signé par une instance doit se vérifier sur une autre.
+Quand le CSRF est activé, un `secret` est **obligatoire**. `createBlackhole({ csrf: true })` sans secret **throw** — il n'y a aucun fallback silencieux vers un token non signé. Passez `secret: env.get('APP_KEY')` dans `config/blackhole.ts` (le provider retombe aussi sur `process.env.APP_KEY`). `secret` prend une chaîne ou un `Secret`, comme celui que renvoie `Env.schema.secret()` : il est libéré une seule fois, à la construction du filtre, et la config le garde enveloppé. Le secret doit être une valeur stable à haute entropie (utilisez votre `APP_KEY`) et **partagée entre les instances** — un token signé par une instance doit se vérifier sur une autre.
 :::
 
 ### Fonctionnement
@@ -86,9 +86,9 @@ export default defineConfig({
 
 `csrf: true` / `csrf: false` est un raccourci pour activer/désactiver avec les défauts. `GET`, `HEAD` et `OPTIONS` ne sont jamais protégés.
 
-**Attributs du cookie.** Le cookie `XSRF-TOKEN` est désormais `Secure` par défaut en production (`NODE_ENV === 'production'`) — pas besoin de le poser à la main. Il n'est volontairement **pas** `httpOnly` : le flux double-submit a besoin que le JS du navigateur lise le cookie et le renvoie en `X-XSRF-TOKEN`. Mettre `cookie: { httpOnly: true }` rend le cookie illisible et tout POST non-formulaire fera `403` — blackhole log un avertissement si tu le fais. Ne l'active que pour une app entièrement rendue côté serveur qui soumet exclusivement via le champ `_csrf`.
+**Attributs du cookie.** Le cookie `XSRF-TOKEN` est désormais `Secure` par défaut en production (`NODE_ENV === 'production'`) — pas besoin de le poser à la main. Il n'est volontairement **pas** `httpOnly` : le flux double-submit a besoin que le JS du navigateur lise le cookie et le renvoie en `X-XSRF-TOKEN`. Mettre `cookie: { httpOnly: true }` rend le cookie illisible et tout POST non-formulaire fera `403` — blackhole log un avertissement si vous le faites. Ne l'activez que pour une app entièrement rendue côté serveur qui soumet exclusivement via le champ `_csrf`.
 
-> Les routes Bearer/JWT sont immunisées contre le CSRF (le navigateur ne peut pas attacher un header `Authorization` cross-site) : liste tes préfixes d'API token-authed dans `exceptRoutes` et réserve le CSRF aux routes cookie/session.
+> Les routes Bearer/JWT sont immunisées contre le CSRF (le navigateur ne peut pas attacher un header `Authorization` cross-site) : listez vos préfixes d'API token-authed dans `exceptRoutes` et réservez le CSRF aux routes cookie/session.
 
 ### Helpers de templating
 

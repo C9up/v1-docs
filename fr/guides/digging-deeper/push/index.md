@@ -32,11 +32,11 @@ ream configure @c9up/nova
 ream nova:vapid:generate
 ```
 
-Frappe une paire P-256 via `crypto.generateKeyPairSync('ec')` de Node et upserte les trois variables `NOVA_VAPID_*` dans `.env`. Remplace `NOVA_VAPID_SUBJECT` par une vraie adresse `mailto:` avant déploiement — les services push s'en servent pour te contacter en cas de souci d'abonnement.
+Frappe une paire P-256 via `crypto.generateKeyPairSync('ec')` de Node et upserte les trois variables `NOVA_VAPID_*` dans `.env`. Remplacez `NOVA_VAPID_SUBJECT` par une vraie adresse `mailto:` avant déploiement — les services push s'en servent pour vous contacter en cas de souci d'abonnement.
 
 Le paquet n'a aucune dépendance à l'exécution : la paire de clés, le chiffrement du contenu (RFC 8291 `aes128gcm`, un seul enregistrement) et le jeton VAPID (RFC 8292, ES256, valable 12 heures, pour audience l'origine du point de terminaison) sont tous construits avec `node:crypto`. `nova.push()` envoie ensuite la requête par le `HttpClient` de ream (`@c9up/ream/http-client`), qui refuse les adresses non publiques.
 
-Si `NOVA_VAPID_PRIVATE_KEY` est déjà défini, la commande refuse d'écraser. Passe `--force` pour faire tourner la clé.
+Si `NOVA_VAPID_PRIVATE_KEY` est déjà défini, la commande refuse d'écraser. Passez `--force` pour faire tourner la clé.
 
 La clé privée signe chaque push que l'application enverra : qui peut la lire peut envoyer des notifications au nom de l'application, à chacun de ses abonnés. Quand la commande crée `.env`, elle le crée en `0600` — propriétaire seul — au lieu de laisser l'umask le rendre lisible par tout le monde. Quand `.env` existe déjà, ses permissions sont la décision du déploiement : la commande n'y touche pas et le signale si le fichier est lisible au-delà de son propriétaire.
 

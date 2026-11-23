@@ -35,7 +35,7 @@ Configurez-la depuis `config/auth.ts` avec un bloc `session` — fournissez `fin
 export default {
   defaultStrategy: 'session',          // session-first (app web)
   session: {
-    findUser: async (id) => /* résout ton utilisateur via l'id stocké */ null,
+    findUser: async (id) => /* résout votre utilisateur via l'id stocké */ null,
   },
 }
 ```
@@ -89,7 +89,7 @@ plus.
 Avec le stockage de session cookie, la session vit dans le navigateur, et le
 serveur n'a rien à supprimer à la déconnexion : un cookie copié avant, ou
 renvoyé par une requête en cours pendant la déconnexion, resterait connecté.
-Donne au guard une `blacklist`, la même `TokenBlacklist` qui révoque les jetons
+Donnez au guard une `blacklist`, la même `TokenBlacklist` qui révoque les jetons
 de `JwtStrategy` :
 
 ```typescript
@@ -126,9 +126,9 @@ défaut est de deux heures. `MemoryBlacklistDriver` suffit pour un seul
 processus ; plusieurs instances demandent un stockage partagé comme
 `RedisBlacklistDriver`.
 
-L'interface `SessionStore` est volontairement minimale — `get(key)`, `put(key, value)`, `forget(key)`, `regenerate()`. Les noms de méthodes épousent l'**API `Session` de Ream** (`put`, pas `set`), si bien que la `Session` de Ream — exposée sur `ctx.session` par `SessionMiddleware` — satisfait le contrat structurellement, sans adaptateur. (Si tu avais écrit un `SessionStore` maison contre l'ancien `set()`, renomme-le en `put()`.)
+L'interface `SessionStore` est volontairement minimale — `get(key)`, `put(key, value)`, `forget(key)`, `regenerate()`. Les noms de méthodes épousent l'**API `Session` de Ream** (`put`, pas `set`), si bien que la `Session` de Ream — exposée sur `ctx.session` par `SessionMiddleware` — satisfait le contrat structurellement, sans adaptateur. (Si vous aviez écrit un `SessionStore` maison contre l'ancien `set()`, renommez-le en `put()`.)
 
-> **`ctx.session`.** La session de requête vit sur `ctx.session`, peuplée par le `SessionMiddleware` de Ream. Enregistre ce middleware **avant** le middleware d'auth pour que `ctx.session` soit posé quand la stratégie session résout l'utilisateur.
+> **`ctx.session`.** La session de requête vit sur `ctx.session`, peuplée par le `SessionMiddleware` de Ream. Enregistrez ce middleware **avant** le middleware d'auth pour que `ctx.session` soit posé quand la stratégie session résout l'utilisateur.
 
 ### Se souvenir de moi
 

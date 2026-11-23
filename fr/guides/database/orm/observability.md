@@ -6,12 +6,12 @@ Ce guide couvre l'observation des requêtes :
 - La forme de `DbQueryEvent`
 - Impression lisible
 - Activer l'émission
-- Brancher sur l'émetteur de ton application
+- Brancher sur l'émetteur de votre application
 
 Atlas expose chaque instruction exécutée via une petite couche d'observabilité des
-requêtes. Utilise-la pour
+requêtes. Utilisez-la pour
 journaliser les requêtes lentes, tracer ce qu'une requête HTTP a réellement exécuté,
-ou brancher atlas sur la télémétrie de ton application.
+ou brancher atlas sur la télémétrie de votre application.
 
 L'émission est **opt-in et gratuite tant qu'elle n'est pas utilisée**. Une
 instruction n'est chronométrée que lorsque sa connexion est configurée avec
@@ -72,7 +72,7 @@ exacte vue par le driver aux côtés de ses valeurs échappées et sûres.
 
 L'événement se déclenche même en cas d'échec : quand une instruction lève une
 exception, `error` est renseigné et l'événement est tout de même émis, de sorte que
-les requêtes lentes-et-échouées apparaissent dans tes journaux.
+les requêtes lentes-et-échouées apparaissent dans vos journaux.
 
 Les instructions exécutées dans une transaction interactive (`db.transaction(...)`)
 sont rapportées comme les autres, avec `inTransaction: true` — y compris le
@@ -103,7 +103,7 @@ chaîne que quelqu'un copierait plus tard dans une console.
 
 ### Par requête — `.debug()`
 
-Appelle `.debug()` sur une requête pour forcer un événement `db:query` pour cette
+Appelez `.debug()` sur une requête pour forcer un événement `db:query` pour cette
 seule instruction, même quand la connexion a `debug: false` :
 
 ```ts
@@ -127,7 +127,7 @@ await User.query()
 
 ### Par connexion — `debug: true`
 
-Mets `debug: true` sur une connexion pour émettre un événement pour **chaque**
+Mettez `debug: true` sur une connexion pour émettre un événement pour **chaque**
 instruction qu'elle exécute. Désactivé par défaut :
 
 ```ts
@@ -155,11 +155,11 @@ développement puisse les compter et les montrer. Un tel événement porte
 terminal ne montre toujours que ce que `debug` a demandé. Production et tests
 inchangés.
 
-## Brancher sur l'émetteur de ton application
+## Brancher sur l'émetteur de votre application
 
 Atlas est un package autonome et ne peut pas importer l'émetteur d'événements de
-ton framework, il possède donc plutôt ce petit registre d'écouteurs. Pour faire
-remonter les requêtes sur l'émetteur que ton application utilise déjà, transfère-les
+votre framework, il possède donc plutôt ce petit registre d'écouteurs. Pour faire
+remonter les requêtes sur l'émetteur que votre application utilise déjà, transférez-les
 en une ligne au démarrage :
 
 ```ts

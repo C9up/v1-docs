@@ -801,11 +801,11 @@ Les erreurs côté serveur sont levées par `@c9up/photon` (SSR / renderer) ; le
 **Cause.** Un champ de `config/photon.ts` (ou la `PhotonConfig` passée à `PhotonRenderer`) échoue la validation : `buildDir` se résout en dehors de la racine du projet, ou `ssr.entrypoint` / `entryClient` contient des segments de path-traversal ou des caractères hors de `[\w./\-@#]`.
 
 **Fix.**
-1. Ouvre `config/photon.ts` et vérifie que `buildDir` est un path relatif INTÉRIEUR au projet (par ex. `dist`, PAS `../dist`).
-2. Vérifie que `ssr.entrypoint` et `entryClient` sont des paths relatifs sans segments `..` et se terminent par `.tsx?` / `.jsx?` / `.vue` / `.svelte`.
-3. Redémarre le renderer (`PhotonRenderer.boot()` revalide).
+1. Ouvrez `config/photon.ts` et vérifiez que `buildDir` est un path relatif INTÉRIEUR au projet (par ex. `dist`, PAS `../dist`).
+2. Vérifiez que `ssr.entrypoint` et `entryClient` sont des paths relatifs sans segments `..` et se terminent par `.tsx?` / `.jsx?` / `.vue` / `.svelte`.
+3. Redémarrez le renderer (`PhotonRenderer.boot()` revalide).
 
-Levée aussi au rendu quand `rootView` nomme un template mais que la requête n'a pas de moteur de vues (`ctx.view`) : installe-en un (`@c9up/inker` le pose), ou fais renvoyer à `rootView` une fonction qui écrit le document.
+Levée aussi au rendu quand `rootView` nomme un template mais que la requête n'a pas de moteur de vues (`ctx.view`) : installez-en un (`@c9up/inker` le pose), ou faites renvoyer à `rootView` une fonction qui écrit le document.
 
 **Lieu du throw :** `packages/photon/src/PhotonRenderer.ts`.
 
@@ -814,9 +814,9 @@ Levée aussi au rendu quand `rootView` nomme un template mais que la requête n'
 **Cause.** Le manifest Vite à `${buildDir}/manifest.json` est absent au moment où `PhotonRenderer.boot()` tourne en mode production. Le manifest est un artefact de build — son absence signifie presque toujours que le build n'a jamais été lancé pour ce déploiement, ou que la sortie du build n'a pas été embarquée.
 
 **Fix.**
-1. Lance le script de build (par ex. `pnpm build`) avant de démarrer le serveur en production.
-2. Vérifie que ton pipeline de déploiement copie bien le dossier de build (par défaut `public/build/`) dans l'image runtime.
-3. Confirme que `PhotonConfig.buildDir` correspond au chemin où Vite écrit sa sortie.
+1. Lancez le script de build (par ex. `pnpm build`) avant de démarrer le serveur en production.
+2. Vérifiez que votre pipeline de déploiement copie bien le dossier de build (par défaut `public/build/`) dans l'image runtime.
+3. Confirmez que `PhotonConfig.buildDir` correspond au chemin où Vite écrit sa sortie.
 
 L'erreur levée porte `context: { manifestPath, buildDir }` pour le diagnostic, et `cause` forwarde l'erreur `fs.access` originale (utile pour distinguer ENOENT d'EACCES).
 
@@ -827,8 +827,8 @@ L'erreur levée porte `context: { manifestPath, buildDir }` pour le diagnostic, 
 **Cause.** Le manifest Vite est là mais illisible, pas du JSON, ou pas un objet de manifest. Photon l'ignorait avec un warning puis pointait chaque page vers un `client.js` que le build n'avait jamais écrit : le serveur semblait sain et rien ne s'hydratait. Le boot échoue désormais.
 
 **Fix.**
-1. Reconstruis le client et redéploie tout le dossier de build — une copie partielle en est la cause habituelle.
-2. Vérifie que le processus peut lire le fichier.
+1. Reconstruisez le client et redéployez tout le dossier de build — une copie partielle en est la cause habituelle.
+2. Vérifiez que le processus peut lire le fichier.
 
 L'erreur levée porte `context: { manifestPath }`, et `cause` l'erreur de lecture ou de parsing.
 
@@ -839,9 +839,9 @@ L'erreur levée porte `context: { manifestPath }`, et `cause` l'erreur de lectur
 **Cause.** Le manifest Vite est présent, mais le module SSR échoue au chargement : sortie de build manquante pour `ssr.entrypoint` (ou, en développement, aucun fichier à cet endroit), erreur de syntaxe dans le fichier SSR bundlé, ou peer dependency manquante au runtime. À distinguer de `E_PHOTON_MANIFEST_MISSING` — ce dernier code est levé quand le manifest est absent ; celui-ci quand le manifest est là mais que `import()` du SSR rejette.
 
 **Fix.**
-1. Relance `ream build` (ou ton script de build) et lis attentivement les warnings.
-2. Vérifie que le fichier SSR existe à l'un des chemins attendus (`<ssrBuildDir>/ssr.js` ou `<ssrBuildDir>/<entryName>.js`, `ssrBuildDir` valant `build/ssr` par défaut).
-3. Si le build tourne mais l'import échoue quand même, inspecte le fichier bundlé pour des peer dependencies absentes (par ex. `react-dom/server` pour l'adapter React).
+1. Relancez `ream build` (ou votre script de build) et lisez attentivement les warnings.
+2. Vérifiez que le fichier SSR existe à l'un des chemins attendus (`<ssrBuildDir>/ssr.js` ou `<ssrBuildDir>/<entryName>.js`, `ssrBuildDir` valant `build/ssr` par défaut).
+3. Si le build tourne mais l'import échoue quand même, inspectez le fichier bundlé pour des peer dependencies absentes (par ex. `react-dom/server` pour l'adapter React).
 
 **Lieu du throw :** `packages/photon/src/PhotonRenderer.ts`.
 
@@ -850,9 +850,9 @@ L'erreur levée porte `context: { manifestPath }`, et `cause` l'erreur de lectur
 **Cause.** Le module SSR s'est bien chargé, mais son appel `render(pageData)` a levé ou retourné une valeur non-string. Causes courantes : un composant lève pendant le render, un équivalent `useEffect` tourne côté serveur et accède à `window`, ou le SSR retourne `undefined`.
 
 **Fix.**
-1. Lis `error.cause` (ou le `hint`) — il porte le message d'erreur original du module SSR.
-2. Audite le composant page pour des globaux navigateur (`window`, `document`, `localStorage`) accédés au niveau module ou dans le render.
-3. Confirme que l'export `render()` du SSR retourne bien une string (React : `renderToString(...)` ; Vue : `renderToString(...)` de `@vue/server-renderer` ; Svelte : `<App />.render(...).html`).
+1. Lisez `error.cause` (ou le `hint`) — il porte le message d'erreur original du module SSR.
+2. Auditez le composant page pour des globaux navigateur (`window`, `document`, `localStorage`) accédés au niveau module ou dans le render.
+3. Confirmez que l'export `render()` du SSR retourne bien une string (React : `renderToString(...)` ; Vue : `renderToString(...)` de `@vue/server-renderer` ; Svelte : `<App />.render(...).html`).
 
 **Lieu du throw :** `packages/photon/src/PhotonRenderer.ts`.
 
@@ -861,8 +861,8 @@ L'erreur levée porte `context: { manifestPath }`, et `cause` l'erreur de lectur
 **Cause.** L'appel `hydrate()` côté navigateur a tourné mais aucun bloc `<script id="photon-data" type="application/json">` n'a été trouvé dans le document. Signifie presque toujours que la page n'a PAS été rendue via `PhotonRenderer.render()` (réponse HTML écrite à la main, fichier statique, ou page 404).
 
 **Fix.**
-1. Confirme que la route qui renvoie cette page passe bien par `PhotonMiddleware` / `PhotonRenderer.render()`.
-2. Si tu sers un fallback SPA, rends-le aussi via Photon — même un shell vide a besoin du bloc data pour que `hydrate()` le trouve.
+1. Confirmez que la route qui renvoie cette page passe bien par `PhotonMiddleware` / `PhotonRenderer.render()`.
+2. Si vous servez un fallback SPA, rendez-le aussi via Photon — même un shell vide a besoin du bloc data pour que `hydrate()` le trouve.
 
 **Lieu du throw :** `packages/photon/src/client/boot.ts`.
 
@@ -871,9 +871,9 @@ L'erreur levée porte `context: { manifestPath }`, et `cause` l'erreur de lectur
 **Cause.** Le bloc `<script id="photon-data">` a été trouvé, mais son contenu n'est pas un objet JSON avec la forme attendue `{ component, props, url, framework }`. Causes : mangling HTML par un CDN / proxy qui réencode les blocs script, double-escaping par un middleware qui ne sait pas que le bloc est censé rester du JSON brut, ou édition manuelle du template SSR.
 
 **Fix.**
-1. Inspecte la source de la page : le contenu du bloc doit faire un round-trip propre via `JSON.parse`.
-2. Désactive tout middleware qui réécrit le HTML (compression, link-rewriting, injection de nonce CSP) qui touche le body — vérifie que le bloc reste intact en production.
-3. Si tu as personnalisé le template SSR, garde le bloc `<script type="application/json" id="photon-data">…</script>` exactement tel que `PhotonRenderer.render()` l'émet.
+1. Inspectez la source de la page : le contenu du bloc doit faire un round-trip propre via `JSON.parse`.
+2. Désactivez tout middleware qui réécrit le HTML (compression, link-rewriting, injection de nonce CSP) qui touche le body — vérifiez que le bloc reste intact en production.
+3. Si vous avez personnalisé le template SSR, gardez le bloc `<script type="application/json" id="photon-data">…</script>` exactement tel que `PhotonRenderer.render()` l'émet.
 
 **Lieu du throw :** `packages/photon/src/client/boot.ts`.
 
@@ -882,8 +882,8 @@ L'erreur levée porte `context: { manifestPath }`, et `cause` l'erreur de lectur
 **Cause.** Le sélecteur de cible d'hydratation (par défaut `#app`) n'a matché aucun nœud DOM. Habituellement une option `target` custom qui n'existe pas dans le HTML SSR, ou un `id="app"` retiré d'un template custom.
 
 **Fix.**
-1. Confirme que le HTML SSR contient bien l'élément qui matche `hydrate({ target })`.
-2. Si tu as personnalisé l'enveloppe HTML du renderer, garde le `<div id="app">…</div>` (ou override `target` pour matcher l'id de ton wrapper).
+1. Confirmez que le HTML SSR contient bien l'élément qui matche `hydrate({ target })`.
+2. Si vous avez personnalisé l'enveloppe HTML du renderer, gardez le `<div id="app">…</div>` (ou surchargez `target` pour qu'il corresponde à l'id de votre wrapper).
 
 **Lieu du throw :** `packages/photon/src/client/boot.ts`.
 
@@ -892,8 +892,8 @@ L'erreur levée porte `context: { manifestPath }`, et `cause` l'erreur de lectur
 **Cause.** Le champ `framework` du bloc page-data n'est pas l'une des valeurs `react`, `vue` ou `svelte`. Soit le côté SSR a écrit une valeur inattendue, soit page-data a été fabriqué à la main avec une typo.
 
 **Fix.**
-1. Vérifie que `PhotonConfig.framework` côté serveur est bien réglé sur une valeur supportée.
-2. Si tu sérialises page-data manuellement (rare), assure-toi que `framework` matche exactement le literal du union.
+1. Vérifiez que `PhotonConfig.framework` côté serveur est bien réglé sur une valeur supportée.
+2. Si vous sérialisez page-data manuellement (rare), assurez-vous que `framework` matche exactement le literal du union.
 
 **Lieu du throw :** `packages/photon/src/client/hydrate.ts`.
 
@@ -902,7 +902,7 @@ L'erreur levée porte `context: { manifestPath }`, et `cause` l'erreur de lectur
 **Cause.** Photon a bien lu page-data et dispatché vers le bon adapter, mais l'`import()` dynamique du runtime du framework a rejeté. Presque toujours une peer dependency manquante : `react` + `react-dom` pour React, `vue` pour Vue, `svelte` pour Svelte.
 
 **Fix.**
-1. Installe le runtime du framework : `pnpm add react react-dom` (ou `vue`, ou `svelte`).
+1. Installez le runtime du framework : `pnpm add react react-dom` (ou `vue`, ou `svelte`).
 2. Le `cause` de l'erreur porte l'échec de résolution module original — utile quand le package est installé mais qu'un sous-chemin manque (par ex. `react-dom/client` requiert React 18+).
 
 **Lieu du throw :** `packages/photon/src/client/hydrate.ts`.
@@ -912,8 +912,8 @@ L'erreur levée porte `context: { manifestPath }`, et `cause` l'erreur de lectur
 **Cause.** Un `Link`, un `Form`, `router.visit` ou `urlFor` a nommé une route que le navigateur ne connaît pas : elle n'est pas parmi les routes transmises avec `setRoutes()`, ou `setRoutes()` n'a jamais été appelé.
 
 **Fix.**
-1. Appelle `setRoutes(router.namedRoutes())` une fois, avant le rendu de la première page ; le `hint` de l'erreur liste les routes connues.
-2. Vérifie le nom par rapport au `router.as(...)` du serveur.
+1. Appelez `setRoutes(router.namedRoutes())` une fois, avant le rendu de la première page ; le `hint` de l'erreur liste les routes connues.
+2. Vérifiez le nom par rapport au `router.as(...)` du serveur.
 
 **Lieu du throw :** `packages/photon/src/client/routes.ts`.
 
@@ -921,7 +921,7 @@ L'erreur levée porte `context: { manifestPath }`, et `cause` l'erreur de lectur
 
 **Cause.** Une route nommée a des paramètres (`/users/:id`) que `routeParams` n'a pas fournis. Le message les nomme ; `context` porte la route et les paramètres donnés.
 
-**Fix.** Passe chaque paramètre de la route dans `routeParams`.
+**Fix.** Passez chaque paramètre de la route dans `routeParams`.
 
 **Lieu du throw :** `packages/photon/src/client/routes.ts`.
 
@@ -929,7 +929,7 @@ L'erreur levée porte `context: { manifestPath }`, et `cause` l'erreur de lectur
 
 **Cause.** Le `resolve` donné à `createPhotonApp` n'a rien renvoyé pour un nom de page — le plus souvent un chemin construit depuis le nom qui ne correspond à aucun fichier d'`import.meta.glob`.
 
-**Fix.** Compare le chemin que `resolve` construit depuis le nom de page avec ton dossier de pages ; `resolvePageComponent` lève une erreur avec le chemin cherché.
+**Fix.** Comparez le chemin que `resolve` construit depuis le nom de page avec votre dossier de pages ; `resolvePageComponent` lève une erreur avec le chemin cherché.
 
 **Lieu du throw :** `packages/photon/src/client/app.ts`.
 
@@ -941,7 +941,7 @@ Les hydration mismatches (le HTML rendu côté serveur diffère du premier rende
 - **Vue** : émet un warning console `[Vue warn]: Hydration ...`.
 - **Svelte** : émet une `Error: hydration_failed` depuis `svelte/internal`.
 
-Si tu en vois un, la cause est presque toujours un **render non déterministe** : un `Date.now()`, un `Math.random()`, un `useEffect` qui ne tourne que côté client, ou un check `process.env` qui diffère entre serveur et navigateur. Le contrat de Photon est que `render(component, props)` est pur ; assure-toi que ton composant l'est aussi.
+Si vous en voyez un, la cause est presque toujours un **render non déterministe** : un `Date.now()`, un `Math.random()`, un `useEffect` qui ne tourne que côté client, ou un check `process.env` qui diffère entre serveur et navigateur. Le contrat de Photon est que `render(component, props)` est pur ; assurez-vous que votre composant l'est aussi.
 
 ## Erreurs Prism
 

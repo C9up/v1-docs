@@ -4,7 +4,7 @@ Ce guide couvre le service des fichiers statiques.
 
 ## Fichiers statiques
 
-Enregistre le provider et `public/` est servi — c'est toute l'installation.
+Enregistrez le provider et `public/` est servi — c'est toute l'installation.
 
 ```ts
 // reamrc.ts

@@ -56,7 +56,7 @@ Pour les corps de formulaire, ses limites se règlent sous `form.queryString` ; 
 | `allowDots` | `true` | `user.name` s'imbrique comme `user[name]`. |
 
 Chaque limite **lève** `E_REQUEST_ENTITY_TOO_LARGE` (413) au lieu d'écrire sa
-propre réponse : ton gestionnaire d'exceptions négocie donc la réponse — une app
+propre réponse : votre gestionnaire d'exceptions négocie donc la réponse — une app
 HTML reçoit une page d'erreur plutôt qu'une enveloppe JSON qu'elle n'a jamais
 demandée, et peut surcharger le rendu.
 
@@ -66,7 +66,7 @@ au-delà de la limite n'est pas lu du tout, et un corps chunked cesse d'être
 gardé dès qu'il la dépasse. Dans les deux cas rien au-delà de la limite n'est
 gardé en mémoire, et la requête passe quand même par le routage, sans son
 corps. Une URL inconnue répond 404 ; sur une route trouvée, le body parser lève
-le 413 ci-dessus, rendu par ton gestionnaire d'exceptions. Une route qui ne lit
+le 413 ci-dessus, rendu par votre gestionnaire d'exceptions. Une route qui ne lit
 jamais le corps n'en paie pas le prix, et une route qui le lit —
 `request.raw()`, `body()`, `all()`, `input()` — reçoit le même 413 plutôt qu'un
 corps vide pris pour le vrai. Un type de contenu qu'aucune section ne
@@ -74,7 +74,7 @@ revendique reçoit la limite `raw`.
 
 Un parser se désactive en ne lui donnant aucun type — il n'y a pas de drapeau
 `enabled`, et en passer un échoue bruyamment plutôt que de réactiver en silence
-un parser que tu avais coupé :
+un parser que vous aviez coupé :
 
 ```typescript
 new BodyParserMiddleware({ raw: { types: [] } })   // aucun parsing raw
@@ -91,7 +91,7 @@ Les fichiers envoyés sont gardés en mémoire et ne sont jamais écrits dans un
 répertoire temporaire — le parseur multipart Rust rend le corps d'un bloc.
 L'option était acceptée et lue par rien : une app la pointant vers un volume
 n'obtenait silencieusement rien. Elle est désormais refusée à la construction.
-Choisis la destination au moment de stocker le fichier :
+Choisissez la destination au moment de stocker le fichier :
 `await file.move(directory)` sur le système de fichiers local, ou
 `await file.moveToDisk(key)` dans un disque de stockage (voir plus bas).
 :::

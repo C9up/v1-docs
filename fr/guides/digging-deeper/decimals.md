@@ -37,7 +37,7 @@ new Decimal('19.99').times(3).toString() // "59.97"
 Atom.sum('1.2', '2.3', '3.5').toString() // "7"
 ```
 
-Préfère les entrées string ou bigint pour des données métier exactes. Les
+Préférez les entrées string ou bigint pour des données métier exactes. Les
 entiers JS non sûrs sont refusés au lieu d'être arrondis en silence.
 
 ```ts
@@ -109,8 +109,8 @@ money('10.505', 'JOD').toMinorUnits() // 10505n — le dinar vaut 1000 fils
 ```
 
 `toMinorUnits()` est ce qui part dans une colonne entière : une échelle fausse
-là, c'est un facteur cent, pas une différence d'arrondi. Passe `{ scale }`
-quand ta colonne diverge d'ISO — une colonne à virgule fixe à quatre décimales
+là, c'est un facteur cent, pas une différence d'arrondi. Passez `{ scale }`
+quand votre colonne diverge d'ISO — une colonne à virgule fixe à quatre décimales
 sur une devise à deux, par exemple :
 
 ```ts
@@ -176,7 +176,7 @@ finissent avec elle. Un mode d'arrondi inconnu est refusé dès qu'on le règle.
 en résultat, et refuse avant de la calculer une puissance dont la taille le
 dépasse de façon prévisible. Chaque opération relit ses opérandes : un
 mégaoctet de chiffres venu d'une requête coûterait sinon des secondes de CPU par
-appel. Baisse-le là où les montants viennent des utilisateurs ; monte-le
+appel. Baissez-le là où les montants viennent des utilisateurs ; montez-le
 (jusqu'à un million) pour de très longs calculs exacts. Plus de `10000`
 décimales sont refusées quelle que soit la borne.
 

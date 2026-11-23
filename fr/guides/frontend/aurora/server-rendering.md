@@ -64,7 +64,7 @@ Le walker SSR est synchrone, alloue une seule string, et ne touche jamais à un 
 
 ## Bas niveau — hydration directe
 
-Si tu ne veux pas le helper `aurora.render()` (tu fais ta propre coquille HTML), les primitives sont toujours exposées :
+Si vous ne voulez pas le helper `aurora.render()` (vous faites votre propre coquille HTML), les primitives sont toujours exposées :
 
 ```js
 import { hydrate, html, signal } from '@c9up/aurora'
@@ -93,12 +93,12 @@ router.get('/dashboard', auroraRoute({
 Le shell par défaut est un document minimal avec une `<div id="aurora-root">`
 autour du balisage et un `<script type="module" src="…">` pour `entry`. Il
 n'apporte ni importmap ni données de page : le module `entry` est à servir par
-toi, et il appelle `hydrate()` lui-même. Dans une application à contrôleurs,
-`aurora.render()` / `ctx.aurora.render()` fait tout cela pour toi.
+vous, et il appelle `hydrate()` lui-même. Dans une application à contrôleurs,
+`aurora.render()` / `ctx.aurora.render()` fait tout cela pour vous.
 
 ## Intégrer aurora dans les templates inker
 
-Les îlots aurora fonctionnent dans un template serveur [Inker](/fr/guides/frontend/templates/) — aucun code de liaison ne vit dans l'un ou l'autre package, tu le câbles avec un seul helper. Inker émet le `SafeString` d'un helper verbatim, et `renderToString` d'aurora produit le HTML d'un composant côté serveur :
+Les îlots aurora fonctionnent dans un template serveur [Inker](/fr/guides/frontend/templates/) — aucun code de liaison ne vit dans l'un ou l'autre package, vous le câblez avec un seul helper. Inker émet le `SafeString` d'un helper verbatim, et `renderToString` d'aurora produit le HTML d'un composant côté serveur :
 
 ```ts
 // boot — enregistrement du helper via la Map helpers de Templates (ou la map fusionnée
@@ -134,4 +134,4 @@ import { Counter } from './islands/Counter.js'
 for (const el of document.querySelectorAll('[data-aurora=Counter]')) hydrate(el, Counter)
 ```
 
-La factory client doit reproduire la même forme de `TemplateResult` que le serveur a rendue (même contrainte que l'hydratation de `aurora.render()`). Ne renvoie un `SafeString` que depuis du markup que tu contrôles — aurora échappe les interpolations `${}`, mais la chaîne enveloppante reste sous ta responsabilité.
+La factory client doit reproduire la même forme de `TemplateResult` que le serveur a rendue (même contrainte que l'hydratation de `aurora.render()`). Ne renvoyez un `SafeString` que depuis du markup que vous contrôlez — aurora échappe les interpolations `${}`, mais la chaîne enveloppante reste sous votre responsabilité.

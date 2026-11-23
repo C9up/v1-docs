@@ -54,8 +54,8 @@ ream info      # Version + infos environnement
 `tsconfig.json` — et `@swc-node/register`.
 
 Ce dernier compte plus qu'il n'en a l'air. `ream dev`, `build`, `console`,
-`test`, `inspect`, `repl`, `migration:*` et `schedule:*` font tous passer ton
-TypeScript par ce chargeur, résolu depuis les `node_modules` de **ton** projet :
+`test`, `inspect`, `repl`, `migration:*` et `schedule:*` font tous passer votre
+TypeScript par ce chargeur, résolu depuis les `node_modules` de **votre** projet :
 le CLI est un binaire Rust et n'embarque aucune dépendance JavaScript. Sans lui
 ces commandes s'arrêtent alors que les générateurs continuent de marcher — un
 projet peut donc paraître sain pendant que les deux tiers du CLI sont

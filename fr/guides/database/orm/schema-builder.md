@@ -97,7 +97,7 @@ this.schema.alterTable('users', (t) => {
 > en indiquant l'alternative.
 >
 > `.alter()` sur SQLite est de même rejeté avec `E_UNSUPPORTED` plutôt que de
-> réécrire la table dans ton dos.
+> réécrire la table dans votre dos.
 
 `.alter()` ne déplace la nullabilité que si `.nullable()` / `.notNullable()` a été
 appelé sur la même colonne — un `t.string('x').alter()` nu change le type et

@@ -4,7 +4,7 @@ Ce guide couvre le test du serveur OAuth.
 
 ## Les tests
 
-`@c9up/visa/testing` te donne le VRAI serveur sur un store mémoire, avec un
+`@c9up/visa/testing` vous donne le VRAI serveur sur un store mémoire, avec un
 client déjà enregistré :
 
 ```ts

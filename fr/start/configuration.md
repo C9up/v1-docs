@@ -103,7 +103,7 @@ export default {
 
 ### config/app.ts — le serveur HTTP
 
-Le serveur natif garde chaque connexion avant qu'une requête atteigne ton code.
+Le serveur natif garde chaque connexion avant qu'une requête atteigne votre code.
 Ses bornes vivent dans le bloc `http` de `config/app.ts` :
 
 ```typescript
@@ -134,7 +134,7 @@ Les corps de requête sont aussi limités au niveau du socket, avec les limites 
 `config/bodyparser.ts` (voir [Envoi de fichiers](/fr/guides/basics/file-uploads)) : rien
 au-delà de la limite de son type de contenu n'est gardé en mémoire. La requête
 passe quand même par le routage, sans son corps, et lire ce corps répond
-`413 E_REQUEST_ENTITY_TOO_LARGE` via ton gestionnaire d'exceptions.
+`413 E_REQUEST_ENTITY_TOO_LARGE` via votre gestionnaire d'exceptions.
 
 ## Variables d'environnement
 

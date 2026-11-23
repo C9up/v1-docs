@@ -82,7 +82,7 @@ erreurs/touched.
 
 ### Validation avec rune (optionnel)
 
-La validation est **agnostique et optionnelle**. Passe une fonction `validate`
+La validation est **agnostique et optionnelle**. Passez une fonction `validate`
 renvoyant une map `{ champ: message }`, OU n'importe quel objet avec une méthode
 `.validate(values)` — un schéma [rune](/fr/guides/basics/validation/) satisfait cette forme,
 donc il se branche **sans dépendance dure** (aurora n'importe jamais de
@@ -108,7 +108,7 @@ reporte simplement aucune erreur de champ.
 ### Messages localisés avec rosetta (optionnel)
 
 rune fait passer ses messages par [rosetta](/fr/guides/digging-deeper/i18n) via
-`bindRosetta` — appelle-le une fois au boot et chaque message de validation (donc
+`bindRosetta` — appelez-le une fois au boot et chaque message de validation (donc
 chaque `field.error()`) est traduit dans la locale active :
 
 ```js
@@ -119,4 +119,4 @@ bindRosetta(rosetta)   // les messages rune passent par rosetta.t(key, params)
 ```
 
 aurora ignore les deux — `form` ne lit que le `{ field, message }` produit par
-rune, déjà localisé. Tu choisis ton validateur et ton traducteur librement.
+rune, déjà localisé. Vous choisissez votre validateur et votre traducteur librement.

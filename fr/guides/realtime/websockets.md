@@ -10,13 +10,13 @@ Ce guide couvre les routes WebSocket :
 - Erreurs
 - WebSockets
 
-Le serveur natif de ream accepte des connexions WebSocket sur des routes que tu
-déclares comme les autres, derrière les mêmes middlewares et les mêmes gardes.
-Par-dessus, trois paquets parlent un protocole sur le socket à ta place :
+Le serveur natif de ream accepte des connexions WebSocket sur des routes que vous
+déclarez comme les autres, derrière les mêmes middlewares et les mêmes gardes.
+Par-dessus, trois paquets parlent un protocole sur le socket à votre place :
 
-| Tu veux | Utilise |
+| Vous voulez | Utilisez |
 |---|---|
-| Tes propres messages, ton propre format | [`router.ws()`](/fr/guides/realtime/websockets#declarer-une-route-websocket), ci-dessous |
+| Vos propres messages, votre propre format | [`router.ws()`](/fr/guides/realtime/websockets#declarer-une-route-websocket), ci-dessous |
 | Des appels requête / réponse vers des méthodes du serveur | [JSON-RPC sur un WebSocket](/fr/guides/apis/json-rpc#sur-un-websocket) avec le `RpcRouter`, et [le transport WebSocket de comet](/fr/guides/apis/json-rpc-clients#sur-un-websocket) comme client |
 | Des hubs, des groupes et des diffusions, avec un client SignalR standard | [les hubs de relay](/fr/guides/realtime/hubs#le-fil), qui choisissent WebSockets quand le serveur sait faire l'upgrade |
 
@@ -44,7 +44,7 @@ router.ws('/chat/:room', ({ socket, params, auth }) => {
 }).use(middleware.auth())
 ```
 
-Branche les écouteurs dans le handler : des messages peuvent arriver dès que la
+Branchez les écouteurs dans le handler : des messages peuvent arriver dès que la
 poignée de main est finie, et un message sans écouteur `message` est perdu.
 
 Un chemin peut porter à la fois une route GET et une route WebSocket : la
@@ -81,7 +81,7 @@ Un socket n'a qu'une requête : sa poignée de main. Le `ctx` que reçoit le
 handler — `ctx.auth`, la session, `ctx.params` — est celui de cette requête tant
 que le socket reste ouvert : un rôle retiré pendant que l'utilisateur est
 connecté ne compte qu'à sa connexion suivante. Quand un utilisateur se
-déconnecte ou perd ses droits, ferme ses sockets toi-même :
+déconnecte ou perd ses droits, fermez ses sockets vous-même :
 
 ```typescript
 import type { ServerWebSocket } from '@c9up/ream'
@@ -119,7 +119,7 @@ proposer un transport WebSocket, comme le fait relay.
 
 ## Limites
 
-Chaque connexion est bornée avant que ton code ne voie un octet. Les limites se
+Chaque connexion est bornée avant que votre code ne voie un octet. Les limites se
 trouvent dans le bloc `http.webSocket` de `config/app.ts` ; les valeurs
 ci-dessous sont celles par défaut :
 
@@ -141,7 +141,7 @@ export const http = {
 | Un message ou une trame au-delà de sa limite | ferme la connexion avec `1009` |
 | Aucun échange pendant `idleTimeout` | envoie un ping à mi-parcours, ferme avec `1001` à la fin |
 | Un client qui ne lit plus | ferme avec `1013` dès que `maxBufferedBytes` serait dépassé — rien au-delà n'est jamais gardé en mémoire |
-| Tes handlers prennent du retard | arrête de lire le socket jusqu'à ce qu'ils rattrapent, si bien qu'un client rapide ne peut pas remplir la mémoire du serveur |
+| Vos handlers prennent du retard | arrête de lire le socket jusqu'à ce qu'ils rattrapent, si bien qu'un client rapide ne peut pas remplir la mémoire du serveur |
 | L'application s'arrête | ferme chaque socket avec `1001` et attend jusqu'à 5 secondes qu'ils se terminent |
 
 Un WebSocket compte dans `http.maxConnections` tant qu'il est ouvert (voir
@@ -155,7 +155,7 @@ depuis n'importe quelle page, et les WebSockets ne sont pas couverts par la
 politique de même origine : sans contrôle, n'importe quel site visité par un
 utilisateur connecté pourrait ouvrir un socket en son nom (détournement de
 WebSocket entre sites). Par défaut, seule l'origine de la requête elle-même est
-donc acceptée. Liste les autres dans `allowedOrigins` :
+donc acceptée. Listez les autres dans `allowedOrigins` :
 
 ```typescript
 webSocket: {

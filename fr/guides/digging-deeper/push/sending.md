@@ -17,7 +17,7 @@ console.log('abonné :', pushSubscription.endpoint)
 
 `subscribe()` attend le Service Worker actif, appelle `pushManager.subscribe({ userVisibleOnly: true, applicationServerKey })`, puis POST le résultat sur `/api/nova/subscribe` avec `credentials: 'include'` pour transporter automatiquement le cookie/JWT.
 
-À la déconnexion, appelle `unsubscribe()` (mêmes options) avant que la session se termine. Elle envoie `DELETE /api/nova/subscribe` avec l'endpoint du navigateur, puis appelle `PushSubscription.unsubscribe()` — même si le serveur a refusé, car un endpoint mort reçoit `410` et sa ligne est supprimée au push suivant. Elle renvoie `false` quand le navigateur ne détenait aucun abonnement.
+À la déconnexion, appelez `unsubscribe()` (mêmes options) avant que la session se termine. Elle envoie `DELETE /api/nova/subscribe` avec l'endpoint du navigateur, puis appelle `PushSubscription.unsubscribe()` — même si le serveur a refusé, car un endpoint mort reçoit `410` et sa ligne est supprimée au push suivant. Elle renvoie `false` quand le navigateur ne détenait aucun abonnement.
 
 ```ts
 import { unsubscribe } from '@c9up/nova/client'
@@ -30,7 +30,7 @@ Le sous-chemin `@c9up/nova/client` est strictement navigateur — sa source ne c
 
 ## Envoyer un push
 
-Récupère l'instance `Nova` depuis le container (ou importe-la directement) et appelle `push(subscription, payload, options?)` :
+Récupérez l'instance `Nova` depuis le container (ou importez-la directement) et appelez `push(subscription, payload, options?)` :
 
 ```ts
 const nova = await app.container.resolve('nova.push') // typé Nova ; 'nova' est un alias de compatibilité
@@ -52,7 +52,7 @@ if (result.ok) {
 }
 ```
 
-Pour les utilisateurs multi-appareils, utilise `pushToUser` :
+Pour les utilisateurs multi-appareils, utilisez `pushToUser` :
 
 ```ts
 const results = await nova.pushToUser(userId, {
@@ -93,11 +93,11 @@ type PushResult =
 | `gone` | `404` / `410` | Le service push a abandonné l'abonnement ; il est supprimé du store. |
 | `gone` | `0` | Pas envoyé : les clés stockées ne sont pas un point P-256 et un secret de 16 octets, rien ne pourra jamais être chiffré pour elles ; l'abonnement est supprimé du store. |
 | `too-large` | `413` / `0` | Le service push a refusé la taille, ou le JSON du payload dépasse 3993 octets et n'a pas été envoyé. |
-| `rate-limited` | `429` | Attends `retryAfter` secondes, s'il est présent, avant de repousser vers cet endpoint. |
+| `rate-limited` | `429` | Attendez `retryAfter` secondes, s'il est présent, avant de repousser vers cet endpoint. |
 | `rejected` | `400` / `401` / `403` | Le service push a refusé la requête (souvent une clé VAPID qui ne correspond pas). |
 | `server-error` | `5xx`, autre, ou `0` | Le service push a échoué, n'a pas répondu à temps, ou a répondu avec plus de 16 Kio. |
 
-Un payload est chiffré en un seul enregistrement (RFC 8291 §4), qui contient au plus 3993 octets en clair : garde son JSON en dessous, et envoie un identifiant avec lequel le service worker récupère le reste.
+Un payload est chiffré en un seul enregistrement (RFC 8291 §4), qui contient au plus 3993 octets en clair : gardez son JSON en dessous, et envoyez un identifiant avec lequel le service worker récupère le reste.
 
 `nova.push()` ne lance jamais d'exception sur ce que fait l'endpoint — un statut HTTP, pas de réponse à temps, une connexion qui échoue — il renvoie `ok: false` pour que les callers traitent chaque abonnement indépendamment. Il LANCE bien `NovaError('E_NOVA_VAPID_NOT_CONFIGURED', ...)` si la config VAPID est absente ou malformée au premier appel (validation paresseuse), et lance sur un mauvais usage : un `ttl` ou un `topic` invalide, un payload qui ne se sérialise pas. `pushToUser()` transforme une exception sur un abonnement en résultat `server-error`, pour qu'un appareil n'arrête pas les autres.
 

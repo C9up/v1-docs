@@ -68,7 +68,7 @@ Les tables enfants s'auto-créent aussi au premier insert (`INSERT INTO d1 USING
 
 Chaque chemin d'ingestion (STMT, SQL littéral, la factory de test) écrit un point dans l'enfant que `childTableName` nomme pour ses valeurs de tags. Ce nom est l'identité d'une série, et une valeur de tag vient souvent de l'extérieur (l'identifiant d'un appareil, un capteur nommé par un utilisateur) : il doit donc être impossible à forger. C'est `t_` suivi des 128 premiers bits d'un SHA-256 sur un encodage versionné, préfixé par les longueurs, du nom de la stable et de chaque valeur de tag. Trouver une autre valeur de tag qui tombe sur un enfant existant est hors de portée.
 
-Jusqu'à eon 0.2.15 le nom était un FNV-1a 64 bits, qui ne résiste pas aux collisions : une valeur de tag choisie pour atteindre un enfant existant se calculait en une trentaine de secondes, et la forme `USING … TAGS` de TDengine écrit dans un enfant existant en ignorant les TAGS donnés, si bien que ces lignes étaient rangées sous les tags de l'autre série. Le changement donne un nouveau nom à chaque jeu de tags. Une base écrite par une version antérieure garde ses anciens enfants, et la prochaine ingestion ouvre un second enfant pour les mêmes tags. Déplace-les une fois, avant d'ingérer à nouveau :
+Jusqu'à eon 0.2.15 le nom était un FNV-1a 64 bits, qui ne résiste pas aux collisions : une valeur de tag choisie pour atteindre un enfant existant se calculait en une trentaine de secondes, et la forme `USING … TAGS` de TDengine écrit dans un enfant existant en ignorant les TAGS donnés, si bien que ces lignes étaient rangées sous les tags de l'autre série. Le changement donne un nouveau nom à chaque jeu de tags. Une base écrite par une version antérieure garde ses anciens enfants, et la prochaine ingestion ouvre un second enfant pour les mêmes tags. Déplacez-les une fois, avant d'ingérer à nouveau :
 
 ```typescript
 import { migrateChildTableNames } from '@c9up/eon'
@@ -78,7 +78,7 @@ const report = await migrateChildTableNames(conn, Meters, { dryRun: true })
 await migrateChildTableNames(conn, Meters)
 ```
 
-Pour chaque enfant dont le nom est l'ancien nom de ses propres tags, il crée le nouvel enfant avec les mêmes tags, copie les lignes (`INSERT … SELECT`) et supprime l'ancien ; TDengine ne sait pas renommer une table enfant. Le relancer après une interruption est sans risque : une ligne copiée deux fois garde son horodatage, que TDengine écrase. Un enfant créé avec un `name` explicite, ou dont les tags se relisent dans un autre type JavaScript que celui ingéré (un `number` pour un tag BIGINT ingéré en `bigint`), figure dans `unmatched` et reste en place. `legacyChildTableName()` donne l'ancien nom d'un jeu de tags si tu déplaces les données toi-même.
+Pour chaque enfant dont le nom est l'ancien nom de ses propres tags, il crée le nouvel enfant avec les mêmes tags, copie les lignes (`INSERT … SELECT`) et supprime l'ancien ; TDengine ne sait pas renommer une table enfant. Le relancer après une interruption est sans risque : une ligne copiée deux fois garde son horodatage, que TDengine écrase. Un enfant créé avec un `name` explicite, ou dont les tags se relisent dans un autre type JavaScript que celui ingéré (un `number` pour un tag BIGINT ingéré en `bigint`), figure dans `unmatched` et reste en place. `legacyChildTableName()` donne l'ancien nom d'un jeu de tags si vous déplacez les données vous-même.
 
 `ALTER STABLE` compile une instruction par changement (`addColumn` / `dropColumn` / `modifyColumn` / `addTag` / `dropTag` / `modifyTag` / `renameTag`) :
 

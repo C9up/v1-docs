@@ -99,9 +99,9 @@ déclenchées par tag peuvent partir sur des tags poussés localement par
 accident ; `workflow_dispatch` exige un clic UI délibéré par paquet, par
 release.
 
-1. Ouvre le repo GitHub du paquet (ex. `github.com/C9up/sigil`).
-2. Va dans **Actions** → **`<pkg>`-ci** → **Run workflow**.
-3. Choisis `main` et clique **Run workflow**.
+1. Ouvrez le repo GitHub du paquet (ex. `github.com/C9up/sigil`).
+2. Allez dans **Actions** → **`<pkg>`-ci** → **Run workflow**.
+3. Choisissez `main` et cliquez **Run workflow**.
 4. La matrix tourne (build-and-test sur 5 runners, cargo-tests sur 1,
    publish sur 1 une fois les deux gates vertes).
 5. La nouvelle version apparaît sur npm ; les consommateurs qui lancent
@@ -124,7 +124,7 @@ publié embarque **les 5 binaires plateforme** dans un seul paquet
 `process.platform` + `process.arch` et en faisant
 `require()` sur `./index.<suffixe>.node`.
 
-Si ta plateforme n'est pas dans la matrix ci-dessus, tu peux compiler depuis
+Si votre plateforme n'est pas dans la matrix ci-dessus, vous pouvez compiler depuis
 les sources :
 
 ```bash
@@ -134,7 +134,7 @@ pnpm install
 pnpm build:napi   # cargo build --release -p <crate>-napi + copy-napi.mjs
 ```
 
-Puis `npm link` ton checkout local dans ton projet.
+Puis `npm link` votre checkout local dans votre projet.
 
 ## Dépannage — `E_<PKG>_NAPI_REQUIRED`
 
@@ -145,14 +145,14 @@ Si un module Ream lève une erreur du type :
   Fix: cd packages/sigil && pnpm build:napi
 ```
 
-…le binaire pré-compilé n'a pas pu être chargé pour ta plateforme. C'est
+…le binaire pré-compilé n'a pas pu être chargé pour votre plateforme. C'est
 généralement parce que :
 
-- Tu es sur une plateforme hors des 5 supportées (cas arch rare — compile
+- Vous êtes sur une plateforme hors des 5 supportées (cas arch rare — compilez
   depuis les sources comme montré plus haut).
 - Le paquet a été installé d'une façon qui n'a pas embarqué le binaire (ex.
-  dist vendoré, copier-coller de `src/`). Réinstalle via `pnpm install`.
-- Le module natif est désaligné avec ton ABI Node. Recompile :
+  dist vendoré, copier-coller de `src/`). Réinstallez via `pnpm install`.
+- Le module natif est désaligné avec votre ABI Node. Recompilez :
   `pnpm --filter @c9up/<pkg> build:napi`.
 
 Chaque paquet livrant du NAPI porte sa propre section de dépannage dans sa

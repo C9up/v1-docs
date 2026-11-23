@@ -87,7 +87,7 @@ export default function Sidebar() {
 }
 ```
 
-Pour que le **serveur** seede le cookie, déclare-le dans `render()` / `renderPage()`
+Pour que le **serveur** seede le cookie, déclarez-le dans `render()` / `renderPage()`
 via l'allowlist `cookies` — aurora lit uniquement ces noms depuis la requête et les
 seede avant le rendu (ils ne sont PAS sérialisés dans la page ; le navigateur lit
 `document.cookie`) :
@@ -103,7 +103,7 @@ await aurora.render(ctx, 'Sidebar', props, {
 > UI bruts.
 >
 > `cookieSignal` est le jumeau « cookie » de `persistedSignal` (qui miroite dans le
-> web storage, côté client uniquement). Utilise `cookieSignal` quand le **serveur**
+> web storage, côté client uniquement). Utilisez `cookieSignal` quand le **serveur**
 > doit aussi lire la valeur ; `persistedSignal` quand c'est purement client.
 
 ## Client HTTP
@@ -130,7 +130,7 @@ api.setHeader('Accept-Language', 'fr')            // gestion des headers par dé
 - Méthodes : `get` / `post` / `put` / `patch` / `delete`, plus `raw(method, url, body?)` pour la `Response` brute.
 - Une réponse non-2xx lève `HttpError` (`status`, `response`, `data` parsé). `isHttpError(e)` est un type-guard pour un `catch` propre.
 - `extend(options)` dérive un client enfant avec les défauts fusionnés, réglages XSRF compris. Quand son `baseURL` est sur une autre origine, les identifiants hérités — le token, un en-tête `Authorization` ou XSRF — restent en arrière : passez-les dans `options`, ou réglez `allowCrossOriginAuth: true`, pour les y envoyer délibérément. `token: null` signifie aucun token.
-- Passe une option `parse` pour un résultat validé au runtime et entièrement typé ; sans elle, le type générique est une assertion non vérifiée de la forme de la réponse (la frontière HTTP habituelle).
+- Passez une option `parse` pour un résultat validé au runtime et entièrement typé ; sans elle, le type générique est une assertion non vérifiée de la forme de la réponse (la frontière HTTP habituelle).
 - Une instance `http` same-origin par défaut est exportée pour les appels rapides.
 
 **Gestion d'erreur sans try/catch** — `attempt()` transforme le throw en résultat discriminé, donc un submit de formulaire branche au lieu d'encapsuler chaque appel :
@@ -146,7 +146,7 @@ else fieldErrors(r.error.data)   // r.error = HttpError ; .data = corps 4xx pars
 
 `attempt` résout `{ ok: false, error }` sur un `HttpError` (non-2xx) ; les vraies pannes de transport (hors-ligne, DNS) rejettent toujours — elles sont exceptionnelles.
 
-**Annulation & timeout** — passe un `signal` pour annuler (au démontage, ou une recherche-au-clavier supplantée), ou un `timeout` (ms) pour auto-abandonner ; les deux se combinent, le premier déclenché gagne. `isAbortError(e)` reconnaît une requête annulée ou expirée pour l'ignorer :
+**Annulation & timeout** — passez un `signal` pour annuler (au démontage, ou une recherche-au-clavier supplantée), ou un `timeout` (ms) pour auto-abandonner ; les deux se combinent, le premier déclenché gagne. `isAbortError(e)` reconnaît une requête annulée ou expirée pour l'ignorer :
 
 ```js
 const api = new HttpClient({ timeout: 8000 })          // timeout par défaut par requête

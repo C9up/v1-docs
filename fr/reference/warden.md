@@ -98,7 +98,7 @@ par requête, pour une commande console ou un job sans requête autour.
 
 ## Événements d'authentification
 
-Branche un emitter et chaque décision d'authentification est annoncée. Le nom de
+Branchez un emitter et chaque décision d'authentification est annoncée. Le nom de
 l'événement est préfixé par le **pilote** du garde — une app
 qui audite les connexions de session n'entend donc pas parler du trafic par
 jeton porteur sous le même nom :
@@ -119,8 +119,8 @@ emitter.on('jwt_auth:authentication_failed', ({ guardName, error }) => alert(err
 
 Le préfixe vient du pilote de la stratégie, pas de la clé de config du garde : un
 garde nommé `web` portant une `SessionStrategy` reste le pilote session.
-`authEventPrefix(driverName)` est exporté si tu as
-besoin de construire un nom toi-même. `jwt` devient `jwt_auth`.
+`authEventPrefix(driverName)` est exporté si vous avez
+besoin de construire un nom vous-même. `jwt` devient `jwt_auth`.
 
 Événements : `login_attempted`, `login_succeeded`, `logged_out` (gardes avec état
 seulement), plus `authentication_attempted`, `authentication_succeeded` et

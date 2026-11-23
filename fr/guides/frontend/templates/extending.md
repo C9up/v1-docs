@@ -44,7 +44,7 @@ Chaque rendu passé par `ctx.view` (`render`, `renderSync`, `renderString`,
 Le provider a besoin d'un routeur dans le conteneur. `@c9up/rosetta` est
 facultatif : sans lui, le moteur, `ctx.view` et le service `inker` démarrent
 quand même, et inker n'enregistre pas de `t()` à lui — un template qui l'appelle
-échoue avec « 't' is not a helper, a global or a function ». Installe rosetta
+échoue avec « 't' is not a helper, a global or a function ». Installez rosetta
 pour traduire.
 
 ## Contribuer depuis un autre paquet

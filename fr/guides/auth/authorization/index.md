@@ -8,11 +8,11 @@ Ce guide couvre l'autorisation :
 - Auditer les décisions
 - Migration
 
-Ream répond à deux questions distinctes sur une requête. *Qui es-tu ?* relève de
+Ream répond à deux questions distinctes sur une requête. *Qui êtes-vous ?* relève de
 l'**authentification** — gérée par les stratégies de Warden (JWT, session, clé
-API). *Que peux-tu faire ?* relève de l'**autorisation** — le sujet de ce guide.
+API). *Que pouvez-vous faire ?* relève de l'**autorisation** — le sujet de ce guide.
 
-Avant ce modèle, « que peux-tu faire ? » était traité par trois mécanismes sans
+Avant ce modèle, « que pouvez-vous faire ? » était traité par trois mécanismes sans
 lien : les guards de route `@Role` / `@Permission`, la table de callbacks
 `defineResource({ policies })` de Station, et des checks d'ownership ad hoc dans
 les contrôleurs. Ils ont divergé et lisaient chacun les permissions
@@ -177,7 +177,7 @@ autorisateur après construction — ce qu'un autorisateur construit directement
 
 ## Auditer les décisions
 
-Donne un emitter au Bouncer et chaque contrôle d'aptitude ou de politique
+Donnez un emitter au Bouncer et chaque contrôle d'aptitude ou de politique
 s'annonce sur `authorization:finished` :
 
 ```ts

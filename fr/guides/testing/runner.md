@@ -68,7 +68,7 @@ d'installé.
 
 ### Scripts package.json
 
-Utilise le bin `helix` directement — dans les scripts npm il résout vers
+Utilisez le bin `helix` directement — dans les scripts npm il résout vers
 `node_modules/.bin/helix`, qui amorce déjà le loader TS. **Inutile** d'écrire la
 forme verbeuse `node --import tsx node_modules/@c9up/helix/bin/helix.js …` :
 

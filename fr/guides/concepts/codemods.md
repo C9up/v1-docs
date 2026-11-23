@@ -89,10 +89,10 @@ Les erreurs levées par `writeFile` utilisent le préfixe `[configure]` et expli
 ### `makeUsingStub(stubsRoot, stubPath, state?, options?)`
 
 **C'est ainsi qu'un paquet génère un fichier.** `writeFile` existe toujours,
-mais il est fait pour du contenu que tu CALCULES ; tout ce que tu templates
+mais il est fait pour du contenu que vous CALCULEZ ; tout ce que vous templatez
 appartient à un stub.
 
-Un stub est un fichier ordinaire livré avec ton paquet. Son front matter nomme
+Un stub est un fichier ordinaire livré avec votre paquet. Son front matter nomme
 sa destination, et les placeholders `{{ nom }}` sont remplis depuis `state` :
 
 ```
@@ -120,12 +120,12 @@ await codemods.makeUsingStub(stubsRoot, 'config/your-plugin.stub', {
 })
 ```
 
-Ajoute `"stubs"` au tableau `files` de ton package.json, sinon les stubs ne
+Ajoutez `"stubs"` au tableau `files` de votre package.json, sinon les stubs ne
 seront pas livrés.
 
 **La copie de l'application l'emporte.** Un fichier publié dans
-`stubs/<stubPath>` du projet est utilisé à la place du tien — c'est ce qui
-permet à quelqu'un de changer la config que ton paquet génère sans forker le
+`stubs/<stubPath>` du projet est utilisé à la place du vôtre — c'est ce qui
+permet à quelqu'un de changer la config que votre paquet génère sans forker le
 paquet. C'est la règle que les générateurs `make:` suivent déjà pour
 `stubs/make/`.
 

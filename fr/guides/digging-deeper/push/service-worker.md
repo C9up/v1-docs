@@ -7,7 +7,7 @@ Ce guide couvre le service worker :
 
 ## Service Worker
 
-`ream configure @c9up/nova` écrit `public/sw.js` à côté de `config/nova.ts` et du template de migration. Le scaffold est le handler de push opérationnel que la mainteneuse devrait sinon écrire à la main ; `registerServiceWorker('/sw.js')` se résout alors contre un fichier réel dès la première exécution.
+`ream configure @c9up/nova` écrit `public/sw.js` à côté de `config/nova.ts` et du template de migration. Le scaffold est le handler de push opérationnel que vous devriez sinon écrire à la main ; `registerServiceWorker('/sw.js')` se résout alors contre un fichier réel dès la première exécution.
 
 Il est écrit depuis le stub que le paquet livre, `stubs/public/sw.stub` :
 
@@ -111,11 +111,11 @@ self.addEventListener('notificationclick', (event) => {
 
 ### Personnaliser le SW
 
-Édite `public/sw.js` directement. Re-jouer `ream configure @c9up/nova` ne l'écrasera PAS (le `writeFile` des codemods saute les fichiers existants tant que `force: true` n'est pas passé — même contrat d'idempotence que `config/nova.ts` et le template de migration).
+Éditez `public/sw.js` directement. Re-jouer `ream configure @c9up/nova` ne l'écrasera PAS (le `writeFile` des codemods saute les fichiers existants tant que `force: true` n'est pas passé — même contrat d'idempotence que `config/nova.ts` et le template de migration).
 
 ### Apps en sous-chemin
 
-L'enregistrement par défaut se fait à la racine (`registerServiceWorker('/sw.js', { scope: '/' })`). Si l'app est montée sous `/admin`, **déplace** (pas copier) le SW après le scaffold et mets à jour l'enregistrement :
+L'enregistrement par défaut se fait à la racine (`registerServiceWorker('/sw.js', { scope: '/' })`). Si l'app est montée sous `/admin`, **déplacez** (pas copier) le SW après le scaffold et mettez à jour l'enregistrement :
 
 ```bash
 git mv public/sw.js public/admin/sw.js
@@ -125,7 +125,7 @@ git mv public/sw.js public/admin/sw.js
 await registerServiceWorker('/admin/sw.js', { scope: '/admin/' })
 ```
 
-`git mv` (plutôt que `cp`) évite de laisser un orphelin `public/sw.js` qui serait toujours servi à `/sw.js` et pourrait ré-enregistrer un SW de scope root dans ton dos si un onglet périmé hit l'ancienne URL.
+`git mv` (plutôt que `cp`) évite de laisser un orphelin `public/sw.js` qui serait toujours servi à `/sw.js` et pourrait ré-enregistrer un SW de scope root dans votre dos si un onglet périmé hit l'ancienne URL.
 
 **Règle de scope.** L'URL d'un Service Worker détermine le scope maximal que le navigateur accepte. Servir `/sw.js` ne peut pas scoper à `/admin/` sans envoyer l'en-tête HTTP `Service-Worker-Allowed: /admin/` depuis l'URL du SW — le workaround simple (et ce que cette section recommande) est de placer le fichier SW à l'URL la plus profonde nécessaire à son scope.
 
@@ -133,7 +133,7 @@ Le contexte des codemods n'expose aucun signal sur le scope de l'app, donc le sc
 
 ### Convention d'URL au `notificationclick`
 
-Le SW lit `event.notification.data.url`. Le champ `url` que tu passes à `nova.push(sub, { url: '/inbox/42' })` est ce que le SW ouvre au clic — focus sur un onglet existant qui matche cette URL, sinon ouverture d'une nouvelle fenêtre. Seule une URL de l'origine de l'application est suivie : la notification s'affiche au nom de l'application, et `url` vient souvent d'un contenu (un lien de commentaire, une cible de redirection), donc un clic ne doit ni mener vers un autre site ni exécuter une URL `javascript:` ou `data:`. Les origines qu'un clic peut ouvrir en plus de celle de l'application vont dans `ALLOWED_ORIGINS`, dans le SW. Les apps avec une autre convention de routing (ex. un champ `data.deeplink` ou `actions[0].action`) éditent directement le SW.
+Le SW lit `event.notification.data.url`. Le champ `url` que vous passez à `nova.push(sub, { url: '/inbox/42' })` est ce que le SW ouvre au clic — focus sur un onglet existant qui matche cette URL, sinon ouverture d'une nouvelle fenêtre. Seule une URL de l'origine de l'application est suivie : la notification s'affiche au nom de l'application, et `url` vient souvent d'un contenu (un lien de commentaire, une cible de redirection), donc un clic ne doit ni mener vers un autre site ni exécuter une URL `javascript:` ou `data:`. Les origines qu'un clic peut ouvrir en plus de celle de l'application vont dans `ALLOWED_ORIGINS`, dans le SW. Les apps avec une autre convention de routing (ex. un champ `data.deeplink` ou `actions[0].action`) éditent directement le SW.
 
 ### Pourquoi `'Notification'` comme titre par défaut
 
@@ -146,11 +146,11 @@ Le SW scaffoldé (`stubs/public/sw.stub`) livre avec neuf invariants de durcisse
 1. **Le résultat de `event.data.json()` est gardé via `typeof === 'object' && !Array.isArray(...)`.** Un payload `null`/tableau/scalaire ferait crasher la déstructuration ; la garde retombe sur un objet vide.
 2. **`event.data.text()` est enrobé dans `try/catch` avec un fallback de chaîne par défaut.** Les pushs non-JSON (ou les buffers malformés) produisent quand même une notification au lieu de révoquer l'abonnement.
 3. **Toute comparaison d'URL passe par `new URL(target, self.location.origin).href`.** `client.url` est toujours absolu ; le `target` fourni par l'appelant peut être relatif. Un `===` direct entre formes différentes est du code mort.
-4. **Les champs `data` de l'expéditeur sont préservés via spreads conditionnels (ne pas écraser avec des défauts).** Utilise des patterns `...(url !== undefined ? { url } : {})` pour qu'un vrai `data.url` du payload survive au merge.
+4. **Les champs `data` de l'expéditeur sont préservés via spreads conditionnels (ne pas écraser avec des défauts).** Utilisez des patterns `...(url !== undefined ? { url } : {})` pour qu'un vrai `data.url` du payload survive au merge.
 5. **Le listener `install` appelle `skipWaiting()`.** Sans ça, le premier push peut atterrir avant que le SW ait le contrôle de la page.
 6. **Le listener `activate` appelle `clients.claim()`.** Va de pair avec `skipWaiting()` pour donner au SW le contrôle immédiat des clients en cours.
 7. **Le titre de `showNotification` a un fallback (`'Notification'`).** Un payload malformé satisfait quand même `userVisibleOnly: true` au lieu de déclencher la révocation.
-8. **Le handler `notificationclick` enrobe `clients.openWindow(url)` et `client.focus()` dans `.catch(() => {})`.** Les deux peuvent rejeter (popup bloquée, fenêtre fermée) et tu ne veux pas que ça remonte hors du listener.
+8. **Le handler `notificationclick` enrobe `clients.openWindow(url)` et `client.focus()` dans `.catch(() => {})`.** Les deux peuvent rejeter (popup bloquée, fenêtre fermée) et vous ne voulez pas que ça remonte hors du listener.
 9. **`notificationclick` ne suit qu'une URL de l'origine du SW (ou listée dans `ALLOWED_ORIGINS`).** L'URL vient du payload ; une origine opaque (`javascript:`, `data:`) ne correspond jamais.
 
 La référence est `stubs/public/sw.stub` ; les tests du paquet l'exécutent contre une portée de worker simulée.

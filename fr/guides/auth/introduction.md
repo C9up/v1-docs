@@ -303,9 +303,9 @@ router.get('/download/:id', [FileController, 'download']).guard('session')
 router.get('/api/v1/orders', [OrderController, 'index']).guard('jwt')
 ```
 
-Le cookie part automatiquement sur une navigation `<a href>` simple : un download gardé par `session` **sait qui demande**, sans token à attacher — l'ergonomie qu'une API Bearer-only ne peut pas donner à un lien. Les requêtes Bearer ne portent aucun cookie ambiant, donc elles sont immunes au CSRF ; ce sont les routes cookie/session que le CSRF signé de blackhole protège (ajoute les préfixes d'API Bearer aux `exceptRoutes` de blackhole).
+Le cookie part automatiquement sur une navigation `<a href>` simple : un download gardé par `session` **sait qui demande**, sans token à attacher — l'ergonomie qu'une API Bearer-only ne peut pas donner à un lien. Les requêtes Bearer ne portent aucun cookie ambiant, donc elles sont immunes au CSRF ; ce sont les routes cookie/session que le CSRF signé de blackhole protège (ajoutez les préfixes d'API Bearer aux `exceptRoutes` de blackhole).
 
-L'enregistrement des stratégies est introspectable à l'exécution — `auth.getStrategyNames()` liste les noms enregistrés et `auth.getStrategy(name)` en retourne une (elle lève pour un nom non enregistré, donc garde avec `getStrategyNames().includes(name)` d'abord) :
+L'enregistrement des stratégies est introspectable à l'exécution — `auth.getStrategyNames()` liste les noms enregistrés et `auth.getStrategy(name)` en retourne une (elle lève pour un nom non enregistré, donc gardez avec `getStrategyNames().includes(name)` d'abord) :
 
 ```typescript
 auth.getStrategyNames()        // ['session', 'jwt']

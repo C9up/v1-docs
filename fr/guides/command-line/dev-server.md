@@ -335,7 +335,7 @@ Traductions, gabarits de vue, signature d'e-mail : des fichiers qui appartiennen
 build n'a aucun moyen de savoir qu'ils existent — et sans qu'on le lui dise il
 produit un `dist/` qui démarre puis ne les trouve pas.
 
-Déclare-les dans `reamrc.ts` :
+Déclarez-les dans `reamrc.ts` :
 
 ```ts
 export default {
@@ -357,7 +357,7 @@ c'est la valeur par défaut qui est intéressante :
   que veulent les traductions : elles sont lues une fois au démarrage, donc le
   changement est visible au prochain lancement.
 - **`true`** — le serveur de développement redémarre. À demander seulement quand
-  le fichier est réellement lu au démarrage et que tu courrais sinon après une
+  le fichier est réellement lu au démarrage et que vous courriez sinon après une
   valeur périmée.
 
 Le drapeau est exigé à chaque appel plutôt que défaillé : savoir si une
