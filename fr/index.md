@@ -19,38 +19,74 @@ hero:
       link: https://github.com/C9up/ream-dev
 features:
   - title: Rust invisible
+    icon:
+      src: /images/features/rust.webp
+      width: 72
+      height: 72
     details: Vous écrivez du TypeScript. Le serveur HTTP et les WebSockets, le bus d'événements, la compilation SQL et l'accès aux bases, le hachage des mots de passe et les JWT tournent en Rust natif, via NAPI.
     link: /fr/start/introduction
     linkText: Comment c'est construit
   - title: Des modules indépendants
+    icon:
+      src: /images/features/modules.webp
+      width: 72
+      height: 72
     details: Chaque paquet se publie et s'utilise seul. Framework complet (Ignitor et conventions) ou boîte à outils assemblée à la main, c'est vous qui choisissez.
     link: /fr/start/packages
     linkText: Les paquets
   - title: HTTP et routage
+    icon:
+      src: /images/features/routing.webp
+      width: 72
+      height: 72
     details: Routes, groupes, middlewares, contrôleurs résolus par le conteneur, validation, uploads, fichiers statiques et génération d'URL.
     link: /fr/guides/basics/routing
     linkText: Le routage
   - title: Base de données
+    icon:
+      src: /images/features/database.webp
+      width: 72
+      height: 72
     details: L'ORM Atlas avec entités, relations, migrations, factories et transactions, Redis par quasar, et les séries temporelles par eon.
     link: /fr/guides/database/orm/
     linkText: L'ORM
   - title: Authentification
+    icon:
+      src: /images/features/auth.webp
+      width: 72
+      height: 72
     details: Gardes session, JWT, tokens d'accès et basic auth, MFA, rôles et permissions, SSO fédéré et serveur OAuth 2.1.
     link: /fr/guides/auth/introduction
     linkText: L'authentification
   - title: Frontend
+    icon:
+      src: /images/features/frontend.webp
+      width: 72
+      height: 72
     details: Composants Aurora rendus côté serveur et hydratés, templates, Vite et Tailwind, pages partagées entre serveur et navigateur.
     link: /fr/guides/frontend/aurora/
     linkText: Aurora
   - title: Temps réel
+    icon:
+      src: /images/features/realtime.webp
+      width: 72
+      height: 72
     details: WebSockets natifs avec middlewares et gardes au handshake, hubs de diffusion avec fan-out Redis, JSON-RPC sur WebSocket.
     link: /fr/guides/realtime/websockets
     linkText: Les WebSockets
   - title: Mobile
+    icon:
+      src: /images/features/mobile.webp
+      width: 72
+      height: 72
     details: Les mêmes composants sur le téléphone, en natif et sans React, avec écrans pilotés par le serveur et mises à jour à distance signées.
     link: /fr/guides/mobile/introduction
     linkText: Le mobile
   - title: Tests
+    icon:
+      src: /images/features/testing.webp
+      width: 72
+      height: 72
     details: Un runner, des tests HTTP de bout en bout, des helpers d'authentification et des doublures pour les services du framework.
     link: /fr/guides/testing/introduction
     linkText: Les tests

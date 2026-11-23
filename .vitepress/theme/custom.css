@@ -67,3 +67,8 @@
   --vp-c-text-2: rgba(214, 222, 238, 0.66);
   --vp-c-text-3: rgba(214, 222, 238, 0.42);
 }
+
+/* The home cards' illustrations are tiles with rounded corners of their own. */
+.VPFeature .VPImage {
+  border-radius: 14px;
+}
