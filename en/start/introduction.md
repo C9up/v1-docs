@@ -112,22 +112,9 @@ Shutdown reverses the order: providers call `shutdown()` in reverse registration
 
 ## Architecture Overview
 
-```
-Request
-  │
-  ▼
-HyperServer (Rust / NAPI)
-  │
-  ▼
-HttpKernel (TypeScript)
-  ├── Server middleware  (every request)
-  ├── Router middleware  (matched routes only)
-  ├── Named middleware   (per-route)
-  ├── Guard enforcement  (auth, roles, permissions)
-  └── Controller handler
-```
+![How a request travels through ream. The native Rust server parses HTTP/1.1 and HTTP/2 and enforces body limits, the WebSocket handshake and allowed origins. Then, in TypeScript: server middleware on every request (server.use in start/kernel.ts); the route match, with 404 E_ROUTE_NOT_FOUND when none matches; router middleware on matched routes (router.use); named and inline middleware per route; guards (.guard, .role, .permission, answering 401 or 403); validation (.validate, answering 422 E_VALIDATION_ERROR); the controller. Any error goes to the exception handler, which reports it and then answers with the error's status and code.](/images/request-en.webp){width=640 height=640 loading=lazy}
 
-The `HttpKernel` is a plain TypeScript function that accepts and returns JSON strings. The Rust layer calls it via NAPI, so the transport boundary is minimal and your application logic stays in TypeScript.
+The `HttpKernel` is a TypeScript function: the native server hands it each request and sends back the response it builds, so the transport boundary is minimal and your application logic stays in TypeScript.
 
 ## Rust Components
 

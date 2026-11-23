@@ -158,15 +158,19 @@ router
 Un appel gRPC servi par [Neutrino](/fr/guides/digging-deeper/grpc) ne traverse jamais les middlewares serveur, routeur ou nommés. Protégez-le avec les intercepteurs de Neutrino.
 :::
 
-Pour une route trouvée, le pipeline s'exécute dans cet ordre fixe :
+![Le trajet d'une requête dans ream. Le serveur natif en Rust lit HTTP/1.1 et HTTP/2 et applique les limites de corps, le handshake WebSocket et les origines autorisées. Puis, en TypeScript : les middlewares serveur sur chaque requête (server.use dans start/kernel.ts) ; la correspondance de route, avec un 404 E_ROUTE_NOT_FOUND si aucune ne correspond ; les middlewares routeur sur les routes trouvées (router.use) ; les middlewares nommés et en ligne de la route ; les guards (.guard, .role, .permission, qui répondent 401 ou 403) ; la validation (.validate, qui répond 422 E_VALIDATION_ERROR) ; le contrôleur. Toute erreur va au gestionnaire d'exceptions, qui la signale puis répond avec le statut et le code de l'erreur.](/images/request-en.webp){width=640 height=640 loading=lazy}
+
+Une requête traverse ces couches dans cet ordre fixe :
 
 ```
 1. Middlewares serveur      (server.use — sur toutes les requêtes)
-2. Middlewares routeur      (router.use — sur les routes trouvées)
-3. Middlewares nommés       (route.middleware('nom') ou group.middleware('nom'))
-4. Middlewares en ligne     (route.use(fn))
-5. Application des guards   (route.guard / .role / .permission)
-6. Handler de la route
+2. Correspondance de route  (aucune route : 404 E_ROUTE_NOT_FOUND)
+3. Middlewares routeur      (router.use — sur les routes trouvées)
+4. Middlewares nommés       (route.middleware('nom') ou group.middleware('nom'))
+5. Middlewares en ligne     (route.use(fn))
+6. Application des guards   (route.guard / .role / .permission)
+7. Validation               (route.validate('nom') : 422 E_VALIDATION_ERROR)
+8. Handler de la route
 ```
 
 Toutes les couches s'emboîtent selon le pattern oignon, donc le code placé après `await next()` s'exécute dans l'ordre inverse :

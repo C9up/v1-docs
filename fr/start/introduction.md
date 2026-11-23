@@ -112,22 +112,9 @@ L'arrêt inverse l'ordre : les providers appellent `shutdown()` dans l'ordre d'e
 
 ## Vue d'ensemble de l'architecture
 
-```
-Requête
-  │
-  ▼
-HyperServer (Rust / NAPI)
-  │
-  ▼
-HttpKernel (TypeScript)
-  ├── Middleware serveur  (toutes les requêtes)
-  ├── Middleware router   (routes correspondantes uniquement)
-  ├── Middleware nommés   (par route)
-  ├── Application des guards  (auth, rôles, permissions)
-  └── Handler du contrôleur
-```
+![Le trajet d'une requête dans ream. Le serveur natif en Rust lit HTTP/1.1 et HTTP/2 et applique les limites de corps, le handshake WebSocket et les origines autorisées. Puis, en TypeScript : les middlewares serveur sur chaque requête (server.use dans start/kernel.ts) ; la correspondance de route, avec un 404 E_ROUTE_NOT_FOUND si aucune ne correspond ; les middlewares routeur sur les routes trouvées (router.use) ; les middlewares nommés et en ligne de la route ; les guards (.guard, .role, .permission, qui répondent 401 ou 403) ; la validation (.validate, qui répond 422 E_VALIDATION_ERROR) ; le contrôleur. Toute erreur va au gestionnaire d'exceptions, qui la signale puis répond avec le statut et le code de l'erreur.](/images/request-en.webp){width=640 height=640 loading=lazy}
 
-L'`HttpKernel` est une simple fonction TypeScript qui accepte et retourne des chaînes JSON. La couche Rust l'appelle via NAPI, de sorte que la frontière de transport est minimale et que votre logique applicative reste en TypeScript.
+L'`HttpKernel` est une fonction TypeScript : le serveur natif lui passe chaque requête et renvoie la réponse qu'elle construit. La frontière de transport reste minimale, et votre logique applicative reste en TypeScript.
 
 ## Composants Rust
 

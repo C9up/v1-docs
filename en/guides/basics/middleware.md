@@ -158,15 +158,19 @@ router
 A gRPC call served by [Neutrino](/en/guides/digging-deeper/grpc) never goes through server, router or named middleware. Protect it with Neutrino's interceptors.
 :::
 
-For a matched route the pipeline executes in this fixed order:
+![How a request travels through ream. The native Rust server parses HTTP/1.1 and HTTP/2 and enforces body limits, the WebSocket handshake and allowed origins. Then, in TypeScript: server middleware on every request (server.use in start/kernel.ts); the route match, with 404 E_ROUTE_NOT_FOUND when none matches; router middleware on matched routes (router.use); named and inline middleware per route; guards (.guard, .role, .permission, answering 401 or 403); validation (.validate, answering 422 E_VALIDATION_ERROR); the controller. Any error goes to the exception handler, which reports it and then answers with the error's status and code.](/images/request-en.webp){width=640 height=640 loading=lazy}
+
+A request goes through these layers in this fixed order:
 
 ```
 1. Server middleware        (server.use — runs on all requests)
-2. Router middleware        (router.use — runs on matched routes)
-3. Named middleware         (route.middleware('name') or group.middleware('name'))
-4. Inline middleware        (route.use(fn))
-5. Guard enforcement        (route.guard / .role / .permission)
-6. Route handler
+2. Route match              (no route: 404 E_ROUTE_NOT_FOUND)
+3. Router middleware        (router.use — runs on matched routes)
+4. Named middleware         (route.middleware('name') or group.middleware('name'))
+5. Inline middleware        (route.use(fn))
+6. Guard enforcement        (route.guard / .role / .permission)
+7. Validation               (route.validate('name'): 422 E_VALIDATION_ERROR)
+8. Route handler
 ```
 
 All layers wrap each other in the onion pattern, so code after `await next()` runs in reverse order:
