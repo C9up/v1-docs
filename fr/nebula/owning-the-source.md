@@ -1,34 +1,38 @@
 # Posséder la source
 
-`ream nebula:add` copie la source d'un composant dans votre projet et vous la remet. Pas de version, pas de chemin de mise à jour, pas d'emballage contre lequel se battre quand une maquette demande une classe changée.
+`ream nebula:add` copie le code d'un composant dans votre projet. Ce code vous appartient ensuite : vous le modifiez comme vous voulez, sans version à suivre ni surcouche à contourner.
 
 ```sh
-ream nebula:list                    # tout le registre
+ream nebula:list                    # tous les composants disponibles
 ream nebula:list --layer organisms
-ream nebula:add dialog data-table   # les deux, plus leurs dépendances
+ream nebula:add dialog data-table   # ces deux composants, et ceux dont ils dépendent
 ream nebula:diff                    # les copies que le paquet a modifiées depuis
-ream nebula:add button --force      # écrase votre copie modifiée
+ream nebula:add button --force      # remplace votre copie, même modifiée
 ```
 
-Ces commandes sont livrées par le paquet et enregistrées dans `reamrc.commands` par `configure()` — le canal prévu pour ça, que la découverte par répertoire ne peut pas voir. Rien n'est compilé dans le binaire `ream`, donc une nouvelle commande nebula n'attend pas une release de celui-ci.
+Ces commandes viennent du paquet lui-même : `configure()` les enregistre dans `reamrc.commands`. Elles ne font pas partie du binaire `ream`, donc une nouvelle commande nebula n'attend pas une nouvelle version de `ream`.
 
-**Du JavaScript par défaut.** Une application Aurora sert `resources/pages` au navigateur sans build — c'est la promesse du runtime — donc du TypeScript déposé dans cet arbre ne s'exécute pas. `ream nebula:add` copie la sortie compilée : de l'ESM valide, des spécificateurs `.js` déjà corrects, et tous les commentaires de doc intacts. Le langage est déduit de ce que contient déjà votre répertoire de composants ; `--ts` et `--js` forcent la main.
+**Du JavaScript par défaut.** Une application Aurora envoie `resources/pages` au navigateur sans étape de build. Un fichier TypeScript placé là ne s'exécuterait donc pas. `ream nebula:add` copie le code déjà compilé : de l'ESM avec des imports en `.js`, commentaires compris. Si votre dossier de composants contient déjà du TypeScript, la commande copie du TypeScript. `--ts` et `--js` imposent l'un ou l'autre.
 
-Les copies reprennent la disposition du paquet, si bien que `atoms/Button` trouve `../lib/cva.js` pour la même raison qu'à l'intérieur de nebula. **Aucun import n'est réécrit** — c'est là qu'un outil de copie-la-source accumule d'ordinaire ses cas particuliers.
+Les fichiers copiés gardent la même organisation que dans le paquet : `atoms/Button` importe `../lib/cva.js`, comme dans nebula. Aucun import n'est donc réécrit.
 
-## La contrepartie : `ream nebula:diff`
+## Suivre les correctifs : `ream nebula:diff`
 
-La copie va dans un seul sens. Un correctif publié ici n'atteint jamais un projet tout seul, et rien ne le signale — les fichiers sont locaux, aucun lockfile ne les mentionne, `pnpm update` n'y touche pas.
+Une fois copié, un fichier ne reçoit plus les correctifs du paquet. Mettre à jour `@c9up/nebula` (avec `pnpm update`, par exemple) ne change pas vos copies, et rien ne vous prévient qu'un correctif existe.
 
-`ream nebula:diff` répond avec la *raison* d'une différence. Une copie finit forcément par diverger de l'amont — c'est ce que posséder la source veut dire — donc « diffère » tout seul signalerait tout l'arbre et ne voudrait rien dire. L'empreinte enregistrée au moment de la copie est ce qui sépare une modification que vous avez faite d'une que vous n'avez pas vue :
+`ream nebula:diff` compare vos copies au paquet installé. Au moment de la copie, nebula enregistre une empreinte de chaque fichier. Grâce à elle, la commande sait qui a changé quoi : vous, le paquet, ou les deux.
 
 | État | Ce que ça veut dire |
 |---|---|
-| `edited` | votre modification, rien à faire |
-| `outdated` | le paquet a bougé, votre copie non — recopier ne perd rien |
-| `conflict` | les deux ont bougé |
-| `unknown` | copié avant que l'empreinte existe — impossible de dire quel côté a bougé |
+| `edited` | vous avez modifié le fichier, le paquet non : rien à faire |
+| `outdated` | le paquet a changé le fichier, vous non : vous pouvez le recopier sans rien perdre |
+| `conflict` | vous et le paquet avez tous les deux changé le fichier : comparez à la main |
+| `unknown` | le fichier a été copié avant que nebula enregistre les empreintes : impossible de savoir qui l'a changé |
 
-Le rapport se termine par une commande `ream nebula:add --force …` pour les fichiers `outdated`, prête à coller. Elle nomme des composants, jamais des fichiers : un fichier partagé comme `lib/icons.ts` ou `primitives/menu.ts` n'a pas de nom à lui et suit un composant installé qui s'en sert. Un composant n'est proposé que si rien de ce qu'il recopierait — ses fichiers et ceux des composants qu'il entraîne — n'est `edited`, `conflict` ou `unknown` : la commande n'écrase rien de vous. Un fichier en retard que seuls des composants modifiés portent est listé à part, à comparer à la main.
+À la fin, le rapport donne une commande `ream nebula:add --force …` prête à coller, qui recopie les composants `outdated`.
 
-Lancez-le à chaque montée de version du paquet. Un `primitives/presence.ts` copié puis oublié sur plusieurs versions, c'est ainsi qu'un overlay garde un comportement corrigé en amont : la copie est antérieure au délai borné qui démonte une surface dont l'`animationend` n'arrive jamais, et les dialogues fermés restent dans le document en fond plein écran invisible. Ce fichier appartient à seize composants d'overlay, donc rien dans le symptôme ne le désigne.
+- **Des composants, pas des fichiers :** la commande nomme des composants. Un fichier partagé, comme `lib/icons.ts` ou `primitives/menu.ts`, est recopié avec le composant qui s'en sert.
+- **Rien de votre travail n'est écrasé :** un composant n'est proposé que si aucun des fichiers qu'il recopierait n'est `edited`, `conflict` ou `unknown`. Cela compte aussi les fichiers des composants dont il dépend.
+- **Les autres fichiers en retard :** un fichier `outdated` qui n'appartient qu'à des composants que vous avez modifiés est listé à part. Comparez-le à la main.
+
+Lancez `ream nebula:diff` à chaque mise à jour de `@c9up/nebula`. Un exemple de ce qui arrive sinon : `primitives/presence.ts` a reçu un correctif. Il retire un overlay de la page même si son animation de fermeture ne se termine jamais. Avec une copie ancienne de ce fichier, un dialogue fermé peut rester dans la page sous la forme d'un fond invisible qui couvre tout l'écran et bloque les clics. Seize composants d'overlay utilisent ce fichier, et rien dans le symptôme ne le désigne.

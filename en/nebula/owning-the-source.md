@@ -1,34 +1,38 @@
 # Owning the source
 
-`ream nebula:add` copies a component's source into your project and hands it over. No version, no upgrade path, no wrapper to fight when a design needs one class changed.
+`ream nebula:add` copies a component's code into your project. From then on the code is yours: change it however you like, with no version to follow and no wrapper to work around.
 
 ```sh
-ream nebula:list                    # everything in the registry
+ream nebula:list                    # every available component
 ream nebula:list --layer organisms
-ream nebula:add dialog data-table   # both, plus what they depend on
-ream nebula:diff                    # which copies the package has since changed
-ream nebula:add button --force      # overwrite your edited copy
+ream nebula:add dialog data-table   # these two components, and the ones they depend on
+ream nebula:diff                    # which copies the package has changed since
+ream nebula:add button --force      # replace your copy, even an edited one
 ```
 
-These commands ship with the package and are registered in `reamrc.commands` by `configure()` — the channel provided for exactly this, which directory discovery cannot see. Nothing is compiled into the `ream` binary, so a new nebula command never waits on a release of it.
+These commands come with the package itself: `configure()` registers them in `reamrc.commands`. They are not part of the `ream` binary, so a new nebula command does not wait for a new version of `ream`.
 
-**JavaScript by default.** An Aurora app serves `resources/pages` to the browser unbuilt — that is the runtime's premise — so TypeScript dropped into that tree does not run. `ream nebula:add` copies the compiled output: valid ESM, `.js` specifiers already correct, every doc comment intact. The language is inferred from what your components directory already holds; `--ts` and `--js` override it.
+**JavaScript by default.** An Aurora app sends `resources/pages` to the browser with no build step, so a TypeScript file placed there would not run. `ream nebula:add` copies the compiled code: ESM with `.js` imports, comments included. If your components folder already holds TypeScript, the command copies TypeScript. `--ts` and `--js` force one or the other.
 
-Copies mirror the package's own layout, so `atoms/Button` finds `../lib/cva.js` for the same reason it does inside nebula. **No import is ever rewritten** — that is where a copy-the-source CLI usually accumulates its edge cases.
+Copied files keep the same layout as in the package: `atoms/Button` imports `../lib/cva.js`, as it does inside nebula. So no import is ever rewritten.
 
-## The bill for that: `ream nebula:diff`
+## Keeping up with fixes: `ream nebula:diff`
 
-Copying is one way. A fix released here never reaches a project on its own, and nothing says so — the files are local, no lockfile mentions them, `pnpm update` does not touch them.
+Once copied, a file no longer receives the package's fixes. Updating `@c9up/nebula` (with `pnpm update`, for example) does not change your copies, and nothing tells you that a fix exists.
 
-`ream nebula:diff` answers with the *reason* a file differs. A copy is expected to diverge from upstream eventually — that is what owning the source means — so "differs" alone would flag the whole tree and mean nothing. The hash recorded when you copied is what separates a change you made from one you have not seen:
+`ream nebula:diff` compares your copies with the installed package. When it copies a file, nebula records a hash of it. With that hash, the command knows who changed what: you, the package, or both.
 
 | State | What it means |
 |---|---|
-| `edited` | yours, needs nothing |
-| `outdated` | the package moved, your copy did not — re-copying loses nothing |
-| `conflict` | both moved |
-| `unknown` | copied before the record existed — no way to tell which side moved |
+| `edited` | you changed the file, the package did not: nothing to do |
+| `outdated` | the package changed the file, you did not: you can copy it again and lose nothing |
+| `conflict` | you and the package both changed the file: compare by hand |
+| `unknown` | the file was copied before nebula recorded hashes: no way to know who changed it |
 
-The report ends with a `ream nebula:add --force …` command for the `outdated` files, ready to paste. It lists component names, never files: a shared file such as `lib/icons.ts` or `primitives/menu.ts` has no name of its own and comes along with a component you installed that uses it. A component is only suggested when nothing it would re-copy — its files and those of the components it pulls in — is `edited`, `conflict` or `unknown`, so the command overwrites nothing of yours. An outdated file that only edited components carry is listed apart, to compare by hand.
+At the end, the report gives a `ream nebula:add --force …` command, ready to paste, that copies the `outdated` components again.
 
-Run it when you upgrade the package. A copied `primitives/presence.ts` left behind across several releases is how an overlay keeps behaviour that was fixed upstream: the copy predates the deadline that removes a surface whose `animationend` never arrives, so closed dialogs stay in the document as invisible full-screen backdrops. The file is part of sixteen overlay components, so nothing about the symptom points at it.
+- **Components, not files:** the command names components. A shared file, such as `lib/icons.ts` or `primitives/menu.ts`, is copied again with the component that uses it.
+- **Nothing of your work is overwritten:** a component is only suggested when none of the files it would copy is `edited`, `conflict` or `unknown`. This includes the files of the components it depends on.
+- **Other outdated files:** an `outdated` file that only belongs to components you edited is listed separately. Compare it by hand.
+
+Run `ream nebula:diff` every time you update `@c9up/nebula`. An example of what happens otherwise: `primitives/presence.ts` received a fix that removes an overlay from the page even when its closing animation never ends. With an old copy of that file, a closed dialog can stay in the page as an invisible full-screen backdrop that blocks clicks. Sixteen overlay components use that file, and nothing in the symptom points at it.
