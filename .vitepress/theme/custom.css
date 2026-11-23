@@ -104,3 +104,17 @@
 .VPFeature .box > .details {
   padding-top: 0.875rem;
 }
+
+/* The glass logo (dark theme) is a photo on night blue: fade its edges into the
+   page so no square shows, and let it fill the hero's image column. */
+.VPHero .image-src[src$="logo-glass.webp"] {
+  max-width: 22rem;
+  max-height: 22rem;
+  -webkit-mask-image: radial-gradient(closest-side, #000 72%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 72%, transparent 100%);
+}
+
+/* The glass logo carries its own glow; the theme's would ring its edge. */
+.dark {
+  --vp-home-hero-image-background-image: none;
+}

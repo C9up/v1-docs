@@ -5,7 +5,7 @@ hero:
   text: Rust Engine, Agnostic Modules
   image:
     light: /logo-light.svg
-    dark: /logo-dark.svg
+    dark: /images/logo-glass.webp
     alt: REAM
   tagline: Documentation — choose your language / choisis ta langue
   actions:
