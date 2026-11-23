@@ -254,13 +254,15 @@ const logLevel = app.config.get<{ level: string }>('logger')?.level ?? 'info'
 
 ## Alias de chemins
 
-Les projets Ream utilisent les [subpath imports](https://nodejs.org/api/packages.html#subpath-imports) de Node.js pour garder des instructions d'import courtes. Les alias sont déclarés dans `package.json` sous le champ `"imports"`, puis recopiés dans `tsconfig.json` pour que TypeScript les résolve également.
+Les projets Ream utilisent les [subpath imports](https://nodejs.org/api/packages.html#subpath-imports) de Node.js pour garder des instructions d'import courtes. Les alias sont déclarés dans `package.json` sous le champ `"imports"`, puis recopiés dans `tsconfig.json` pour que TypeScript les résolve également. Un projet créé avec `ream new` les
+déclare tous.
 
 ### package.json
 
 ```json
 {
   "imports": {
+    "#app/*": "./app/*",
     "#modules/*": "./app/modules/*",
     "#config/*": "./config/*",
     "#middleware/*": "./app/middleware/*",
@@ -277,6 +279,7 @@ Les projets Ream utilisent les [subpath imports](https://nodejs.org/api/packages
 {
   "compilerOptions": {
     "paths": {
+      "#app/*": ["./app/*"],
       "#modules/*": ["./app/modules/*"],
       "#config/*": ["./config/*"],
       "#middleware/*": ["./app/middleware/*"],
