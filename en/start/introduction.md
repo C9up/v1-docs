@@ -1,70 +1,14 @@
 # Introduction
 
-This guide covers what ream is and how it is built:
+Ream is a framework for building web applications and APIs in TypeScript, on Node.js. You write your application in TypeScript. The parts that need speed, such as the HTTP server, are written in Rust and ship already compiled: you never write Rust.
 
-- What Ream Is
-- Framework Packages
-- Key Concepts
-- Architecture Overview
-- Rust Components
-- TypeScript Decorators
-- Two Modes
+This page explains the basic ideas. To build a first application right away, follow the [tutorial](/en/start/tutorial).
 
-Ream is a TypeScript server framework for Node.js with a Rust-powered HTTP core. It is built on familiar conventions — providers, dependency injection, a fluent router, a defined lifecycle, and modular architecture — while running the HTTP layer through a native Rust binary (HyperServer) via NAPI.
+![Your TypeScript app (routes, controllers, middleware, entities, services) sits on NAPI bindings; underneath, a compiled Rust core runs HTTP and WebSockets (hyper and tokio), the event bus, SQL compilation with PostgreSQL, MySQL and SQLite drivers, password hashing and JWTs. Template parsing, images, PDF and the scheduler are in Rust too.](/images/architecture-en.webp){width=640 height=640 loading=lazy}
 
-![Your TypeScript application (routes, controllers, middleware, entities, services) sits on NAPI bindings; under them, a compiled Rust core runs HTTP and WebSockets (hyper and tokio), the event bus, SQL compilation with the PostgreSQL, MySQL and SQLite drivers, and password hashing and JWTs. Template parsing, images, PDF and the scheduler are in Rust too.](/images/architecture-en.webp){width=640 height=640 loading=lazy}
+## What an application looks like
 
-## What Ream Is
-
-**TypeScript-first.** Decorators, typed HTTP context, typed config, typed errors. Everything flows through well-defined types rather than loosely typed dictionaries.
-
-**Familiar DX.** The building blocks are the usual ones: `@inject()`, controller tuples, `container.make()`, providers with a `register/boot/start/ready/shutdown` lifecycle, `reamrc.ts` for project configuration.
-
-**Rust HTTP core.** The HTTP server, event bus, and security primitives run in Rust through NAPI bindings, not in the Node.js event loop. Lower latency, smaller memory footprint, native Argon2id and HMAC-SHA256 without pulling in pure-JS cryptography packages.
-
-**Modular by design.** Application code lives in domain modules: `app/modules/task/`, `app/modules/user/`. Each module ships its own controllers, services, entities, validators, and a `routes.ts` file. The framework auto-loads every module's `routes.ts` — no central route registry to maintain.
-
-## Framework Packages
-
-| Package | Purpose |
-|---|---|
-| `@c9up/ream` | Core — Container, Router, HttpKernel, Ignitor, providers, exceptions |
-| `@c9up/atlas` | ORM — `@Entity()`, `QueryBuilder`, `BaseRepository` |
-| `@c9up/warden` | Auth — `AuthManager`, `JwtStrategy`, RBAC decorators |
-| `@c9up/transit` | Federated sign-in — SAML 2.0, LDAP, OpenID Connect, OAuth1 / OAuth2 |
-| `@c9up/rune` | Validation — fluent schema builder, custom validators |
-| `@c9up/spectrum` | Logging — structured logger with levels and channel support |
-
-## Key Concepts
-
-### Dependency Injection
-
-The container auto-constructs any class decorated with `@inject()` or `@Service()`. You declare dependencies as constructor parameters — the container resolves them.
-
-```typescript
-import { inject } from '@c9up/ream'
-import { TaskService } from '../services/TaskService.js'
-
-@inject()
-export default class TasksController {
-  constructor(private tasks: TaskService) {}
-}
-```
-
-`@inject()` marks a class for transient resolution (one instance per `container.make()` call). `@Service()` marks a class as a singleton. Named string tokens work too via `@Inject('token-name')`.
-
-### Controller Tuples
-
-Routes reference controllers as `[ControllerClass, 'methodName']` tuples. The container resolves the controller (and all its dependencies) at request time — no explicit instantiation or binding needed.
-
-```typescript
-router.get('/tasks', [TasksController, 'index'])
-router.post('/tasks', [TasksController, 'store'])
-```
-
-### Modular Routing
-
-Each module defines its own routes by importing the router service. The framework discovers and loads these files automatically:
+A route connects a URL to a controller method:
 
 ```typescript
 // app/modules/task/routes.ts
@@ -74,65 +18,110 @@ import TasksController from './controllers/TasksController.js'
 router.get('/tasks', [TasksController, 'index'])
 router.post('/tasks', [TasksController, 'store'])
 router.get('/tasks/:id', [TasksController, 'show'])
-router.put('/tasks/:id', [TasksController, 'update'])
-router.delete('/tasks/:id', [TasksController, 'destroy'])
 ```
 
-### Providers
+The controller receives the request and sends a response. The services it needs arrive through its constructor:
 
-Providers register services into the container and run setup code at defined lifecycle phases:
+```typescript
+// app/modules/task/controllers/TasksController.ts
+import { inject } from '@c9up/ream'
+import type { HttpContext } from '@c9up/ream'
+import { TaskService } from '../services/TaskService.js'
+
+@inject()
+export default class TasksController {
+  constructor(private tasks: TaskService) {}
+
+  async index({ response }: HttpContext) {
+    response.json({ data: await this.tasks.findAll() })
+  }
+}
+```
+
+You never create the controller yourself. On every request, ream builds it with a `TaskService` ready to use.
+
+## What ream gives you
+
+**Everything is typed.** The request, the configuration and the errors have TypeScript types. Your editor completes your code and points out mistakes before you run it.
+
+**Your code is organised by domain.** Each feature of your application lives in its own folder, its module: `app/modules/task/`, `app/modules/user/`. A module holds its controllers, services, entities, validators and its `routes.ts` file. Ream loads every module's `routes.ts` by itself: there is no central list of routes to keep up to date.
+
+**Rust does the heavy lifting.** The HTTP server, the event bus, password hashing and JWT signing run in Rust. They do not block the Node.js event loop, and your application ships no cryptography library written in JavaScript.
+
+**Every package stands alone.** Ream is split into packages: database, authentication, validation, mail, and more. You install only the ones you need.
+
+## The main packages
+
+| Package | What it is for |
+|---|---|
+| `@c9up/ream` | The core: the container, the router, the HTTP server, the application startup |
+| `@c9up/atlas` | Reading and writing the database (ORM) |
+| `@c9up/warden` | Identifying users and checking what they may do |
+| `@c9up/transit` | Signing in with an outside account (SAML 2.0, LDAP, OpenID Connect, OAuth 1 and 2) |
+| `@c9up/rune` | Validating incoming data |
+| `@c9up/spectrum` | Writing logs |
+
+The [full list of packages](/en/start/packages) groups them by domain.
+
+## Four ideas to know
+
+### The container builds your classes
+
+The container is the object that creates instances of your classes. It reads the constructor's parameters and provides what is needed. This is called dependency injection.
+
+- `@inject()`: the container creates a new instance every time one is asked for (`container.make()`). Use it for controllers.
+- `@Service()`: the container creates one instance and reuses it everywhere (a singleton).
+- `@Inject('name')`: the container provides what was registered under that name.
+
+### A route points to a controller
+
+A route names the controller class and its method: `[TasksController, 'index']`. When the request arrives, the container builds the controller with its dependencies, then calls the method.
+
+### Providers set up services
+
+A provider is a class that sets up a service at startup: it registers it in the container, opens a connection, checks a configuration.
 
 ```typescript
 import { Provider } from '@c9up/ream'
 
 export default class AppProvider extends Provider {
   register() {
-    // Synchronous — add bindings to the container
+    // Synchronous: register services in the container
     this.app.container.singleton('mailer', () => new Mailer(
       this.app.config.get('mail')
     ))
   }
 
   async boot() {
-    // Async — verify connections, validate config
+    // Asynchronous: check a connection, validate the configuration
   }
 }
 ```
 
-### The Lifecycle
+### The application starts in four steps
 
-Every Ream application boots through four sequential phases:
+1. **register**: each provider registers its services in the container. Nothing asynchronous happens here.
+2. **boot**: each provider prepares its services. Database connections open and the configuration is checked.
+3. **start**: ream imports the startup files (`start/kernel.ts`) and every module's `routes.ts`. The server does not accept requests yet.
+4. **ready**: the server accepts requests, then each provider runs its `ready()` method.
 
-1. **register** — All providers call `register()`. Bindings are added to the container. No async work.
-2. **boot** — Providers call `boot()`. Database connections open, config is validated.
-3. **start** — Preload files are imported (`start/kernel.ts`, module `routes.ts` files). The HTTP server is not yet listening.
-4. **ready** — The HTTP server begins accepting connections. Providers call `ready()`.
+When the application stops, each provider runs its `shutdown()` method, starting with the last one registered.
 
-Shutdown reverses the order: providers call `shutdown()` in reverse registration order.
+## How a request travels
 
-## Architecture Overview
+![A request's path through ream. The native Rust server reads HTTP/1.1 and HTTP/2 and enforces body limits, the WebSocket handshake and allowed origins. Then, in TypeScript: server middleware on every request (server.use in start/kernel.ts); route matching, with a 404 E_ROUTE_NOT_FOUND when nothing matches; router middleware on matched routes (router.use); the route's named and inline middleware; guards (.guard, .role, .permission, answering 401 or 403); validation (.validate, answering 422 E_VALIDATION_ERROR); the controller. Any error goes to the exception handler, which reports it and answers with the error's status and code.](/images/request-en.webp){width=640 height=640 loading=lazy}
 
-![How a request travels through ream. The native Rust server parses HTTP/1.1 and HTTP/2 and enforces body limits, the WebSocket handshake and allowed origins. Then, in TypeScript: server middleware on every request (server.use in start/kernel.ts); the route match, with 404 E_ROUTE_NOT_FOUND when none matches; router middleware on matched routes (router.use); named and inline middleware per route; guards (.guard, .role, .permission, answering 401 or 403); validation (.validate, answering 422 E_VALIDATION_ERROR); the controller. Any error goes to the exception handler, which reports it and then answers with the error's status and code.](/images/request-en.webp){width=640 height=640 loading=lazy}
+The Rust server receives the request and passes it to the `HttpKernel`, a TypeScript function. The kernel runs the middleware, finds the route and calls your controller. The Rust server then sends the response back to the client. So all of your application's logic stays in TypeScript.
 
-The `HttpKernel` is a TypeScript function: the native server hands it each request and sends back the response it builds, so the transport boundary is minimal and your application logic stays in TypeScript.
+## The parts written in Rust
 
-## Rust Components
+- **The HTTP server** is built on [Hyper](https://hyper.rs/), a proven Rust HTTP library. It hands every request to the `HttpKernel` through a single function, `onRequest(callback)`.
+- **The event bus** ([`@c9up/ream/events`](/en/guides/digging-deeper/emitter)) dispatches events in Rust. You emit and subscribe to events in TypeScript, with full types.
+- **Password hashing** (Argon2id by default, bcrypt and scrypt too) is done in Rust by [`@c9up/sigil`](/en/reference/sigil). **JWTs** are signed and verified in Rust by [`@c9up/warden`](/en/reference/warden). Comparisons run in constant time: how long they take reveals nothing about the secret.
 
-### HyperServer
+## Decorators
 
-Built on [Hyper](https://hyper.rs/), a production-grade Rust HTTP library. It exposes a single NAPI binding — `onRequest(callback)` — that the TypeScript `HttpKernel` plugs into.
-
-### Event Bus
-
-Part of ream core ([`@c9up/ream/events`](/en/guides/digging-deeper/emitter)): a typed publish/subscribe event bus backed by a Rust core. The Rust layer handles the dispatch loop; TypeScript subscribes and emits with full type inference.
-
-### Security Primitives
-
-Password hashing (Argon2id by default, bcrypt and scrypt too) is implemented in the `sigil-engine` Rust crate and exposed through `@c9up/sigil`; JWT signing and verification live in the `warden-engine` crate behind `@c9up/warden`. This provides constant-time comparisons and memory-hard hashing without pure-JS cryptography libraries.
-
-## TypeScript Decorators
-
-Ream requires experimental decorators and `reflect-metadata`. These are configured in the starter template:
+Ream uses TypeScript decorators, the `@` annotations placed before a class or a method. The project that `ream new` creates already turns on the two options they need:
 
 ```json
 {
@@ -143,20 +132,22 @@ Ream requires experimental decorators and `reflect-metadata`. These are configur
 }
 ```
 
-| Decorator | Package | Purpose |
+| Decorator | Package | What it does |
 |---|---|---|
-| `@inject()` | `@c9up/ream` | Transient IoC resolution for controllers |
-| `@Service()` | `@c9up/ream` | Singleton service registration |
-| `@Inject('token')` | `@c9up/ream` | Named constructor parameter injection |
-| `@Lazy()` | `@c9up/ream` | Break circular dependency cycles |
-| `@Entity()` | `@c9up/atlas` | Mark a class as a database entity |
-| `@Guard('jwt')` | `@c9up/warden` | Require an auth strategy on a route method |
-| `@Role('admin')` | `@c9up/warden` | Require a role |
-| `@Permission('x')` | `@c9up/warden` | Require a permission string |
+| `@inject()` | `@c9up/ream` | The container builds a new instance on every request for it (controllers) |
+| `@Service()` | `@c9up/ream` | The container builds one shared instance (singleton) |
+| `@Inject('token')` | `@c9up/ream` | Injects what was registered under that name |
+| `@Lazy()` | `@c9up/ream` | Resolves two classes that depend on each other |
+| `@Entity()` | `@c9up/atlas` | Makes a class a database table |
+| `@Guard('jwt')` | `@c9up/warden` | Requires a signed-in user (here through a JWT) for this method |
+| `@Role('admin')` | `@c9up/warden` | Requires a role |
+| `@Permission('x')` | `@c9up/warden` | Requires a permission |
 
-## Two Modes
+## Full framework or toolkit
 
-**Framework mode** uses `reamrc.ts`, providers, auto-loaded module routes, and the full lifecycle:
+You can use ream in two ways.
+
+**The full framework**: ream follows its conventions. It reads `reamrc.ts`, starts the providers, loads the modules' routes and goes through the four startup steps. This is what `ream new` creates:
 
 ```typescript
 // bin/server.ts
@@ -175,10 +166,11 @@ new Ignitor(new URL('../', import.meta.url), {
   .start()
 ```
 
-**Toolkit mode** skips all conventions. You wire the router, middleware, and kernel manually — useful for microservices or embedding Ream inside an existing Node.js app.
+**The toolkit**: you take only the pieces you want, and wire the router, the middleware and the kernel yourself. This is useful for a small microservice, or to add ream to an existing Node.js application.
 
-## Next Steps
-- [Quick Start](/en/start/tutorial) — Build a working Tasks API from scratch
-- [Folder Structure](/en/start/folder-structure) — Where each file belongs and why
-- [Application Lifecycle](/en/guides/concepts/lifecycle) — The four-phase boot process in depth
-- [Container](/en/guides/concepts/dependency-injection) — Dependency injection patterns and testing
+## What next
+
+- [The tutorial](/en/start/tutorial): build a complete task API, step by step
+- [The folder structure](/en/start/folder-structure): where each file goes, and why
+- [The lifecycle](/en/guides/concepts/lifecycle): the four startup steps in detail
+- [The container](/en/guides/concepts/dependency-injection): dependency injection, and how to swap it in tests
