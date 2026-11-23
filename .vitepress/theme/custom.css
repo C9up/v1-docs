@@ -1,0 +1,9 @@
+/* An error code's anchor sits in its table row (reference/errors): land below the
+   fixed nav bar, as a heading does, and show which row the link meant. */
+.vp-doc td > span[id] {
+  scroll-margin-top: calc(var(--vp-nav-height) + 24px);
+}
+
+.vp-doc tr:has(> td > span[id]:target) {
+  background-color: var(--vp-c-brand-soft);
+}
