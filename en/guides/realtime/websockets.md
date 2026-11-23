@@ -20,6 +20,8 @@ packages speak a protocol over the socket for you:
 | Request / response calls to server methods | [JSON-RPC over a WebSocket](/en/guides/apis/json-rpc#over-a-websocket) with the `RpcRouter`, and [comet's WebSocket transport](/en/guides/apis/json-rpc-clients#over-a-websocket) as the client |
 | Hubs, groups and broadcasts, with a stock SignalR client | [relay hubs](/en/guides/realtime/hubs#the-wire), which pick WebSockets when the server can upgrade |
 
+![The life of a WebSocket connection. Handshake: the client sends a GET with Upgrade: websocket; the native server refuses a malformed handshake with 400, a version other than 13 with 426 and an origin it does not allow with 403; then the route, its middleware and guards run (router.ws, .use(middleware.auth()) answering 401 as plain HTTP); a refusal is a plain HTTP answer and no socket opens; once the handler is reached the request is answered 101 Switching Protocols and the handler gets ctx.socket and the handshake's ctx.auth. Open: socket.send(data) and socket.on('message'); a message over maxMessageSize closes with 1009, a client too slow for maxBufferedBytes with 1013, silence for idleTimeout with 1001. Close: socket.close(code, reason); on shutdown every socket is closed with 1001 and has 5 seconds to finish.](/images/websocket-en.webp){width=640 height=640 loading=lazy}
+
 ## Declaring a WebSocket route
 
 `router.ws()` declares a route that accepts WebSocket connections. It is a GET
