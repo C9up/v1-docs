@@ -7,6 +7,8 @@ Ce guide couvre les hubs SignalR :
 - Ce qui n'est pas supporté
 - Le fil
 
+![Les hubs sur plusieurs instances. Quatre clients SignalR, deux en WebSocket et deux en Server-Sent Events, joignent l'instance A ou l'instance B à travers un répartiteur de charge avec sessions collantes sur les chemins des hubs. Un ChatHub de l'instance A exécute ctx.group('room-1').send('message', data) : l'instance A le livre aux clients qu'elle tient et le publie sur le bus Redis (transports.redis({ connection: 'main' })) ; l'instance B le reçoit du bus et le livre à ses propres clients, si bien que les membres du groupe sur les deux instances reçoivent le message. ctx.send() répond au client appelant, toujours local.](/images/hubs-en.webp){width=640 height=640 loading=lazy}
+
 ## Hubs (SignalR)
 
 Un `Hub` est la moitié bidirectionnelle : le client invoque des méthodes côté
