@@ -10,67 +10,16 @@ This guide covers the layout of a ream application:
 - database/migrations/
 - providers/
 - start/
+- tests/
 - reamrc.ts
 
 A Ream application using framework mode follows this structure. Each directory has a single, well-defined purpose — no guessing where a file belongs.
 
-```
-my-app/
-├── app/
-│   ├── exceptions/
-│   │   └── handler.ts              # Global exception handler
-│   ├── middleware/
-│   │   ├── auth_middleware.ts      # JWT auth middleware class
-│   │   └── log_request_middleware.ts
-│   └── modules/
-│       ├── task/
-│       │   ├── controllers/
-│       │   │   └── TasksController.ts
-│       │   ├── entities/
-│       │   │   └── Task.ts
-│       │   ├── events/
-│       │   │   └── TaskDeclared.ts
-│       │   ├── listeners/
-│       │   │   └── LogTaskEvent.ts
-│       │   ├── services/
-│       │   │   └── TaskService.ts
-│       │   ├── validators/
-│       │   │   └── CreateTaskValidator.ts
-│       │   ├── events.ts           # Auto-loaded by the framework
-│       │   └── routes.ts           # Auto-loaded by the framework
-│       └── user/
-│           ├── controllers/
-│           │   └── UsersController.ts
-│           ├── entities/
-│           │   └── User.ts
-│           ├── events/
-│           │   └── UserRegistered.ts
-│           ├── listeners/
-│           │   └── SendWelcomeEmail.ts
-│           ├── services/
-│           │   └── UserService.ts
-│           ├── validators/
-│           │   └── RegisterValidator.ts
-│           ├── events.ts
-│           └── routes.ts
-├── bin/
-│   └── server.ts                   # HTTP server entry point
-├── config/
-│   ├── auth.ts                     # Auth configuration
-│   ├── database.ts                 # Database configuration
-│   └── logger.ts                   # Logger configuration
-├── database/
-│   └── migrations/
-│       └── 001_create_users.ts
-├── providers/
-│   └── AppProvider.ts              # App-level service registrations
-├── start/
-│   └── kernel.ts                   # Middleware registration
-├── reamrc.ts                       # Framework configuration
-├── .env
-├── package.json
-└── tsconfig.json
-```
+![The tree of a ream application. app/ holds your code: modules/<module>/ with one folder per domain (controllers, entities, services, validators, events, listeners, routes.ts), middleware/ and exceptions/handler.ts. The wiring: bin/server.ts and bin/console.ts, config/ with one file per package, providers/AppProvider.ts, start/routes.ts, start/kernel.ts, start/env.ts and reamrc.ts. Data and tests: database/migrations/ and tests/. At the root, .env, package.json and tsconfig.json.](/images/folder-structure-en.webp){width=640 height=640 loading=lazy}
+
+`ream new` writes `bin/`, `providers/`, `start/`, `tests/` and `reamrc.ts` (and, with
+the `web` template, `config/` and `app/middleware/`); the other folders appear as the
+application grows.
 
 ---
 
@@ -92,6 +41,10 @@ app/services/TaskService.ts          # Hard to move or decouple
 ```
 
 Each module is a self-contained bounded context. All the code needed to understand and modify the `task` domain lives inside `app/modules/task/`.
+
+A module's `routes.ts` and `events.ts` are loaded once `reamrc.ts` names the modules
+folder (see [reamrc.ts](#reamrc-ts)). A new app has none yet and declares its routes in
+`start/routes.ts`.
 
 ### controllers/
 
@@ -226,7 +179,7 @@ const emitter = await app.container.make(Emitter)
 emitter.on(TaskDeclared, LogTaskEvent)
 ```
 
-To enable auto-loading of `events.ts`, add `'events'` to the `autoload` array in `reamrc.ts`:
+`events.ts` is loaded with `routes.ts` by default; an explicit `autoload` list in `reamrc.ts` has to name it:
 
 ```typescript
 modules: {
@@ -327,24 +280,41 @@ export default class AuthMiddleware {
 
 ### server.ts
 
-The HTTP server entry point. Constructs the `Ignitor`, loads the rc file, and starts the server. This is the file Node.js runs directly.
+The HTTP entry point, the file Node.js runs. It builds the `Ignitor`, validates the
+environment before anything boots, loads the rc file and starts the HTTP server.
 
 ```typescript
 // bin/server.ts
-import { Ignitor, defineConfig } from '@c9up/ream'
+import 'reflect-metadata'
+import { Ignitor, prettyPrintError } from '@c9up/ream'
+import { createHyperServerFactory } from '@c9up/ream/bootstrap'
 
-new Ignitor(new URL('../', import.meta.url), {
-  importer: (path) => import(path),
-  port: Number(process.env.PORT) || 3000,
+const APP_ROOT = new URL('../', import.meta.url)
+
+new Ignitor(APP_ROOT, {
+  serverFactory: createHyperServerFactory(),
 })
-  .httpServer()
   .tap((app) => {
-    app.listen('SIGTERM', () => app.terminate())
-    app.listen('SIGINT', () => app.terminate())
+    app.booting(async () => {
+      await import('#start/env.js')
+    })
   })
-  .useRcFile(await import('../reamrc.js').then((m) => m.default))
+  .useRcFile((await import('../reamrc.js')).default)
+  .httpServer()
   .start()
+  .then(async (app) => {
+    console.log(`\n  ➜ Ream ready on http://${app.host()}:${await app.port()}\n`)
+  })
+  .catch((err) => {
+    prettyPrintError(err)
+    process.exit(1)
+  })
 ```
+
+### console.ts
+
+The entry of `ream <command>`: the same application, started as a console instead of
+a server. It validates the environment and reads the rc file the same way.
 
 ---
 
@@ -435,6 +405,19 @@ export default class AppProvider extends Provider {
 
 Files in `start/` are imported during the **start phase** of the lifecycle — after all providers have booted, before the HTTP server begins listening. List them in `reamrc.ts` under `preloads`.
 
+### start/routes.ts
+
+The routes of the application, imported as a preload. A new app answers `/` from here.
+
+```typescript
+// start/routes.ts
+import router from '@c9up/ream/services/router'
+
+router.get('/', async ({ response }) => {
+  response.status(200).json({ name: 'my-app', status: 'running' })
+})
+```
+
 ### start/kernel.ts
 
 Registers server and router middleware. Import the `server` and `router` service singletons provided by `@c9up/ream`.
@@ -457,6 +440,34 @@ export const middleware = router.named({
 // Custom exception handler
 server.errorHandler(() => import('#app/exceptions/handler.js'))
 ```
+
+### start/env.ts
+
+The environment's schema. `bin/server.ts` and `bin/console.ts` import it in a
+`booting` hook, before any provider, so a missing or malformed variable stops the
+application at once; `env.get('PORT')` is then typed as a number.
+
+```typescript
+// start/env.ts
+import { Env } from '@c9up/ream'
+
+export default await Env.create(new URL('../', import.meta.url), {
+  APP_NAME: Env.schema.string(),
+  APP_KEY: Env.schema.secret(),
+  NODE_ENV: Env.schema.enum(['development', 'production', 'test'] as const),
+  PORT: Env.schema.number(),
+  DB_CONNECTION: Env.schema.enum(['postgres', 'sqlite'] as const),
+  DB_FILENAME: Env.schema.string(),
+})
+```
+
+---
+
+## tests/
+
+`tests/bootstrap.ts` starts the application for the suites (on a free port, in test
+mode) and gives every suite the HTTP client; `tests/functional/` holds the suites that
+need the server. `ream test` runs them; see [Testing](/en/guides/testing/introduction).
 
 ---
 
@@ -483,7 +494,11 @@ export default defineConfig({
 })
 ```
 
-`autoload: ['routes', 'events']` tells the framework to import both `routes.ts` and `events.ts` from every direct subdirectory of `app/modules/`. Adding a new module directory is enough — there is no central registration step. Files that do not exist in a given module are silently skipped.
+`autoload: ['routes', 'events']` tells the framework to import both `routes.ts` and `events.ts` from every direct subdirectory of `app/modules/`. Adding a new module directory is enough — there is no central registration step.
+Without `autoload`, `['routes', 'events']` is the default. A file missing from one module
+is skipped; an entry that matches no module at all is reported with a warning at boot,
+since it is usually a typo. An entry with a trailing slash (`'services/'`) loads every
+file of that directory in each module.
 
 ---
 
