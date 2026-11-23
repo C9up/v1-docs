@@ -37,3 +37,33 @@
   --vp-c-brand-3: #c2410c;
   --vp-c-brand-soft: rgba(240, 138, 75, 0.16);
 }
+
+/* Surfaces match the diagrams: night blue in the dark theme (their background is
+   #0c121e, their panels #18202b) and cool, slightly blue greys in the light one,
+   in place of VitePress's neutral greys. */
+:root {
+  --vp-c-bg-alt: #f4f6fa;
+  --vp-c-bg-soft: #eef1f6;
+  --vp-c-divider: #e1e6ee;
+  --vp-c-gutter: #e1e6ee;
+}
+
+.dark {
+  --vp-c-bg: #0c121e;
+  --vp-c-bg-alt: #090e18;
+  --vp-c-bg-elv: #131b2a;
+  --vp-c-bg-soft: #151e2e;
+
+  --vp-c-border: #2a3549;
+  --vp-c-divider: #1c2638;
+  --vp-c-gutter: #060a12;
+
+  --vp-c-default-1: #3c475c;
+  --vp-c-default-2: #2f394c;
+  --vp-c-default-3: #263042;
+  --vp-c-default-soft: rgba(110, 130, 170, 0.16);
+
+  --vp-c-text-1: #e6eaf2;
+  --vp-c-text-2: rgba(214, 222, 238, 0.66);
+  --vp-c-text-3: rgba(214, 222, 238, 0.42);
+}
