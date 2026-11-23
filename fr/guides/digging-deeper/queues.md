@@ -18,7 +18,7 @@ Ce guide couvre les tâches en arrière-plan avec bay :
 
 Bay est le module de file de jobs de l'écosystème Ream (`@c9up/bay`).
 
-![La vie d'une tâche en file. await SendEmail.dispatch({ to }).toQueue('emails') la place en delayed quand elle a un délai ('10s'), sinon directement en pending. Un worker (ream queue:work --concurrency=10) la prend : active, où execute() s'exécute et un timeout ('1m') interrompt this.signal. Si elle se termine, la tâche est completed. Si elle lève une erreur ou dépasse son temps et qu'il reste des essais (maxRetries: 5), elle revient en pending après exponentialBackoff ; sinon elle est failed, failed(error) s'exécute une fois et queue.failedJobs() la liste.](/images/queues-en.webp){width=640 height=640 loading=lazy}
+![La vie d'une tâche en file. await SendEmail.dispatch({ to }).toQueue('emails') la place en delayed quand elle a un délai ('10s'), sinon directement en pending. Un worker (ream queue:work --concurrency=10) la prend : active, où execute() s'exécute et un timeout ('1m') interrompt this.signal. Si elle se termine, la tâche est completed. Si elle lève une erreur ou dépasse son temps et qu'il reste des essais (maxRetries: 5), elle revient en pending après exponentialBackoff ; sinon elle est failed, failed(error) s'exécute une fois et queue.failedJobs() la liste.](/images/queues-fr.webp){width=640 height=640 loading=lazy}
 
 ## Cas d'usage
 
