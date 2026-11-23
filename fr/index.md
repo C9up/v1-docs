@@ -4,7 +4,8 @@ hero:
   name: REAM
   text: Rust Engine, Agnostic Modules
   image:
-    src: /logo.svg
+    light: /logo-light.svg
+    dark: /logo-dark.svg
     alt: REAM
   tagline: Le confort d'un framework complet. La puissance de Rust. La liberté de choisir.
   actions:

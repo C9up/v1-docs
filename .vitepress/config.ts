@@ -45,7 +45,7 @@ function nebulaSidebar(lang: 'en' | 'fr') {
 export default defineConfig({
   title: 'Ream',
   description: 'Rust Engine, Agnostic Modules',
-  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }]],
+  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }]],
 
   // Inline code containing Vue-mustache syntax (`{{ … }}`) — common in the
   // inker / blackhole template docs — must not be compiled as a Vue
@@ -111,7 +111,7 @@ export default defineConfig({
   },
 
   themeConfig: {
-    logo: { src: '/logo.svg', alt: '' },
+    logo: { light: '/logo-light.svg', dark: '/logo-dark.svg', alt: '' },
     socialLinks: [
       { icon: 'github', link: 'https://github.com/C9up/ream-dev' },
     ],
