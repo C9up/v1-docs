@@ -15,7 +15,7 @@ Il combine:
 
 > Statut: coeur prêt pour la production. La doc ci-dessous est alignée avec le code actuel.
 
-![Le trajet d'une requête Atlas jusqu'à la base. Votre code, en TypeScript, déclare un modèle (@Column() declare email: string) et construit une requête (await User.query().where('role', 'admin').exec()). Le compilateur SQL, en Rust, valide chaque nom de table et de colonne (un nom dangereux lève E_UNSAFE_IDENTIFIER), transforme les valeurs en paramètres liés et écrit le SQL du dialecte de la connexion. Le pilote, en Rust avec sqlx, parle à PostgreSQL, MySQL ou SQLite et n'abandonne jamais TLS en silence. Les lignes reviennent sous forme d'instances de User, avec leurs relations. Les changements de schéma s'appliquent avec ream migration:run.](/images/atlas-en.webp){width=640 height=640 loading=lazy}
+![Le trajet d'une requête Atlas jusqu'à la base. Votre code, en TypeScript, déclare un modèle (@Column() declare email: string) et construit une requête (await User.query().where('role', 'admin').exec()). Le compilateur SQL, en Rust, valide chaque nom de table et de colonne (un nom dangereux lève E_UNSAFE_IDENTIFIER), transforme les valeurs en paramètres liés et écrit le SQL du dialecte de la connexion. Le pilote, en Rust avec sqlx, parle à PostgreSQL, MySQL ou SQLite et n'abandonne jamais TLS en silence. Les lignes reviennent sous forme d'instances de User, avec leurs relations. Les changements de schéma s'appliquent avec ream migration:run.](/images/atlas-fr.webp){width=640 height=640 loading=lazy}
 
 ## Parcours recommandé
 
