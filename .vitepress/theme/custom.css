@@ -105,13 +105,20 @@
   padding-top: 0.875rem;
 }
 
-/* The glass logo (dark theme) is a photo on night blue: fade its edges into the
-   page so no square shows, and let it fill the hero's image column. */
+/* The glass logo (dark theme) is a photo on night blue: feather only the outer
+   band of its edges into the page (the R's blades reach toward the corners, so a
+   round mask would eat them), and let it fill the hero's image column. */
 .VPHero .image-src[src$="logo-glass.webp"] {
-  max-width: 22rem;
-  max-height: 22rem;
-  -webkit-mask-image: radial-gradient(closest-side, #000 72%, transparent 100%);
-  mask-image: radial-gradient(closest-side, #000 72%, transparent 100%);
+  max-width: 26rem;
+  max-height: 26rem;
+  -webkit-mask-image:
+    linear-gradient(to right, transparent, #000 9%, #000 91%, transparent),
+    linear-gradient(to bottom, transparent, #000 9%, #000 91%, transparent);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(to right, transparent, #000 9%, #000 91%, transparent),
+    linear-gradient(to bottom, transparent, #000 9%, #000 91%, transparent);
+  mask-composite: intersect;
 }
 
 /* The glass logo carries its own glow; the theme's would ring its edge. */
