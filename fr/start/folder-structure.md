@@ -15,7 +15,7 @@ Ce guide couvre l'organisation des dossiers d'une application ream :
 
 Une application Ream en mode framework suit cette structure. Chaque répertoire a un rôle unique et bien défini — impossible de se demander où placer un fichier.
 
-![L'arborescence d'une application ream. app/ contient votre code : modules/<module>/, un dossier par domaine (controllers, entities, services, validators, events, listeners, routes.ts), middleware/ et exceptions/handler.ts. Le câblage : bin/server.ts et bin/console.ts, config/ avec un fichier par paquet, providers/AppProvider.ts, start/routes.ts, start/kernel.ts, start/env.ts et reamrc.ts. Données et tests : database/migrations/ et tests/. À la racine, .env, package.json et tsconfig.json.](/images/folder-structure-en.webp){width=640 height=640 loading=lazy}
+![L'arborescence d'une application ream. app/ contient votre code : modules/<module>/, un dossier par domaine (controllers, entities, services, validators, events, listeners, routes.ts), middleware/ et exceptions/handler.ts. Le câblage : bin/server.ts et bin/console.ts, config/ avec un fichier par paquet, providers/AppProvider.ts, start/routes.ts, start/kernel.ts, start/env.ts et reamrc.ts. Données et tests : database/migrations/ et tests/. À la racine, .env, package.json et tsconfig.json.](/images/folder-structure-fr.webp){width=640 height=640 loading=lazy}
 
 `ream new` écrit `bin/`, `providers/`, `start/`, `tests/` et `reamrc.ts` (et, avec le
 template `web`, `config/` et `app/middleware/`) ; les autres dossiers apparaissent à
