@@ -325,7 +325,7 @@ The token is read from `X-XSRF-TOKEN`, `X-CSRF-TOKEN` or the `_csrf` form field.
 | Code | Raised when |
 |---|---|
 | [`E_BLACKHOLE_RATE_LIMITED`](/en/reference/errors#e-blackhole-rate-limited) | The global rate limit refused the request (429, `Retry-After`) |
-| [`E_TOO_MANY_REQUESTS`](/en/reference/errors#e-too-many-requests) | A throttle middleware or `limiter.consume()` found the key over its budget (`ThrottleException`, 429) |
+| [`E_TOO_MANY_REQUESTS`](/en/reference/errors#e-too-many-requests-blackhole) | A throttle middleware or `limiter.consume()` found the key over its budget (`ThrottleException`, 429) |
 | [`E_BAD_CSRF_TOKEN`](/en/reference/errors#e-bad-csrf-token) | The CSRF token is missing or invalid (403) |
 | [`E_BLACKHOLE_CSRF_ORIGIN_MISMATCH`](/en/reference/errors#e-blackhole-csrf-origin-mismatch) | A state-changing request came from an origin not trusted (403) |
 | [`E_BLACKHOLE_PATH_TRAVERSAL`](/en/reference/errors#e-blackhole-path-traversal) | The path holds `..` (400) |

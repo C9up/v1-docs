@@ -325,7 +325,7 @@ Le jeton est lu dans `X-XSRF-TOKEN`, `X-CSRF-TOKEN` ou le champ de formulaire `_
 | Code | Levée quand |
 |---|---|
 | [`E_BLACKHOLE_RATE_LIMITED`](/fr/reference/errors#e-blackhole-rate-limited) | La limitation globale a refusé la requête (429, `Retry-After`) |
-| [`E_TOO_MANY_REQUESTS`](/fr/reference/errors#e-too-many-requests) | Un middleware de limite ou `limiter.consume()` a trouvé la clé au-delà de son budget (`ThrottleException`, 429) |
+| [`E_TOO_MANY_REQUESTS`](/fr/reference/errors#e-too-many-requests-blackhole) | Un middleware de limite ou `limiter.consume()` a trouvé la clé au-delà de son budget (`ThrottleException`, 429) |
 | [`E_BAD_CSRF_TOKEN`](/fr/reference/errors#e-bad-csrf-token) | Le jeton CSRF manque ou est invalide (403) |
 | [`E_BLACKHOLE_CSRF_ORIGIN_MISMATCH`](/fr/reference/errors#e-blackhole-csrf-origin-mismatch) | Une requête qui modifie l'état vient d'une origine non approuvée (403) |
 | [`E_BLACKHOLE_PATH_TRAVERSAL`](/fr/reference/errors#e-blackhole-path-traversal) | Le chemin contient `..` (400) |

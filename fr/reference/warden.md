@@ -403,7 +403,7 @@ export default defineConfig({
 
 | Code | Levée quand |
 |---|---|
-| [`E_UNAUTHORIZED_ACCESS`](/fr/reference/errors#e-unauthorized-access) | Aucune garde n'a authentifié la requête (401), ou un jeton n'a pas la capacité que demande `currentAccessToken.authorize()` (403) |
+| [`E_UNAUTHORIZED_ACCESS`](/fr/reference/errors#e-unauthorized-access-warden) | Aucune garde n'a authentifié la requête (401), ou un jeton n'a pas la capacité que demande `currentAccessToken.authorize()` (403) |
 | [`E_INVALID_CREDENTIALS`](/fr/reference/errors#e-invalid-credentials) | `authFinder().verifyCredentials()` n'a trouvé aucun compte ou un mauvais mot de passe (400) |
 | [`E_AUTHORIZATION_FAILURE`](/fr/reference/errors#e-authorization-failure) | Une capacité ou une policy du bouncer a refusé l'action (403) |
 | [`E_WARDEN_FORBIDDEN`](/fr/reference/errors#e-warden-forbidden) | L'utilisateur n'a pas un rôle ou une permission que déclare la route (403) |

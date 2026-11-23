@@ -4,7 +4,8 @@
 //
 // 1. every https://r-eam.com/… URL written in a package's sources reaches a page,
 //    and its #anchor an id on that page;
-// 2. every error code a package raises (`E_…` in a string, comments left out)
+// 2. every error code a package raises (`E_…` in a string, comments left out, or
+//    a bare code that an error class prefixes itself)
 //    has its row in the error index, in each language, under the anchor
 //    `errorDocsUrl()` builds: the code in lower case with `-` for `_`.
 //
@@ -59,6 +60,7 @@ function resolve(path) {
 
 const problems = []
 const codes = new Map() // code -> first file that raises it
+const sources = [] // { where, code }: TypeScript and Rust sources, comments removed
 
 for (const pkg of readdirSync(packages)) {
   const root = join(packages, pkg)
@@ -78,8 +80,50 @@ for (const pkg of readdirSync(packages)) {
 
     if (!/\.(ts|mts|rs)$/.test(file)) continue
     const code = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    sources.push({ where, code })
     for (const m of code.matchAll(/["'`](E_[A-Z][A-Z0-9_]*[A-Z0-9])["'`]/g)) {
       if (!codes.has(m[1])) codes.set(m[1], where)
+    }
+  }
+}
+
+// Error classes that add their package prefix to a bare code
+// (`new AtlasError('INVALID_PAGE')` raises E_ATLAS_INVALID_PAGE): find each class
+// whose body builds `E_<PREFIX>_${param}`, then every bare code handed to it,
+// directly or through a helper that forwards one of its parameters to it.
+const BARE = '["\'`]([A-Z][A-Z0-9_]*[A-Z0-9])["\'`]'
+const prefixOf = new Map() // class name -> prefix
+for (const { code } of sources) {
+  const classes = [...code.matchAll(/\bclass\s+(\w+)/g)]
+  for (const m of code.matchAll(/`E_([A-Z0-9]+)_\$\{\s*\w+\s*\}`/g)) {
+    const owner = classes.filter((c) => c.index < m.index).at(-1)
+    if (owner) prefixOf.set(owner[1], m[1])
+  }
+}
+const raise = (prefix, bare, where) => {
+  if (bare.startsWith('E_')) return
+  const full = `E_${prefix}_${bare}`
+  if (!codes.has(full)) codes.set(full, where)
+}
+const splitArgs = (args) => args.split(',').map((a) => a.trim())
+for (const [cls, prefix] of prefixOf) {
+  const helpers = [] // { name, index }: helper forwarding its parameter `index` to the class
+  for (const { where, code } of sources) {
+    for (const m of code.matchAll(new RegExp(`new\\s+${cls}\\(\\s*${BARE}`, 'g'))) raise(prefix, m[1], where)
+    for (const m of code.matchAll(/function\s+(\w+)\s*\(([^)]*)\)/g)) {
+      const params = splitArgs(m[2]).map((p) => p.split(/[:=?\s]/)[0])
+      const body = code.slice(m.index, m.index + 2000)
+      const forwarded = body.match(new RegExp(`new\\s+${cls}\\(\\s*(\\w+)`))
+      if (forwarded && params.includes(forwarded[1])) helpers.push({ name: m[1], index: params.indexOf(forwarded[1]) })
+    }
+  }
+  for (const { name, index } of helpers) {
+    for (const { where, code } of sources) {
+      for (const m of code.matchAll(new RegExp(`\\b${name}\\(([^()]*)\\)`, 'g'))) {
+        const arg = splitArgs(m[1])[index]
+        const literal = arg?.match(new RegExp(`^${BARE}$`))
+        if (literal) raise(prefix, literal[1], where)
+      }
     }
   }
 }

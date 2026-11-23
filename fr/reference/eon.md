@@ -330,8 +330,8 @@ La plupart des refus sont des `Error` simples dont le message commence par `[COD
 | [`E_INVALID_CLAUSE_TYPE`](/fr/reference/errors#e-invalid-clause-type) | Un connecteur WHERE n'est ni `and` ni `or`. |
 | [`E_INVALID_WHERE_GROUP`](/fr/reference/errors#e-invalid-where-group) | Un groupe WHERE est vide, ou nomme aussi une colonne. |
 | [`E_INVALID_WHERE_VALUE`](/fr/reference/errors#e-invalid-where-value) | Une valeur WHERE (ou un élément de liste) n'est pas un scalaire. |
-| [`E_UNSAFE_IDENTIFIER`](/fr/reference/errors#e-unsafe-identifier) | Le compilateur a refusé un identifiant. |
-| [`E_UNSAFE_LITERAL`](/fr/reference/errors#e-unsafe-literal) | Le compilateur a refusé une valeur littérale. |
+| [`E_UNSAFE_IDENTIFIER`](/fr/reference/errors#e-unsafe-identifier-eon) | Le compilateur a refusé un identifiant. |
+| [`E_UNSAFE_LITERAL`](/fr/reference/errors#e-unsafe-literal-eon) | Le compilateur a refusé une valeur littérale. |
 | [`E_UNSAFE_OPERATOR`](/fr/reference/errors#e-unsafe-operator) | Le compilateur a refusé un opérateur. |
 
 ## Voir aussi

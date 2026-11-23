@@ -120,7 +120,8 @@ Les tables pivot peuvent porter des colonnes au-delà des deux clés étrangère
 
 ```ts
 import { BaseEntity, Entity, PrimaryKey, ManyToMany } from '@c9up/atlas'
-import { Decimal, decimalAtlasAdapter } from '@c9up/atom/atlas'
+import { Decimal } from '@c9up/atom'
+import { decimalAtlasAdapter } from '@c9up/atom/atlas'
 
 @Entity('users')
 class User extends BaseEntity {

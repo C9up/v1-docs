@@ -379,7 +379,7 @@ Les codes sans préfixe `E_` reçoivent `E_ATLAS_`. Les refus du compilateur Rus
 
 | Code | Levée quand |
 |---|---|
-| [`E_ROW_NOT_FOUND`](/fr/reference/errors#e-row-not-found) | Une requête qui doit rendre une ligne n'en a trouvé aucune : `findOrFail`, `findByOrFail`, `refresh`, `fresh`, `firstOrFail()`, `sole()`. |
+| [`E_ROW_NOT_FOUND`](/fr/reference/errors#e-row-not-found-atlas) | Une requête qui doit rendre une ligne n'en a trouvé aucune : `findOrFail`, `findByOrFail`, `refresh`, `fresh`, `firstOrFail()`, `sole()`. |
 | [`E_MASS_ASSIGNMENT`](/fr/reference/errors#e-mass-assignment) | `fill()` / `merge()` (et `create`, `createMany`, `updateOrCreate`) ont affecté un attribut hors de `fillable`, ou listé dans `guarded`. |
 | [`E_EXTRA_PROPERTIES`](/fr/reference/errors#e-extra-properties) | Un remplissage a nommé une propriété qui n'est pas une colonne déclarée. |
 | [`E_UNKNOWN_COLUMN`](/fr/reference/errors#e-unknown-column) | Une valeur a été affectée à une clé qui n'est pas une colonne. Passez `{ allowExtraProperties: true }` pour garder les clés inconnues dans `$extras`. |
@@ -448,8 +448,8 @@ Les codes sans préfixe `E_` reçoivent `E_ATLAS_`. Les refus du compilateur Rus
 | [`E_UNSAFE_EXPRESSION`](/fr/reference/errors#e-unsafe-expression) | Le compilateur Rust a refusé une expression. |
 | [`E_UNSAFE_LITERAL`](/fr/reference/errors#e-unsafe-literal) | Le compilateur Rust a refusé une valeur littérale. |
 | [`E_INJECTION_PATTERN`](/fr/reference/errors#e-injection-pattern) | Le compilateur Rust a refusé une entrée qui ressemble à une tentative d'injection. |
-| `E_ATLAS_FACTORY_INVALID` | `make:factory` a reçu un nom qui n'est pas un nom de fichier sûr. |
-| `E_ATLAS_SEEDER_INVALID` | `make:seeder` a reçu un nom qui n'est pas un nom de fichier sûr. |
+| [`E_ATLAS_FACTORY_INVALID`](/fr/reference/errors#e-atlas-factory-invalid) | `make:factory` a reçu un nom qui n'est pas un nom de fichier sûr. |
+| [`E_ATLAS_SEEDER_INVALID`](/fr/reference/errors#e-atlas-seeder-invalid) | `make:seeder` a reçu un nom qui n'est pas un nom de fichier sûr. |
 
 ## Voir aussi
 

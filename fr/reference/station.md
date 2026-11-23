@@ -162,7 +162,7 @@ station.register(defineResource({ entity: User, label: 'Users' }))
 | [`E_STATION_TOO_MANY_LOGIN_ATTEMPTS`](/fr/reference/errors#e-station-too-many-login-attempts) | Trop de tentatives de connexion (429). |
 | [`E_STATION_LOGIN_UNAVAILABLE`](/fr/reference/errors#e-station-login-unavailable) | La connexion est temporairement indisponible (503). |
 | [`E_STATION_CSRF_REQUIRED`](/fr/reference/errors#e-station-csrf-required) | Une action d'administration n'a pas de jeton CSRF actif et vérifié (403). |
-| [`E_VALIDATION_ERROR`](/fr/reference/errors#e-validation-error) | Un formulaire d'administration n'a pas passé la validation (422 pour un client JSON ; un navigateur est redirigé). |
+| [`E_VALIDATION_ERROR`](/fr/reference/errors#e-validation-error-station) | Un formulaire d'administration n'a pas passé la validation (422 pour un client JSON ; un navigateur est redirigé). |
 
 ## Voir aussi
 

@@ -403,7 +403,7 @@ export default defineConfig({
 
 | Code | Raised when |
 |---|---|
-| [`E_UNAUTHORIZED_ACCESS`](/en/reference/errors#e-unauthorized-access) | No guard authenticated the request (401), or a token lacks the ability `currentAccessToken.authorize()` asks for (403) |
+| [`E_UNAUTHORIZED_ACCESS`](/en/reference/errors#e-unauthorized-access-warden) | No guard authenticated the request (401), or a token lacks the ability `currentAccessToken.authorize()` asks for (403) |
 | [`E_INVALID_CREDENTIALS`](/en/reference/errors#e-invalid-credentials) | `authFinder().verifyCredentials()` found no account or a wrong password (400) |
 | [`E_AUTHORIZATION_FAILURE`](/en/reference/errors#e-authorization-failure) | A bouncer ability or policy denied the action (403) |
 | [`E_WARDEN_FORBIDDEN`](/en/reference/errors#e-warden-forbidden) | The user lacks a role or permission the route declares (403) |

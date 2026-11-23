@@ -322,7 +322,7 @@ message starts with the code.
 
 | Code | HTTP | Description |
 |------|------|-------------|
-| `E_ROW_NOT_FOUND` | 404 | A query that must return a row found none: `findOrFail`, `findByOrFail`, `refresh`, `fresh`, `firstOrFail()`, `sole()`. |
+| <span id="e-row-not-found-atlas"></span>`E_ROW_NOT_FOUND` | 404 | A query that must return a row found none: `findOrFail`, `findByOrFail`, `refresh`, `fresh`, `firstOrFail()`, `sole()`. |
 | <span id="e-mass-assignment"></span>`E_MASS_ASSIGNMENT` | — | `fill()` / `merge()` (and `create`, `createMany`, `updateOrCreate`) set an attribute outside `fillable`, or listed in `guarded`. |
 | <span id="e-extra-properties"></span>`E_EXTRA_PROPERTIES` | — | A fill named a property that is not a declared column. |
 | <span id="e-unknown-column"></span>`E_UNKNOWN_COLUMN` | — | A value was assigned to a key that is not a column. Pass `{ allowExtraProperties: true }` to keep unknown keys in `$extras`. |
@@ -352,6 +352,8 @@ message starts with the code.
 | <span id="e-atlas-raw-value"></span>`E_ATLAS_RAW_VALUE` | — | `defaultTo(db.raw())` was given bindings, which a column default cannot carry. |
 | <span id="e-atlas-non-finite-number"></span>`E_ATLAS_NON_FINITE_NUMBER` | — | `defaultTo()` was given a number that is not a SQL number (`NaN`, `Infinity`). |
 | <span id="e-atlas-factory-faker-missing"></span>`E_ATLAS_FACTORY_FAKER_MISSING` | — | A factory uses faker, an optional peer of atlas that is not installed. |
+| <span id="e-atlas-factory-invalid"></span>`E_ATLAS_FACTORY_INVALID` | — | `make:factory` got a model name that would leave the factories folder (a path separator, a quote, a backtick or `..`). |
+| <span id="e-atlas-seeder-invalid"></span>`E_ATLAS_SEEDER_INVALID` | — | `make:seeder` got a name that would leave the seeders folder (a path separator, a quote, a backtick or `..`). |
 | <span id="e-atlas-napi-not-found"></span>`E_ATLAS_NAPI_NOT_FOUND` | — | The Rust query compiler is not loaded. A plain `Error` whose message starts with the code. See [Troubleshooting](/en/guides/database/orm/troubleshooting). |
 | <span id="e-atlas-insecure-sslmode"></span>`E_ATLAS_INSECURE_SSLMODE` | — | The connection asks for `sslmode=prefer` or `allow` (URL or `PGSSLMODE`), which fall back to plaintext without saying so. Use `disable` or `verify-full`. See [Encrypted connections](/en/guides/database/orm/connections#encrypted-connections-tls). |
 | <span id="e-atlas-listen-unsupported"></span>`E_ATLAS_LISTEN_UNSUPPORTED` | — | LISTEN / NOTIFY was used on a connection that is not PostgreSQL. |
@@ -435,7 +437,7 @@ message starts with the code.
 | Code | HTTP | Description |
 |------|------|-------------|
 | <span id="e-blackhole-rate-limited"></span>`E_BLACKHOLE_RATE_LIMITED` | 429 | Too many requests from this client, with `Retry-After`. Wait and retry. |
-| `E_TOO_MANY_REQUESTS` | 429 | A throttle middleware or `limiter.consume()` found the key over its budget. |
+| <span id="e-too-many-requests-blackhole"></span>`E_TOO_MANY_REQUESTS` | 429 | A throttle middleware or `limiter.consume()` found the key over its budget. |
 | <span id="e-bad-csrf-token"></span>`E_BAD_CSRF_TOKEN` | 403 | Invalid or missing CSRF token. Echo the `XSRF-TOKEN` cookie in the `X-XSRF-TOKEN` header (or the `_csrf` form field). |
 | <span id="e-blackhole-csrf-origin-mismatch"></span>`E_BLACKHOLE_CSRF_ORIGIN_MISMATCH` | 403 | A state-changing request came from another origin — another host, or the same host over another scheme — not listed in `csrf.trustedOrigins`. |
 | <span id="e-blackhole-path-traversal"></span>`E_BLACKHOLE_PATH_TRAVERSAL` | 400 | The path holds `..`, raw or percent-encoded. |
@@ -592,8 +594,8 @@ Most eon refusals are plain `Error`s whose message starts with `[CODE]`; the que
 | <span id="e-invalid-clause-type"></span>`E_INVALID_CLAUSE_TYPE` | — | A WHERE connector is neither `and` nor `or`. |
 | <span id="e-invalid-where-group"></span>`E_INVALID_WHERE_GROUP` | — | A WHERE group is empty, or also names a column. |
 | <span id="e-invalid-where-value"></span>`E_INVALID_WHERE_VALUE` | — | A WHERE value (or list element) is not a scalar. |
-| `E_UNSAFE_IDENTIFIER` | — | The compiler refused an identifier. |
-| `E_UNSAFE_LITERAL` | — | The compiler refused a literal value. |
+| <span id="e-unsafe-identifier-eon"></span>`E_UNSAFE_IDENTIFIER` | — | The compiler refused an identifier. |
+| <span id="e-unsafe-literal-eon"></span>`E_UNSAFE_LITERAL` | — | The compiler refused a literal value. |
 | <span id="e-unsafe-operator"></span>`E_UNSAFE_OPERATOR` | — | The compiler refused an operator. |
 
 ## Ephemeris Errors
@@ -677,7 +679,7 @@ Raised by `@c9up/helix-plugin-ream` as plain `Error`s whose message starts with 
 | <span id="e-inker-circular-include"></span>`E_INKER_CIRCULAR_INCLUDE` | — | Templates include each other in a loop. |
 | <span id="e-inker-missing-slot"></span>`E_INKER_MISSING_SLOT` | — | A component requires a slot the caller did not fill. |
 | <span id="e-inker-unknown-slot"></span>`E_INKER_UNKNOWN_SLOT` | — | The caller fills a slot the component does not declare. |
-| <span id="e-inker-disk-required"></span>`E_INKER_DISK_REQUIRED` | — | A template name needs a disk and none is mounted. |
+| <span id="e-inker-disk-required"></span>`E_INKER_DISK_REQUIRED` | — | A template rendered from a string (`renderString`, `renderRaw`) uses `@layout`, `@include`, `@component` or `{{> name }}`, which need template files: render it by name with `render(name, data)`. |
 | <span id="e-inker-disk-collision"></span>`E_INKER_DISK_COLLISION` | — | Two disks are mounted under the same name. |
 | <span id="e-inker-template-collision"></span>`E_INKER_TEMPLATE_COLLISION` | — | Two templates are registered under the same name. |
 | <span id="e-inker-invalid-expression"></span>`E_INKER_INVALID_EXPRESSION` | — | An expression cannot be evaluated. |
@@ -1059,7 +1061,7 @@ Rune normalises its codes: a code that already starts with `E_` is kept, any oth
 
 | Code | HTTP | Description |
 |------|------|-------------|
-| `E_VALIDATION_ERROR` | 422 | `validateOrThrow()` found invalid data. Carries a `messages` array with one entry per field and rule. |
+| <span id="e-validation-error-rune"></span>`E_VALIDATION_ERROR` | 422 | `validateOrThrow()` found invalid data. Carries a `messages` array with one entry per field and rule. |
 | <span id="e-rune-meta-required"></span>`E_RUNE_META_REQUIRED` | — | A validator built with `withMetaData()` was called without `{ meta }`. |
 | <span id="e-rune-not-a-regular-file"></span>`E_RUNE_NOT_A_REGULAR_FILE` | — | A `file()` value is not a regular file, so it is not an upload. |
 | <span id="e-rune-invalid-size"></span>`E_RUNE_INVALID_SIZE` | — | `file()` was given a size it cannot read. |
@@ -1114,7 +1116,7 @@ Rune normalises its codes: a code that already starts with `E_` is kept, any oth
 | <span id="e-station-too-many-login-attempts"></span>`E_STATION_TOO_MANY_LOGIN_ATTEMPTS` | 429 | Too many sign-in attempts; try again later. |
 | <span id="e-station-login-unavailable"></span>`E_STATION_LOGIN_UNAVAILABLE` | 503 | Sign-in is temporarily unavailable. |
 | <span id="e-station-csrf-required"></span>`E_STATION_CSRF_REQUIRED` | 403 | An admin action requires an active, verified CSRF token. |
-| `E_VALIDATION_ERROR` | 422 | An admin form failed validation (JSON clients; a browser is redirected back). |
+| <span id="e-validation-error-station"></span>`E_VALIDATION_ERROR` | 422 | An admin form failed validation (JSON clients; a browser is redirected back). |
 
 ## Transit Errors
 
@@ -1186,7 +1188,7 @@ Warden normalises its codes: a code that already starts with `E_` is kept, any o
 
 | Code | HTTP | Description |
 |------|------|-------------|
-| `E_UNAUTHORIZED_ACCESS` | 401 | No guard authenticated the request. A guarded route answers with this code. |
+| <span id="e-unauthorized-access-warden"></span>`E_UNAUTHORIZED_ACCESS` | 401 | No guard authenticated the request. A guarded route answers with this code. |
 | <span id="e-invalid-credentials"></span>`E_INVALID_CREDENTIALS` | 400 | The credentials do not match. `authFinder().verifyCredentials` throws it for an unknown account and a wrong password alike, after the same hash work. |
 | <span id="e-warden-auth-strategy-error"></span>`E_WARDEN_AUTH_STRATEGY_ERROR` | 500 | Every attempted guard crashed (a database down, a bug): a server incident, distinct from a credential rejection. |
 | <span id="e-warden-forbidden"></span>`E_WARDEN_FORBIDDEN` | 403 | The user lacks a permission or a role a route declares. |

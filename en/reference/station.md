@@ -162,7 +162,7 @@ station.register(defineResource({ entity: User, label: 'Users' }))
 | [`E_STATION_TOO_MANY_LOGIN_ATTEMPTS`](/en/reference/errors#e-station-too-many-login-attempts) | Too many sign-in attempts (429). |
 | [`E_STATION_LOGIN_UNAVAILABLE`](/en/reference/errors#e-station-login-unavailable) | Sign-in is temporarily unavailable (503). |
 | [`E_STATION_CSRF_REQUIRED`](/en/reference/errors#e-station-csrf-required) | An admin action lacks an active, verified CSRF token (403). |
-| [`E_VALIDATION_ERROR`](/en/reference/errors#e-validation-error) | An admin form failed validation (422 for JSON clients; a browser is redirected back). |
+| [`E_VALIDATION_ERROR`](/en/reference/errors#e-validation-error-station) | An admin form failed validation (422 for JSON clients; a browser is redirected back). |
 
 ## See also
 

@@ -379,7 +379,7 @@ Codes without the `E_` prefix get `E_ATLAS_`. The Rust compiler's refusals (`E_U
 
 | Code | Raised when |
 |---|---|
-| [`E_ROW_NOT_FOUND`](/en/reference/errors#e-row-not-found) | A query that must return a row found none: `findOrFail`, `findByOrFail`, `refresh`, `fresh`, `firstOrFail()`, `sole()`. |
+| [`E_ROW_NOT_FOUND`](/en/reference/errors#e-row-not-found-atlas) | A query that must return a row found none: `findOrFail`, `findByOrFail`, `refresh`, `fresh`, `firstOrFail()`, `sole()`. |
 | [`E_MASS_ASSIGNMENT`](/en/reference/errors#e-mass-assignment) | `fill()` / `merge()` (and `create`, `createMany`, `updateOrCreate`) set an attribute outside `fillable`, or listed in `guarded`. |
 | [`E_EXTRA_PROPERTIES`](/en/reference/errors#e-extra-properties) | A fill named a property that is not a declared column. |
 | [`E_UNKNOWN_COLUMN`](/en/reference/errors#e-unknown-column) | A value was assigned to a key that is not a column. Pass `{ allowExtraProperties: true }` to keep unknown keys in `$extras`. |
@@ -448,8 +448,8 @@ Codes without the `E_` prefix get `E_ATLAS_`. The Rust compiler's refusals (`E_U
 | [`E_UNSAFE_EXPRESSION`](/en/reference/errors#e-unsafe-expression) | The Rust compiler refused an expression. |
 | [`E_UNSAFE_LITERAL`](/en/reference/errors#e-unsafe-literal) | The Rust compiler refused a literal value. |
 | [`E_INJECTION_PATTERN`](/en/reference/errors#e-injection-pattern) | The Rust compiler refused an input that looks like an injection attempt. |
-| `E_ATLAS_FACTORY_INVALID` | `make:factory` was given a name that is not a safe file name. |
-| `E_ATLAS_SEEDER_INVALID` | `make:seeder` was given a name that is not a safe file name. |
+| [`E_ATLAS_FACTORY_INVALID`](/en/reference/errors#e-atlas-factory-invalid) | `make:factory` was given a name that is not a safe file name. |
+| [`E_ATLAS_SEEDER_INVALID`](/en/reference/errors#e-atlas-seeder-invalid) | `make:seeder` was given a name that is not a safe file name. |
 
 ## See also
 

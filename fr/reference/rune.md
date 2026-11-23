@@ -183,7 +183,7 @@ result.errors[0]?.rule   // 'isEven'
 
 | Code | Levée quand |
 |---|---|
-| [`E_VALIDATION_ERROR`](/fr/reference/errors#e-validation-error) | Les données sont invalides (`RuneValidationError`, 422) |
+| [`E_VALIDATION_ERROR`](/fr/reference/errors#e-validation-error-rune) | Les données sont invalides (`RuneValidationError`, 422) |
 | [`E_RUNE_META_REQUIRED`](/fr/reference/errors#e-rune-meta-required) | Un validateur `withMetaData()` a été appelé sans `{ meta }` |
 | [`E_RUNE_NOT_A_REGULAR_FILE`](/fr/reference/errors#e-rune-not-a-regular-file) | Une valeur `file()` n'est pas un fichier ordinaire |
 | [`E_RUNE_INVALID_SIZE`](/fr/reference/errors#e-rune-invalid-size) | Une option de taille de fichier ne se lit pas |

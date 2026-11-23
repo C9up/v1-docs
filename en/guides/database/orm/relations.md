@@ -117,7 +117,8 @@ Pivot tables can carry extra columns beyond the two foreign keys (e.g., an `amou
 
 ```ts
 import { BaseEntity, Entity, PrimaryKey, ManyToMany } from '@c9up/atlas'
-import { Decimal, decimalAtlasAdapter } from '@c9up/atom/atlas'
+import { Decimal } from '@c9up/atom'
+import { decimalAtlasAdapter } from '@c9up/atom/atlas'
 
 @Entity('users')
 class User extends BaseEntity {

@@ -8,10 +8,7 @@ This guide covers password hashing with sigil:
 - When to use Sigil vs `@c9up/ream` vs `@c9up/warden`
 - Config file
 
-Status: **Present (TS + Rust N-API)**.
-
-- Package: `@c9up/sigil`
-- Goal: canonical multi-driver password hashing for the Ream ecosystem (argon2id, bcrypt, scrypt). Single implementation, NAPI-only.
+`@c9up/sigil` hashes passwords with argon2id, bcrypt or scrypt, in one native implementation shared by every package that needs it.
 
 ## Quick Examples
 
@@ -22,7 +19,7 @@ import { Hash } from '@c9up/sigil'
 
 const hash = new Hash({
   default: 'argon2',
-  drivers: {
+  list: {
     argon2: { driver: 'argon2' },
   },
 })
@@ -80,7 +77,7 @@ import { defineConfig } from '@c9up/sigil'
 
 export default defineConfig({
   default: 'argon2',
-  drivers: {
+  list: {
     argon2: { driver: 'argon2' },
     bcrypt: { driver: 'bcrypt', rounds: 12 },
     scrypt: { driver: 'scrypt', keyLength: 64, saltLength: 32 },

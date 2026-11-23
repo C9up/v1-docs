@@ -330,8 +330,8 @@ Most refusals are plain `Error`s whose message starts with `[CODE]`; the query c
 | [`E_INVALID_CLAUSE_TYPE`](/en/reference/errors#e-invalid-clause-type) | A WHERE connector is neither `and` nor `or`. |
 | [`E_INVALID_WHERE_GROUP`](/en/reference/errors#e-invalid-where-group) | A WHERE group is empty, or also names a column. |
 | [`E_INVALID_WHERE_VALUE`](/en/reference/errors#e-invalid-where-value) | A WHERE value (or list element) is not a scalar. |
-| [`E_UNSAFE_IDENTIFIER`](/en/reference/errors#e-unsafe-identifier) | The compiler refused an identifier. |
-| [`E_UNSAFE_LITERAL`](/en/reference/errors#e-unsafe-literal) | The compiler refused a literal value. |
+| [`E_UNSAFE_IDENTIFIER`](/en/reference/errors#e-unsafe-identifier-eon) | The compiler refused an identifier. |
+| [`E_UNSAFE_LITERAL`](/en/reference/errors#e-unsafe-literal-eon) | The compiler refused a literal value. |
 | [`E_UNSAFE_OPERATOR`](/en/reference/errors#e-unsafe-operator) | The compiler refused an operator. |
 
 ## See also

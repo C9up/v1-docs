@@ -324,7 +324,7 @@ simples dont le message commence par le code.
 
 | Code | HTTP | Description |
 |------|------|-------------|
-| `E_ROW_NOT_FOUND` | 404 | Une requête qui doit rendre une ligne n'en a trouvé aucune : `findOrFail`, `findByOrFail`, `refresh`, `fresh`, `firstOrFail()`, `sole()`. |
+| <span id="e-row-not-found-atlas"></span>`E_ROW_NOT_FOUND` | 404 | Une requête qui doit rendre une ligne n'en a trouvé aucune : `findOrFail`, `findByOrFail`, `refresh`, `fresh`, `firstOrFail()`, `sole()`. |
 | <span id="e-mass-assignment"></span>`E_MASS_ASSIGNMENT` | — | `fill()` / `merge()` (et `create`, `createMany`, `updateOrCreate`) ont affecté un attribut hors de `fillable`, ou listé dans `guarded`. |
 | <span id="e-extra-properties"></span>`E_EXTRA_PROPERTIES` | — | Un remplissage a nommé une propriété qui n'est pas une colonne déclarée. |
 | <span id="e-unknown-column"></span>`E_UNKNOWN_COLUMN` | — | Une valeur a été affectée à une clé qui n'est pas une colonne. Passez `{ allowExtraProperties: true }` pour garder les clés inconnues dans `$extras`. |
@@ -354,6 +354,8 @@ simples dont le message commence par le code.
 | <span id="e-atlas-raw-value"></span>`E_ATLAS_RAW_VALUE` | — | `defaultTo(db.raw())` a reçu des valeurs liées, qu'un défaut de colonne ne peut pas porter. |
 | <span id="e-atlas-non-finite-number"></span>`E_ATLAS_NON_FINITE_NUMBER` | — | `defaultTo()` a reçu un nombre qui n'est pas un nombre SQL (`NaN`, `Infinity`). |
 | <span id="e-atlas-factory-faker-missing"></span>`E_ATLAS_FACTORY_FAKER_MISSING` | — | Une factory utilise faker, dépendance pair optionnelle d'atlas, non installée. |
+| <span id="e-atlas-factory-invalid"></span>`E_ATLAS_FACTORY_INVALID` | — | `make:factory` a reçu un nom de modèle qui sortirait du dossier des factories (séparateur de chemin, guillemet, backtick ou `..`). |
+| <span id="e-atlas-seeder-invalid"></span>`E_ATLAS_SEEDER_INVALID` | — | `make:seeder` a reçu un nom qui sortirait du dossier des seeders (séparateur de chemin, guillemet, backtick ou `..`). |
 | <span id="e-atlas-napi-not-found"></span>`E_ATLAS_NAPI_NOT_FOUND` | — | Le compilateur de requêtes Rust n'est pas chargé. Une `Error` simple dont le message commence par le code. Voir [Dépannage](/fr/guides/database/orm/troubleshooting). |
 | <span id="e-atlas-insecure-sslmode"></span>`E_ATLAS_INSECURE_SSLMODE` | — | La connexion demande `sslmode=prefer` ou `allow` (URL ou `PGSSLMODE`), qui repassent en clair sans le dire. Utilisez `disable` ou `verify-full`. Voir [Connexions chiffrées](/fr/guides/database/orm/connections#connexions-chiffrees-tls). |
 | <span id="e-atlas-listen-unsupported"></span>`E_ATLAS_LISTEN_UNSUPPORTED` | — | LISTEN / NOTIFY a été utilisé sur une connexion qui n'est pas PostgreSQL. |
@@ -437,7 +439,7 @@ simples dont le message commence par le code.
 | Code | HTTP | Description |
 |------|------|-------------|
 | <span id="e-blackhole-rate-limited"></span>`E_BLACKHOLE_RATE_LIMITED` | 429 | Trop de requêtes de ce client, avec `Retry-After`. Attendez et réessayez. |
-| `E_TOO_MANY_REQUESTS` | 429 | Un middleware de throttle ou `limiter.consume()` a trouvé la clé au-delà de son budget. |
+| <span id="e-too-many-requests-blackhole"></span>`E_TOO_MANY_REQUESTS` | 429 | Un middleware de throttle ou `limiter.consume()` a trouvé la clé au-delà de son budget. |
 | <span id="e-bad-csrf-token"></span>`E_BAD_CSRF_TOKEN` | 403 | Token CSRF invalide ou manquant. Renvoyez le cookie `XSRF-TOKEN` dans le header `X-XSRF-TOKEN` (ou le champ de formulaire `_csrf`). |
 | <span id="e-blackhole-csrf-origin-mismatch"></span>`E_BLACKHOLE_CSRF_ORIGIN_MISMATCH` | 403 | Une requête qui modifie l'état vient d'une autre origine — un autre hôte, ou le même hôte sur un autre schéma — absente de `csrf.trustedOrigins`. |
 | <span id="e-blackhole-path-traversal"></span>`E_BLACKHOLE_PATH_TRAVERSAL` | 400 | Le chemin contient `..`, brut ou encodé en pourcentage. |
@@ -594,8 +596,8 @@ La plupart des refus d'eon sont des `Error` simples dont le message commence par
 | <span id="e-invalid-clause-type"></span>`E_INVALID_CLAUSE_TYPE` | — | Un connecteur WHERE n'est ni `and` ni `or`. |
 | <span id="e-invalid-where-group"></span>`E_INVALID_WHERE_GROUP` | — | Un groupe WHERE est vide, ou nomme aussi une colonne. |
 | <span id="e-invalid-where-value"></span>`E_INVALID_WHERE_VALUE` | — | Une valeur WHERE (ou un élément de liste) n'est pas un scalaire. |
-| `E_UNSAFE_IDENTIFIER` | — | Le compilateur a refusé un identifiant. |
-| `E_UNSAFE_LITERAL` | — | Le compilateur a refusé une valeur littérale. |
+| <span id="e-unsafe-identifier-eon"></span>`E_UNSAFE_IDENTIFIER` | — | Le compilateur a refusé un identifiant. |
+| <span id="e-unsafe-literal-eon"></span>`E_UNSAFE_LITERAL` | — | Le compilateur a refusé une valeur littérale. |
 | <span id="e-unsafe-operator"></span>`E_UNSAFE_OPERATOR` | — | Le compilateur a refusé un opérateur. |
 
 ## Erreurs Ephemeris
@@ -679,7 +681,7 @@ Levées par `@c9up/helix-plugin-ream` sous forme d'`Error` simples dont le messa
 | <span id="e-inker-circular-include"></span>`E_INKER_CIRCULAR_INCLUDE` | — | Des templates s'incluent en boucle. |
 | <span id="e-inker-missing-slot"></span>`E_INKER_MISSING_SLOT` | — | Un composant exige un slot que l'appelant n'a pas rempli. |
 | <span id="e-inker-unknown-slot"></span>`E_INKER_UNKNOWN_SLOT` | — | L'appelant remplit un slot que le composant ne déclare pas. |
-| <span id="e-inker-disk-required"></span>`E_INKER_DISK_REQUIRED` | — | Un nom de template exige un disque et aucun n'est monté. |
+| <span id="e-inker-disk-required"></span>`E_INKER_DISK_REQUIRED` | — | Un template rendu depuis une chaîne (`renderString`, `renderRaw`) utilise `@layout`, `@include`, `@component` ou `{{> nom }}`, qui ont besoin de fichiers de templates : rendez-le par son nom avec `render(nom, data)`. |
 | <span id="e-inker-disk-collision"></span>`E_INKER_DISK_COLLISION` | — | Deux disques sont montés sous le même nom. |
 | <span id="e-inker-template-collision"></span>`E_INKER_TEMPLATE_COLLISION` | — | Deux templates sont enregistrés sous le même nom. |
 | <span id="e-inker-invalid-expression"></span>`E_INKER_INVALID_EXPRESSION` | — | Une expression ne peut pas être évaluée. |
@@ -1061,7 +1063,7 @@ Rune normalise ses codes : un code qui commence déjà par `E_` est gardé, tout
 
 | Code | HTTP | Description |
 |------|------|-------------|
-| `E_VALIDATION_ERROR` | 422 | `validateOrThrow()` a trouvé des données invalides. Porte un tableau `messages` avec une entrée par champ et par règle. |
+| <span id="e-validation-error-rune"></span>`E_VALIDATION_ERROR` | 422 | `validateOrThrow()` a trouvé des données invalides. Porte un tableau `messages` avec une entrée par champ et par règle. |
 | <span id="e-rune-meta-required"></span>`E_RUNE_META_REQUIRED` | — | Un validateur construit avec `withMetaData()` a été appelé sans `{ meta }`. |
 | <span id="e-rune-not-a-regular-file"></span>`E_RUNE_NOT_A_REGULAR_FILE` | — | Une valeur `file()` n'est pas un fichier ordinaire : ce n'est pas un envoi. |
 | <span id="e-rune-invalid-size"></span>`E_RUNE_INVALID_SIZE` | — | `file()` a reçu une taille illisible. |
@@ -1116,7 +1118,7 @@ Rune normalise ses codes : un code qui commence déjà par `E_` est gardé, tout
 | <span id="e-station-too-many-login-attempts"></span>`E_STATION_TOO_MANY_LOGIN_ATTEMPTS` | 429 | Trop de tentatives de connexion ; réessayez plus tard. |
 | <span id="e-station-login-unavailable"></span>`E_STATION_LOGIN_UNAVAILABLE` | 503 | La connexion est temporairement indisponible. |
 | <span id="e-station-csrf-required"></span>`E_STATION_CSRF_REQUIRED` | 403 | Une action admin exige un token CSRF actif et vérifié. |
-| `E_VALIDATION_ERROR` | 422 | Un formulaire admin n'a pas passé la validation (clients JSON ; un navigateur est renvoyé en arrière). |
+| <span id="e-validation-error-station"></span>`E_VALIDATION_ERROR` | 422 | Un formulaire admin n'a pas passé la validation (clients JSON ; un navigateur est renvoyé en arrière). |
 
 ## Erreurs Transit
 
@@ -1188,7 +1190,7 @@ Warden normalise ses codes : un code qui commence déjà par `E_` est gardé, to
 
 | Code | HTTP | Description |
 |------|------|-------------|
-| `E_UNAUTHORIZED_ACCESS` | 401 | Aucun garde n'a authentifié la requête. Une route gardée répond avec ce code. |
+| <span id="e-unauthorized-access-warden"></span>`E_UNAUTHORIZED_ACCESS` | 401 | Aucun garde n'a authentifié la requête. Une route gardée répond avec ce code. |
 | <span id="e-invalid-credentials"></span>`E_INVALID_CREDENTIALS` | 400 | Les identifiants ne correspondent pas. `authFinder().verifyCredentials` la lève pour un compte inconnu comme pour un mauvais mot de passe, après le même travail de hachage. |
 | <span id="e-warden-auth-strategy-error"></span>`E_WARDEN_AUTH_STRATEGY_ERROR` | 500 | Tous les gardes tentés ont planté (base de données indisponible, bug) : un incident serveur, distinct d'un refus d'identifiants. |
 | <span id="e-warden-forbidden"></span>`E_WARDEN_FORBIDDEN` | 403 | L'utilisateur n'a pas une permission ou un rôle que la route déclare. |
