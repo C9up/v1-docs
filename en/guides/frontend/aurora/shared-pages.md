@@ -6,6 +6,8 @@ This guide covers pages shared between server and browser:
 - Page visits — `visits: true`
 - Knowing when the client has taken over
 
+![Server rendering then hydration. On the server: the controller calls aurora.render('Dashboard', { user }); the props are round-tripped through JSON and renderToString(Dashboard(props)) renders the HTML; the document carries the markup, already visible, the props in aurora-page-data and a module script that hydrates. One HTML document goes to the browser, where the page is shown at once, with no JavaScript needed to read it; hydrate(root, () => Page(props)) adopts the server's DOM in place and attaches signals and event listeners; then onMount runs, aurora:load fires and whenHydrated() resolves. resources/pages/Dashboard.js is the same file on both sides.](/images/ssr-en.webp){width=640 height=640 loading=lazy}
+
 ## Shared pages — `aurora.render()`
 
 One file per page, **same source on the server and in the browser** (plain ESM JS, no compile step).
