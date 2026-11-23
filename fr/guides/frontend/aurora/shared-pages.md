@@ -6,7 +6,7 @@ Ce guide couvre les pages partagées entre le serveur et le navigateur :
 - Visites de pages — `visits: true`
 - Savoir quand le client a pris la main
 
-![Le rendu serveur puis l'hydratation. Sur le serveur : le contrôleur appelle aurora.render('Dashboard', { user }) ; les props font un aller-retour par JSON et renderToString(Dashboard(props)) produit le HTML ; le document contient le balisage, déjà visible, les props dans aurora-page-data et un script module qui hydrate. Un seul document HTML part vers le navigateur, où la page s'affiche aussitôt, sans JavaScript pour la lire ; hydrate(root, () => Page(props)) adopte le DOM du serveur sur place et y attache les signaux et les écouteurs d'événements ; puis onMount s'exécute, aurora:load se déclenche et whenHydrated() se résout. resources/pages/Dashboard.js est le même fichier des deux côtés.](/images/ssr-en.webp){width=640 height=640 loading=lazy}
+![Le rendu serveur puis l'hydratation. Sur le serveur : le contrôleur appelle aurora.render('Dashboard', { user }) ; les props font un aller-retour par JSON et renderToString(Dashboard(props)) produit le HTML ; le document contient le balisage, déjà visible, les props dans aurora-page-data et un script module qui hydrate. Un seul document HTML part vers le navigateur, où la page s'affiche aussitôt, sans JavaScript pour la lire ; hydrate(root, () => Page(props)) adopte le DOM du serveur sur place et y attache les signaux et les écouteurs d'événements ; puis onMount s'exécute, aurora:load se déclenche et whenHydrated() se résout. resources/pages/Dashboard.js est le même fichier des deux côtés.](/images/ssr-fr.webp){width=640 height=640 loading=lazy}
 
 ## Pages partagées — `aurora.render()`
 
