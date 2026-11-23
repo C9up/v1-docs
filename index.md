@@ -3,6 +3,9 @@ layout: home
 hero:
   name: REAM
   text: Rust Engine, Agnostic Modules
+  image:
+    src: /logo.svg
+    alt: REAM
   tagline: Documentation — choose your language / choisis ta langue
   actions:
     - theme: brand

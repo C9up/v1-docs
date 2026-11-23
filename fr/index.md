@@ -3,6 +3,9 @@ layout: home
 hero:
   name: REAM
   text: Rust Engine, Agnostic Modules
+  image:
+    src: /logo.svg
+    alt: REAM
   tagline: Le confort d'un framework complet. La puissance de Rust. La liberté de choisir.
   actions:
     - theme: brand
@@ -16,7 +19,7 @@ hero:
       link: https://github.com/C9up/ream-dev
 features:
   - title: Rust invisible
-    details: Vous écrivez du TypeScript. Le serveur HTTP, le dispatch d'événements, la crypto et la compilation SQL tournent en Rust natif, via NAPI.
+    details: Vous écrivez du TypeScript. Le serveur HTTP et les WebSockets, le bus d'événements, la compilation SQL et l'accès aux bases, le hachage des mots de passe et les JWT tournent en Rust natif, via NAPI.
     link: /fr/start/introduction
     linkText: Comment c'est construit
   - title: Des modules indépendants
