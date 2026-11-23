@@ -109,7 +109,8 @@ l'appel de `end()`.
 
 ## Erreurs
 
-Chaque refus est une `VellumError` avec un code : `E_VELLUM_INVALID_OPTIONS`,
+Chaque refus est une classe de l'espace de noms `errors` de `@c9up/vellum`,
+avec un code : `E_VELLUM_INVALID_OPTIONS`,
 `E_VELLUM_INVALID_FONT`, `E_VELLUM_INVALID_IMAGE`, `E_VELLUM_INVALID_SVG`,
 `E_VELLUM_INVALID_LINK`, `E_VELLUM_INVALID_OUTLINE`,
 `E_VELLUM_INVALID_STRUCTURE`, et `E_VELLUM_VALIDATION` quand le document ne

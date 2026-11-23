@@ -202,6 +202,22 @@ export default class MaintenanceModeMiddleware {
 }
 ```
 
+## When an inner layer throws
+
+An error thrown by the handler or by an inner middleware is turned into a response right where it is thrown: the exception handler runs there, then the `next()` of every outer middleware returns normally. The code after `await next()` still runs, and sees the error response already written (its status, its headers). That is how the session middleware saves the session of a request that failed, so a message an error flashes reaches the next request.
+
+```typescript
+export default class TimingMiddleware {
+  async handle(ctx: HttpContext, next: () => Promise<void>) {
+    const started = Date.now()
+    await next() // returns even when the handler threw
+    ctx.response.header('x-response-time', `${Date.now() - started}ms`)
+  }
+}
+```
+
+So a `try { await next() } catch` does not see the errors of inner layers. To act on an error, give it a `handle()` method or extend the exception handler (see [Exception handling](/en/guides/basics/exception-handling)).
+
 ## Lazy Loading
 
 All entries passed to `server.use()`, `router.use()`, and `router.named()` are lazy imports — functions that return a promise. The module is loaded on the first request that hits that middleware and then cached:

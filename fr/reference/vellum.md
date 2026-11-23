@@ -58,8 +58,7 @@ ream configure @c9up/vellum
 | `FieldOptions`, `FieldFormat`, `PdfFormField` | type | Champs de formulaire. |
 | `TableOptions`, `TableCell`, `TableCellStyle`, `CellStyle`, `ColumnStyle`, `RowStyle`, `TableAlign`, `TableFont` | type | Tableaux. |
 | `isNativeAvailable` | fonction | Indique si le moteur Rust est chargé. |
-| `VellumError` | erreur | Tout échec de vellum. |
-| `VellumNativeRequiredError` | erreur | Le moteur Rust n'est pas chargé. |
+| `errors` | espace de noms | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs). Chacune est une `Exception` de flare avec un `code` chaîne. |
 
 ### `Vellum`
 
@@ -158,16 +157,6 @@ Chaque méthode prend le PDF en `Buffer` et s'exécute sur le pool de threads. L
 
 `PdfPage` expose `width`, `height`, `size`, `layout`, `margins`, `userUnit`, `options`, `contentWidth`, `contentHeight` et `maxY()`. Un dégradé prend `stop(offset: number, colour: ColourValue, opacity?: number): this` et `setTransform(m11, m12, m21, m22, dx, dy): this`.
 
-### `VellumError`
-
-Étend `Error` ; `name` vaut `"VellumError"`. `VellumNativeRequiredError` l'étend avec le code `E_VELLUM_NAPI_REQUIRED`.
-
-| Membre | Signature | Description |
-|---|---|---|
-| `code` | `readonly code: string` | Un code qui commence déjà par `E_` est gardé ; tout autre reçoit le préfixe `E_VELLUM_`. |
-| constructeur | `new VellumError(code: string, message: string, options?: ErrorOptions)` | |
-| `toString` | `toString(): string` | `VellumError [CODE]: message`. |
-
 ### `@c9up/vellum/provider`
 
 | Export | Nature | Description |
@@ -226,6 +215,8 @@ Chaque plafond est un entier de 1 à 4294967295.
 
 ## Erreurs
 
+Chaque code est une classe de l'espace de noms `errors` (`import { errors } from '@c9up/vellum'`) : une `Exception` de flare avec `code` et `status`. `E_VELLUM_INVALID_PDF` a le statut 422 (l'entrée n'est pas un PDF) ; les autres 500.
+
 | Code | Levée quand |
 |---|---|
 | [`E_VELLUM_INVALID_PDF`](/fr/reference/errors#e-vellum-invalid-pdf) | Les octets ne sont pas un PDF que vellum sait lire. |
@@ -254,7 +245,7 @@ Chaque plafond est un entier de 1 à 4294967295.
 | [`E_VELLUM_TIMESTAMP_REFUSED`](/fr/reference/errors#e-vellum-timestamp-refused) | L'autorité d'horodatage a répondu par un statut d'erreur. |
 | [`E_VELLUM_FONT_UNREADABLE`](/fr/reference/errors#e-vellum-font-unreadable) | Un fichier de police configuré ne peut pas être lu. |
 | [`E_VELLUM_FILE_NOT_FOUND`](/fr/reference/errors#e-vellum-file-not-found) | Un fichier donné par chemin ne peut pas être lu. |
-| [`E_VELLUM_INVALID_OPTIONS`](/fr/reference/errors#e-vellum-invalid-options) | Une option de document, de page, de tableau, de dessin ou un plafond est invalide. |
+| [`E_VELLUM_INVALID_OPTIONS`](/fr/reference/errors#e-vellum-invalid-options) | Une option de document, de page, de tableau, de dessin ou un plafond est invalide, ou `config/vellum.ts` demande un `format` autre que `"png"` ou `"jpeg"`. |
 | [`E_VELLUM_INVALID_COLOR`](/fr/reference/errors#e-vellum-invalid-color) | Une couleur ne peut pas être lue. |
 | [`E_VELLUM_INVALID_IMAGE`](/fr/reference/errors#e-vellum-invalid-image) | Une image n'est pas utilisable. |
 | [`E_VELLUM_INVALID_SVG`](/fr/reference/errors#e-vellum-invalid-svg) | Un SVG n'est pas utilisable. |
@@ -264,6 +255,25 @@ Chaque plafond est un entier de 1 à 4294967295.
 | [`E_VELLUM_NO_FORM`](/fr/reference/errors#e-vellum-no-form) | Des champs de formulaire ont été ajoutés avant `initForm()`. |
 | [`E_VELLUM_DOCUMENT_ENDED`](/fr/reference/errors#e-vellum-document-ended) | Le document est terminé. |
 | [`E_VELLUM_NAPI_REQUIRED`](/fr/reference/errors#e-vellum-napi-required) | Le moteur PDF Rust n'est pas chargé. |
+| [`E_VELLUM_NOT_BOOTED`](/fr/reference/errors#e-vellum-not-booted) | Le service de `services/main` a servi avant le boot de `VellumProvider`. |
+| [`E_VELLUM_TABLE_ENDED`](/fr/reference/errors#e-vellum-table-ended) | Une ligne a été ajoutée à un tableau après que `lastRow` l'a terminé. |
+| [`E_VELLUM_INVALID_LINK`](/fr/reference/errors#e-vellum-invalid-link) | Un lien ou une destination nommée est inutilisable. |
+| [`E_VELLUM_INVALID_OUTLINE`](/fr/reference/errors#e-vellum-invalid-outline) | Une entrée du sommaire est inutilisable. |
+| [`E_VELLUM_INVALID_FONT`](/fr/reference/errors#e-vellum-invalid-font) | Une police est inutilisable. |
+| [`E_VELLUM_NO_FONT`](/fr/reference/errors#e-vellum-no-font) | Du texte a été écrit avant qu'une police soit choisie. |
+| [`E_VELLUM_PAGE_OUT_OF_RANGE`](/fr/reference/errors#e-vellum-page-out-of-range) | Un index de page ne désigne aucune page du document. |
+| [`E_VELLUM_UNBALANCED_RESTORE`](/fr/reference/errors#e-vellum-unbalanced-restore) | `restore()` a été appelé sans `save()` correspondant. |
+| [`E_VELLUM_NOTHING_TO_RESUME`](/fr/reference/errors#e-vellum-nothing-to-resume) | Aucun texte n'attend de page. |
+| [`E_VELLUM_VALIDATION`](/fr/reference/errors#e-vellum-validation) | Le document ne satisfait pas son `subset` (PDF/A, PDF/UA), ou un champ de formulaire ou une annotation enfreint une règle du PDF. |
+| [`E_VELLUM_DOCUMENT_BROKEN`](/fr/reference/errors#e-vellum-document-broken) | Un appel précédent a échoué dans le moteur ; commencez un nouveau document. |
+| [`E_VELLUM_INTERNAL`](/fr/reference/errors#e-vellum-internal) | Le moteur a paniqué. |
+
+## Migration
+
+- `VellumError` disparaît : testez `error.code`, ou `error instanceof errors.E_VELLUM_*` avec `import { errors } from '@c9up/vellum'`.
+- `VellumNativeRequiredError` devient `errors.E_VELLUM_NAPI_REQUIRED`.
+- Le `name` d'une erreur ne vaut plus `"VellumError"`.
+- `E_VELLUM_INVALID_PDF` a désormais le `status` 422.
 
 ## Voir aussi
 

@@ -927,6 +927,10 @@ export const sidebar_en = {
           "link": "/en/reference/lumen"
         },
         {
+          "text": "flare",
+          "link": "/en/reference/flare"
+        },
+        {
           "text": "ream-cli",
           "link": "/en/reference/ream-cli"
         }
@@ -2065,6 +2069,10 @@ export const sidebar_fr = {
         {
           "text": "lumen",
           "link": "/fr/reference/lumen"
+        },
+        {
+          "text": "flare",
+          "link": "/fr/reference/flare"
         },
         {
           "text": "ream-cli",

@@ -14,12 +14,18 @@ Aucune dépendance ni dépendance pair. Le transport WebSocket utilise le `WebSo
 
 | Import | Contenu |
 |---|---|
-| `@c9up/comet` | Tout ce qui suit. |
+| `@c9up/comet` | Tout ce qui suit, et le namespace `errors`. |
 | `@c9up/comet/protocol` | Types d'enveloppe, constructeurs, `parseRequest`, `RpcError`, `RpcRemoteError`, `RpcErrorCode`. |
 | `@c9up/comet/client` | `createRpcClient` et ses types. |
-| `@c9up/comet/websocket` | `createWebSocketTransport`, `RpcTransportError` et leurs types. |
+| `@c9up/comet/websocket` | `createWebSocketTransport` et ses types. |
 
 ## Exports
+
+### `@c9up/comet`
+
+| Export | Nature | Description |
+|---|---|---|
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs). Chacune est une `Exception` de flare au `code` textuel. |
 
 ### `@c9up/comet/client`
 
@@ -88,8 +94,7 @@ Aucune dépendance ni dépendance pair. Le transport WebSocket utilise le `WebSo
 | `RpcWebSocketTransport` | type | `RpcTransport & { close(): void }`. `close()` ferme toutes les sockets et fait échouer ce qui attend encore avec `E_COMET_TRANSPORT_CLOSED`. |
 | `WebSocketTransportOptions` | interface | Voir ci-dessous. |
 | `RpcSocket` | interface | Ce dont le transport a besoin d'une socket : `readyState`, `bufferedAmount`, `send`, `close`, `addEventListener` pour `open`, `message`, `close`. Le `WebSocket` standard convient. |
-| `RpcTransportError` | erreur | Un échec du transport, pas une réponse du serveur : `readonly code: RpcTransportErrorCode`. |
-| `RpcTransportErrorCode` | type | Les codes `E_COMET_*` ci-dessous. |
+| `RpcTransportErrorCode` | type | Les codes `E_COMET_*` d'un échec du transport, ci-dessous. |
 
 Le transport ouvre une socket par URL, au premier appel, et rattache les réponses aux appelants par ses propres ids.
 
@@ -114,8 +119,14 @@ Le transport ouvre une socket par URL, au premier appel, et rattache les répons
 | [`E_COMET_BACKPRESSURE`](/fr/reference/errors#e-comet-backpressure) | Plus de `maxBufferedBytes` attendent déjà d'être envoyés. |
 | [`E_COMET_PROTOCOL_ERROR`](/fr/reference/errors#e-comet-protocol-error) | Le pair a envoyé ce à quoi aucun serveur JSON-RPC ne répond ; la socket a été fermée. |
 | [`E_COMET_INVALID_MESSAGE`](/fr/reference/errors#e-comet-invalid-message) | Le client a reçu de l'appelant autre chose qu'un message JSON-RPC, ou autre chose que du JSON. |
+| [`E_COMET_INVALID_OPTION`](/fr/reference/errors#e-comet-invalid-option) | `createWebSocketTransport()` a reçu un `timeout`, un `maxMessageBytes` ou un `maxBufferedBytes` qui n'est pas un nombre positif, ou un `timeout` au-delà de ce qu'un minuteur peut attendre. |
 
-Une erreur JSON-RPC renvoyée par le serveur est une `RpcRemoteError` qui porte le code numérique du serveur.
+Un échec du transport est une instance de `errors.E_COMET_*`, pas une réponse du serveur. Une erreur JSON-RPC renvoyée par le serveur est une `RpcRemoteError` qui porte le code numérique du serveur.
+
+## Migration
+
+- `RpcTransportError` disparaît : chaque code a sa propre classe. Remplacez `error instanceof RpcTransportError` par un test sur `error.code` (`error.code === 'E_COMET_TIMEOUT'`) ou par `error instanceof errors.E_COMET_TIMEOUT`, `errors` venant de `@c9up/comet`.
+- Une option invalide de `createWebSocketTransport()` lève `errors.E_COMET_INVALID_OPTION`, plus une `RangeError` : interceptez-la par son code.
 
 ## Voir aussi
 

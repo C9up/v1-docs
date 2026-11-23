@@ -110,7 +110,7 @@ protobuf.service('echo.Echo')       // a service by name
 protobuf.method('/echo.Echo/Say')   // a method by gRPC path: input, output, kind
 ```
 
-Bytes that do not decode — truncated, malformed, invalid UTF-8 in a string, nested too deep — raise `InvalidMessageError` (`E_NEUTRINO_INVALID_MESSAGE`): the error a transport answers with a client error.
+Bytes that do not decode — truncated, malformed, invalid UTF-8 in a string, nested too deep — raise `E_NEUTRINO_INVALID_MESSAGE`: the error a transport answers with a client error.
 
 ## gRPC services
 
@@ -118,14 +118,14 @@ Register services in a preload, which runs after the provider has booted:
 
 ```ts
 // start/grpc.ts
-import { GrpcError, GrpcStatus } from '@c9up/neutrino'
+import { errors, GrpcStatus } from '@c9up/neutrino'
 import grpc from '@c9up/neutrino/services/grpc'
 import { Echo } from '#generated/echo_pb.js'
 
 grpc.service(Echo, {
   say(request) {
     if (request.times > 100) {
-      throw new GrpcError(GrpcStatus.INVALID_ARGUMENT, 'times must be at most 100')
+      throw new errors.E_NEUTRINO_GRPC_STATUS(GrpcStatus.INVALID_ARGUMENT, 'times must be at most 100')
     }
     return { text: request.text.repeat(request.times) }
   },
@@ -136,7 +136,7 @@ grpc.service(Echo, {
 - A service from a descriptor set is reached with `protobuf.service('echo.Echo')`; its requests are untyped messages.
 - An implementation can be an object literal or a class instance; its methods are called on it.
 - A method left out answers `UNIMPLEMENTED`.
-- A `GrpcError` is answered with its status and message. **Any other error is answered `INTERNAL` without its message**, and reported — to `console.error` unless `new GrpcServices(protobuf, { onError })` says otherwise.
+- An `E_NEUTRINO_GRPC_STATUS` is answered with its status and message. **Any other error is answered `INTERNAL` without its message**, and reported — to `console.error` unless `new GrpcServices(protobuf, { onError })` says otherwise.
 - Registration refuses what would otherwise fail quietly later: a misspelt method name, a streaming method, a service registered twice.
 - A request is decoded **without the fields its schema does not know**: each would cost an object, so a 4 MiB request made of them would hold some 300 MB. `grpc: { keepUnknownFields: true }` keeps them, for a method that forwards its request elsewhere.
 
@@ -177,12 +177,12 @@ The request side of a call must arrive whole — one message, then the end of th
 
 **Middleware and the router never see a gRPC call.** Authentication, rate limiting, anything a middleware does for HTTP has to be done again for gRPC — with interceptors.
 
-An interceptor runs around every call it is registered for, **before the request is even decoded**: a call it refuses never has its bytes read. It refuses by throwing a `GrpcError`, lets the call through by returning `next()`, and hands the method a value through a `GrpcContextKey`.
+An interceptor runs around every call it is registered for, **before the request is even decoded**: a call it refuses never has its bytes read. It refuses by throwing an `E_NEUTRINO_GRPC_STATUS`, lets the call through by returning `next()`, and hands the method a value through a `GrpcContextKey`.
 
 ```ts
 grpc.use(async (context, next) => {          // every service
   if (context.ip.startsWith('10.')) return next()
-  throw new GrpcError(GrpcStatus.PERMISSION_DENIED, 'internal only')
+  throw new errors.E_NEUTRINO_GRPC_STATUS(GrpcStatus.PERMISSION_DENIED, 'internal only')
 })
 
 grpc.service(Admin, impl, { interceptors: [audit] })   // this service only

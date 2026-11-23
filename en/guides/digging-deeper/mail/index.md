@@ -83,7 +83,7 @@ The HTTP transports (`mailgun`, `sparkpost`, `brevo`, `sendgrid`) take a
 `baseUrl` for a proxy in front of the provider. Every request to it carries the
 API key, so it must be `https://` — plain `http://` only to `localhost`, for a
 local mock — with no credentials, query or fragment; anything else fails with
-`E_MAIL_PROVIDER_CONFIG` when the transport is built. Left out, it is the
+`E_INVALID_CONFIG` when the transport is built. Left out, it is the
 provider's own endpoint.
 
 `transports` is rover's older name for the same map. It still works — a config

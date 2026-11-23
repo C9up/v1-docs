@@ -25,7 +25,7 @@ export const Counter = component((props: { label: string }) => {
 
 The entry holds what a component is written with: signals (`signal`, `memo`,
 `effect`, `batch`, `untrack`, `onCleanup`), `html`, `component` and its
-lifecycle and context, `each`, `uid`, `cn`, `command`, `form` and `AuroraError`.
+lifecycle and context, `each`, `uid`, `cn`, `command`, `form` and `errors`.
 It loads where there is no DOM, no Node module and no top-level await — a test
 walks its import graph so it stays that way. `@c9up/aurora` re-exports the same
 functions, so an existing app changes nothing, and a component written against

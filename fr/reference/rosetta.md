@@ -53,6 +53,7 @@ pnpm add @c9up/rosetta
 | `configure` | fonction | Identique à `@c9up/rosetta/configure` |
 | `registerReplBindings` | fonction | Identique à `@c9up/rosetta/repl` |
 | `stubsRoot` | const | Dossier des stubs du paquet (absent du build navigateur) |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs) (aussi dans le build navigateur) |
 
 Types :
 
@@ -264,7 +265,31 @@ export default defineConfig({
 
 ## Erreurs
 
-Rosetta ne lève aucune erreur codée. Une configuration absente, un chargeur sans `location` ni `rootDir` (`TypeError`), une clé de catalogue ou une locale dangereuse et une clé à plat en double lèvent des erreurs simples ; `verifyCatalogs({ mode: 'throw' })` lève une erreur quand les catalogues divergent.
+Chaque erreur que Rosetta lève est une `Exception` de `@c9up/flare` qui porte un `code`, et chaque code est une classe de l'espace de noms `errors` : testez `error.code`, ou `error instanceof errors.E_ROSETTA_INVALID_ICU_MESSAGE`.
+
+| Code | Levée quand |
+|---|---|
+| [`E_ROSETTA_NOT_BOOTED`](/fr/reference/errors#e-rosetta-not-booted) | Le singleton de `services/main` a servi avant le boot de `RosettaProvider`, ou avant `setI18n()`. |
+| [`E_ROSETTA_CONFIG_MISSING`](/fr/reference/errors#e-rosetta-config-missing) | `config/i18n` n'exporte aucune configuration construite avec `defineConfig()`. |
+| [`E_ROSETTA_INVALID_CONFIG`](/fr/reference/errors#e-rosetta-invalid-config) | La configuration i18n n'a pas de `formatter`. |
+| [`E_ROSETTA_INVALID_ARGUMENT`](/fr/reference/errors#e-rosetta-invalid-argument) | Un constructeur ou une méthode a reçu un argument de mauvaise forme (un émetteur, un gestionnaire, une locale, un `FileSystemLoader` sans `location` ni `rootDir`, une clé de format vide). |
+| [`E_ROSETTA_UNSAFE_KEY`](/fr/reference/errors#e-rosetta-unsafe-key) | Une clé de catalogue ou une clé de format ICU personnalisée atteindrait le prototype (`__proto__`, `constructor`, `prototype`). |
+| [`E_ROSETTA_DUPLICATE_KEY`](/fr/reference/errors#e-rosetta-duplicate-key) | Un catalogue définit deux fois la même clé : une clé YAML, ou une clé imbriquée et une clé pointée qui donnent la même clé à plat. |
+| [`E_ROSETTA_INVALID_CATALOG`](/fr/reference/errors#e-rosetta-invalid-catalog) | Un fichier de catalogue ne s'analyse pas (YAML non pris en charge) ou contient une valeur qui n'est ni un dictionnaire ni un message scalaire. |
+| [`E_ROSETTA_CATALOG_LIMIT_EXCEEDED`](/fr/reference/errors#e-rosetta-catalog-limit-exceeded) | Un catalogue est trop profond, a trop de clés, ou un fichier de catalogue est trop gros. |
+| [`E_ROSETTA_UNSAFE_PATH`](/fr/reference/errors#e-rosetta-unsafe-path) | Un répertoire ou un fichier de traductions est un lien symbolique, ou se résout hors de la racine du chargeur. |
+| [`E_ROSETTA_INVALID_PATH`](/fr/reference/errors#e-rosetta-invalid-path) | Un chemin de traductions n'est pas un répertoire, ou pas un fichier, là où il en faut un. |
+| [`E_ROSETTA_UNSUPPORTED_RUNTIME`](/fr/reference/errors#e-rosetta-unsupported-runtime) | `FileSystemLoader` a servi depuis le build navigateur, qui n'a pas de système de fichiers. |
+| [`E_ROSETTA_INVALID_ICU_MESSAGE`](/fr/reference/errors#e-rosetta-invalid-icu-message) | Un message ICU ne s'analyse pas, ou utilise un style, un squelette ou une option que Rosetta ou `Intl` ne prend pas en charge. |
+| [`E_ROSETTA_ICU_LIMIT_EXCEEDED`](/fr/reference/errors#e-rosetta-icu-limit-exceeded) | Un message ICU est trop long, trop imbriqué, ou a trop de nœuds. |
+| [`E_ROSETTA_MISSING_VARIABLE`](/fr/reference/errors#e-rosetta-missing-variable) | Un message ICU utilise une variable que l'appel n'a pas fournie. |
+| [`E_ROSETTA_INVALID_DATE`](/fr/reference/errors#e-rosetta-invalid-date) | Une valeur de date ou d'heure ICU n'est ni une `Date`, ni un horodatage, ni une chaîne ISO, ni un `DateTime` à la Luxon, ou désigne une date impossible. |
+| [`E_ROSETTA_CATALOG_MISMATCH`](/fr/reference/errors#e-rosetta-catalog-mismatch) | `verifyCatalogs({ mode: 'throw' })` a trouvé des catalogues qui divergent ; le message est le rapport. |
+| [`E_ROSETTA_INTERNAL`](/fr/reference/errors#e-rosetta-internal) | Un invariant interne a été rompu (un nœud ICU inconnu, un état de l'analyseur) ; signalez-le comme un bug. |
+
+## Migration
+
+- Un refus n'est plus une `TypeError`, une `RangeError` ou une `SyntaxError` native (un message ICU invalide, un catalogue YAML qui ne s'analyse pas, une limite dépassée, un argument de mauvaise forme) : `error instanceof SyntaxError` ne correspond plus. Testez `error.code` (`error.code === 'E_ROSETTA_INVALID_ICU_MESSAGE'`) ou `error instanceof errors.E_ROSETTA_INVALID_ICU_MESSAGE`, `errors` venant de `@c9up/rosetta`.
 
 ## Voir aussi
 

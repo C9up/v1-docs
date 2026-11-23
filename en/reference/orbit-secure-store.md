@@ -35,8 +35,7 @@ iOS is not supported yet.
 | `GetItemOptions` | interface | Options of `getItem`. |
 | `PromptText` | interface | The words of the biometric prompt. |
 | `BiometricStatus` | interface | What `biometricStatus()` answers. |
-| `OrbitSecureStoreError` | error | Every failure of the store. |
-| `OrbitSecureStoreErrorCode` | type | The codes an `OrbitSecureStoreError` carries. |
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors) |
 
 ### Functions
 
@@ -61,18 +60,9 @@ A key is 1 to 128 characters of `A-Z a-z 0-9 . _ -` (not `.` or `..`); any other
 | `BiometricStatus` | `hardware` | `boolean` | The phone has a strong biometric sensor it can use. |
 | `BiometricStatus` | `enrolled` | `boolean` | A strong biometric is enrolled: `requireAuthentication` will work. |
 
-### `OrbitSecureStoreError`
-
-Extends `Error`; `name` is `"OrbitSecureStoreError"`. The error never carries the stored value.
-
-| Member | Signature | Description |
-|---|---|---|
-| `code` | `readonly code: OrbitSecureStoreErrorCode` | The stable code to branch on. |
-| constructor | `new OrbitSecureStoreError(code: OrbitSecureStoreErrorCode, message: string, options?: ErrorOptions)` | |
-
-`OrbitSecureStoreErrorCode` is the union of the seven codes below.
-
 ## Errors
+
+Each code is a class of the `errors` export. An error never carries the stored value.
 
 A cancelled biometric check has its own code, distinct from a failed one.
 

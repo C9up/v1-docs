@@ -569,8 +569,8 @@ curl -s http://localhost:3000/api/tasks | jq .
 ```json
 {
   "error": {
-    "code": "E_UNAUTHORIZED",
-    "message": "Bearer token required"
+    "code": "E_UNAUTHORIZED_ACCESS",
+    "message": "Unauthorized access"
   }
 }
 ```

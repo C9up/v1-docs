@@ -148,7 +148,7 @@ construite.
 
 ```typescript
 rules.string().postalCode({ countryCode: 'ZZ' })
-// RuneError: postalCode(): no pattern for country 'ZZ'.
+// E_RUNE_UNSUPPORTED_COUNTRY: postalCode(): no pattern for country 'ZZ'.
 ```
 
 `mobile()` sans `locale` accepte un numéro correspondant à **n'importe quel**

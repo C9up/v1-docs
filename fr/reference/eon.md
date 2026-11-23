@@ -18,7 +18,7 @@ pnpm add @c9up/eon
 | `@c9up/eon/provider` | `EonProvider` (export par défaut) |
 | `@c9up/eon/services/connection` | La connexion par défaut (export par défaut), `setConnection`, `getConnection`, `clearConnection` |
 | `@c9up/eon/schema` | `EonSchema`, les constructeurs, `Migration`, `EonMigrationRunner`, `migrateChildTableNames`, les types de spécification, `TYPE_KIND_MAP` |
-| `@c9up/eon/tmq` | `connectWsConsumer`, `EonConsumer` et ses types, `EonConsumerError` |
+| `@c9up/eon/tmq` | `connectWsConsumer`, `EonConsumer` et ses types, `errors` |
 | `@c9up/eon/health` | `EonConnectionCheck`, `EonHealthResult` |
 | `@c9up/eon/testing` | `FakeEonConnection`, `FakeEonConsumer`, `factory`, les aides de base de test |
 | `@c9up/eon/testing/vitest` | `describeIfTdengine` |
@@ -64,7 +64,7 @@ La racine réexporte aussi tout `@c9up/eon/schema`, `@c9up/eon/tmq` et `@c9up/eo
 | `ensureDatabase` | fonction | `ensureDatabase(config: EonConnectionConfig, connect: EonConnector): Promise<void>` : crée `config.database` selon `createDatabase`. |
 | `defineConfig` | fonction | `defineConfig(config: EonConfig): EonConfig`. |
 | `EonProvider` | provider | La même classe que `@c9up/eon/provider`. |
-| `EonConnectionError` | erreur | Une panne de connexion ou du serveur ; `code` porte le code numérique de TDengine quand il y en a un. |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs). Chacune est une `Exception` de flare avec un `code` textuel. |
 | `EonConnection` | interface | `{ transport; exec(sql); query<T>(sql); ping(); ingestColumnar(request); schemaless(lines, options?); close() }`. |
 | `EonConfig` | interface | `EonConnectionConfig & { default?; connections?; migrationsDir? }`. |
 | `EonConnectionConfig` | interface | Les réglages d'une connexion (voir Configuration). |
@@ -148,7 +148,7 @@ La racine réexporte aussi tout `@c9up/eon/schema`, `@c9up/eon/tmq` et `@c9up/eo
 | `EonMessage` | interface | `{ topic: string; rows: T[] }`. |
 | `EonTopicPartition` | interface | `{ topic: string; vgroupId: number; offset?: bigint; begin?: bigint; end?: bigint }`. |
 | `EonOffsetReset` | type | `'earliest' \| 'latest' \| 'none'`. |
-| `EonConsumerError` | erreur | Une panne du consommateur ; `code` porte le code numérique de TDengine quand il y en a un. |
+| `errors` | namespace | Le même namespace `errors` que `@c9up/eon`. |
 
 ### `@c9up/eon/health`
 
@@ -256,7 +256,7 @@ La racine réexporte aussi tout `@c9up/eon/schema`, `@c9up/eon/tmq` et `@c9up/eo
 
 ## Erreurs
 
-La plupart des refus sont des `Error` simples dont le message commence par `[CODE]` ; ceux du compilateur de requêtes commencent par `CODE:`. Les pannes de connexion et du consommateur sont des `EonConnectionError` et des `EonConsumerError`.
+Chaque code se lit sur `error.code`, et chaque code est une classe du namespace `errors` : `error instanceof errors.E_EON_NO_TIMESTAMP`, avec `import { errors } from '@c9up/eon'`. Chacune est une `Exception` de flare. Un refus du serveur TDengine est `E_EON_SERVER_ERROR`, avec le code numérique de TDengine sur `taosCode`. Les refus du compilateur de requêtes arrivent avec les mêmes codes : eon relit le message du compilateur dans l'erreur correspondante et garde l'erreur du compilateur dans `cause`.
 
 | Code | Levée quand |
 |---|---|
@@ -282,6 +282,9 @@ La plupart des refus sont des `Error` simples dont le message commence par `[COD
 | [`E_EON_TIMEOUT`](/fr/reference/errors#e-eon-timeout) | Une requête à TDengine n'a pas eu de réponse dans le délai `timeoutMs`. |
 | [`E_EON_CLOSED`](/fr/reference/errors#e-eon-closed) | La connexion TDengine s'est fermée alors qu'une requête attendait, ou une requête a été envoyée sur une connexion fermée. |
 | [`E_EON_CONNECT`](/fr/reference/errors#e-eon-connect) | Le WebSocket vers taosAdapter n'a pas pu s'ouvrir : URL invalide, connexion refusée, ou pas de handshake dans le délai. |
+| [`E_EON_SERVER_ERROR`](/fr/reference/errors#e-eon-server-error) | Le serveur TDengine a refusé une requête (instruction invalide, table absente, identifiants refusés) ; `taosCode` porte le code d'erreur numérique de TDengine. |
+| [`E_EON_NO_TOPIC`](/fr/reference/errors#e-eon-no-topic) | `subscribe()` n'a reçu aucun topic ; le serveur l'accepterait et ne livrerait rien. |
+| [`E_EON_SEEK_NO_OFFSET`](/fr/reference/errors#e-eon-seek-no-offset) | `seek()` a reçu une partition sans `offset`. |
 | [`E_EON_SCHEMALESS_SCHEMA`](/fr/reference/errors#e-eon-schemaless-schema) | Un type de champ n'a pas de forme line-protocol. |
 | [`E_EON_SCHEMALESS_FIELD`](/fr/reference/errors#e-eon-schemaless-field) | Une valeur de champ line-protocol sort de la plage de son type. |
 | [`E_EON_SCHEMALESS_TAG`](/fr/reference/errors#e-eon-schemaless-tag) | Une valeur de tag line-protocol ne peut pas être écrite. |
@@ -302,6 +305,12 @@ La plupart des refus sont des `Error` simples dont le message commence par `[COD
 | [`E_EON_FACTORY_STATE`](/fr/reference/errors#e-eon-factory-state) | Un état de factory n'est pas défini. |
 | [`E_EON_FAKE_UNSUPPORTED`](/fr/reference/errors#e-eon-fake-unsupported) | `FakeEonConnection` ne répond qu'aux SELECT simples ; le SQL fenêtré ou agrégé exige un TDengine réel. |
 | [`E_EON_TEST_IDENTIFIER`](/fr/reference/errors#e-eon-test-identifier) | Un helper de nettoyage de test a reçu un nom qui n'est pas un identifiant simple. |
+| [`E_EON_NOT_BOOTED`](/fr/reference/errors#e-eon-not-booted) | Une connexion eon (le jeton `eon`, `eon:<nom>` ou `@c9up/eon/services/connection`) a servi avant que `EonProvider.boot()` ne l'ouvre. |
+| [`E_EON_ALREADY_BOOTED`](/fr/reference/errors#e-eon-already-booted) | `EonProvider.boot()` a tourné une seconde fois alors que ses connexions sont ouvertes ; appelez d'abord `shutdown()`. |
+| [`E_EON_BOOT_FAILED`](/fr/reference/errors#e-eon-boot-failed) | `EonProvider.boot()` n'a pas pu ouvrir une ou plusieurs des connexions configurées ; `cause` porte le premier échec. |
+| [`E_EON_UNKNOWN_CONNECTION`](/fr/reference/errors#e-eon-unknown-connection) | La connexion par défaut nommée dans `config/timeseries.ts` ne figure pas parmi ses `connections`. |
+| [`E_EON_NO_DATABASE`](/fr/reference/errors#e-eon-no-database) | `createDatabase` est activé mais aucune `database` n'est configurée. |
+| [`E_EON_TEST_URL`](/fr/reference/errors#e-eon-test-url) | `connectTestEon()` a été appelé sans `EON_TEST_URL`. |
 | [`E_EON_NAPI_NOT_FOUND`](/fr/reference/errors#e-eon-napi-not-found) | Le binaire du compilateur de requêtes eon est introuvable. |
 | [`E_EON_NAPI_UNSUPPORTED`](/fr/reference/errors#e-eon-napi-unsupported) | Il n'existe pas de binaire du compilateur de requêtes eon pour cette plateforme. |
 | [`E_EON_INVALID_DURATION`](/fr/reference/errors#e-eon-invalid-duration) | Une durée n'est pas un entier positif suivi d'une unité. |
@@ -333,6 +342,13 @@ La plupart des refus sont des `Error` simples dont le message commence par `[COD
 | [`E_UNSAFE_IDENTIFIER`](/fr/reference/errors#e-unsafe-identifier-eon) | Le compilateur a refusé un identifiant. |
 | [`E_UNSAFE_LITERAL`](/fr/reference/errors#e-unsafe-literal-eon) | Le compilateur a refusé une valeur littérale. |
 | [`E_UNSAFE_OPERATOR`](/fr/reference/errors#e-unsafe-operator) | Le compilateur a refusé un opérateur. |
+
+## Migration
+
+- `EonError`, `EonConnectionError` et `EonConsumerError` disparaissent : chaque code est sa propre classe du namespace `errors`. Remplacez `instanceof EonError` par un test sur `error.code`, ou par `instanceof errors.E_EON_...`, `errors` venant de `@c9up/eon` (ou de `@c9up/eon/tmq`).
+- Un refus du serveur TDengine est `errors.E_EON_SERVER_ERROR` : son `code` est la chaîne `'E_EON_SERVER_ERROR'`, et le code numérique de TDengine passe sur `taosCode`. `error.code === 9731` devient `error instanceof errors.E_EON_SERVER_ERROR && error.taosCode === 9731`.
+- Une panne côté client porte son code sur `error.code` (`E_EON_TIMEOUT`, `E_EON_CLOSED`, `E_EON_DECODE`, `E_EON_CONNECT`, `E_EON_BIND`, `E_EON_SERVER_VERSION`), plus en balise `[E_EON_…]` en tête du message.
+- Un refus du compilateur de requêtes porte son code sur `error.code` (`E_UNSAFE_IDENTIFIER`, `E_EON_INVALID_FILL`…), plus en `CODE:` en tête du message.
 
 ## Voir aussi
 

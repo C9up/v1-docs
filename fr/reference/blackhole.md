@@ -102,7 +102,11 @@ Requêtes SQL refusées :
 | `UnsafeStatementLike` | interface | `{ kind: 'injection-pattern' \| 'invalid-shape'; code; message; connection? }` |
 | `UnsafeStatementDecision` | interface | `{ key?, count, threshold, blocked, event }` |
 
-Erreurs : `E_BLACKHOLE_SESSION_NOT_READY`, `E_BLACKHOLE_UNKNOWN_CSP_KEYWORD`, `E_BLACKHOLE_INVALID_CSP_KEYWORD_VALUE`, `E_BLACKHOLE_DATABASE_UNAVAILABLE` et `E_BLACKHOLE_UNSUPPORTED_DATABASE` sont des classes d'erreur exportées (voir Erreurs). Chaque export de `@c9up/blackhole/limiter` est aussi exporté ici.
+| Export | Nature | Description |
+|---|---|---|
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs) |
+
+Chaque export de `@c9up/blackhole/limiter` est aussi exporté ici.
 
 ### `Blackhole`
 
@@ -180,7 +184,6 @@ Les adaptateurs n'ont pas de session : `csrf.session: true` y refuse toutes les 
 | `defineThrottle` | fonction | `defineThrottle(name: string, builder: (ctx) => HttpLimiter \| null \| Promise<HttpLimiter \| null>): ThrottleMiddleware` |
 | `ThrottleMiddleware` | type | `(ctx: LimiterHttpContext, next) => Promise<void>` |
 | `LimiterResponse` | classe | `{ limit, remaining, consumed, availableIn }`, `toJSON()` |
-| `ThrottleException` | erreur | `code` `E_TOO_MANY_REQUESTS`, `status` 429, `response` ; `setMessage`, `setStatus`, `setHeaders`, `t(identifier, data?)`, `getDefaultHeaders()` |
 | `limiterStores` | const | `memory()`, `redis({ connection, prefix? })`, `database({ connection?, tableName? })` |
 | `MemoryLimiterStore` | classe | Stockage dans le processus |
 | `RedisLimiterStore` | classe | `new RedisLimiterStore(source: LimiterRedisSource, options?: { prefix?: string })` ; préfixe `blackhole:limiter` |
@@ -211,7 +214,7 @@ Les adaptateurs n'ont pas de session : `csrf.session: true` y refuse toutes les 
 
 | Membre | Signature | Description |
 |---|---|---|
-| `consume` | `consume(key: string, amount?: number): Promise<LimiterResponse>` | Compte ; lève `ThrottleException` au-delà du budget |
+| `consume` | `consume(key: string, amount?: number): Promise<LimiterResponse>` | Compte ; lève `errors.E_TOO_MANY_REQUESTS` au-delà du budget |
 | `increment` / `decrement` | `increment(key: string, amount?: number): Promise<LimiterResponse>` | Compte sans lever d'erreur |
 | `attempt` | `attempt<T>(key: string, callback: () => T \| Promise<T>, amount?: number): Promise<T \| undefined>` | Exécute `callback` s'il reste du budget à la clé |
 | `penalize` | `penalize<T>(key: string, callback: () => T \| Promise<T>, amount?: number): Promise<[ThrottleException, null] \| [null, T]>` | Exécute `callback` ; une erreur compte contre la clé |
@@ -324,9 +327,8 @@ Le jeton est lu dans `X-XSRF-TOKEN`, `X-CSRF-TOKEN` ou le champ de formulaire `_
 
 | Code | Levée quand |
 |---|---|
-| [`E_BLACKHOLE_RATE_LIMITED`](/fr/reference/errors#e-blackhole-rate-limited) | La limitation globale a refusé la requête (429, `Retry-After`) |
-| [`E_TOO_MANY_REQUESTS`](/fr/reference/errors#e-too-many-requests-blackhole) | Un middleware de limite ou `limiter.consume()` a trouvé la clé au-delà de son budget (`ThrottleException`, 429) |
-| [`E_BAD_CSRF_TOKEN`](/fr/reference/errors#e-bad-csrf-token) | Le jeton CSRF manque ou est invalide (403) |
+| [`E_TOO_MANY_REQUESTS`](/fr/reference/errors#e-too-many-requests-blackhole) | La limitation globale a refusé la requête (429, `Retry-After`), ou un middleware de limite ou `limiter.consume()` a trouvé la clé au-delà de son budget (`ThrottleException`, 429) |
+| [`E_BAD_CSRF_TOKEN`](/fr/reference/errors#e-bad-csrf-token) | Le jeton CSRF manque ou est invalide (403, `errors.InvalidCSRFToken`) |
 | [`E_BLACKHOLE_CSRF_ORIGIN_MISMATCH`](/fr/reference/errors#e-blackhole-csrf-origin-mismatch) | Une requête qui modifie l'état vient d'une origine non approuvée (403) |
 | [`E_BLACKHOLE_PATH_TRAVERSAL`](/fr/reference/errors#e-blackhole-path-traversal) | Le chemin contient `..` (400) |
 | [`E_BLACKHOLE_PARAMETER_POLLUTION`](/fr/reference/errors#e-blackhole-parameter-pollution) | Une clé de query apparaît deux fois (400) |
@@ -337,12 +339,45 @@ Le jeton est lu dans `X-XSRF-TOKEN`, `X-CSRF-TOKEN` ou le champ de formulaire `_
 | [`E_BLACKHOLE_INVALID_CSP_KEYWORD_VALUE`](/fr/reference/errors#e-blackhole-invalid-csp-keyword-value) | Le résolveur d'un mot-clé a répondu une valeur contenant `;`, `,` ou un saut de ligne |
 | [`E_BLACKHOLE_DATABASE_UNAVAILABLE`](/fr/reference/errors#e-blackhole-database-unavailable) | Le stockage base de données du limiteur n'a pas de base où compter |
 | [`E_BLACKHOLE_UNSUPPORTED_DATABASE`](/fr/reference/errors#e-blackhole-unsupported-database) | Le stockage base de données du limiteur a reçu une base autre que PostgreSQL, MySQL ou SQLite |
+| [`E_BLACKHOLE_INVALID_CSP`](/fr/reference/errors#e-blackhole-invalid-csp) | La Content-Security-Policy est invalide : un nom ou une valeur de directive incorrects, un mot-clé sans guillemets, une directive donnée deux fois, pas de `default-src`, un saut de ligne, ou à la fois `directives` et `policy`. |
+| [`E_BLACKHOLE_REMOVED_OPTION`](/fr/reference/errors#e-blackhole-removed-option) | La configuration fixe encore une option retirée (`securityHeaders`) ; le message nomme son remplacement. |
+| [`E_BLACKHOLE_UNKNOWN_OPTION`](/fr/reference/errors#e-blackhole-unknown-option) | Une option d'en-tête ou CORS nomme une clé qu'elle n'a pas. |
+| [`E_BLACKHOLE_INVALID_HEADER_VALUE`](/fr/reference/errors#e-blackhole-invalid-header-value) | La valeur d'une option ne peut pas s'écrire comme valeur d'en-tête (vide, ou un caractère de contrôle ou non ASCII). |
+| [`E_BLACKHOLE_INVALID_XFRAME`](/fr/reference/errors#e-blackhole-invalid-xframe) | `xFrame.action` n'est ni DENY, ni SAMEORIGIN, ni ALLOW-FROM, ou ALLOW-FROM n'a pas de `domain`. |
+| [`E_BLACKHOLE_INVALID_CORS`](/fr/reference/errors#e-blackhole-invalid-cors) | CORS combine une origine joker avec `credentials: true`, ou sa liste d'origines contient autre chose que des chaînes non vides. |
+| [`E_BLACKHOLE_INVALID_DURATION`](/fr/reference/errors#e-blackhole-invalid-duration) | Une durée (`maxAge` de HSTS, une durée de limiteur) est négative ou illisible. |
+| [`E_BLACKHOLE_INVALID_RATE_LIMIT`](/fr/reference/errors#e-blackhole-invalid-rate-limit) | Une limite de débit ou un limiteur reçoit un nombre de requêtes ou une durée qui n'est pas un entier positif. |
+| [`E_BLACKHOLE_SECRET_MISSING`](/fr/reference/errors#e-blackhole-secret-missing) | CSRF est activé et aucun `secret` n'a été donné. |
+| [`E_BLACKHOLE_WEAK_SECRET`](/fr/reference/errors#e-blackhole-weak-secret) | Le `secret` CSRF est l'exemple de l'échafaudage, ou fait moins de 16 caractères. |
+| [`E_BLACKHOLE_INVALID_SECRET`](/fr/reference/errors#e-blackhole-invalid-secret) | Le `secret` CSRF n'est ni une chaîne ni un `Secret` qui en enveloppe une (une `TypeError`). |
+| [`E_BLACKHOLE_NAPI_REQUIRED`](/fr/reference/errors#e-blackhole-napi-required) | Le moteur natif de blackhole n'est pas chargé pour cette plateforme ; `cause` porte l'échec du chargement. |
+| [`E_BLACKHOLE_NOT_REGISTERED`](/fr/reference/errors#e-blackhole-not-registered) | Le middleware a tourné sans instance Blackhole : `BlackholeProvider` n'est pas enregistré, ou l'hôte n'expose pas `ctx.containerResolver`. |
+| [`E_BLACKHOLE_RATE_LIMIT_STORE_MISSING`](/fr/reference/errors#e-blackhole-rate-limit-store-missing) | `checkRateLimit()` a été appelé sans `rateLimit.store` configuré. |
+| [`E_BLACKHOLE_EMPTY_RATE_LIMIT_KEY`](/fr/reference/errors#e-blackhole-empty-rate-limit-key) | `checkRateLimit()` a reçu une clé vide, qui compterait toutes les requêtes dans un seul compteur. |
+| [`E_BLACKHOLE_UNKNOWN_STORE`](/fr/reference/errors#e-blackhole-unknown-store) | Un limiteur ou `rateLimit` nomme un store qui n'est pas déclaré dans `stores`. |
+| [`E_BLACKHOLE_NO_DEFAULT_STORE`](/fr/reference/errors#e-blackhole-no-default-store) | `rateLimit` déclare `stores` mais aucun `default` qui nomme celui qui compte. |
+| [`E_BLACKHOLE_LIMITER_OPTIONS_MISSING`](/fr/reference/errors#e-blackhole-limiter-options-missing) | `limiter.use()` ou `limiter.multi()` a été appelé sans le nombre de requêtes et la durée de son ou ses limiteurs. |
+| [`E_BLACKHOLE_INCOMPLETE_THROTTLE`](/fr/reference/errors#e-blackhole-incomplete-throttle) | Un middleware de limitation a tourné sur un limiteur sans `allowRequests()` ni `every()`. |
+| [`E_BLACKHOLE_INVALID_TABLE_NAME`](/fr/reference/errors#e-blackhole-invalid-table-name) | Le `tableName` du store de limiteur en base n'est pas un nom de table. |
+| [`E_BLACKHOLE_QUASAR_MISSING`](/fr/reference/errors#e-blackhole-quasar-missing) | Un store Redis nomme une connexion et `@c9up/quasar` n'est pas installé. |
+| [`E_BLACKHOLE_INCOMPLETE_CONNECTION`](/fr/reference/errors#e-blackhole-incomplete-connection) | La connexion quasar nommée n'a pas les commandes que le compteur envoie. |
 
-Une option invalide (une source CSP sans guillemets, `credentials` CORS avec une origine joker, une limite fractionnaire, un secret absent ou public) lève une `Error` simple à la construction du filtre.
+Une option invalide (une source CSP sans guillemets, `credentials` CORS avec une origine joker, une limite fractionnaire, un secret absent ou public) lève une erreur à la construction du filtre. Chaque code levé est une classe du namespace `errors` et une `Exception` de `@c9up/flare` de statut 500 : testez `error.code` ou `error instanceof errors.E_BLACKHOLE_*`, avec `import { errors } from '@c9up/blackhole'`. Les codes d'une requête refusée (`E_TOO_MANY_REQUESTS` de la limitation globale, `E_BLACKHOLE_PATH_TRAVERSAL`…) ne sont pas levés : ce sont le `code` du corps de la réponse. `E_BAD_CSRF_TOKEN` fait exception : le middleware Ream la lève (voir plus bas).
+
+`errors.E_TOO_MANY_REQUESTS` est la classe `errors.ThrottleException` sous son code : statut 429, `response` (la `LimiterResponse`), `setMessage`, `setStatus`, `setHeaders`, `t(identifier, data?)`, `getDefaultHeaders()`. Son `handle` forme la réponse 429 avec `request.accepts(['html', 'application/vnd.api+json', 'json'])` quand l'hôte la fournit : le message en texte, `{ errors: [{ message, retryAfter }] }`, ou un objet d'erreur JSON:API.
+
+`errors.E_BAD_CSRF_TOKEN` est la classe `errors.InvalidCSRFToken` sous son code : statut 403, message « Invalid or expired CSRF token », `identifier` (`errors.E_BAD_CSRF_TOKEN`, la clé de traduction), `getResponseMessage(error, ctx)` et `handle(error, ctx)`. Son `handle` écrit le refus : pour un navigateur avec une session, il remet le formulaire en flash (sans `_csrf`, `_method` ni les mots de passe), met le message en flash sous `error` et `E_BAD_CSRF_TOKEN`, puis redirige vers la page précédente ; sinon il répond `403 { "error": { "code": "E_BAD_CSRF_TOKEN", "message": "..." } }`. Le middleware Ream la lève, comme `@adonisjs/shield` : Ream rend une erreur levée à l'intérieur de la chaîne de middlewares, si bien que le middleware de session enregistre toujours le flash, et le gestionnaire d'exceptions de votre application peut l'intercepter ou la personnaliser. Les adaptateurs Express, Fastify et Hono répondent le même refus sur place.
+
+`errors.E_BLACKHOLE_UNKNOWN_CSP_KEYWORD` et `errors.E_BLACKHOLE_INVALID_CSP_KEYWORD_VALUE` portent `keyword`, `errors.E_BLACKHOLE_UNSUPPORTED_DATABASE` porte `dialect`.
 
 ## Migration
 
 `securityHeaders` n'est plus une option, et une configuration qui la fixe encore lève une erreur. Déplacez chaque en-tête sur sa propre clé de premier niveau : `xFrame`, `hsts`, `contentTypeSniffing`, `csp`, `referrerPolicy`, `permissionsPolicy`, chacune `{ enabled, ... }`.
+
+- `BlackholeError` et `BlackholeTypeError` disparaissent : testez `error.code`, ou `error instanceof errors.E_BLACKHOLE_*` avec `import { errors } from '@c9up/blackhole'`. `E_BLACKHOLE_INVALID_SECRET` n'est plus une `TypeError`.
+- Les classes d'erreur ne sont plus exportées une à une : `E_BLACKHOLE_SESSION_NOT_READY` devient `errors.E_BLACKHOLE_SESSION_NOT_READY`, et ainsi de suite ; `ThrottleException` devient `errors.ThrottleException`, aussi `errors.E_TOO_MANY_REQUESTS`.
+- `E_BLACKHOLE_RATE_LIMITED` devient `E_TOO_MANY_REQUESTS` : la limitation globale répond sa 429 avec le code que lève un throttle. Le corps garde sa forme, `{ "error": { "code": "E_TOO_MANY_REQUESTS", "message": "Too many requests" } }`.
+- Le middleware Ream lève désormais `errors.E_BAD_CSRF_TOKEN` sur un refus CSRF au lieu de répondre sur place. La réponse ne change pas (l'erreur se rend elle-même par son `handle`), mais le gestionnaire d'exceptions de votre application la voit désormais et peut l'intercepter ou la personnaliser. blackhole demande donc `@c9up/ream` 0.2.32 ou plus récent, qui rend une erreur levée à l'intérieur de la chaîne de middlewares.
 
 ## Voir aussi
 

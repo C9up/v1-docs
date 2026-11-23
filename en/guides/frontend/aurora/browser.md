@@ -125,7 +125,7 @@ api.setHeader('Accept-Language', 'fr')            // manage default headers (cha
 ```
 
 - Methods: `get` / `post` / `put` / `patch` / `delete`, plus `raw(method, url, body?)` for the untouched `Response`.
-- A non-2xx response throws `HttpError` (`status`, `response`, parsed `data`). `isHttpError(e)` is a type guard for clean `catch` narrowing.
+- A non-2xx response throws `errors.E_AURORA_HTTP_REQUEST_FAILED` (`status`, `response`, parsed `data`). `isHttpError(e)` is a type guard for clean `catch` narrowing.
 - `extend(options)` derives a child client with merged defaults, the XSRF settings included. When its `baseURL` is on another origin, the inherited credentials — the token, an `Authorization` or XSRF header — stay behind: pass them in `options`, or set `allowCrossOriginAuth: true`, to send them there on purpose. `token: null` means no token.
 - Pass a `parse` option for a runtime-validated, fully-typed result; without it, the generic type is an unchecked assertion of the response shape (the usual HTTP boundary).
 - A default same-origin `http` instance is exported for quick same-origin calls.
@@ -138,10 +138,10 @@ const api = new HttpClient()
 
 const r = await api.attempt(api.post('/auth/login', creds))
 if (r.ok) user(r.data)
-else fieldErrors(r.error.data)   // r.error is the HttpError; .data is the parsed 4xx body
+else fieldErrors(r.error.data)   // r.error is the HTTP error; .data is the parsed 4xx body
 ```
 
-`attempt` resolves `{ ok: false, error }` on an `HttpError` (non-2xx); genuine transport failures (offline, DNS) still reject — they're exceptional.
+`attempt` resolves `{ ok: false, error }` on an `errors.E_AURORA_HTTP_REQUEST_FAILED` (non-2xx); genuine transport failures (offline, DNS) still reject — they're exceptional.
 
 **Cancellation & timeout** — pass a `signal` to cancel (on unmount, or a superseded search-as-you-type), or a `timeout` (ms) to auto-abort; both combine, first to fire wins. `isAbortError(e)` recognizes an aborted or timed-out request so you can ignore it:
 

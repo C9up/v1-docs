@@ -117,8 +117,8 @@ Tous les drivers passent par le crate Rust `sigil-engine` (la moitié native de 
 
 Chaque valeur est validée à la construction du driver — au démarrage, quand
 `new Hash(...)` ou le provider le construit. Une valeur hors limites, ou du
-mauvais type (`rounds: '12'` lu depuis une variable d'environnement), lève une
-`TypeError` à ce moment-là plutôt qu'à la première connexion d'un utilisateur,
+mauvais type (`rounds: '12'` lu depuis une variable d'environnement), lève
+`E_SIGIL_INVALID_OPTION` à ce moment-là plutôt qu'à la première connexion d'un utilisateur,
 et n'est jamais remplacée en silence par une valeur par défaut :
 
 - `argon2` — `variant` (`'d'` | `'i'` | `'id'`, défaut `id`), `memory` (KiB,
@@ -171,7 +171,7 @@ Les limites comptent des octets, pas des caractères : une phrase de passe
 accentuée ou non latine atteint 72 octets bien avant 72 caractères. bcrypt ne
 lit que les 72 premiers octets, si bien que deux mots de passe longs partageant
 ce préfixe auraient le même hash ; sigil refuse plutôt que de tronquer. Les deux
-sont des `Error` simples, pas des `SigilError`. `verify()` avec une valeur
+lèvent `E_SIGIL_PASSWORD_TOO_LONG`. `verify()` avec une valeur
 au-delà des 72 octets de bcrypt répond `false`, puisqu'aucun hash écrit par
 `make()` ne peut lui correspondre.
 

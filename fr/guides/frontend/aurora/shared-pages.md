@@ -260,17 +260,18 @@ une erreur qui le nomme. Retirez-le de `browserPackages` et mappez-le avec
 
 ### Attraper une erreur d'aurora
 
-Toute erreur levée par aurora est une `AuroraError` portant un `code` stable :
-on peut donc brancher sur ce qui a échoué sans filtrer un message — la prose est
-libre d'évoluer, un code est un contrat.
+Toute erreur levée par aurora porte un `code` stable, et est une instance de la
+classe de ce nom dans l'export `errors` : vous pouvez donc brancher sur ce qui a
+échoué sans filtrer un message — la prose est libre d'évoluer, un code est un
+contrat.
 
 ```js
-import { AuroraError } from '@c9up/aurora'
+import { errors } from '@c9up/aurora'
 
 try {
   await pages.resolve('Dashboard')
 } catch (error) {
-  if (error instanceof AuroraError && error.code === 'E_AURORA_PAGE_NOT_FOUND') {
+  if (error instanceof errors.E_AURORA_PAGE_NOT_FOUND) {
     // …
   }
 }

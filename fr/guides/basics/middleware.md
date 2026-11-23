@@ -202,6 +202,22 @@ export default class MaintenanceModeMiddleware {
 }
 ```
 
+## Quand une couche intérieure lève une erreur
+
+Une erreur levée par le handler ou par un middleware intérieur devient une réponse à l'endroit même où elle est levée : le gestionnaire d'exceptions s'exécute là, puis le `next()` de chaque middleware extérieur rend la main normalement. Le code après `await next()` s'exécute donc quand même, et voit la réponse d'erreur déjà écrite (son statut, ses en-têtes). C'est ainsi que le middleware de session enregistre la session d'une requête qui a échoué, et qu'un message mis en flash par une erreur arrive à la requête suivante.
+
+```typescript
+export default class TimingMiddleware {
+  async handle(ctx: HttpContext, next: () => Promise<void>) {
+    const started = Date.now()
+    await next() // rend la main même si le handler a levé une erreur
+    ctx.response.header('x-response-time', `${Date.now() - started}ms`)
+  }
+}
+```
+
+Un `try { await next() } catch` ne voit donc pas les erreurs des couches intérieures. Pour agir sur une erreur, donnez-lui une méthode `handle()` ou étendez le gestionnaire d'exceptions (voir [Gestion des exceptions](/fr/guides/basics/exception-handling)).
+
 ## Chargement paresseux
 
 Toutes les entrées passées à `server.use()`, `router.use()` et `router.named()` sont des imports paresseux — des fonctions qui renvoient une promesse. Le module est chargé à la première requête qui atteint ce middleware, puis mis en cache :

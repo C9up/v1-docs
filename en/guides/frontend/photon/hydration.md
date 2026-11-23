@@ -141,7 +141,7 @@ router.get('/orders', async ({ photon, response }) => {
 
 ### Error codes
 
-The `hydrate()` entrypoint throws `PhotonClientError` (re-exported from `@c9up/photon/client`). Catch it via `instanceof` and inspect the `code`:
+The `hydrate()` entrypoint throws the errors `@c9up/photon/client` exports as `errors`. Test `error.code`, or `instanceof` one of them (`error instanceof errors.E_PHOTON_HYDRATION_NO_TARGET`):
 
 | Code | When |
 |---|---|
@@ -171,7 +171,7 @@ The SSR side currently always emits `<div id="app">`; if you pass a custom `targ
 |---|---|---|
 | `hydrate({ resolveComponent })` + click router | 44.1 | Active |
 | `<head>` updates + `@Meta` decorator | 44.2 | Active |
-| Error catalog + `docsUrl` on every `PhotonError` / `PhotonClientError` | 44.4 | Active |
+| Error catalog + `docsUrl` on every Photon error | 44.4 | Active |
 
 ## SPA Navigation (server-side detection)
 

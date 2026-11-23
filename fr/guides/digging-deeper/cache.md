@@ -60,7 +60,7 @@ const profile = await cache.getOrSet('profile:42', 60, async () => {
 })
 ```
 
-`lockTimeout` borne l'attente d'un appelant sur la factory d'un autre appelant pour la même clé. Au-delà, la valeur périmée est renvoyée s'il y en a une (grace), et une `LockTimeoutError` (`E_ECHO_LOCK_TIMEOUT`) est levée sinon. `hardTimeout` borne la factory elle-même. Un timeout `Infinity` signifie aucun ; au-delà de 24,8 jours il est ramené à cette limite ; `NaN` ou une valeur négative est refusé.
+`lockTimeout` borne l'attente d'un appelant sur la factory d'un autre appelant pour la même clé. Au-delà, la valeur périmée est renvoyée s'il y en a une (grace), et une `errors.E_ECHO_LOCK_TIMEOUT` est levée sinon. `hardTimeout` borne la factory elle-même. Un timeout `Infinity` signifie aucun ; au-delà de 24,8 jours il est ramené à cette limite ; `NaN` ou une valeur négative est refusé.
 
 ### Namespaces
 
@@ -123,7 +123,7 @@ store({ suppressL2Errors: true, l2CircuitBreakerDuration: '10s' })
   .useL2Layer(drivers.redis({ connection: 'main' }))
 ```
 
-- `suppressL2Errors` (défaut `true`) : `false` remonte chaque échec du L2 en `L2CacheError` (`E_L2_CACHE_ERROR`, l'erreur d'origine en `cause`).
+- `suppressL2Errors` (défaut `true`) : `false` remonte chaque échec du L2 en `errors.E_L2_CACHE_ERROR` (l'erreur d'origine en `cause`).
 - `l2CircuitBreakerDuration` : après un échec, sauter le L2 pendant cette durée au lieu d'attendre un serveur mort à chaque appel.
 - `delete`, `clear` et `deleteByTag` signalent toujours un L2 en échec, disjoncteur ouvert ou non : une suppression qui n'a pas atteint la couche partagée laisse la valeur servie à toutes les autres instances, et l'appelant doit le savoir.
 
@@ -149,12 +149,12 @@ Les tags appartiennent au namespace qui les a écrits : `tenantA.deleteByTag(['u
 
 ## Erreurs
 
-Chaque erreur porte un `code` :
+Chaque erreur porte un `code`, et est la classe du même nom dans le namespace `errors` de `@c9up/echo` (`error instanceof errors.E_ECHO_LOCK_TIMEOUT`) :
 
 | Code | Levée quand |
 | --- | --- |
-| `E_FACTORY_ERROR` | une factory de `getOrSet` a levé (`FactoryError`, passée à `onFactoryError`) |
-| `E_FACTORY_HARD_TIMEOUT` | une factory a dépassé `hardTimeout` (`TimeoutError`) |
+| `E_FACTORY_ERROR` | une factory de `getOrSet` a levé (passée à `onFactoryError`) |
+| `E_FACTORY_HARD_TIMEOUT` | une factory a dépassé `hardTimeout` |
 | `E_UNDEFINED_VALUE` | mise en cache de `null` ou `undefined` |
 | `E_L2_CACHE_ERROR` | un échec du L2 non supprimé |
 | `E_ECHO_LOCK_TIMEOUT` | `lockTimeout` dépassé sans valeur périmée |
@@ -167,7 +167,7 @@ Chaque erreur porte un `code` :
 | `E_ECHO_NOT_BOOTED` | `services/main` lu avant le boot du provider |
 | `E_ECHO_QUASAR_MISSING`, `E_ECHO_INCOMPLETE_CONNECTION` | une connexion Redis nommée inutilisable |
 
-`errors` associe `E_FACTORY_ERROR`, `E_FACTORY_HARD_TIMEOUT`, `E_UNDEFINED_VALUE` et `E_L2_CACHE_ERROR` à leurs classes.
+`errors` associe `E_FACTORY_ERROR`, `E_FACTORY_SOFT_TIMEOUT`, `E_FACTORY_HARD_TIMEOUT`, `E_UNDEFINED_VALUE` et `E_L2_CACHE_ERROR` à leurs classes. `E_FACTORY_SOFT_TIMEOUT` n'est jamais levée : au délai souple, la valeur périmée est servie.
 
 ## Commandes
 

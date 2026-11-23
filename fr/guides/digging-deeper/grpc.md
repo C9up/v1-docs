@@ -110,7 +110,7 @@ protobuf.service('echo.Echo')       // un service par nom
 protobuf.method('/echo.Echo/Say')   // une méthode par chemin gRPC : entrée, sortie, type
 ```
 
-Des octets qui ne se décodent pas — tronqués, mal formés, UTF-8 invalide dans une chaîne, trop imbriqués — lèvent `InvalidMessageError` (`E_NEUTRINO_INVALID_MESSAGE`) : l'erreur à laquelle un transport répond par une erreur client.
+Des octets qui ne se décodent pas — tronqués, mal formés, UTF-8 invalide dans une chaîne, trop imbriqués — lèvent `E_NEUTRINO_INVALID_MESSAGE` : l'erreur à laquelle un transport répond par une erreur client.
 
 ## Services gRPC
 
@@ -118,14 +118,14 @@ Les services s'enregistrent dans un preload, qui s'exécute après le démarrage
 
 ```ts
 // start/grpc.ts
-import { GrpcError, GrpcStatus } from '@c9up/neutrino'
+import { errors, GrpcStatus } from '@c9up/neutrino'
 import grpc from '@c9up/neutrino/services/grpc'
 import { Echo } from '#generated/echo_pb.js'
 
 grpc.service(Echo, {
   say(request) {
     if (request.times > 100) {
-      throw new GrpcError(GrpcStatus.INVALID_ARGUMENT, 'times must be at most 100')
+      throw new errors.E_NEUTRINO_GRPC_STATUS(GrpcStatus.INVALID_ARGUMENT, 'times must be at most 100')
     }
     return { text: request.text.repeat(request.times) }
   },
@@ -136,7 +136,7 @@ grpc.service(Echo, {
 - Un service venu d'un jeu de descripteurs s'obtient par `protobuf.service('echo.Echo')` ; ses requêtes sont des messages non typés.
 - Une implémentation peut être un objet littéral ou une instance de classe ; ses méthodes sont appelées sur elle.
 - Une méthode absente répond `UNIMPLEMENTED`.
-- Une `GrpcError` est répondue avec son statut et son message. **Toute autre erreur répond `INTERNAL`, sans son message**, et elle est signalée — à `console.error`, sauf si `new GrpcServices(protobuf, { onError })` en décide autrement.
+- Une `E_NEUTRINO_GRPC_STATUS` est répondue avec son statut et son message. **Toute autre erreur répond `INTERNAL`, sans son message**, et elle est signalée — à `console.error`, sauf si `new GrpcServices(protobuf, { onError })` en décide autrement.
 - L'enregistrement refuse ce qui échouerait plus tard en silence : un nom de méthode mal orthographié, une méthode en streaming, un service enregistré deux fois.
 - Une requête est décodée **sans les champs que son schéma ne connaît pas** : chacun coûterait un objet, si bien qu'une requête de 4 Mio faite de ces champs occuperait quelque 300 Mo. `grpc: { keepUnknownFields: true }` les garde, pour une méthode qui transmet sa requête ailleurs.
 
@@ -177,12 +177,12 @@ Le côté requête d'un appel doit arriver entier — un message, puis la fin du
 
 **Les middlewares et le routeur ne voient jamais un appel gRPC.** L'authentification, la limite de débit, tout ce qu'un middleware fait pour le HTTP doit être refait pour le gRPC — avec des intercepteurs.
 
-Un intercepteur s'exécute autour de chaque appel pour lequel il est enregistré, **avant même le décodage de la requête** : un appel qu'il refuse ne fait jamais lire ses octets. Il refuse en levant une `GrpcError`, laisse passer en renvoyant `next()`, et transmet une valeur à la méthode par une `GrpcContextKey`.
+Un intercepteur s'exécute autour de chaque appel pour lequel il est enregistré, **avant même le décodage de la requête** : un appel qu'il refuse ne fait jamais lire ses octets. Il refuse en levant une `E_NEUTRINO_GRPC_STATUS`, laisse passer en renvoyant `next()`, et transmet une valeur à la méthode par une `GrpcContextKey`.
 
 ```ts
 grpc.use(async (context, next) => {          // tous les services
   if (context.ip.startsWith('10.')) return next()
-  throw new GrpcError(GrpcStatus.PERMISSION_DENIED, 'internal only')
+  throw new errors.E_NEUTRINO_GRPC_STATUS(GrpcStatus.PERMISSION_DENIED, 'internal only')
 })
 
 grpc.service(Admin, impl, { interceptors: [audit] })   // ce service seulement

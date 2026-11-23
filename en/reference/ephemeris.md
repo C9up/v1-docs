@@ -27,8 +27,7 @@ ephemeris has no provider, no configuration and no dependency at run time.
 | `toJsonLd` | function | `toJsonLd(data: object): JsonLdValue`: plain data, `undefined` left out, dates as ISO strings; anything JSON cannot hold is refused. |
 | `stringifyJsonLd` | function | `stringifyJsonLd(data: object): string`: the JSON text with `<`, `>`, `&`, U+2028 and U+2029 escaped. |
 | `jsonLdScriptTag` | function | `jsonLdScriptTag(data: object, options?: ScriptTagOptions): string`: `<script type="application/ld+json">` for `<head>`, with the request's CSP nonce when given. |
-| `EphemerisError` | error | Every refusal; `code` is an `E_EPHEMERIS_…` code. |
-| `RequirementError` | error | A required property is missing (`E_EPHEMERIS_MISSING_REQUIRED`); carries `type`, `property` and `source` (the Search Central page). |
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors). `errors.E_EPHEMERIS_MISSING_REQUIRED` carries `type`, `property` and `source` (the Search Central page). |
 | `MAX_TEXT_LENGTH` | const | `10000`: the longest text value accepted. |
 | `MAX_BREADCRUMB_ITEMS` | const | `32`. |
 | `Schema` | type namespace | `@c9up/ephemeris/schema`, as `Schema.Product`, `Schema.Article`… |
@@ -44,7 +43,7 @@ ephemeris has no provider, no configuration and no dependency at run time.
 
 ### Node helpers
 
-Each helper checks a node and returns it unchanged, typed as given: `helper<T>(node: T, options?: CheckOptions): T`. A missing required property throws `RequirementError`; a missing recommended one is a warning. Every helper also bounds the node (depth, text length, URLs, dates, prices, currencies).
+Each helper checks a node and returns it unchanged, typed as given: `helper<T>(node: T, options?: CheckOptions): T`. A missing required property throws `errors.E_EPHEMERIS_MISSING_REQUIRED`; a missing recommended one is a warning. Every helper also bounds the node (depth, text length, URLs, dates, prices, currencies).
 
 | Helper | schema.org type | Rule |
 |---|---|---|
@@ -115,6 +114,11 @@ The rules applied to nested nodes are exported too: `NESTED_REVIEW`, `NESTED_AGG
 | [`E_EPHEMERIS_TOO_DEEP`](/en/reference/errors#e-ephemeris-too-deep) | The data is nested deeper than 64 levels. |
 | [`E_EPHEMERIS_TOO_LONG`](/en/reference/errors#e-ephemeris-too-long) | A text value is longer than `MAX_TEXT_LENGTH`. |
 | [`E_EPHEMERIS_TOO_MANY`](/en/reference/errors#e-ephemeris-too-many) | A list, such as a breadcrumb, has more items than allowed. |
+
+## Migration
+
+- `EphemerisError` is gone: test `error.code`, or `error instanceof errors.E_EPHEMERIS_*` with `import { errors } from '@c9up/ephemeris'`.
+- `RequirementError` becomes `errors.E_EPHEMERIS_MISSING_REQUIRED`, with the same `type`, `property` and `source`.
 
 ## See also
 

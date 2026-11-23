@@ -18,7 +18,7 @@ pnpm add @c9up/eon
 | `@c9up/eon/provider` | `EonProvider` (default export) |
 | `@c9up/eon/services/connection` | The default connection (default export), `setConnection`, `getConnection`, `clearConnection` |
 | `@c9up/eon/schema` | `EonSchema`, the builders, `Migration`, `EonMigrationRunner`, `migrateChildTableNames`, spec types, `TYPE_KIND_MAP` |
-| `@c9up/eon/tmq` | `connectWsConsumer`, `EonConsumer` and its types, `EonConsumerError` |
+| `@c9up/eon/tmq` | `connectWsConsumer`, `EonConsumer` and its types, `errors` |
 | `@c9up/eon/health` | `EonConnectionCheck`, `EonHealthResult` |
 | `@c9up/eon/testing` | `FakeEonConnection`, `FakeEonConsumer`, `factory`, test database helpers |
 | `@c9up/eon/testing/vitest` | `describeIfTdengine` |
@@ -64,7 +64,7 @@ The root also re-exports everything of `@c9up/eon/schema`, `@c9up/eon/tmq` and `
 | `ensureDatabase` | function | `ensureDatabase(config: EonConnectionConfig, connect: EonConnector): Promise<void>`: create `config.database` per `createDatabase`. |
 | `defineConfig` | function | `defineConfig(config: EonConfig): EonConfig`. |
 | `EonProvider` | provider | Same class as `@c9up/eon/provider`. |
-| `EonConnectionError` | error | A connection or server failure; `code` holds TDengine's numeric code when it has one. |
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors). Each is a flare `Exception` with a string `code`. |
 | `EonConnection` | interface | `{ transport; exec(sql); query<T>(sql); ping(); ingestColumnar(request); schemaless(lines, options?); close() }`. |
 | `EonConfig` | interface | `EonConnectionConfig & { default?; connections?; migrationsDir? }`. |
 | `EonConnectionConfig` | interface | One connection's settings (see Configuration). |
@@ -148,7 +148,7 @@ The root also re-exports everything of `@c9up/eon/schema`, `@c9up/eon/tmq` and `
 | `EonMessage` | interface | `{ topic: string; rows: T[] }`. |
 | `EonTopicPartition` | interface | `{ topic: string; vgroupId: number; offset?: bigint; begin?: bigint; end?: bigint }`. |
 | `EonOffsetReset` | type | `'earliest' \| 'latest' \| 'none'`. |
-| `EonConsumerError` | error | A consumer failure; `code` holds TDengine's numeric code when it has one. |
+| `errors` | namespace | The same `errors` namespace as `@c9up/eon`. |
 
 ### `@c9up/eon/health`
 
@@ -256,7 +256,7 @@ The root also re-exports everything of `@c9up/eon/schema`, `@c9up/eon/tmq` and `
 
 ## Errors
 
-Most refusals are plain `Error`s whose message starts with `[CODE]`; the query compiler's start with `CODE:`. Connection and consumer failures are `EonConnectionError` and `EonConsumerError`.
+Every code is on `error.code`, and each code is a class of the `errors` namespace: `error instanceof errors.E_EON_NO_TIMESTAMP`, with `import { errors } from '@c9up/eon'`. Each is a flare `Exception`. A refusal from the TDengine server is `E_EON_SERVER_ERROR`, with TDengine's numeric code on `taosCode`. The query compiler's refusals arrive with the same codes: eon reads the compiler's message back into the matching error and keeps the compiler's own error as `cause`.
 
 | Code | Raised when |
 |---|---|
@@ -282,6 +282,9 @@ Most refusals are plain `Error`s whose message starts with `[CODE]`; the query c
 | [`E_EON_TIMEOUT`](/en/reference/errors#e-eon-timeout) | A request to TDengine got no reply within `timeoutMs`. |
 | [`E_EON_CLOSED`](/en/reference/errors#e-eon-closed) | The TDengine connection closed while a request was waiting, or a request was sent on a closed one. |
 | [`E_EON_CONNECT`](/en/reference/errors#e-eon-connect) | The WebSocket to taosAdapter could not be opened: a bad URL, a refused connection, or no handshake within the deadline. |
+| [`E_EON_SERVER_ERROR`](/en/reference/errors#e-eon-server-error) | The TDengine server refused a request (a bad statement, a missing table, bad credentials); `taosCode` holds TDengine's numeric error code. |
+| [`E_EON_NO_TOPIC`](/en/reference/errors#e-eon-no-topic) | `subscribe()` was given no topic; the server would accept it and deliver nothing. |
+| [`E_EON_SEEK_NO_OFFSET`](/en/reference/errors#e-eon-seek-no-offset) | `seek()` was given a partition without an `offset`. |
 | [`E_EON_SCHEMALESS_SCHEMA`](/en/reference/errors#e-eon-schemaless-schema) | A field type has no line-protocol form. |
 | [`E_EON_SCHEMALESS_FIELD`](/en/reference/errors#e-eon-schemaless-field) | A line-protocol field value is outside its type's range. |
 | [`E_EON_SCHEMALESS_TAG`](/en/reference/errors#e-eon-schemaless-tag) | A line-protocol tag value cannot be written. |
@@ -302,6 +305,12 @@ Most refusals are plain `Error`s whose message starts with `[CODE]`; the query c
 | [`E_EON_FACTORY_STATE`](/en/reference/errors#e-eon-factory-state) | A factory state is not defined. |
 | [`E_EON_FAKE_UNSUPPORTED`](/en/reference/errors#e-eon-fake-unsupported) | `FakeEonConnection` answers only flat SELECTs; windowed or aggregate SQL needs a live TDengine. |
 | [`E_EON_TEST_IDENTIFIER`](/en/reference/errors#e-eon-test-identifier) | A test cleanup helper was given a name that is not a plain identifier. |
+| [`E_EON_NOT_BOOTED`](/en/reference/errors#e-eon-not-booted) | An eon connection (the `eon` token, `eon:<name>`, or `@c9up/eon/services/connection`) was used before `EonProvider.boot()` opened it. |
+| [`E_EON_ALREADY_BOOTED`](/en/reference/errors#e-eon-already-booted) | `EonProvider.boot()` ran a second time while its connections are open; call `shutdown()` first. |
+| [`E_EON_BOOT_FAILED`](/en/reference/errors#e-eon-boot-failed) | `EonProvider.boot()` could not open one or more configured connections; `cause` holds the first failure. |
+| [`E_EON_UNKNOWN_CONNECTION`](/en/reference/errors#e-eon-unknown-connection) | The default connection named in `config/timeseries.ts` is not among its `connections`. |
+| [`E_EON_NO_DATABASE`](/en/reference/errors#e-eon-no-database) | `createDatabase` is set but no `database` is configured. |
+| [`E_EON_TEST_URL`](/en/reference/errors#e-eon-test-url) | `connectTestEon()` was called without `EON_TEST_URL`. |
 | [`E_EON_NAPI_NOT_FOUND`](/en/reference/errors#e-eon-napi-not-found) | The eon query compiler binary is not found. |
 | [`E_EON_NAPI_UNSUPPORTED`](/en/reference/errors#e-eon-napi-unsupported) | There is no eon query compiler binary for this platform. |
 | [`E_EON_INVALID_DURATION`](/en/reference/errors#e-eon-invalid-duration) | A duration is not a positive integer followed by one unit. |
@@ -333,6 +342,13 @@ Most refusals are plain `Error`s whose message starts with `[CODE]`; the query c
 | [`E_UNSAFE_IDENTIFIER`](/en/reference/errors#e-unsafe-identifier-eon) | The compiler refused an identifier. |
 | [`E_UNSAFE_LITERAL`](/en/reference/errors#e-unsafe-literal-eon) | The compiler refused a literal value. |
 | [`E_UNSAFE_OPERATOR`](/en/reference/errors#e-unsafe-operator) | The compiler refused an operator. |
+
+## Migration
+
+- `EonError`, `EonConnectionError` and `EonConsumerError` are gone: each code is its own class of the `errors` namespace. Replace `instanceof EonError` with a test on `error.code`, or with `instanceof errors.E_EON_...`, `errors` coming from `@c9up/eon` (or `@c9up/eon/tmq`).
+- A refusal from the TDengine server is `errors.E_EON_SERVER_ERROR`: its `code` is the string `'E_EON_SERVER_ERROR'`, and TDengine's numeric code moved to `taosCode`. `error.code === 9731` becomes `error instanceof errors.E_EON_SERVER_ERROR && error.taosCode === 9731`.
+- A client-side failure carries its code on `error.code` (`E_EON_TIMEOUT`, `E_EON_CLOSED`, `E_EON_DECODE`, `E_EON_CONNECT`, `E_EON_BIND`, `E_EON_SERVER_VERSION`), no longer as a `[E_EON_…]` tag at the start of the message.
+- A query compiler refusal carries its code on `error.code` (`E_UNSAFE_IDENTIFIER`, `E_EON_INVALID_FILL`…), no longer as `CODE:` at the start of the message.
 
 ## See also
 

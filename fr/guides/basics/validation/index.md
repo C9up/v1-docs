@@ -76,11 +76,11 @@ même contrôle : elle renvoie les données validées, ou lève
 ```typescript
 interface ValidationResult {
   valid: boolean
-  errors: ValidationError[]
+  errors: ValidationErrorNode[]
   data?: Record<string, unknown>  // Présent uniquement quand valid
 }
 
-interface ValidationError {
+interface ValidationErrorNode {
   field: string    // Nom du champ
   rule: string     // Règle qui a échoué (ex: 'min', 'email', 'required')
   message: string  // Message lisible
@@ -90,7 +90,7 @@ interface ValidationError {
 ## Le moteur Rust est requis
 
 Un schéma ne portant rien que le moteur ne sache exécuter **est exécuté par le
-moteur** — `RuneNativeRequiredError` (`E_RUNE_NAPI_REQUIRED`) est levée si le
+moteur** — `E_RUNE_NAPI_REQUIRED` est levée si le
 binaire est absent, plutôt qu'un repli.
 
 Il existe un validateur TypeScript, et il prenait le relais avec un

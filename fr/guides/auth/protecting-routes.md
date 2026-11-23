@@ -4,7 +4,7 @@ Ce guide couvre la protection des routes et des contrôleurs :
 
 - Middleware d'authentification
 - Guards sur les routes
-- E_UNAUTHORIZED et E_FORBIDDEN
+- E_UNAUTHORIZED_ACCESS et E_AUTHORIZATION_FAILURE
 - Décorateurs (métadonnées au niveau du contrôleur)
 
 ## Middleware d'authentification
@@ -14,7 +14,7 @@ Créez une classe `AuthMiddleware` qui appelle `auth.verify()` et peuple `ctx.au
 ```typescript
 // app/middleware/auth_middleware.ts
 import type { HttpContext } from '@c9up/ream'
-import { E_UNAUTHORIZED } from '@c9up/ream'
+import { errors } from '@c9up/ream'
 import { AuthManager } from '@c9up/warden'
 
 export default class AuthMiddleware {
@@ -25,12 +25,12 @@ export default class AuthMiddleware {
     const token = bearer?.startsWith('Bearer ') ? bearer.slice(7) : undefined
 
     if (!token) {
-      throw new E_UNAUTHORIZED('Bearer token required')
+      throw new errors.E_UNAUTHORIZED_ACCESS('Bearer token required')
     }
 
     const result = await this.auth.verify(token)
     if (!result.authenticated || !result.user) {
-      throw new E_UNAUTHORIZED('Invalid or expired token')
+      throw new errors.E_UNAUTHORIZED_ACCESS('Invalid or expired token')
     }
 
     ctx.auth = {
@@ -90,40 +90,42 @@ router.group(() => {
 
 ### Comportement d'application des guards
 
-Le gate du constructeur de route appartient à Ream, pas à Warden. Il lève les exceptions de Ream, que le gestionnaire d'exceptions rend :
+Le gate du constructeur de route appartient à Ream, pas à Warden. Il lève les exceptions de Ream, avec les codes, statuts et messages que Warden lève pour les mêmes refus. Chacune se rend elle-même par son propre `handle`, qui écrit les mêmes octets que l'erreur de Warden du même code : un refus répond donc de la même façon, quel que soit le gate qui l'a levé :
 
-1. Si la route possède un guard, un rôle ou une permission quelconque et que `ctx.auth.isAuthenticated` est `false`, il lève `E_UNAUTHORIZED` : `401 { error: { code: 'E_UNAUTHORIZED', message: 'Authentication required' } }`.
-2. Si la route exige des rôles et que l'utilisateur n'en détient **aucun** (`ctx.auth.roles`, ou `ctx.auth.user.roles` où Warden les range), il lève `E_FORBIDDEN` : `403 { error: { code: 'E_FORBIDDEN', message: 'Insufficient role', required: [...] } }`. `.role('a', 'b')` vaut « l'un ou l'autre ».
-3. Si la route exige des permissions et que l'utilisateur ne les détient pas **toutes**, il lève `E_FORBIDDEN` : `403 { error: { code: 'E_FORBIDDEN', message: 'Insufficient permissions', required: [...] } }`. Quand `ctx.auth` offre `hasAllPermissions()` — c'est le cas de l'authenticator de Warden —, sa réponse décide, via le résolveur de droits ; sinon le gate lit les permissions du payload. Une requête venue avec un jeton (`user.currentAccessToken`) exige en plus que le jeton autorise chacune.
+1. Si la route possède un guard, un rôle ou une permission quelconque et que `ctx.auth.isAuthenticated` est `false`, il lève `E_UNAUTHORIZED_ACCESS` : `401 { error: { code: 'E_UNAUTHORIZED_ACCESS', message: 'Unauthorized access' } }`, pour tout client.
+2. Si la route exige des rôles et que l'utilisateur n'en détient **aucun** (`ctx.auth.roles`, ou `ctx.auth.user.roles` où Warden les range), il lève `E_AUTHORIZATION_FAILURE` (403). `.role('a', 'b')` vaut « l'un ou l'autre ».
+3. Si la route exige des permissions et que l'utilisateur ne les détient pas **toutes**, il lève `E_AUTHORIZATION_FAILURE` (403). Les rôles et permissions que demande la route ne sont jamais envoyés : ils diraient au client quoi obtenir. Quand `ctx.auth` offre `hasAllPermissions()` — c'est le cas de l'authenticator de Warden —, sa réponse décide, via le résolveur de droits ; sinon le gate lit les permissions du payload. Une requête venue avec un jeton (`user.currentAccessToken`) exige en plus que le jeton autorise chacune.
+
+`E_AUTHORIZATION_FAILURE` se rend en négociant le contenu : `403 { errors: [{ message: 'Access denied' }] }` pour un client JSON, `{ errors: [{ code: 'E_AUTHORIZATION_FAILURE', title: 'Access denied' }] }` en JSON:API, le message en texte pour une requête HTML, et une soumission de formulaire (`POST`, `PUT`, `PATCH`, `DELETE`) d'un navigateur avec une session est redirigée vers la page précédente avec le message en flash sous `error` et sous le code. Le message est traduit sous `errors.E_AUTHORIZATION_FAILURE` quand le contexte a un `i18n`.
 
 `ctx.auth` doit être peuplé avant l'exécution du gate — c'est le rôle du middleware d'authentification.
 
 ### Le gate des décorateurs
 
-Le middleware d'authentification de Warden (`@c9up/warden/middleware`) applique les décorateurs `@Guard`, `@Role` et `@Permission` de l'action du contrôleur et répond lui-même, sans passer par le gestionnaire d'exceptions :
+Le middleware d'authentification de Warden (`@c9up/warden/middleware`) applique les décorateurs `@Guard`, `@Role` et `@Permission` de l'action du contrôleur. Un refus est levé, comme le lèvent le middleware `auth` et le bouncer d'AdonisJS, et le gestionnaire d'exceptions de l'hôte appelle le `handle` propre à l'erreur, qui écrit la réponse :
 
-- Échec d'authentification : `401 { error: { code: 'E_UNAUTHORIZED_ACCESS', message: ... } }` (une requête HTML sur un guard session doté d'une route de login est redirigée à la place).
-- Permissions ou rôles manquants : `403 { error: { code: 'E_WARDEN_FORBIDDEN', message: 'Missing permissions: ...' } }` ou `'Missing roles: ...'`. Ici les rôles sont **tous requis** : `@Role('a', 'b')` exige les deux, et les permissions sont vérifiées avant les rôles.
+- Échec d'authentification : `errors.E_UNAUTHORIZED_ACCESS`, `401 { error: { code: 'E_UNAUTHORIZED_ACCESS', message: ... } }` (une requête HTML sur un guard session doté d'une route de login est redirigée à la place ; un guard Basic ajoute son challenge `WWW-Authenticate`).
+- Permissions ou rôles manquants : `errors.E_AUTHORIZATION_FAILURE`, rendue comme un `authorize()` refusé et comme le `.role()` / `.permission()` du gate de route : `403 { errors: [{ message: 'Access denied' }] }` pour un client JSON, les autres formats comme ci-dessus. Le message est traduit sous `errors.E_AUTHORIZATION_FAILURE` quand le contexte a un `i18n` ; les rôles et permissions manquants ne sont pas envoyés. Ici les rôles sont **tous requis** : `@Role('a', 'b')` exige les deux.
 
 ---
 
-## E_UNAUTHORIZED et E_FORBIDDEN
+## E_UNAUTHORIZED_ACCESS et E_AUTHORIZATION_FAILURE
 
-Les deux exceptions du gate de route sont exportées par `@c9up/ream` et rendent elles-mêmes leur réponse HTTP. Levez-les depuis vos propres middlewares ou contrôleurs :
+Les deux exceptions du gate de route sont des classes de l'`errors` de `@c9up/ream`, et chacune se rend elle-même. Levez-les depuis vos propres middlewares ou contrôleurs :
 
 ```typescript
-import { E_FORBIDDEN, E_UNAUTHORIZED } from '@c9up/ream'
+import { errors } from '@c9up/ream'
 
 // 401
-throw new E_UNAUTHORIZED('Bearer token required')
-// Réponse : { "error": { "code": "E_UNAUTHORIZED", "message": "Bearer token required" } }
+throw new errors.E_UNAUTHORIZED_ACCESS('Bearer token required')
+// Réponse : { "error": { "code": "E_UNAUTHORIZED_ACCESS", "message": "Bearer token required" } }
 
 // 403
-throw new E_FORBIDDEN('Insufficient permissions', ['posts.create'])
-// Réponse : { "error": { "code": "E_FORBIDDEN", "message": "Insufficient permissions", "required": ["posts.create"] } }
+throw new errors.E_AUTHORIZATION_FAILURE()
+// Réponse à un client JSON : { "errors": [{ "message": "Access denied" }] }
 ```
 
-Les échecs propres à Warden sont des `WardenError` : `E_UNAUTHORIZED_ACCESS` (401), `E_INVALID_CREDENTIALS` (400) et `E_AUTHORIZATION_FAILURE` (403, un `authorize()` refusé) sont des classes exportées ; `E_WARDEN_FORBIDDEN` est le code qu'écrit le gate des décorateurs, pas une classe.
+Les échecs propres à Warden sont des classes de son namespace `errors` : `errors.E_UNAUTHORIZED_ACCESS` (401), `errors.E_INVALID_CREDENTIALS` (400) et `errors.E_AUTHORIZATION_FAILURE` (403, un `authorize()` refusé, ou un rôle ou une permission que refuse le gate des décorateurs). Les classes de Ream et de Warden sont distinctes, avec les mêmes codes : testez `error.code` pour intercepter l'une ou l'autre.
 
 ---
 

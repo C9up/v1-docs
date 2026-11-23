@@ -45,21 +45,26 @@ const html = await templates.render('invoice', {
 })
 ```
 
-The constructor throws `InkerRenderError({ code: 'E_INKER_INVALID_PATH' })` if `root` is relative, missing, or points at a file rather than a directory.
+The constructor throws `E_INKER_INVALID_PATH` if `root` is relative, missing, or points at a file rather than a directory.
 
 ### Checking a template without rendering it
 
 `compile(name)` and `compileRaw(source, name?)` parse and stop — the syntax
 check a linter, a CI step, or an editor integration wants. They throw an
-`InkerRenderError` carrying `code`, `line` and `column`, and return nothing when
-the template is valid. Rendering is not a substitute: it needs data and it runs
-the template's expressions.
+`InkerError` carrying `code`, and the `filename`, `line` and `col` where the
+template is wrong, and return nothing when the template is valid. A template
+that does not exist throws `errors.E_INKER_TEMPLATE_NOT_FOUND` instead, which
+has no position. Rendering is not a substitute: it needs data and it runs the
+template's expressions.
 
 ```ts
+import { InkerError } from '@c9up/inker'
+
 try {
   templates.compile('invoice')
 } catch (error) {
-  console.error(error.code, error.context.line)
+  if (!(error instanceof InkerError)) throw error
+  console.error(error.code, `${error.filename}:${error.line}:${error.col}`)
 }
 ```
 

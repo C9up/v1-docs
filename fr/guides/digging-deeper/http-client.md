@@ -32,13 +32,12 @@ contrôlée à chaque redirection.
 | `headers` | aucun | Envoyés avec chaque requête. |
 | `allowHosts` | aucun | `host` ou `host:port` exemptés de la règle d'adresse, par exemple `localhost:4399` en développement. |
 
-Une redirection de https vers http est refusée. Chaque échec est une
-`HttpClientError` (une `ReamError`) avec une `reason` et un code : `invalidUrl`
-(`E_HTTP_CLIENT_INVALID_URL`), `privateAddress` (`E_HTTP_CLIENT_PRIVATE_ADDRESS`),
-`unreachable` (`E_HTTP_CLIENT_UNREACHABLE`), `timedOut`
-(`E_HTTP_CLIENT_TIMED_OUT`), `tooLarge` (`E_HTTP_CLIENT_TOO_LARGE`) et `redirect`
-(`E_HTTP_CLIENT_REDIRECT_REFUSED`). Un statut hors 2xx est une réponse, pas une
-erreur.
+Une redirection de https vers http est refusée. Chaque échec est une classe de
+l'`errors` de `@c9up/ream`, qui porte `url`, l'URL demandée sans sa chaîne de
+requête : `E_HTTP_CLIENT_INVALID_URL`, `E_HTTP_CLIENT_PRIVATE_ADDRESS`,
+`E_HTTP_CLIENT_UNREACHABLE`, `E_HTTP_CLIENT_TIMED_OUT`, `E_HTTP_CLIENT_TOO_LARGE`
+et `E_HTTP_CLIENT_REDIRECT_REFUSED` (`error instanceof errors.E_HTTP_CLIENT_TIMED_OUT`,
+ou `error.code`). Un statut hors 2xx est une réponse, pas une erreur.
 
 En test, `fakeHttp()` renvoie un client dont le transport est remplacé par des
 réponses préparées ; les règles d'URL, d'adresse, de taille et de redirection

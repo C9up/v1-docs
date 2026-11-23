@@ -153,7 +153,6 @@ Authentification multifacteur :
 | `OtpConfig`, `OtpChallenge`, `OtpChallengeStore`, `OtpDeliveryChannel`, `OtpStartResult`, `OtpVerification`, `OtpFailureReason` | interface / type | Options et contrats des codes à usage unique |
 | `WebauthnProvider` | classe | `new WebauthnProvider(config: WebauthnConfig)` : `startRegistration`, `finishRegistration`, `startAuthentication`, `finishAuthentication` |
 | `MemoryWebauthnChallengeStore`, `MemoryWebauthnCredentialStore` | classe | Stockages en mémoire des cérémonies et des passkeys (cérémonies de 5 minutes) |
-| `WebauthnCredentialExistsError` | erreur | L'identifiant de credential est déjà enregistré |
 | `WebauthnConfig`, `WebauthnUser`, `StoredPasskey`, `WebauthnChallengeStore`, `WebauthnCredentialStore`, `RegistrationOptionsJSON`, `RegistrationResponseJSON`, `AuthenticationOptionsJSON`, `AuthenticationResponseJSON` | interface | Options des passkeys, enregistrements et JSON du navigateur |
 
 Limitation et stockages :
@@ -171,10 +170,7 @@ Erreurs :
 
 | Export | Nature | Description |
 |---|---|---|
-| `WardenError` | erreur | `code` (un code sans `E_` reçoit `E_WARDEN_`), `hint`, `status` |
-| `E_UNAUTHORIZED_ACCESS` | erreur | 401 ; `guardDriverName`, `redirectTo`, `challenge` |
-| `E_INVALID_CREDENTIALS` | erreur | 400 |
-| `E_AUTHORIZATION_FAILURE` | erreur | 403 sauf si le refus donne un autre statut ; le refus sur `error.response` |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs). Parmi elles `errors.E_UNAUTHORIZED_ACCESS` (401 ; `guardDriverName`, `redirectTo`, `challenge`), `errors.E_INVALID_CREDENTIALS` (400) et `errors.E_AUTHORIZATION_FAILURE` (403 sauf si le refus donne un autre statut ; le refus sur `error.response`) |
 
 ### `AuthManager`
 
@@ -288,7 +284,7 @@ Chaque évaluation émet `authorization:finished` quand un émetteur est branch�
 | `wardenMiddleware` | fonction | `wardenMiddleware(ctx: WardenContext, next): Promise<void>` |
 | `silentAuth` | fonction | `silentAuth(ctx: WardenContext, next): Promise<void>` : fixe `ctx.auth` via la garde par défaut, ne répond jamais 401 |
 | `initializeBouncer` | fonction | `initializeBouncer(ctx: WardenContext, next): Promise<void>` : fixe `ctx.bouncer` sur chaque requête |
-| `renderAuthError` | fonction | `renderAuthError(ctx: WardenContext, error: E_UNAUTHORIZED_ACCESS): void` : redirige une requête HTML d'une garde de session vers la route de connexion, sinon répond 401 en JSON |
+| `renderAuthError` | fonction | `renderAuthError(ctx: WardenContext, error: E_UNAUTHORIZED_ACCESS): void` : ce qu'écrit `E_UNAUTHORIZED_ACCESS.handle` ; redirige une requête HTML d'une garde de session vers la route de connexion, sinon répond 401 en JSON |
 | `WardenContext` | interface | La partie du contexte HTTP que lit le middleware |
 | `BouncerRegistry` | interface | `{ abilities, policies, resolveScope? }` |
 
@@ -405,15 +401,14 @@ export default defineConfig({
 |---|---|
 | [`E_UNAUTHORIZED_ACCESS`](/fr/reference/errors#e-unauthorized-access-warden) | Aucune garde n'a authentifié la requête (401), ou un jeton n'a pas la capacité que demande `currentAccessToken.authorize()` (403) |
 | [`E_INVALID_CREDENTIALS`](/fr/reference/errors#e-invalid-credentials) | `authFinder().verifyCredentials()` n'a trouvé aucun compte ou un mauvais mot de passe (400) |
-| [`E_AUTHORIZATION_FAILURE`](/fr/reference/errors#e-authorization-failure) | Une capacité ou une policy du bouncer a refusé l'action (403) |
-| [`E_WARDEN_FORBIDDEN`](/fr/reference/errors#e-warden-forbidden) | L'utilisateur n'a pas un rôle ou une permission que déclare la route (403) |
+| [`E_AUTHORIZATION_FAILURE`](/fr/reference/errors#e-authorization-failure) | Une capacité ou une policy du bouncer a refusé l'action, ou l'utilisateur n'a pas un rôle ou une permission que déclare la route (403) |
 | [`E_WARDEN_MFA_REQUIRED`](/fr/reference/errors#e-warden-mfa-required) | La route déclare `@RequireMfa` et l'étape MFA n'a pas été passée (403) |
 | [`E_WARDEN_AUTH_STRATEGY_ERROR`](/fr/reference/errors#e-warden-auth-strategy-error) | Chaque garde tentée a planté (500) |
 | [`E_WARDEN_UNAUTHORIZED`](/fr/reference/errors#e-warden-unauthorized) | L'`expressMiddleware()` autonome n'a trouvé aucun jeton ou l'a refusé (401) |
 | [`E_WARDEN_AUTH_ERROR`](/fr/reference/errors#e-warden-auth-error) | L'`expressMiddleware()` autonome a échoué (500) |
 | [`E_WARDEN_NO_AUTH_CONFIG`](/fr/reference/errors#e-warden-no-auth-config) | Le provider n'a trouvé aucune garde dans `config/auth.ts` |
 | [`E_WARDEN_INVALID_CONFIG`](/fr/reference/errors#e-warden-invalid-config) | Un réglage de garde, de jeton, de MFA ou de limitation est invalide |
-| [`E_WARDEN_NAPI_REQUIRED`](/fr/reference/errors#e-warden-napi-required) | La signature JWT a tourné sans le moteur natif |
+| [`E_WARDEN_NAPI_REQUIRED`](/fr/reference/errors#e-warden-napi-required) | La signature ou la vérification JWT a tourné sans le moteur natif |
 | [`E_WARDEN_NOT_BOOTED`](/fr/reference/errors#e-warden-not-booted) | `@c9up/warden/services/main` a été lu avant le boot du provider |
 | [`E_WARDEN_AUTH_NOT_REGISTERED`](/fr/reference/errors#e-warden-auth-not-registered) | Le middleware n'a trouvé aucun `AuthManager` dans le conteneur |
 | [`E_WARDEN_STRATEGY_NOT_FOUND`](/fr/reference/errors#e-warden-strategy-not-found) | Un nom de garde n'est pas configuré |
@@ -423,7 +418,7 @@ export default defineConfig({
 | [`E_WARDEN_USE_LOGIN`](/fr/reference/errors#e-warden-use-login) | `authenticate()` avec des identifiants sur une garde de session ; vérifiez le mot de passe, puis `login(user)` |
 | [`E_WARDEN_NO_SESSION`](/fr/reference/errors#e-warden-no-session) | Le `login()` / `logout()` d'une garde de session a tourné sans `ctx.session` |
 | [`E_WARDEN_REMEMBER_ME_UNAVAILABLE`](/fr/reference/errors#e-warden-remember-me-unavailable) | Le remember-me a été demandé et aucun jeton remember-me n'est configuré |
-| [`E_WARDEN_TOKEN_TTL_INVALID`](/fr/reference/errors#e-warden-token-ttl-invalid) | Le TTL d'un jeton de rafraîchissement n'est pas un nombre fini positif |
+| [`E_WARDEN_TOKEN_TTL_INVALID`](/fr/reference/errors#e-warden-token-ttl-invalid) | Le TTL d'un jeton de rafraîchissement, ou la durée de vie d'un jeton, n'est pas un nombre fini positif (une durée de vie de jeton doit aussi tomber en secondes entières) |
 | [`E_WARDEN_OTP_STORE_FULL`](/fr/reference/errors#e-warden-otp-store-full) | Le stockage OTP en mémoire contient son maximum de défis en attente |
 | [`E_WARDEN_OTP_STORE_CONTRACT`](/fr/reference/errors#e-warden-otp-store-contract) | Le stockage des défis OTP n'a pas de `take()` |
 | [`E_WARDEN_WEBAUTHN_STORE_FULL`](/fr/reference/errors#e-warden-webauthn-store-full) | Le stockage WebAuthn en mémoire contient son maximum de cérémonies en attente |
@@ -437,6 +432,31 @@ export default defineConfig({
 | [`E_WARDEN_UNKNOWN_POLICY_ACTION`](/fr/reference/errors#e-warden-unknown-policy-action) | Une policy n'a pas de méthode pour l'action |
 | [`E_WARDEN_POLICY_RESOLUTION_FAILED`](/fr/reference/errors#e-warden-policy-resolution-failed) | Le conteneur a résolu une policy en autre chose qu'une instance de sa classe |
 | [`E_WARDEN_TEMPLATE_ENGINE_UNUSABLE`](/fr/reference/errors#e-warden-template-engine-unusable) | `@c9up/inker` est utilisé mais `@can` / `@cannot` ne peuvent pas y être enregistrés |
+| [`E_WARDEN_INVALID_DURATION`](/fr/reference/errors#e-warden-invalid-duration) | Une chaîne de durée ne se lit pas, ou nomme une unité inconnue |
+| [`E_WARDEN_INVALID_TOTP_SECRET`](/fr/reference/errors#e-warden-invalid-totp-secret) | Le secret passé à `TotpProvider.generate()` / `verify()` n'est pas du base32 |
+| [`E_WARDEN_BLACKLIST_REQUIRED`](/fr/reference/errors#e-warden-blacklist-required) | `JwtStrategy.revoke()` sur une garde construite sans `blacklist` |
+| [`E_WARDEN_STRATEGY_CANNOT_AUTHENTICATE`](/fr/reference/errors#e-warden-strategy-cannot-authenticate) | `authenticate()` avec des identifiants sur une garde de clé d'API ; envoyez le jeton à `verify()` |
+| [`E_WARDEN_QUASAR_MISSING`](/fr/reference/errors#e-warden-quasar-missing) | Une liste noire Redis nomme une connexion quasar et `@c9up/quasar` n'est pas installé, ou son provider n'a pas démarré |
+| [`E_WARDEN_INCOMPLETE_CONNECTION`](/fr/reference/errors#e-warden-incomplete-connection) | La connexion quasar n'a pas une commande qu'émet la liste noire des jetons (`set`, `exists`) |
+
+Chacune est une classe du namespace `errors` et une `Exception` de `@c9up/flare`, de statut 500 sauf `E_UNAUTHORIZED_ACCESS` (401), `E_INVALID_CREDENTIALS` (400) et `E_AUTHORIZATION_FAILURE` (403, ou le statut du refus) : testez `error.code` ou `error instanceof errors.E_*`. Le conseil d'une erreur de configuration est dans `help`.
+
+`E_UNAUTHORIZED_ACCESS`, `E_INVALID_CREDENTIALS` et `E_AUTHORIZATION_FAILURE` se rendent elles-mêmes : le middleware de warden les lève, comme un handler (`await ctx.auth.authenticate()`, `await bouncer.authorize(...)`), et le gestionnaire d'exceptions de l'hôte appelle leur `handle` ; un même échec reçoit donc une même réponse, quel que soit celui qui le lève. Chacune a un `identifier` (`errors.<CODE>`, la clé de traduction lue par `ctx.i18n`), `getResponseMessage` et `handle(error, ctx)` :
+
+- `E_UNAUTHORIZED_ACCESS` : une requête HTML sur une garde de session qui a un `redirectTo` est redirigée vers la route de connexion ; sinon le challenge `WWW-Authenticate` de la garde quand elle en a un, et `401 { "error": { "code", "message" } }`.
+- `E_INVALID_CREDENTIALS` négocie avec `request.accepts` : `{ "errors": [{ "message" }] }` en JSON, un objet d'erreur JSON:API, et pour un navigateur avec une session le formulaire remis en flash (sans `_csrf`, `_method` ni les mots de passe), le message en flash sous `error` et sous le code, puis une redirection vers la page précédente ; sans session, le message en texte.
+- `E_AUTHORIZATION_FAILURE` négocie de la même façon avec le statut du refus ; seule une soumission de formulaire (`POST`, `PUT`, `PATCH`, `DELETE`) est redirigée vers la page précédente avec un flash, toute autre requête HTML reçoit le message en texte.
+
+## Migration
+
+- `WardenError` et `WardenTypeError` disparaissent : testez `error.code`, ou `error instanceof errors.E_*` avec `import { errors } from '@c9up/warden'`. Leur `hint` devient `help`. Une durée ou une durée de vie de jeton illisible n'est plus une `TypeError` : testez `E_WARDEN_INVALID_DURATION` / `E_WARDEN_TOKEN_TTL_INVALID`.
+- `E_UNAUTHORIZED_ACCESS`, `E_INVALID_CREDENTIALS` et `E_AUTHORIZATION_FAILURE` ne sont plus exportées une à une : importez `errors` et utilisez `errors.E_UNAUTHORIZED_ACCESS`, et ainsi de suite. Leurs codes et leurs statuts ne changent pas.
+- `E_INVALID_CREDENTIALS` et `E_AUTHORIZATION_FAILURE` se rendent désormais elles-mêmes au lieu de passer par la page d'erreur par défaut de l'hôte : un client JSON reçoit `{ "errors": [{ "message" }] }`, et un navigateur avec une session est redirigé vers la page précédente avec le message en flash (pour `E_AUTHORIZATION_FAILURE`, sur une soumission de formulaire seulement).
+- `WebauthnCredentialExistsError` devient `errors.E_WARDEN_WEBAUTHN_CREDENTIAL_EXISTS`, et un stockage la lève avec l'identifiant dans un tableau : `throw new errors.E_WARDEN_WEBAUTHN_CREDENTIAL_EXISTS([credentialId])`.
+- Une stratégie qui levait une `WardenError` pour qu'elle soit relancée lève à la place une des classes d'`errors` ; toute autre erreur reste signalée comme un plantage de stratégie.
+- `E_WARDEN_FORBIDDEN` disparaît : un utilisateur à qui manque un rôle ou une permission que déclare la route (`@Role`, `@Permission`) reçoit `E_AUTHORIZATION_FAILURE`, le code d'un `authorize()` refusé et du `.role()` / `.permission()` du gate de route. Le message est traduit sous `errors.E_AUTHORIZATION_FAILURE` quand le contexte a un `i18n` ; les rôles et permissions manquants ne sont pas envoyés.
+- Le middleware n'écrit plus lui-même un refus : une requête sans identifiants valides et un utilisateur à qui manque un rôle ou une permission déclarés sont LEVÉS (`errors.E_UNAUTHORIZED_ACCESS`, `errors.E_AUTHORIZATION_FAILURE`), et le `handle` de l'erreur écrit la réponse. Un `@Role` / `@Permission` refusé répond donc comme un `authorize()` refusé : `403 { "errors": [{ "message": "Access denied" }] }` en JSON, un objet d'erreur JSON:API, le message en texte pour du HTML, et une soumission de formulaire d'un navigateur avec une session redirigée vers la page précédente avec le message en flash. Le 401 ne change pas. Un `try { await next() } catch` autour du middleware de warden voit désormais ces erreurs.
+- warden demande `@c9up/ream` 0.2.32 ou plus récent, dont le gestionnaire d'exceptions rend une erreur à l'intérieur de la chaîne de middlewares (ce qu'un refus met en flash est donc enregistré avec la session).
 
 ## Voir aussi
 

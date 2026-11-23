@@ -42,16 +42,7 @@ pnpm add @c9up/parsec
 | `collectDefaultMetrics` | function | `collectDefaultMetrics(metrics: InstrumentFactory, options?: DefaultMetricsOptions): () => void`: declares the process and Node.js baseline and starts its monitors; returns the stop. |
 | `instrumentHealthChecks` | function | `instrumentHealthChecks(metrics: MetricsManager): () => void`: times each health check run from ream's tracing channel; returns the unsubscribe. |
 | `HEALTH_CHANNEL` | const | `'ream.health.check'`. |
-| `ParsecError` | error | Base class of every parsec error; `code` holds the `E_…` code. |
-| `InvalidMetricNameError` | error | `E_PARSEC_INVALID_NAME`. |
-| `InvalidInstrumentError` | error | `E_PARSEC_INVALID_INSTRUMENT`. |
-| `InstrumentConflictError` | error | `E_PARSEC_INSTRUMENT_CONFLICT`. |
-| `InvalidMeasurementError` | error | `E_PARSEC_INVALID_MEASUREMENT`. |
-| `InvalidLabelValueError` | error | `E_PARSEC_INVALID_LABEL_VALUE`. |
-| `UndeclaredLabelError` | error | `E_PARSEC_UNDECLARED_LABEL`. |
-| `UnknownExporterError` | error | `E_PARSEC_UNKNOWN_EXPORTER`. |
-| `UnprotectedEndpointError` | error | `E_PARSEC_UNPROTECTED_ENDPOINT`. |
-| `EmptyTokenError` | error | `E_PARSEC_EMPTY_TOKEN`. |
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors) |
 | `MetricsConfig` | interface | `{ default: string; exporters: Record<string, () => MetricsDriver> }`. |
 | `MetricsDriver` | interface | The driver contract: `createCounter`, `createGauge`, `createHistogram`, optional `scrape()` and `shutdown()`. |
 | `DriverOptions` | interface | `{ maxSeries?: number; collectTimeout?: number }`. |
@@ -174,6 +165,16 @@ The two string tokens are typed on `ContainerBindings` once `@c9up/parsec` is im
 | [`E_PARSEC_UNKNOWN_EXPORTER`](/en/reference/errors#e-parsec-unknown-exporter) | `default` or `use(name)` names an exporter that is not declared. |
 | [`E_PARSEC_UNPROTECTED_ENDPOINT`](/en/reference/errors#e-parsec-unprotected-endpoint) | `metricsHandler` has no token and no `public: true`, or both. |
 | [`E_PARSEC_EMPTY_TOKEN`](/en/reference/errors#e-parsec-empty-token) | The endpoint token is empty or blank. |
+| [`E_PARSEC_INVALID_CONFIG`](/en/reference/errors#e-parsec-invalid-config) | `config/metrics.ts` does not export `defineConfig({ default, exporters })`. |
+| [`E_PARSEC_INVALID_BINDING`](/en/reference/errors#e-parsec-invalid-binding) | The container answers something other than a `MetricsManager` for the `MetricsManager` token. |
+| [`E_PARSEC_NOT_BOOTED`](/en/reference/errors#e-parsec-not-booted) | The `metrics` service or the HTTP middleware is used before `ParsecProvider` bound the manager, or before `setMetrics()`. |
+
+Each one is a class of the `errors` namespace and a `@c9up/flare` `Exception` with status 500: branch on `error.code` or on `error instanceof errors.E_PARSEC_*`.
+
+## Migration
+
+- `ParsecError` is gone: test `error.code`, or `error instanceof errors.E_PARSEC_*` with `import { errors } from '@c9up/parsec'`.
+- The error classes are renamed after their code and live in the `errors` namespace: `InvalidMetricNameError` becomes `errors.E_PARSEC_INVALID_NAME`, `InvalidInstrumentError` `errors.E_PARSEC_INVALID_INSTRUMENT`, `InstrumentConflictError` `errors.E_PARSEC_INSTRUMENT_CONFLICT`, `InvalidMeasurementError` `errors.E_PARSEC_INVALID_MEASUREMENT`, `InvalidLabelValueError` `errors.E_PARSEC_INVALID_LABEL_VALUE`, `UndeclaredLabelError` `errors.E_PARSEC_UNDECLARED_LABEL`, `UnknownExporterError` `errors.E_PARSEC_UNKNOWN_EXPORTER`, `UnprotectedEndpointError` `errors.E_PARSEC_UNPROTECTED_ENDPOINT`, `EmptyTokenError` `errors.E_PARSEC_EMPTY_TOKEN`.
 
 ## See also
 

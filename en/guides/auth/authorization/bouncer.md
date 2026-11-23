@@ -281,24 +281,31 @@ class PostController {
 }
 ```
 
-When `authorize()` denies it throws `E_AUTHORIZATION_FAILURE` — an exported
-class (a `WardenError`) whose `code` is `"E_AUTHORIZATION_FAILURE"`, carrying
+When `authorize()` denies it throws `E_AUTHORIZATION_FAILURE` — a class of
+warden's `errors` namespace whose `code` is `"E_AUTHORIZATION_FAILURE"`, carrying
 `status` (403 unless the denial gives another), the denial's message ("Access
 denied" when it has none) and the `AuthorizationResponse` itself as
-`error.response`. Ream's `ExceptionHandler` duck-types that `status` and maps it
-to the response:
+`error.response`. The error renders itself: the host's exception handler calls
+its `handle`, which answers with the denial's status by content negotiation. A
+JSON client receives:
 
 ```json
-{ "error": { "code": "E_AUTHORIZATION_FAILURE", "message": "Access denied" } }
+{ "errors": [{ "message": "Access denied" }] }
 ```
+
+A JSON:API client gets `{ "errors": [{ "code": "E_AUTHORIZATION_FAILURE", "title": "Access denied" }] }`,
+an HTML request the message as text, and a form submission (`POST`, `PUT`,
+`PATCH`, `DELETE`) from a browser with a session is redirected back with the
+message flashed. A `@Role` / `@Permission` refused by warden's middleware, and a
+route's `.role()` / `.permission()`, answer the same way.
 
 An exception handler that wants the denial's translation reads it from the
 error:
 
 ```ts
-import { E_AUTHORIZATION_FAILURE } from "@c9up/warden"
+import { errors } from "@c9up/warden"
 
-if (error instanceof E_AUTHORIZATION_FAILURE) {
+if (error instanceof errors.E_AUTHORIZATION_FAILURE) {
   error.response.translation  // { identifier, data } set by .t()
   error.getResponseMessage(ctx) // ctx.i18n.t(identifier, data, { defaultValue: message })
 }

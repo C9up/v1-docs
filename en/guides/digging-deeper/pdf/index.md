@@ -129,7 +129,7 @@ call. Raise one knowingly, for a document you trust.
 
 ## Errors
 
-Failures raise `VellumError`, carrying a `code`:
+Failures raise a class of the `errors` namespace (`import { errors } from '@c9up/vellum'`), a flare `Exception` carrying a `code`:
 
 | Code | Raised when |
 | --- | --- |

@@ -66,7 +66,7 @@ user.isDirty('email')
 class User extends BaseModel {
   static guarded = ['role'] // jamais assignable en masse
 }
-await User.create({ email: 'a@b.co', role: 'admin' }) // lève MassAssignmentError
+await User.create({ email: 'a@b.co', role: 'admin' }) // lève E_MASS_ASSIGNMENT
 ```
 
 Le filtre s'applique à la clé telle que fournie **et** à la propriété qu'elle
@@ -74,8 +74,8 @@ résout, pour qu'un nom de colonne ne passe pas devant une garde écrite contre
 l'attribut :
 
 ```typescript
-await User.create({ role: 'admin' })   // MassAssignmentError
-await User.create({ is_admin: true })  // MassAssignmentError — résout vers isAdmin
+await User.create({ role: 'admin' })   // E_MASS_ASSIGNMENT
+await User.create({ is_admin: true })  // E_MASS_ASSIGNMENT — résout vers isAdmin
 ```
 
 ### `fill()` / `merge()` et `$extras`

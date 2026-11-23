@@ -53,6 +53,7 @@ pnpm add @c9up/rosetta
 | `configure` | function | Same as `@c9up/rosetta/configure` |
 | `registerReplBindings` | function | Same as `@c9up/rosetta/repl` |
 | `stubsRoot` | const | Directory of the package's stubs (not in the browser build) |
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors) (in the browser build too) |
 
 Types:
 
@@ -264,7 +265,31 @@ export default defineConfig({
 
 ## Errors
 
-Rosetta raises no coded error. A missing config, a loader without `location` or `rootDir` (`TypeError`), an unsafe catalog key or locale and a duplicate flattened key throw plain errors; `verifyCatalogs({ mode: 'throw' })` throws when the catalogs disagree.
+Every error Rosetta raises is a `@c9up/flare` `Exception` with a `code`, and each code is a class of the `errors` namespace: test `error.code`, or `error instanceof errors.E_ROSETTA_INVALID_ICU_MESSAGE`.
+
+| Code | Raised when |
+|---|---|
+| [`E_ROSETTA_NOT_BOOTED`](/en/reference/errors#e-rosetta-not-booted) | The `services/main` singleton was used before `RosettaProvider` booted, or before `setI18n()`. |
+| [`E_ROSETTA_CONFIG_MISSING`](/en/reference/errors#e-rosetta-config-missing) | `config/i18n` exports no config built with `defineConfig()`. |
+| [`E_ROSETTA_INVALID_CONFIG`](/en/reference/errors#e-rosetta-invalid-config) | The i18n config has no `formatter`. |
+| [`E_ROSETTA_INVALID_ARGUMENT`](/en/reference/errors#e-rosetta-invalid-argument) | A constructor or method got an argument of the wrong shape (an emitter, a manager, a locale, a `FileSystemLoader` without `location` or `rootDir`, an empty format key). |
+| [`E_ROSETTA_UNSAFE_KEY`](/en/reference/errors#e-rosetta-unsafe-key) | A catalog key or an ICU custom format key is one that would reach the prototype (`__proto__`, `constructor`, `prototype`). |
+| [`E_ROSETTA_DUPLICATE_KEY`](/en/reference/errors#e-rosetta-duplicate-key) | A catalog defines the same key twice: a YAML key, or a nested and a dotted key that flatten to one. |
+| [`E_ROSETTA_INVALID_CATALOG`](/en/reference/errors#e-rosetta-invalid-catalog) | A catalog file does not parse (unsupported YAML) or holds a value that is neither a mapping nor a scalar message. |
+| [`E_ROSETTA_CATALOG_LIMIT_EXCEEDED`](/en/reference/errors#e-rosetta-catalog-limit-exceeded) | A catalog is too deep, has too many keys, or a catalog file is too large. |
+| [`E_ROSETTA_UNSAFE_PATH`](/en/reference/errors#e-rosetta-unsafe-path) | A translation directory or file is a symbolic link, or resolves outside the loader's root. |
+| [`E_ROSETTA_INVALID_PATH`](/en/reference/errors#e-rosetta-invalid-path) | A translation path is not a directory, or not a file, where one is expected. |
+| [`E_ROSETTA_UNSUPPORTED_RUNTIME`](/en/reference/errors#e-rosetta-unsupported-runtime) | `FileSystemLoader` was used from the browser build, which has no filesystem. |
+| [`E_ROSETTA_INVALID_ICU_MESSAGE`](/en/reference/errors#e-rosetta-invalid-icu-message) | An ICU message does not parse, or uses a style, skeleton or option Rosetta or `Intl` does not support. |
+| [`E_ROSETTA_ICU_LIMIT_EXCEEDED`](/en/reference/errors#e-rosetta-icu-limit-exceeded) | An ICU message is too long, too deeply nested, or has too many nodes. |
+| [`E_ROSETTA_MISSING_VARIABLE`](/en/reference/errors#e-rosetta-missing-variable) | An ICU message uses a variable the call did not provide. |
+| [`E_ROSETTA_INVALID_DATE`](/en/reference/errors#e-rosetta-invalid-date) | An ICU date or time value is not a `Date`, a timestamp, an ISO string or a Luxon-like `DateTime`, or names an impossible date. |
+| [`E_ROSETTA_CATALOG_MISMATCH`](/en/reference/errors#e-rosetta-catalog-mismatch) | `verifyCatalogs({ mode: 'throw' })` found catalogs that disagree; the message is the report. |
+| [`E_ROSETTA_INTERNAL`](/en/reference/errors#e-rosetta-internal) | An internal invariant broke (an unknown ICU node, a parser state); report it as a bug. |
+
+## Migration
+
+- A refusal is no longer a built-in `TypeError`, `RangeError` or `SyntaxError` (an invalid ICU message, a YAML catalog that does not parse, a limit exceeded, an argument of the wrong shape): `error instanceof SyntaxError` no longer matches. Test `error.code` (`error.code === 'E_ROSETTA_INVALID_ICU_MESSAGE'`) or `error instanceof errors.E_ROSETTA_INVALID_ICU_MESSAGE`, `errors` coming from `@c9up/rosetta`.
 
 ## See also
 

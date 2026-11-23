@@ -50,7 +50,7 @@ Chaque entrée `transports/*` exporte une classe, aussi exportée par `@c9up/rov
 | `LogTransport` | classe | Journalise chaque message au lieu de l'envoyer. |
 | `SesTransport`, `MailgunTransport`, `SendGridTransport`, `ResendTransport`, `BrevoTransport`, `SparkPostTransport` | classe | Transports par l'API HTTP d'un fournisseur. |
 | `RoverProvider` | provider | Aussi l'export par défaut de `@c9up/rover/provider`. |
-| `RoverError` | erreur | Tout échec de rover. |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs). Chacune est une `Exception` de flare avec un `code` textuel. |
 | `DEFAULT_RETRY_CONFIG` | const | `{ maxAttempts: 3, baseDelayMs: 500, factor: 2, maxDelayMs: 10000 }`. |
 | `isRetryableError` | fonction | Indique si un échec d'envoi mérite une nouvelle tentative. |
 | `RetryConfig` | interface | `{ maxAttempts: number; baseDelayMs: number; factor: number; maxDelayMs?: number }`. |
@@ -130,7 +130,7 @@ Avec un émetteur, un envoi émet `mail:sending`, puis `mail:sent` ou `mail:fail
 | En-têtes de liste | `addListHeader(key: string, value: ListHeader \| ListHeader[] \| ListHeader[][]): this`<br>`listUnsubscribe(value, options?: { oneClick?: boolean }): this` (une cible en un clic doit être en https)<br>`listSubscribe(value): this`, `listHelp(value): this` |
 | Calendrier | `icalEvent(contents: string \| CalendarEventCallback, options?: CalendarEventOptions): this`<br>`icalEventFromFile(file: string \| URL, options?: CalendarEventOptions): this`<br>`icalEventFromUrl(url: string, options?: CalendarEventOptions): this` |
 | Inspection | `hasTo`, `hasCc`, `hasBcc`, `hasFrom`, `hasReplyTo`, `hasAnyRecipient` `(address?: string, name?: string): boolean`<br>`hasRecipient(property: 'to' \| 'cc' \| 'bcc' \| 'replyTo', address: string, name?: string): boolean`<br>`hasSubject(subject?: string)`, `hasContent(needle: string)`, `hasHeader(name: string, value?: string)`, `hasListHeader(key: string, url?: string)`, `hasAttachment(match?: string \| URL \| ((attachment: MailAttachment) => boolean))` |
-| Assertions | `assertTo`, `assertFrom`, `assertCc`, `assertBcc`, `assertReplyTo`, `assertRecipient` `(address: string): void`<br>`assertSubject(subject: string)`, `assertContent(needle: string)`, `assertHeader(name: string, value?: string)`, `assertAttachment(match)`<br>`assertHtmlIncludes(substring: string)`, `assertTextIncludes(substring: string)`, `assertWatchIncludes(substring: string \| RegExp)` ; chacune lève `E_ASSERTION_FAILED` |
+| Assertions | `assertTo`, `assertFrom`, `assertCc`, `assertBcc`, `assertReplyTo`, `assertRecipient` `(address: string): void`<br>`assertSubject(subject: string)`, `assertContent(needle: string)`, `assertHeader(name: string, value?: string)`, `assertAttachment(match)`<br>`assertHtmlIncludes(substring: string)`, `assertTextIncludes(substring: string)`, `assertWatchIncludes(substring: string \| RegExp)` ; chacune lève une `AssertionError` de `node:assert` |
 | Sortie | `build(viewsRoot?: string, globals?: Record<string, unknown>): Promise<MailMessage>`<br>`toObject(): Readonly<MailMessage>`, `toJSON(): Readonly<MailMessage>`<br>`get views(): MessageBodyTemplates`, `get contentViews(): MessageBodyTemplates`, `get nodeMailerMessage(): MailMessage` |
 | Statique | `static templateEngine: TemplateEngine \| undefined` : le moteur qui rend les vues ; non défini, le moteur `{{ }}` intégré à rover rend les fichiers `.html` sous `viewsRoot`. Le provider pose celui d'inker quand l'app l'utilise. |
 
@@ -221,6 +221,8 @@ await mail.send((message) => {
 | `assertSentCount`, `assertQueuedCount` | `(count: number): void`<br>`(mailConstructor: MailConstructor<BaseMail>, count: number): void` | |
 | `assertNoneSent`, `assertNoneQueued` | `(): void` | |
 
+Chaque assertion du fake lève une `AssertionError` de `node:assert` quand elle n'est pas vérifiée.
+
 ### Webhooks
 
 Chaque gestionnaire est un `WebhookMiddleware`, `(ctx, next) => Promise<void>`, à monter sur une route qui conserve le corps brut. Il vérifie la signature du fournisseur, refuse une signature périmée (300 secondes par défaut), répond 401 ou 400 en cas de refus et 200 sinon, et émet `mail.delivered`, `mail.bounced` ou `mail.failed` sur l'émetteur ; un échec de l'émetteur ne fait jamais échouer la réponse.
@@ -234,17 +236,6 @@ Chaque gestionnaire est un `WebhookMiddleware`, `(ctx, next) => Promise<void>`, 
 | `@c9up/rover/webhooks/resend` | `createResendWebhookHandler` | `(options: ResendWebhookOptions) => WebhookMiddleware` ; options `secret` (`whsec_…` ou base64 brut), `emitter`, `maxAgeSeconds?` |
 
 Un jeton de signature Mailgun n'est accepté qu'une fois : un rejeu répond 401.
-
-### `RoverError`
-
-Étend `Error` ; `name` vaut `"RoverError"`.
-
-| Membre | Signature | Description |
-|---|---|---|
-| `code` | `readonly code: string` | Le code d'erreur. |
-| `context` | `readonly context: Record<string, string>` | Des détails, comme `provider`, `upstreamStatus`, `networkCode`, `retryAfter`. |
-| `hint` | `readonly hint?: string` | Comment corriger. |
-| `docsUrl`, `sourceFile`, `sourceLine`, `pipelineStage` | facultatifs | D'où elle vient et où elle est documentée. |
 
 ## Configuration
 
@@ -273,6 +264,15 @@ Les jetons en chaîne sont déclarés sur `ContainerBindings`.
 
 ## Erreurs
 
+Chaque code est une classe de l'espace de noms `errors` (`import { errors } from '@c9up/rover'`) : une `Exception` de flare avec `code`, `status` (500 pour toutes) et, quand l'endroit qui la lève sait comment corriger, `help`. `E_INVALID_CONFIG` et `E_MAIL_TRANSPORT_ERROR` se construisent avec `new errors.E_INVALID_CONFIG(message, { cause })` ; `E_MAIL_TRANSPORT_ERROR` prend aussi `context` et `help` dans cet objet. Quatre d'entre elles portent aussi `context`, un `Record<string, string>` :
+
+| Classe | `context` |
+|---|---|
+| `E_MAIL_TRANSPORT_ERROR` | `provider`, `upstreamStatus` (statut HTTP ou code de réponse SMTP, `"0"` quand aucun n'est revenu), `providerMessage`, `networkCode` (un errno comme `ECONNRESET`), `retryAfter` (en secondes) et, une fois l'envoi abandonné, `attempts`. |
+| `E_MAIL_FIELD_UNSUPPORTED` | `provider`, `field`. |
+| `E_MAIL_TEMPLATE_NOT_FOUND` | `path`, `viewsRoot`, et `paths` (les candidats essayés). Vide quand le moteur natif signale un partial manquant. |
+| `E_MAIL_TEMPLATE_READ_ERROR` | `path`, `code` (l'errno), `viewsRoot`. |
+
 | Code | Levée quand |
 |---|---|
 | [`E_MAIL_INVALID_MESSAGE`](/fr/reference/errors#e-mail-invalid-message) | Il manque au message ce que l'envoi exige (une adresse `from`, un destinataire…). |
@@ -281,8 +281,8 @@ Les jetons en chaîne sont déclarés sur `ContainerBindings`.
 | [`E_INVALID_LIST_HEADER`](/fr/reference/errors#e-invalid-list-header) | Une entrée `List-*` n'est pas une URL (https, http, mailto ou ftp) ou une adresse seule. |
 | [`E_MAIL_FIELD_UNSUPPORTED`](/fr/reference/errors#e-mail-field-unsupported) | Le transport ne sait pas poser un champ qu'utilise le message. |
 | [`E_ATTACHMENT_UNREADABLE`](/fr/reference/errors#e-attachment-unreadable) | Le fichier d'une pièce jointe ne peut pas être lu. |
-| [`E_MAIL_PROVIDER_CONFIG`](/fr/reference/errors#e-mail-provider-config) | La configuration d'un transport est invalide. |
-| [`E_MAIL_PROVIDER_ERROR`](/fr/reference/errors#e-mail-provider-error) | Le transport n'a pas pu envoyer ; `context` porte le statut ou le code réseau. |
+| [`E_INVALID_CONFIG`](/fr/reference/errors#e-invalid-config) | Il manque une propriété à la configuration d'un transport, ou l'une d'elles est invalide. |
+| [`E_MAIL_TRANSPORT_ERROR`](/fr/reference/errors#e-mail-transport-error) | Le transport n'a pas pu envoyer ; `context` porte le statut ou le code réseau. |
 | [`E_MAIL_RETRY_CONFIG`](/fr/reference/errors#e-mail-retry-config) | Un réglage de nouvelle tentative est hors limites. |
 | [`E_MAIL_CONFIG_MISSING`](/fr/reference/errors#e-mail-config-missing) | Aucune configuration `mail` n'est enregistrée. |
 | [`E_MAIL_UNKNOWN_MAILER`](/fr/reference/errors#e-mail-unknown-mailer) | Un nom de mailer, ou le mailer par défaut, n'est pas déclaré. |
@@ -294,8 +294,26 @@ Les jetons en chaîne sont déclarés sur `ContainerBindings`.
 | [`E_MAIL_TEMPLATE_SYNTAX`](/fr/reference/errors#e-mail-template-syntax) | Un template d'e-mail contient une erreur de syntaxe. |
 | [`E_MAIL_TEMPLATE_RECURSION`](/fr/reference/errors#e-mail-template-recursion) | Des templates d'e-mail s'incluent trop profondément. |
 | [`E_MAIL_TEMPLATE_NAPI_REQUIRED`](/fr/reference/errors#e-mail-template-napi-required) | Il n'y a pas de binaire natif rover pour cette plateforme. |
-| [`E_ASSERTION_FAILED`](/fr/reference/errors#e-assertion-failed) | Une assertion sur un message a échoué. |
-| [`E_ROVER_UNKNOWN`](/fr/reference/errors#e-rover-unknown) | Un envoi a échoué avec une erreur sans code propre. |
+| [`E_ROVER_ICAL_UNAVAILABLE`](/fr/reference/errors#e-rover-ical-unavailable) | `icalEvent(callback)` a besoin d'`ical-generator`, qui n'est pas installé ou ne construit pas de calendrier. |
+| [`E_ROVER_UNKNOWN`](/fr/reference/errors#e-rover-unknown) | Un envoi a échoué avec une erreur sans code propre. Seulement le `error.code` d'un événement `mail:failed` : il n'y a pas de classe. |
+| [`E_ROVER_NOT_BOOTED`](/fr/reference/errors#e-rover-not-booted) | Le singleton mail de `services/main` a servi avant le boot de `RoverProvider`. |
+| [`E_ROVER_FAKE_ACTIVE`](/fr/reference/errors#e-rover-fake-active) | `mail.fake()` a été appelé alors qu'un faux est déjà actif ; appelez d'abord `restore()`. |
+| [`E_ROVER_INVALID_PREDICATE`](/fr/reference/errors#e-rover-invalid-predicate) | Une assertion du faux mailer a reçu un `containing` vide, qui correspondrait à tous les messages. |
+| [`E_ROVER_ABSTRACT_MAIL`](/fr/reference/errors#e-rover-abstract-mail) | `BaseMail` a été instancié directement au lieu d'une sous-classe. |
+| [`E_ROVER_WEBHOOK_KEY_MISSING`](/fr/reference/errors#e-rover-webhook-key-missing) | Un handler de webhook a été créé sans son secret, sa clé publique ou sa clé de signature. |
+| [`E_ROVER_WEBHOOK_INVALID_SECRET`](/fr/reference/errors#e-rover-webhook-invalid-secret) | Le secret du webhook Resend n'est pas du base64 valide, ou fait moins de 16 octets une fois décodé. |
+| [`E_ROVER_INTERNAL`](/fr/reference/errors#e-rover-internal) | Un invariant interne a été rompu (nodemailer n'a composé aucun message) ; signalez-le comme un bug. |
+
+## Migration
+
+- `RoverError` disparaît. Remplacez `instanceof RoverError` par un test sur `error.code`, ou par `instanceof errors.E_MAIL_TRANSPORT_ERROR` (ou la classe du code attendu), `errors` venant de `@c9up/rover`.
+- `error.hint` devient `error.help`.
+- `context` ne reste que sur les quatre classes listées sous [Erreurs](#erreurs) ; les autres erreurs n'en ont pas. `context.attempts` n'est posé que sur une `E_MAIL_TRANSPORT_ERROR`.
+- `E_MAIL_PROVIDER_ERROR` devient `E_MAIL_TRANSPORT_ERROR`. Elle se construit avec `new errors.E_MAIL_TRANSPORT_ERROR(message, { context, cause, help })` : `context` passe du deuxième argument aux options.
+- `E_MAIL_PROVIDER_CONFIG` devient `E_INVALID_CONFIG` pour une configuration de transport incomplète ou invalide ; une clé manquante se lit `Invalid config for "resend" transport. The "apiKey" property is missing`. Un message sans destinataire lève désormais `E_MAIL_INVALID_MESSAGE`, et `icalEvent(callback)` sans `ical-generator` utilisable lève `E_ROVER_ICAL_UNAVAILABLE`.
+- `E_ASSERTION_FAILED` disparaît : les assertions sur un message et celles du fake lèvent une `AssertionError` de `node:assert`.
+- `docsUrl`, `sourceFile`, `sourceLine` et `pipelineStage` disparaissent : rien ne les renseignait.
+- Le `name` d'une erreur ne vaut plus `"RoverError"`.
 
 ## Voir aussi
 

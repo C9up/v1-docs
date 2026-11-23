@@ -287,24 +287,32 @@ class PostController {
 }
 ```
 
-Quand `authorize()` refuse, il lève `E_AUTHORIZATION_FAILURE` — une classe
-exportée (une `WardenError`) dont le `code` est `"E_AUTHORIZATION_FAILURE"`,
+Quand `authorize()` refuse, il lève `E_AUTHORIZATION_FAILURE` — une classe du
+namespace `errors` de warden dont le `code` est `"E_AUTHORIZATION_FAILURE"`,
 portant `status` (403 sauf si le refus en donne un autre), le message du refus
 (« Access denied » s'il n'en a pas) et l'`AuthorizationResponse` elle-même dans
-`error.response`. L'`ExceptionHandler` de Ream lit ce `status` par duck-typing et
-le mappe sur la réponse :
+`error.response`. L'erreur se rend elle-même : le gestionnaire d'exceptions de
+l'hôte appelle son `handle`, qui répond avec le statut du refus en négociant le
+contenu. Un client JSON reçoit :
 
 ```json
-{ "error": { "code": "E_AUTHORIZATION_FAILURE", "message": "Access denied" } }
+{ "errors": [{ "message": "Access denied" }] }
 ```
+
+Un client JSON:API reçoit `{ "errors": [{ "code": "E_AUTHORIZATION_FAILURE", "title": "Access denied" }] }`,
+une requête HTML le message en texte, et une soumission de formulaire (`POST`,
+`PUT`, `PATCH`, `DELETE`) d'un navigateur avec une session est redirigée vers la
+page précédente avec le message en flash. Un `@Role` / `@Permission` refusé par
+le middleware de warden, et le `.role()` / `.permission()` d'une route, répondent
+de la même façon.
 
 Un gestionnaire d'exceptions qui veut la traduction du refus la lit sur
 l'erreur :
 
 ```ts
-import { E_AUTHORIZATION_FAILURE } from "@c9up/warden"
+import { errors } from "@c9up/warden"
 
-if (error instanceof E_AUTHORIZATION_FAILURE) {
+if (error instanceof errors.E_AUTHORIZATION_FAILURE) {
   error.response.translation    // { identifier, data } posé par .t()
   error.getResponseMessage(ctx) // ctx.i18n.t(identifier, data, { defaultValue: message })
 }

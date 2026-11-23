@@ -63,7 +63,7 @@ Les clauses à fenêtre temporelle (`INTERVAL` / `SLIDING` / `FILL` / `PARTITION
 
 Eon est **ws-first** : il dialogue avec TDengine par l'API WebSocket de taosAdapter, avec un client à lui construit sur le `WebSocket` intégré à Node (Node 24 ou plus récent) — sans paquet pilote, sans `libtaos`, sans FFI natif, sans script d'installation, et sans rien toucher au process (ni gestionnaire de signal, ni fichier de log). Un futur transport natif `taos` est différé derrière le même seam, pas retiré du périmètre.
 
-Le client borne ce que le serveur peut lui faire : chaque requête a une échéance (`timeoutMs`, 60 s par défaut), une trame de plus de 256 Mio ou qui ne se décode pas ferme la connexion, et la fermer — d'un côté ou de l'autre — rejette tout ce qui attend encore. Ces échecs portent `E_EON_TIMEOUT`, `E_EON_DECODE`, `E_EON_CLOSED` ou `E_EON_CONNECT` ; un refus du serveur porte à la place le `code` numérique du serveur.
+Le client borne ce que le serveur peut lui faire : chaque requête a une échéance (`timeoutMs`, 60 s par défaut), une trame de plus de 256 Mio ou qui ne se décode pas ferme la connexion, et la fermer — d'un côté ou de l'autre — rejette tout ce qui attend encore. Ces échecs portent `E_EON_TIMEOUT`, `E_EON_DECODE`, `E_EON_CLOSED` ou `E_EON_CONNECT` ; un refus du serveur est `E_EON_SERVER_ERROR`, avec le code numérique du serveur sur `taosCode`.
 
 ### Configuration
 

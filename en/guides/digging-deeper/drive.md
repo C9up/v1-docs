@@ -110,8 +110,8 @@ const link = await disk.getSignedUrl('invoices/42.pdf', { expiresIn: '30m' })
 ```
 
 The local disk signs with its `signingSecret` (HMAC-SHA256). Without one,
-`getSignedUrl` throws `E_ARCHIVE_SIGNING_DISABLED`; the other methods still
-work.
+`getSignedUrl` throws `E_CANNOT_GENERATE_URL`, with `E_ARCHIVE_SIGNING_DISABLED`
+as its `cause`; the other methods still work.
 
 ### Serving the local disk
 

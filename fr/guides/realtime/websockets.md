@@ -180,17 +180,17 @@ négociée. Le serveur passe la suite de conformité
 
 `TestClient.ws()` ouvre un socket sur l'application démarrée, avec les en-têtes
 par défaut du client. Les messages attendent qu'un test les lise ; une poignée
-de main refusée rejette avec `WebSocketRefused`, qui porte le statut.
+de main refusée rejette avec `errors.E_TEST_CLIENT_WEBSOCKET_REFUSED`, qui porte le statut.
 
 ```typescript
-import { WebSocketRefused } from '@c9up/ream/testing'
+import { errors } from '@c9up/ream'
 
 const socket = await client.ws('/chat/general', { headers: { cookie } })
 socket.send('hi')
 expect(await socket.next()).toBe('hi')
 socket.close()
 
-await expect(client.ws('/chat/general')).rejects.toBeInstanceOf(WebSocketRefused)
+await expect(client.ws('/chat/general')).rejects.toBeInstanceOf(errors.E_TEST_CLIENT_WEBSOCKET_REFUSED)
 ```
 
 ## Erreurs

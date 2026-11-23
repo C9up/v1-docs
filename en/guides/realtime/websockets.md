@@ -176,17 +176,17 @@ suite without compression.
 
 `TestClient.ws()` opens a socket on the booted application, with the client's
 default headers. Messages queue until a test reads them; a refused handshake
-rejects with `WebSocketRefused`, which carries the status.
+rejects with `errors.E_TEST_CLIENT_WEBSOCKET_REFUSED`, which carries the status.
 
 ```typescript
-import { WebSocketRefused } from '@c9up/ream/testing'
+import { errors } from '@c9up/ream'
 
 const socket = await client.ws('/chat/general', { headers: { cookie } })
 socket.send('hi')
 expect(await socket.next()).toBe('hi')
 socket.close()
 
-await expect(client.ws('/chat/general')).rejects.toBeInstanceOf(WebSocketRefused)
+await expect(client.ws('/chat/general')).rejects.toBeInstanceOf(errors.E_TEST_CLIENT_WEBSOCKET_REFUSED)
 ```
 
 ## Errors

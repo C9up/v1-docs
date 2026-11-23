@@ -35,8 +35,7 @@ iOS n'est pas encore pris en charge.
 | `GetItemOptions` | interface | Options de `getItem`. |
 | `PromptText` | interface | Les textes de l'invite biométrique. |
 | `BiometricStatus` | interface | Ce que répond `biometricStatus()`. |
-| `OrbitSecureStoreError` | erreur | Tout échec du magasin. |
-| `OrbitSecureStoreErrorCode` | type | Les codes que porte une `OrbitSecureStoreError`. |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs) |
 
 ### Fonctions
 
@@ -61,18 +60,9 @@ Une clé compte de 1 à 128 caractères parmi `A-Z a-z 0-9 . _ -` (ni `.` ni `..
 | `BiometricStatus` | `hardware` | `boolean` | Le téléphone dispose d'un capteur biométrique fort utilisable. |
 | `BiometricStatus` | `enrolled` | `boolean` | Une biométrie forte est enrôlée : `requireAuthentication` fonctionnera. |
 
-### `OrbitSecureStoreError`
-
-Étend `Error` ; `name` vaut `"OrbitSecureStoreError"`. L'erreur ne porte jamais la valeur stockée.
-
-| Membre | Signature | Description |
-|---|---|---|
-| `code` | `readonly code: OrbitSecureStoreErrorCode` | Le code stable sur lequel brancher. |
-| constructeur | `new OrbitSecureStoreError(code: OrbitSecureStoreErrorCode, message: string, options?: ErrorOptions)` | |
-
-`OrbitSecureStoreErrorCode` est l'union des sept codes ci-dessous.
-
 ## Erreurs
+
+Chaque code est une classe de l'export `errors`. Une erreur ne porte jamais la valeur stockée.
 
 Une vérification biométrique annulée a son propre code, distinct d'un échec.
 

@@ -77,7 +77,7 @@ html`
 
 `handleSubmit()` calls `preventDefault()`, marks every field touched, validates,
 and submits only when valid. `setErrors()` injects server-side field errors (e.g.
-from `HttpError.data`). `reset()` restores `initial` and clears errors/touched.
+from the `data` of `errors.E_AURORA_HTTP_REQUEST_FAILED`). `reset()` restores `initial` and clears errors/touched.
 
 ### Validation with rune (optional)
 

@@ -168,7 +168,7 @@ de cette page :
 | `merchantReturnPolicy`, `shippingService`, `memberProgram` | politiques de retour, de livraison et de fidélité — vérifiées aussi là où une organisation ou une offre marchande les porte |
 
 ```ts
-import { breadcrumb, localBusiness, RequirementError, type RequirementWarning } from '@c9up/ephemeris'
+import { breadcrumb, errors, localBusiness, type RequirementWarning } from '@c9up/ephemeris'
 
 const warnings: RequirementWarning[] = []
 localBusiness(
@@ -184,12 +184,11 @@ console.log(warnings.map((warning) => warning.property)) // ce que Google recomm
 try {
   breadcrumb([{ name: 'Home', item: 'https://shop.example/' }])
 } catch (error) {
-  if (error instanceof RequirementError) console.log(error.type, error.property)
+  if (error instanceof errors.E_EPHEMERIS_MISSING_REQUIRED) console.log(error.type, error.property)
 }
 ```
 
-Une propriété requise qui manque lève une `RequirementError`
-(`E_EPHEMERIS_MISSING_REQUIRED`), avec `type`, `property` et `source`. Une
+Une propriété requise qui manque lève `errors.E_EPHEMERIS_MISSING_REQUIRED`, avec `type`, `property` et `source`. Une
 propriété recommandée qui manque est un avertissement, jamais une erreur : il
 va à `onWarning`, ou est écrit une fois par sorte avec `console.warn` ;
 `{ onWarning: () => {} }` le fait taire.
@@ -237,7 +236,7 @@ le nonce de la requête, échappé :
 
 | Code | Levée quand |
 |---|---|
-| `E_EPHEMERIS_MISSING_REQUIRED` | une propriété exigée par Google manque (`RequirementError`) |
+| `E_EPHEMERIS_MISSING_REQUIRED` | une propriété exigée par Google manque (avec `type`, `property` et `source`) |
 | `E_EPHEMERIS_INVALID_URL` | une URL qui n'est pas absolue en http(s) |
 | `E_EPHEMERIS_INVALID_PRICE` | un prix qui n'est ni un nombre ni des chiffres décimaux |
 | `E_EPHEMERIS_INVALID_CURRENCY` | une devise qui n'est pas un code de trois lettres |
@@ -252,7 +251,7 @@ le nonce de la requête, échappé :
 | `E_EPHEMERIS_TOO_LONG` | un texte de plus de 10 000 caractères |
 | `E_EPHEMERIS_TOO_MANY` | un fil d'Ariane de plus de 32 éléments |
 
-Chacune est une `EphemerisError` avec son `code`.
+Chacune est une classe de l'export `errors`, nommée par son code : testez `error.code`, ou `error instanceof errors.E_EPHEMERIS_…`.
 
 ## Licence
 

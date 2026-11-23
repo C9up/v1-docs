@@ -40,15 +40,7 @@ ream configure @c9up/echo
 | `isBusMessage` | fonction | `isBusMessage(value: unknown): value is BusMessage`. |
 | `parseDuration` | fonction | `parseDuration(value: string): number` : `'5m'`, `'300s'`, `'500ms'` en secondes ; un nombre nu vaut des secondes. |
 | `resolveTtlSeconds` | fonction | `resolveTtlSeconds(ttl: Duration \| undefined, defaultSeconds: number): number`. `null`, `0` et `Infinity` signifient sans expiration (`0`) ; un TTL négatif reste négatif (déjà expiré). |
-| `EchoError` | erreur | Classe de base avec `readonly code: string`. |
-| `FactoryError` | erreur | `E_FACTORY_ERROR` : `key`, `cause`, `isBackground`. |
-| `TimeoutError` | erreur | `E_FACTORY_HARD_TIMEOUT`. |
-| `LockTimeoutError` | erreur | `E_ECHO_LOCK_TIMEOUT`, avec `key`. |
-| `L2CacheError` | erreur | `E_L2_CACHE_ERROR` ; `cause` est l'erreur de la L2. |
-| `UndefinedValueError` | erreur | `E_UNDEFINED_VALUE` ; étend `TypeError`. |
-| `InvalidArgumentError` | erreur | `E_ECHO_INVALID_ARGUMENT` ; étend `TypeError`. |
-| `InvalidDurationError` | erreur | `E_ECHO_INVALID_DURATION` ; étend `TypeError`. |
-| `errors` | const | `{ E_FACTORY_ERROR, E_FACTORY_HARD_TIMEOUT, E_UNDEFINED_VALUE, E_L2_CACHE_ERROR }`, les classes d'erreur par code. |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs). Les clés d'amont `errors.E_FACTORY_ERROR`, `E_FACTORY_SOFT_TIMEOUT`, `E_FACTORY_HARD_TIMEOUT`, `E_UNDEFINED_VALUE`, `E_L2_CACHE_ERROR` gardent leur nom et leur message. `E_FACTORY_ERROR` porte `key` et `isBackgroundFactory`, `E_FACTORY_SOFT_TIMEOUT`, `E_FACTORY_HARD_TIMEOUT` et `E_ECHO_LOCK_TIMEOUT` portent `key`, `E_L2_CACHE_ERROR` porte `operation`. |
 | `CacheConfig` | interface | Options d'un `CacheManager` ; voir [Configuration](#configuration). |
 | `EchoProviderConfig` | interface | `CacheConfig` plus `driver?: 'memory'` : la forme à un seul store de `config/cache.ts`. |
 | `MultiStoreConfig` | interface | `{ default: string; ttl?: Duration; stores: Record<string, StoreConfig \| Store>; emitter?: CacheEmitter }`. |
@@ -113,10 +105,10 @@ ream configure @c9up/echo
 | `grace` | `Duration` | Combien de temps une valeur périmée est gardée pour répondre quand la factory échoue ou tarde. |
 | `graceBackoff` | `Duration` | Après une factory en échec, combien de temps la valeur périmée compte comme fraîche. `'10s'` par défaut ; `0` ou `null` réessaie à l'appel suivant. |
 | `timeout` | `Duration` | Délai souple : sur une valeur périmée, répondre celle-ci si la factory est plus lente, et rafraîchir en arrière-plan. |
-| `hardTimeout` | `Duration` | Rejeter avec `TimeoutError` au-delà. |
-| `lockTimeout` | `Duration` | Attente maximale de la factory d'un autre appelant pour la même clé ; ensuite la valeur périmée, ou `LockTimeoutError`. |
+| `hardTimeout` | `Duration` | Rejeter avec `E_FACTORY_HARD_TIMEOUT` au-delà. |
+| `lockTimeout` | `Duration` | Attente maximale de la factory d'un autre appelant pour la même clé ; ensuite la valeur périmée, ou `E_ECHO_LOCK_TIMEOUT`. |
 | `tags` | `string[]` | |
-| `onFactoryError` | `(error: FactoryError) => void` | Informé de chaque échec de factory, au premier plan comme en arrière-plan. |
+| `onFactoryError` | `(error: errors.E_FACTORY_ERROR) => void` | Informé de chaque échec de factory, au premier plan comme en arrière-plan. |
 
 ### `CacheStoreManager`
 
@@ -228,8 +220,9 @@ Les jetons chaîne sont déclarés sur `ContainerBindings`. Le provider publie l
 | Code | Levée quand |
 |---|---|
 | [`E_FACTORY_ERROR`](/fr/reference/errors#e-factory-error) | La factory de `getOrSet()` a levé une erreur ; `cause` la contient. |
+| [`E_FACTORY_SOFT_TIMEOUT`](/fr/reference/errors#e-factory-soft-timeout) | Jamais levée : au délai souple, echo sert la valeur périmée. Exportée pour le code qui la teste. |
 | [`E_FACTORY_HARD_TIMEOUT`](/fr/reference/errors#e-factory-hard-timeout) | La factory n'a pas fini dans son délai strict. |
-| [`E_UNDEFINED_VALUE`](/fr/reference/errors#e-undefined-value) | Une valeur `null` ou `undefined` a été écrite. |
+| [`E_UNDEFINED_VALUE`](/fr/reference/errors#e-undefined-value) | Une valeur `null` ou `undefined` a été écrite (`null` est refusé lui aussi, volontairement). |
 | [`E_L2_CACHE_ERROR`](/fr/reference/errors#e-l2-cache-error) | La L2 d'un store à deux couches a échoué et l'échec n'est pas masqué. |
 | [`E_ECHO_LOCK_TIMEOUT`](/fr/reference/errors#e-echo-lock-timeout) | Un appelant a trop attendu la factory d'un autre pour la même clé, sans valeur périmée. |
 | [`E_ECHO_INVALID_ARGUMENT`](/fr/reference/errors#e-echo-invalid-argument) | Une méthode a reçu un argument dont elle ne peut rien faire. |
@@ -243,6 +236,17 @@ Les jetons chaîne sont déclarés sur `ContainerBindings`. Le provider publie l
 | [`E_ECHO_QUASAR_MISSING`](/fr/reference/errors#e-echo-quasar-missing) | Un store Redis est configuré et `@c9up/quasar` n'est pas installé. |
 | [`E_ECHO_INCOMPLETE_CONNECTION`](/fr/reference/errors#e-echo-incomplete-connection) | La connexion quasar n'a pas `publish()` ou `subscribe()`. |
 | [`E_ECHO_NOT_BOOTED`](/fr/reference/errors#e-echo-not-booted) | `services/main` a servi avant `EchoProvider.boot()` ou `setCache()`. |
+| [`E_ECHO_BUS_SUBSCRIBE_FAILED`](/fr/reference/errors#e-echo-bus-subscribe-failed) | Le bus de cache quasar a signalé un échec d'abonnement qui n'est pas une `Error` ; `cause` contient ce qu'il a signalé. |
+
+Chacune est une classe d'`errors`, une `Exception` de flare : lisez `error.code`, ou testez `error instanceof errors.E_ECHO_LOCK_TIMEOUT`.
+
+## Migration
+
+- `EchoError` disparaît : testez `error.code`, ou `instanceof` une classe d'`errors`.
+- Les classes portent le nom de leur code : `FactoryError` devient `errors.E_FACTORY_ERROR`, `TimeoutError` devient `errors.E_FACTORY_HARD_TIMEOUT`, `LockTimeoutError` devient `errors.E_ECHO_LOCK_TIMEOUT`, `L2CacheError` devient `errors.E_L2_CACHE_ERROR`, `UndefinedValueError` devient `errors.E_UNDEFINED_VALUE`, `InvalidArgumentError` devient `errors.E_ECHO_INVALID_ARGUMENT`, `InvalidDurationError` devient `errors.E_ECHO_INVALID_DURATION`.
+- Aucune n'étend plus `TypeError` : remplacez `instanceof TypeError` par le code.
+- `E_FACTORY_ERROR`, `E_FACTORY_HARD_TIMEOUT`, `E_UNDEFINED_VALUE` et `E_L2_CACHE_ERROR` portent désormais les messages du module de cache (« Factory has thrown an error », « Factory has timed out after waiting for hard timeout », « Cannot set undefined value in the cache, key: `<clé>` », « An error occurred while interacting with the L2 cache ») : lisez `cause`, `key` et `operation` plutôt que d'analyser le message. Leurs constructeurs sont `(key, cause, isBackground?)`, `(key)`, `(key)` et `(cause, { operation }?)`.
+- `errors.E_FACTORY_SOFT_TIMEOUT` est nouvelle.
 
 ## Voir aussi
 

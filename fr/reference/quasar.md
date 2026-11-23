@@ -14,7 +14,7 @@ pnpm add @c9up/quasar
 
 | Import | Contenu |
 |---|---|
-| `@c9up/quasar` | `defineConfig`, `QuasarManager`, `QuasarConnection`, contrôles de santé, canaux de traçage, types |
+| `@c9up/quasar` | `defineConfig`, `QuasarManager`, `QuasarConnection`, contrôles de santé, canaux de traçage, `errors`, types |
 | `@c9up/quasar/provider` | `QuasarProvider` (export par défaut) |
 | `@c9up/quasar/services/main` | Le gestionnaire par défaut (export par défaut), `setQuasar`, `getQuasar`, `clearQuasar` |
 | `@c9up/quasar/configure` | `configure(codemods)`, lancé par `ream configure` |
@@ -31,8 +31,7 @@ pnpm add @c9up/quasar
 | `QuasarConnection` | classe | Une connexion : les commandes ioredis, le pub/sub, l'état et les événements. |
 | `QuasarCheck` | classe | Contrôle de santé qui envoie PING à une connexion. |
 | `QuasarMemoryUsageCheck` | classe | Contrôle de santé qui compare la mémoire du serveur à un seuil d'alerte et à un seuil d'échec. |
-| `InvalidBytesValueError` | erreur | Un seuil mémoire ne se lit pas comme une taille (`E_INVALID_BYTES_VALUE`, statut 500). |
-| `errors` | constante | `{ E_INVALID_BYTES_VALUE: InvalidBytesValueError }`. |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs) |
 | `tracingChannels` | constante | Espace de noms qui contient `redisCommand`, le canal de traçage `quasar.redis.command`. |
 | `QuasarConfig` | type | `{ connection: keyof Connections & string; connections: Connections }`. |
 | `ConnectionConfig` | type | `StandaloneConnectionConfig \| ClusterConnectionConfig`. |
@@ -170,8 +169,21 @@ Les deux jetons sont typés sur `ContainerBindings` dès que `@c9up/quasar` est 
 | Code | Levée quand |
 |---|---|
 | [`E_INVALID_BYTES_VALUE`](/fr/reference/errors#e-invalid-bytes-value) | Un seuil mémoire de `QuasarMemoryUsageCheck` ne se lit pas comme une taille. |
+| [`E_QUASAR_MISSING_CONFIG`](/fr/reference/errors#e-quasar-missing-config) | `QuasarProvider` s'enregistre et `config/redis.ts` n'existe pas. |
+| [`E_QUASAR_INVALID_CONFIG`](/fr/reference/errors#e-quasar-invalid-config) | `defineConfig` ne déclare aucune connexion, ou nomme une connexion par défaut qu'il ne déclare pas. |
+| [`E_QUASAR_INVALID_PORT`](/fr/reference/errors#e-quasar-invalid-port) | Le `port` d'une connexion n'est pas un entier entre 0 et 65535. |
+| [`E_QUASAR_UNKNOWN_CONNECTION`](/fr/reference/errors#e-quasar-unknown-connection) | `connection(name)` nomme une connexion que la configuration ne déclare pas. |
+| [`E_QUASAR_UNKNOWN_COMMAND`](/fr/reference/errors#e-quasar-unknown-command) | `runCommand()` nomme une commande jamais définie avec `defineCommand()`, ou la connexion n'a pas une commande relayée. |
+| [`E_QUASAR_NOT_A_CLUSTER`](/fr/reference/errors#e-quasar-not-a-cluster) | `nodes()` est appelée sur une connexion autonome. |
+| [`E_QUASAR_INVALID_DURATION`](/fr/reference/errors#e-quasar-invalid-duration) | `cacheFor()` d'un contrôle de santé reçoit une durée illisible. |
+| [`E_QUASAR_NOT_BOOTED`](/fr/reference/errors#e-quasar-not-booted) | Un membre de `services/main` est lu avant que `QuasarProvider` ait installé un gestionnaire, ou avant `setQuasar()`. |
 
-Les autres refus sont des `Error` simples dont le message commence par `[redis]` : `config/redis.ts` absent, nom de connexion non déclaré, port qui n'est pas un numéro de port, `nodes()` hors cluster, membre de `services/main` lu avant qu'un gestionnaire soit installé.
+Chacune est une classe du namespace `errors` et une `Exception` de `@c9up/flare` de statut 500 : testez `error.code` ou `error instanceof errors.E_*`. Les messages des refus `E_QUASAR_` commencent par `[redis]`.
+
+## Migration
+
+- `QuasarError` disparaît : testez `error.code`, ou `error instanceof errors.E_QUASAR_*` avec `import { errors } from '@c9up/quasar'`.
+- `InvalidBytesValueError` n'est plus exportée : utilisez `errors.E_INVALID_BYTES_VALUE`, qui en était déjà l'alias.
 
 ## Voir aussi
 

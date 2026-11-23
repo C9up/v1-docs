@@ -37,6 +37,7 @@ ream configure @c9up/relay
 | `splitFrames` | function | `splitFrames(body: string): string[]`: splits a POST body on the SignalR record separator. |
 | `PING_CHANNEL` | const | `'$$relay/ping'`, the event name of keep-alive frames. |
 | `RelayProvider` | provider | Same as `@c9up/relay/provider`. |
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors) |
 | `RelayConfig` | interface | See [Configuration](#configuration). |
 | `RelayContext` | interface | What an authorizer receives: `auth?`, `session?`, `request?`, `bouncer?`. |
 | `RelayAuth` | interface | `{ isAuthenticated: boolean; user?: { id: string; [key: string]: unknown }; roles?: string[]; permissions?: string[] }`. |
@@ -211,12 +212,31 @@ new RedisRelayTransport(client: RelayPubSubResolver, ownsConnection?: boolean)
 | [`E_RELAY_UNKNOWN_CONNECTION`](/en/reference/errors#e-relay-unknown-connection) | A hub request with no valid connection token. |
 | [`E_RELAY_MAX_CONNECTIONS`](/en/reference/errors#e-relay-max-connections) | A hub has `maxConnections` open streams. |
 | [`E_RELAY_MAX_CONNECTIONS_PER_OWNER`](/en/reference/errors#e-relay-max-connections-per-owner) | This client has `maxConnectionsPerOwner` open hub streams. |
-| [`E_RELAY_MAX_PENDING`](/en/reference/errors#e-relay-max-pending) | Too many hub connections are negotiated and not yet open. |
+| [`E_RELAY_MAX_PENDING`](/en/reference/errors#e-relay-max-pending) | Too many hub connections are negotiated and not yet open; `SignalRAdapter.negotiate()` throws it. |
 | [`E_RELAY_SHUT_DOWN`](/en/reference/errors#e-relay-shut-down) | The relay is shutting down. |
 | [`E_RELAY_UNAUTHORIZED`](/en/reference/errors#e-relay-unauthorized) | A hub invocation needs an authenticated user, or one from another guard. |
 | [`E_RELAY_FORBIDDEN`](/en/reference/errors#e-relay-forbidden) | A hub invocation lacks the required role or permission. |
 | [`E_RELAY_UNKNOWN_EVENT`](/en/reference/errors#e-relay-unknown-event) | A hub invocation names no handler. |
 | [`E_RELAY_HANDLER_ERROR`](/en/reference/errors#e-relay-handler-error) | A hub handler threw. |
+| [`E_RELAY_INVALID_CHANNEL_PATTERN`](/en/reference/errors#e-relay-invalid-channel-pattern) | `authorize()` was given a channel pattern that could never match. |
+| [`E_RELAY_INVALID_PING_INTERVAL`](/en/reference/errors#e-relay-invalid-ping-interval) | `pingInterval` is neither milliseconds nor a duration like `'30s'`. |
+| [`E_RELAY_HUB_PATH_TAKEN`](/en/reference/errors#e-relay-hub-path-taken) | `relay.hub()` names a path where a hub is already mounted. |
+| [`E_RELAY_HUB_ALREADY_MOUNTED`](/en/reference/errors#e-relay-hub-already-mounted) | One hub instance is mounted a second time; give each mount its own instance. |
+| [`E_RELAY_DUPLICATE_HANDLER`](/en/reference/errors#e-relay-duplicate-handler) | Two handlers of a hub differ only by case, so they answer the same invocation. |
+| [`E_RELAY_INVALID_HUB`](/en/reference/errors#e-relay-invalid-hub) | The object mounted with `relay.hub()` does not extend `Hub`. |
+| [`E_RELAY_INVALID_ADAPTER`](/en/reference/errors#e-relay-invalid-adapter) | The adapter given to `relay.hub()` is not a `SignalRAdapter`. |
+| [`E_RELAY_TRANSPORT_NOT_STARTED`](/en/reference/errors#e-relay-transport-not-started) | `whenTransportReady()` was called before `startTransport()`. |
+| [`E_RELAY_TRANSPORT_SUPERSEDED`](/en/reference/errors#e-relay-transport-superseded) | A `startTransport()` was overtaken by a shutdown or a newer start before it subscribed. |
+| [`E_RELAY_TRANSPORT_UNRELEASED`](/en/reference/errors#e-relay-transport-unreleased) | `startTransport()` could not release the previous bus subscription, so it refuses to subscribe again; `cause` is the bus's error. |
+| [`E_RELAY_QUASAR_MISSING`](/en/reference/errors#e-relay-quasar-missing) | A Redis bus names a quasar connection and `@c9up/quasar` is not installed, or its provider has not booted. |
+| [`E_RELAY_REDIS_INCOMPLETE`](/en/reference/errors#e-relay-redis-incomplete) | The quasar connection lacks a command the bus issues. |
+| [`E_RELAY_SUBSCRIBE_FAILED`](/en/reference/errors#e-relay-subscribe-failed) | The bus client's subscribe failed with something other than an `Error`; `cause` holds what it threw. |
+| [`E_RELAY_ASSERTION_FAILED`](/en/reference/errors#e-relay-assertion-failed) | `FakeRelay.assertSent()` or `assertNotSent()` does not hold. |
+| [`E_RELAY_INTERNAL`](/en/reference/errors#e-relay-internal) | An invariant of relay broke. A bug: report it. |
+
+## Migration
+
+- `RelayError` and `RelayTypeError` are gone: test `error.code`, or `error instanceof errors.E_RELAY_*` with `import { errors } from '@c9up/relay'`. `E_RELAY_INVALID_HUB` and `E_RELAY_INVALID_ADAPTER` are no longer a `TypeError`.
 
 ## See also
 

@@ -26,7 +26,7 @@ export const Counter = component((props: { label: string }) => {
 Cette entrée contient ce avec quoi on écrit un composant : les signaux
 (`signal`, `memo`, `effect`, `batch`, `untrack`, `onCleanup`), `html`,
 `component` avec son cycle de vie et son contexte, `each`, `uid`, `cn`,
-`command`, `form` et `AuroraError`. Elle se charge là où il n'y a ni DOM, ni
+`command`, `form` et `errors`. Elle se charge là où il n'y a ni DOM, ni
 module Node, ni `await` de haut niveau — un test parcourt son graphe d'imports
 pour que ça le reste. `@c9up/aurora` réexporte les mêmes fonctions : une app
 existante ne change rien, et un composant écrit avec le cœur se rend toujours

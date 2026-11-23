@@ -76,7 +76,7 @@ fails the sign-in.
 
 A reply that cannot be framed or decoded at all — malformed BER, an indefinite
 length, a message declared larger than 8 MiB — fails the operations waiting on
-that connection with an `LdapError` and closes it. It never escapes the socket:
+that connection with an `E_TRANSIT_LDAP_ERROR` and closes it. It never escapes the socket:
 one bad reply from a directory does not take the process down.
 
 ### What a directory returns

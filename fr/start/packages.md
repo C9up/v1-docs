@@ -8,6 +8,7 @@ Chaque paquet s'installe et fonctionne seul : une application ream prend ceux do
 
 - **`@c9up/ream`** : Le cœur du framework : l'application et son cycle de vie, le conteneur, l'environnement, le serveur HTTP avec son routeur, la requête, la réponse, les sessions et le parseur de corps, les événements, le planificateur, la console et le client de test. Guide : [Application](/fr/guides/concepts/application) · [Référence](/fr/reference/ream)
 - **`@c9up/lumen`** : La sortie terminal, sans dépendance : couleurs, un logger au vocabulaire fixe, tableaux, encadrés, étapes et rapports de tâches, plus un mode brut qui rend tout cela vérifiable dans un test. Guide : [Sortie terminal](/fr/guides/command-line/terminal-output) · [Référence](/fr/reference/lumen)
+- **`@c9up/flare`** : Les exceptions que lèvent tous les paquets : une classe `Exception` avec un `code`, un `status` HTTP et un texte d'aide `help`, et `createError()` pour déclarer une erreur en une ligne. Sans dépendance ; fonctionne dans Node.js, les navigateurs et React Native. Guide : [Gestion des exceptions](/fr/guides/basics/exception-handling) · [Référence](/fr/reference/flare)
 - **`@c9up/ream-cli`** : Le binaire `ream`, écrit en Rust : il crée les projets, installe et configure les paquets, lance le serveur de développement, construit, teste, et transmet toute autre commande à la console de l'application. Guide : [Introduction](/fr/guides/command-line/introduction) · [Référence](/fr/reference/ream-cli)
 
 ## API

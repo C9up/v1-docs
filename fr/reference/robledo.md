@@ -31,8 +31,7 @@ Ajoutez `() => import('@c9up/robledo/provider')` aux providers de `reamrc.ts`, e
 | `registerRobledoRoutes` | fonction | Monte les deux routes de robledo sur un routeur. |
 | `RobledoRouter` | interface | La forme de routeur dont les routes ont besoin : `get(path, handler)`. |
 | `RobledoHttpContext` | interface | La partie d'un contexte HTTP qu'utilisent les routes. |
-| `RobledoError` | erreur | Tout échec de robledo. |
-| `RobledoErrorCode` | type | Les codes que porte une `RobledoError`. |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs) |
 
 ### `Robledo`
 
@@ -92,6 +91,7 @@ robledo.registerRoutes()
 | `UpdateStatus` | interface | Ce que renvoie `updateStatus`. |
 | `NativeRobledo` | interface | Le module natif, structurellement : `status()`, `stage(…)`, `ready()`. |
 | `NATIVE_MODULE_NAME` | const | `"NativeRobledo"`. |
+| `errors` | namespace | Le même namespace que celui de `@c9up/robledo`, voir [Erreurs](#erreurs) |
 
 | Fonction | Signature | Description |
 |---|---|---|
@@ -113,15 +113,6 @@ type CheckResult =
 | `platform` | `string` | La plateforme. |
 | `current` | `string \| null` | La mise à jour en cours, ou `null` pour le bundle intégré à l'app. |
 | `pending` | `string \| null` | Une mise à jour préparée pour le prochain démarrage. |
-
-### `RobledoError`
-
-Étend `Error` ; `name` vaut le nom de la classe.
-
-| Membre | Signature | Description |
-|---|---|---|
-| `code` | `readonly code: RobledoErrorCode` | Le code stable sur lequel brancher. |
-| constructeur | `new RobledoError(code: RobledoErrorCode, message: string, options?: ErrorOptions)` | |
 
 ## Configuration
 
@@ -150,6 +141,11 @@ Le côté app lit `mobile.updates` (`url`, `publicKey`) dans `reamrc.ts` au mome
 | [`E_ROBLEDO_NO_NATIVE_MODULE`](/fr/reference/errors#e-robledo-no-native-module) | L'app n'a pas de module `NativeRobledo` : elle n'a pas été construite avec robledo installé. |
 | [`E_ROBLEDO_BAD_RESPONSE`](/fr/reference/errors#e-robledo-bad-response) | Le serveur a répondu à une vérification, ou à un téléchargement de fichier, par autre chose qu'une mise à jour. |
 | [`E_ROBLEDO_REFUSED`](/fr/reference/errors#e-robledo-refused) | Le téléphone a refusé la mise à jour : signature invalide, fichier altéré, mauvais runtime. |
+
+## Migration
+
+- `RobledoError` disparaît : testez `error.code`, ou `error instanceof errors.E_ROBLEDO_*` avec `import { errors } from '@c9up/robledo'` (ou depuis `@c9up/robledo/mobile` sur le téléphone).
+- Le type `RobledoErrorCode` disparaît : `error.code` est une `string`.
 
 ## Voir aussi
 

@@ -255,17 +255,18 @@ onto a mount of just the files the browser needs.
 
 ### Catching an aurora failure
 
-Every error aurora raises is an `AuroraError` carrying a stable `code`, so a
-caller can branch on what went wrong without matching a message — prose is free
-to improve, a code is a contract.
+Every error aurora raises carries a stable `code`, and is an instance of the
+class of that name in the `errors` export, so a caller can branch on what went
+wrong without matching a message — prose is free to improve, a code is a
+contract.
 
 ```js
-import { AuroraError } from '@c9up/aurora'
+import { errors } from '@c9up/aurora'
 
 try {
   await pages.resolve('Dashboard')
 } catch (error) {
-  if (error instanceof AuroraError && error.code === 'E_AURORA_PAGE_NOT_FOUND') {
+  if (error instanceof errors.E_AURORA_PAGE_NOT_FOUND) {
     // …
   }
 }

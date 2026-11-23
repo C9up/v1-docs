@@ -134,8 +134,11 @@ csrf: {
 
 ### Rejection
 
-A rejected token answers `403 E_BAD_CSRF_TOKEN`. On Ream, a browser form
-(`Accept: text/html`) is redirected back with the form fields (minus `_csrf`,
+A rejected token answers `403 E_BAD_CSRF_TOKEN`. On Ream, the middleware
+throws `errors.E_BAD_CSRF_TOKEN` and the exception handler renders it inside the
+middleware chain, so the session still commits the flash; your exception handler
+can catch or customise it (this needs `@c9up/ream` 0.2.32 or later). The error
+renders itself: a browser form (`Accept: text/html`) is redirected back with the form fields (minus `_csrf`,
 `_method` and passwords) and the message flashed; an Inertia visit
 (`X-Inertia`) gets the same redirect without the form fields re-flashed; a JSON
 client gets the JSON body. When the context has an `i18n`, the message is

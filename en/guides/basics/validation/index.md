@@ -78,11 +78,11 @@ which the server answers with 422 and the errors.
 ```typescript
 interface ValidationResult {
   valid: boolean
-  errors: ValidationError[]
+  errors: ValidationErrorNode[]
   data?: Record<string, unknown>  // Present only when valid === true
 }
 
-interface ValidationError {
+interface ValidationErrorNode {
   field: string   // Field name in the schema
   rule: string    // Rule that failed: 'required', 'min', 'email', 'slug', ...
   message: string // Human-readable description
@@ -94,7 +94,7 @@ When `valid` is `false`, `data` is `undefined`. When `valid` is `true`, `data` c
 ## The Rust engine is required
 
 A schema carrying nothing the engine cannot run **is run by the engine** —
-`RuneNativeRequiredError` (`E_RUNE_NAPI_REQUIRED`) is thrown when the binary is
+`E_RUNE_NAPI_REQUIRED` is thrown when the binary is
 absent, rather than falling back.
 
 There is a TypeScript validator, and it used to take over with a one-time

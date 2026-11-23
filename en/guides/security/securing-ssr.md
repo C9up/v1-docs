@@ -189,7 +189,7 @@ The request phase resolves to one of:
 | Result | Meaning |
 |--------|---------|
 | `Allow` | Request passed all checks — your handler runs |
-| `Reject` | Request blocked — `400` (`E_BLACKHOLE_PATH_TRAVERSAL` / `E_BLACKHOLE_PARAMETER_POLLUTION` / `E_BLACKHOLE_MISSING_IP`), `403` (`E_BAD_CSRF_TOKEN` / `E_BLACKHOLE_CSRF_ORIGIN_MISMATCH`), or `429` (`E_BLACKHOLE_RATE_LIMITED`) |
+| `Reject` | Request blocked — `400` (`E_BLACKHOLE_PATH_TRAVERSAL` / `E_BLACKHOLE_PARAMETER_POLLUTION` / `E_BLACKHOLE_MISSING_IP`), `403` (`E_BAD_CSRF_TOKEN` / `E_BLACKHOLE_CSRF_ORIGIN_MISMATCH`), or `429` (`E_TOO_MANY_REQUESTS`) |
 
 A rejection carries the same protective headers (CSP, HSTS, `nosniff`…) as a
 page, and so does a CORS preflight. They are set before the handler runs, so an

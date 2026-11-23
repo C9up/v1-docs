@@ -62,8 +62,7 @@ The package has no `react-native` export condition: the phone entry is the `./re
 | `StandardTextDecoder` | class | The UTF-8 `TextDecoder` it installs. |
 | `installStandardUrl` | function | Installs a standard `URL` in place of the platform's when it is not one. |
 | `StandardURL` | class | The `URL` it installs. |
-| `OrbitError` | error | Every failure of orbit. |
-| `OrbitErrorCode` | type | The codes an `OrbitError` carries. |
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors) |
 
 #### Mounting
 
@@ -172,15 +171,6 @@ A dropped connection dispatches `error` and reconnects after the server's `retry
 | `installStandardUrl` | `installStandardUrl(): boolean` | Puts `StandardURL` in place of the platform's `URL` when that one is not standard; `true` when it did. The platform's `createObjectURL` stays reachable. |
 | `StandardURL` | `new StandardURL(url: string \| StandardURL, base?: string \| StandardURL)` | A standard `URL`: `canParse`, `createObjectURL`, `revokeObjectURL`, the URL parts, `searchParams`, `href`, `toString()`, `toJSON()`. |
 
-#### `OrbitError`
-
-Extends `Error`; `name` is the class name.
-
-| Member | Signature | Description |
-|---|---|---|
-| `code` | `readonly code: OrbitErrorCode` | The stable code to branch on. |
-| constructor | `new OrbitError(code: OrbitErrorCode, message: string, options?: ErrorOptions)` | |
-
 ### `@c9up/orbit/react-native`
 
 | Export | Kind | Description |
@@ -238,6 +228,23 @@ Extends `Error`; `name` is the class name.
 | [`E_ORBIT_STYLE_TABLE`](/en/reference/errors#e-orbit-style-table) | `useStyles` got something other than a table `ream css:compile` wrote. |
 | [`E_ORBIT_INSECURE_SERVER`](/en/reference/errors#e-orbit-insecure-server) | `connectServer` or `serverPages` is given plain http to a host that is neither this machine nor the emulator's. |
 | [`E_ORBIT_UNKNOWN_PAGE`](/en/reference/errors#e-orbit-unknown-page) | The server named a page that `serverPages({ pages })` does not list. |
+| [`E_ORBIT_FOREIGN_ORIGIN`](/en/reference/errors#e-orbit-foreign-origin) | A server connection was asked for a path that resolves to another origin. |
+| [`E_ORBIT_SERVER_REQUEST_FAILED`](/en/reference/errors#e-orbit-server-request-failed) | The server answered a `json` request with an empty non-2xx response. |
+| [`E_ORBIT_NO_XHR`](/en/reference/errors#e-orbit-no-xhr) | Server events need an `XMLHttpRequest`, and the platform has none. |
+| [`E_ORBIT_OBJECT_URL_UNAVAILABLE`](/en/reference/errors#e-orbit-object-url-unavailable) | `URL.createObjectURL` was called with no platform `URL` to make blob URLs. A `TypeError`, as the standard `URL` raises. |
+| [`E_ORBIT_INVALID_URL`](/en/reference/errors#e-orbit-invalid-url) | The standard `URL` was given a URL, or a base, that does not parse. A `TypeError`, as the standard `URL` raises. |
+| [`E_ORBIT_UNSUPPORTED_ENCODING`](/en/reference/errors#e-orbit-unsupported-encoding) | The standard `TextDecoder` was given an encoding label other than UTF-8's. A `RangeError`, as the standard `TextDecoder` raises. |
+| [`E_ORBIT_INVALID_DECODER_INPUT`](/en/reference/errors#e-orbit-invalid-decoder-input) | `TextDecoder.decode` was given something that is not an `ArrayBuffer` or a view on one. A `TypeError`, as the standard `TextDecoder` raises. |
+| [`E_ORBIT_INVALID_ENCODED_DATA`](/en/reference/errors#e-orbit-invalid-encoded-data) | A `fatal` `TextDecoder` met bytes that are not valid UTF-8. A `TypeError`, as the standard `TextDecoder` raises. |
+| [`E_ORBIT_INTERNAL`](/en/reference/errors#e-orbit-internal) | An invariant inside orbit broke: a bug in orbit. |
+
+Every error is a class of the `errors` export, named by its code. The five raised by the standard `URL` and `TextDecoder` orbit installs stay a `TypeError` or a `RangeError` (`name` included), as those APIs raise, with the code added; the others are ream exceptions with a `status`.
+
+## Migration
+
+- `OrbitError` is gone: test `error.code`, or `error instanceof errors.E_ORBIT_*` with `import { errors } from '@c9up/orbit'`.
+- `OrbitTypeError` and `OrbitRangeError` are gone: the `URL` and `TextDecoder` refusals are still a `TypeError` / `RangeError`, now `errors.E_ORBIT_INVALID_URL` and the like. `E_ORBIT_FOREIGN_ORIGIN` and `E_ORBIT_NO_XHR` are no longer a `TypeError`: catch them by their code.
+- The `OrbitErrorCode` type is gone: `error.code` is a `string`.
 
 ## See also
 

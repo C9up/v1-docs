@@ -25,6 +25,7 @@ pnpm add -D @c9up/helix-plugin-ream
 |---|---|---|
 | `apiClient` | function | A helix plugin that injects a fresh `TestClient` on every test as `ctx.client`. |
 | `testClient` | function | The client the run is using, reachable without a test context. |
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors). Also exported from `./runner`. |
 | `ApiClientConfig` | interface | The options of `apiClient()`. |
 | `ClientHost` | type | `Pick<PluginApi, "context" \| "cleanup">`: the part of helix's plugin API the plugin uses. |
 
@@ -59,8 +60,7 @@ One of `testUtils` or `boot` is required.
 | `workerNodeArgs` | function | The flags the worker processes are spawned with: `options.nodeArgs`, or this process's `execArgv`. |
 | `RunTestsOptions` | interface | What a caller may override on top of the rc file. |
 | `TestFilters` | interface | `{ suites?, files?, tags?, groups?, tests?: string[] }`: the filters `ream test` forwards. |
-| `UnknownSuiteError` | error | A suite name was asked for but is not declared. |
-| `SuiteConfigureUnreachableError` | error | A suite declares `configure`, but the runner was given no module path to re-import it in each worker. |
+| `errors` | namespace | The same namespace as the main entry's. |
 
 ```ts
 function runTestsFromRcFile(rcPath: string, options?: RunTestsOptions): Promise<number>
@@ -107,11 +107,18 @@ When the rc file sets `tests.forceExit`, the process exits with the run's code a
 
 | Code | Raised when |
 |---|---|
-| [`E_NO_SERVER`](/en/reference/errors#e-no-server) | `apiClient()` was given neither `testUtils` nor `boot`. |
-| [`E_SERVER_NOT_STARTED`](/en/reference/errors#e-server-not-started) | A test reads `ctx.client` but no suite hook started the server. |
-| [`E_NO_TEST_CLIENT`](/en/reference/errors#e-no-test-client) | `testClient()` is called while no `apiClient()` plugin is in play. |
+| [`E_HELIX_PLUGIN_REAM_NO_SERVER`](/en/reference/errors#e-helix-plugin-ream-no-server) | `apiClient()` was given neither `testUtils` nor `boot`. |
+| [`E_HELIX_PLUGIN_REAM_SERVER_NOT_STARTED`](/en/reference/errors#e-helix-plugin-ream-server-not-started) | A test reads `ctx.client` but no suite hook started the server. |
+| [`E_HELIX_PLUGIN_REAM_NO_TEST_CLIENT`](/en/reference/errors#e-helix-plugin-ream-no-test-client) | `testClient()` is called while no `apiClient()` plugin is in play. |
+| [`E_HELIX_PLUGIN_REAM_UNKNOWN_SUITE`](/en/reference/errors#e-helix-plugin-ream-unknown-suite) | A suite name was asked for but the rc file does not declare it. |
+| [`E_HELIX_PLUGIN_REAM_SUITE_CONFIGURE_UNREACHABLE`](/en/reference/errors#e-helix-plugin-ream-suite-configure-unreachable) | A suite declares `configure` and the runner has no module path to re-import it in each worker. |
 
-These are plain `Error`s whose message starts with `[CODE]`. `UnknownSuiteError` and `SuiteConfigureUnreachableError` carry no code; check them with `instanceof`.
+Each one is a class of `errors`, a flare `Exception`: read `error.code`, or test `error instanceof errors.E_HELIX_PLUGIN_REAM_UNKNOWN_SUITE`.
+
+## Migration
+
+- `HelixPluginReamError`, `UnknownSuiteError` and `SuiteConfigureUnreachableError` are gone: test `error.code`, or `instanceof` the matching class of `errors` (`errors.E_HELIX_PLUGIN_REAM_UNKNOWN_SUITE`, `errors.E_HELIX_PLUGIN_REAM_SUITE_CONFIGURE_UNREACHABLE`).
+- Three codes carry the package prefix now: `E_NO_SERVER` is `E_HELIX_PLUGIN_REAM_NO_SERVER`, `E_SERVER_NOT_STARTED` is `E_HELIX_PLUGIN_REAM_SERVER_NOT_STARTED`, `E_NO_TEST_CLIENT` is `E_HELIX_PLUGIN_REAM_NO_TEST_CLIENT`.
 
 ## See also
 

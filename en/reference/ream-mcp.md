@@ -18,6 +18,7 @@ ream mcp install
 | `@c9up/ream-mcp` | Starts the stdio server when imported or run. Exports nothing. |
 | `@c9up/ream-mcp/napi` | `core`: the native indexer and search engine. |
 | `@c9up/ream-mcp/util/project-root` | `detectProjectRoot()` and its types. |
+| `@c9up/ream-mcp/errors` | The package's errors, one class per code. Importing it does not start the server. |
 
 | Binary | Description |
 |---|---|
@@ -35,6 +36,12 @@ ream mcp install
 | `ProjectRootSource` | type | `"env" \| "reamrc.ts" \| "ream.config.ts" \| "package.json"`. |
 
 The root is, in order: `REAM_PROJECT_ROOT`, then the first directory holding `reamrc.ts`, `ream.config.ts`, or a `package.json` that depends on `@c9up/ream`.
+
+### `@c9up/ream-mcp/errors`
+
+| Export | Kind | Description |
+|---|---|---|
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors): `import * as errors from '@c9up/ream-mcp/errors'`. |
 
 ### `@c9up/ream-mcp/napi`
 
@@ -163,15 +170,34 @@ The server never downloads the model: `ream-mcp-reindex --download-model` fetche
 
 ## Errors
 
-An unknown tool name is a JSON-RPC error (`-32602`). A tool that runs and fails, including a refusal (`{ error, hint }`) and arguments that do not fit the schema (`{ error, problems }`), returns a result with `isError: true`; messages carry no stack trace and no absolute path.
+An unknown tool name is a JSON-RPC error (`-32602`). A tool that runs and fails, including a refusal (`{ error, hint }`) and arguments that do not fit the schema (`{ error, problems }`), returns a result with `isError: true`; messages carry no stack trace and no absolute path. Each of the server's own refusals is a class of the `errors` namespace and a `@c9up/flare` `Exception` with status 500: branch on `error.code` or on `error instanceof errors.E_REAM_MCP_*`. The `core` of `@c9up/ream-mcp/napi` throws the binding's own errors, without a code; the server turns them into `E_REAM_MCP_INDEX_FAILED` or `E_REAM_MCP_INVALID_JSON`.
 
 | Code | Raised when |
 |---|---|
 | [`E_INKER_RENDER_TIMEOUT`](/en/reference/errors#e-inker-render-timeout) | `inker.render_test` took longer than 5 seconds. |
 | [`E_INKER_UNKNOWN`](/en/reference/errors#e-inker-unknown) | `inker.render_test` failed without an inker code. |
 | [`E_INKER_PARSE_ERROR`](/en/reference/errors#e-inker-parse-error) | `inker.list_templates` with `lint` met a template error without an inker code. |
+| [`E_REAM_MCP_INVALID_ARGUMENT`](/en/reference/errors#e-ream-mcp-invalid-argument) | A tool or helper was called without a required argument (`docs.get`, `docs.explain`, an empty string) or with an out-of-range duplicate-detection threshold. |
+| [`E_REAM_MCP_PROJECT_ROOT_NOT_FOUND`](/en/reference/errors#e-ream-mcp-project-root-not-found) | No Ream project root was found walking up from the working directory; set `REAM_PROJECT_ROOT`. |
+| [`E_REAM_MCP_NATIVE_UNAVAILABLE`](/en/reference/errors#e-ream-mcp-native-unavailable) | The native core did not report a version at startup: the binary is missing or incompatible. |
+| [`E_REAM_MCP_NATIVE_MISMATCH`](/en/reference/errors#e-ream-mcp-native-mismatch) | The native core answered something the server does not expect (trace, index statistics, model manifest): the binary is stale or from another version. |
+| [`E_REAM_MCP_PATH_ESCAPE`](/en/reference/errors#e-ream-mcp-path-escape) | A migration file name or a model file path resolves outside its directory. |
+| [`E_REAM_MCP_INVALID_MIGRATION`](/en/reference/errors#e-ream-mcp-invalid-migration) | A migration's default export is not a migration class, or its `getDownSQL()` does not return a list of strings. |
+| [`E_REAM_MCP_MODEL_DOWNLOAD_FAILED`](/en/reference/errors#e-ream-mcp-model-download-failed) | Downloading an embeddings model file answered an HTTP error or no body. |
+| [`E_REAM_MCP_MODEL_INTEGRITY`](/en/reference/errors#e-ream-mcp-model-integrity) | A downloaded model file does not match its pinned size or SHA-256; nothing is kept. |
+| [`E_REAM_MCP_SHELL_DISALLOWED`](/en/reference/errors#e-ream-mcp-shell-disallowed) | `REAM_MCP_NO_SHELL=1` forbids spawning the `ream` binary. |
+| [`E_REAM_MCP_CLI_NOT_FOUND`](/en/reference/errors#e-ream-mcp-cli-not-found) | The `ream` binary is neither at `$REAM_BIN` nor in the project's `node_modules/.bin`. |
+| [`E_REAM_MCP_CLI_OUTPUT_INVALID`](/en/reference/errors#e-ream-mcp-cli-output-invalid) | The last line of the `ream` CLI's output is not a JSON object. |
+| [`E_REAM_MCP_ALREADY_CONNECTED`](/en/reference/errors#e-ream-mcp-already-connected) | `McpServer.connect()` was called on a server that is already connected. |
+| [`E_REAM_MCP_INDEX_FAILED`](/en/reference/errors#e-ream-mcp-index-failed) | The native corpus index could not be built, opened or read (`docs.*` tools, startup reindex, `ream-mcp-reindex`); `cause` is the native error. |
+| [`E_REAM_MCP_INVALID_JSON`](/en/reference/errors#e-ream-mcp-invalid-json) | The native core could not read the JSON it was given (search options) or write its answer as JSON; `cause` is the native error. |
+| [`E_REAM_MCP_INTERNAL`](/en/reference/errors#e-ream-mcp-internal) | An internal invariant broke (an unknown tool kind reached a dispatcher); report it as a bug. |
 
 Other inker codes pass through from `@c9up/inker`.
+
+## Migration
+
+- `detectProjectRoot()` no longer throws a plain `Error`: test `error.code === 'E_REAM_MCP_PROJECT_ROOT_NOT_FOUND'`, or `error instanceof errors.E_REAM_MCP_PROJECT_ROOT_NOT_FOUND` with `import * as errors from '@c9up/ream-mcp/errors'`.
 
 ## See also
 

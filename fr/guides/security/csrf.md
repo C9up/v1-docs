@@ -138,8 +138,12 @@ csrf: {
 
 ### Rejet
 
-Un token refusé répond `403 E_BAD_CSRF_TOKEN`. Sous Ream, un formulaire de
-navigateur (`Accept: text/html`) est redirigé en arrière avec les champs du
+Un token refusé répond `403 E_BAD_CSRF_TOKEN`. Sous Ream, le middleware lève
+`errors.E_BAD_CSRF_TOKEN` et le gestionnaire d'exceptions la rend à l'intérieur
+de la chaîne de middlewares, si bien que la session enregistre toujours le
+flash ; votre gestionnaire d'exceptions peut l'intercepter ou la personnaliser
+(il faut `@c9up/ream` 0.2.32 ou plus récent). L'erreur se rend elle-même : un
+formulaire de navigateur (`Accept: text/html`) est redirigé en arrière avec les champs du
 formulaire (sauf `_csrf`, `_method` et les mots de passe) et le message en
 flash ; une visite Inertia (`X-Inertia`) reçoit la même redirection sans
 re-flasher les champs ; un client JSON reçoit le corps JSON. Quand le contexte a

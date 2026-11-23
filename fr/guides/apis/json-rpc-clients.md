@@ -124,8 +124,8 @@ rapport à HTTP :
   dans le délai qui précède. Sinon, chaque appel en attente la garde, et celui
   qu'elle concernait la rapporte à son expiration.
 
-Un échec du transport lui-même est une `RpcTransportError` dont le `code` est une
-chaîne :
+Un échec du transport lui-même est l'une des `errors` de comet (une `Exception`
+de flare) dont le `code` est une chaîne :
 
 | Code | Signification |
 |---|---|

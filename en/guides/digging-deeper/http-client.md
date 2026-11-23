@@ -32,12 +32,12 @@ redirect hop.
 | `headers` | none | Sent with every request. |
 | `allowHosts` | none | `host` or `host:port` exempt from the address rule, e.g. `localhost:4399` in development. |
 
-A redirect from https to http is refused. Every failure is an `HttpClientError`
-(a `ReamError`) with a `reason` and a code: `invalidUrl`
-(`E_HTTP_CLIENT_INVALID_URL`), `privateAddress` (`E_HTTP_CLIENT_PRIVATE_ADDRESS`),
-`unreachable` (`E_HTTP_CLIENT_UNREACHABLE`), `timedOut`
-(`E_HTTP_CLIENT_TIMED_OUT`), `tooLarge` (`E_HTTP_CLIENT_TOO_LARGE`) and `redirect`
-(`E_HTTP_CLIENT_REDIRECT_REFUSED`). A non-2xx status is a response, not an error.
+A redirect from https to http is refused. Every failure is one class of the
+`errors` of `@c9up/ream`, carrying `url`, the URL asked for without its query
+string: `E_HTTP_CLIENT_INVALID_URL`, `E_HTTP_CLIENT_PRIVATE_ADDRESS`,
+`E_HTTP_CLIENT_UNREACHABLE`, `E_HTTP_CLIENT_TIMED_OUT`, `E_HTTP_CLIENT_TOO_LARGE`
+and `E_HTTP_CLIENT_REDIRECT_REFUSED` (`error instanceof errors.E_HTTP_CLIENT_TIMED_OUT`,
+or `error.code`). A non-2xx status is a response, not an error.
 
 In tests, `fakeHttp()` returns a client whose transport is replaced by canned
 responses; the URL, address, size and redirect rules still apply.

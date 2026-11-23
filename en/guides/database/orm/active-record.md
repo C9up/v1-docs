@@ -66,15 +66,15 @@ user.isDirty('email')
 class User extends BaseModel {
   static guarded = ['role'] // never mass-assignable
 }
-await User.create({ email: 'a@b.co', role: 'admin' }) // throws MassAssignmentError
+await User.create({ email: 'a@b.co', role: 'admin' }) // throws E_MASS_ASSIGNMENT
 ```
 
 The gate runs on the key as given **and** on the property it resolves to, so a
 column name cannot walk past a guard written against the attribute:
 
 ```typescript
-await User.create({ role: 'admin' })   // MassAssignmentError
-await User.create({ is_admin: true })  // MassAssignmentError — resolves to isAdmin
+await User.create({ role: 'admin' })   // E_MASS_ASSIGNMENT
+await User.create({ is_admin: true })  // E_MASS_ASSIGNMENT — resolves to isAdmin
 ```
 
 ### `fill()` / `merge()` and `$extras`

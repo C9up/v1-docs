@@ -27,6 +27,7 @@ The Rust engine loads through N-API in Node, WebAssembly in the browser and a JS
 | `decimal` | function | `decimal(value: DecimalInput): Decimal`, the same as `Decimal.from`. |
 | `Money` | class | An amount bound to a currency and held at that currency's scale. |
 | `money` | function | `money(amount: DecimalInput, currency: string, options?: MoneyOptions): Money`. |
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors) |
 | `sum` | function | Exact sum. An empty input is `0`. |
 | `avg` | function | Arithmetic mean. Throws on an empty input. |
 | `median` | function | Middle value; the mean of the two middle values for an even count. |
@@ -210,7 +211,56 @@ resetAtomContext(): AtomContext
 
 ## Errors
 
-atom throws plain `Error` and `TypeError` objects, without an `E_` code: an invalid input, a division by zero, a loss of digits with `exact`, a currency mismatch. A bulk plan's messages start with a bracketed tag, such as `[ATOM_BULK_NOT_RUN]` for a planned value read before `run`.
+| Code | Raised when |
+|---|---|
+| [`E_ATOM_INVALID_INPUT`](/en/reference/errors#e-atom-invalid-input) | A value given as a decimal is not a string, number, bigint or `Decimal` |
+| [`E_ATOM_INVALID_DECIMAL`](/en/reference/errors#e-atom-invalid-decimal) | A string or number does not read as a decimal (`parseLocale` included) |
+| [`E_ATOM_UNSAFE_INTEGER`](/en/reference/errors#e-atom-unsafe-integer) | A JavaScript number is an integer past `Number.MAX_SAFE_INTEGER`; pass a string or a bigint |
+| [`E_ATOM_INVALID_INTEGER`](/en/reference/errors#e-atom-invalid-integer) | Minor units are not a whole number |
+| [`E_ATOM_DECIMAL_TOO_LARGE`](/en/reference/errors#e-atom-decimal-too-large) | A value or a result is past the `maxDigits` significant-digit bound |
+| [`E_ATOM_INVALID_SCALE`](/en/reference/errors#e-atom-invalid-scale) | A scale or a precision is not a whole number from 0 to 10 000 |
+| [`E_ATOM_INVALID_EXPONENT`](/en/reference/errors#e-atom-invalid-exponent) | A `pow` exponent is not a whole number in range |
+| [`E_ATOM_INVALID_ROUNDING_MODE`](/en/reference/errors#e-atom-invalid-rounding-mode) | A rounding mode is not one atom knows |
+| [`E_ATOM_INVALID_RANGE`](/en/reference/errors#e-atom-invalid-range) | `clamp` / `between` got a minimum greater than the maximum |
+| [`E_ATOM_INVALID_STEP`](/en/reference/errors#e-atom-invalid-step) | A `quantize` step is not greater than zero |
+| [`E_ATOM_INVALID_RATIOS`](/en/reference/errors#e-atom-invalid-ratios) | `allocate` got no ratio, a negative one, or none positive |
+| [`E_ATOM_PRECISION_LOSS`](/en/reference/errors#e-atom-precision-loss) | `toMinorUnits` (and an exact `Money`) would lose digits at that scale |
+| [`E_ATOM_LENGTH_MISMATCH`](/en/reference/errors#e-atom-length-mismatch) | `Decimal.dot` got two lists of different lengths |
+| [`E_ATOM_DIVISION_BY_ZERO`](/en/reference/errors#e-atom-division-by-zero) | A division or a modulo by zero |
+| [`E_ATOM_NEGATIVE_SQRT`](/en/reference/errors#e-atom-negative-sqrt) | `sqrt` of a negative value |
+| [`E_ATOM_EMPTY_INPUT`](/en/reference/errors#e-atom-empty-input) | `avg`, `min`, `max`, `median` or `stddev` got no value |
+| [`E_ATOM_TOO_FEW_VALUES`](/en/reference/errors#e-atom-too-few-values) | A sample `stddev` got fewer than two values |
+| [`E_ATOM_INVALID_CONTEXT`](/en/reference/errors#e-atom-invalid-context) | `configureAtomContext` / `withAtomContext` got a setting that is not valid |
+| [`E_ATOM_INVALID_CURRENCY`](/en/reference/errors#e-atom-invalid-currency) | A currency code is not three letters |
+| [`E_ATOM_CURRENCY_MISMATCH`](/en/reference/errors#e-atom-currency-mismatch) | Two `Money` values of different currencies or scales were combined |
+| [`E_ATOM_INVALID_COLUMN_VALUE`](/en/reference/errors#e-atom-invalid-column-value) | The Atlas adapter got a column value of the wrong type |
+| [`E_ATOM_NULL_COLUMN_VALUE`](/en/reference/errors#e-atom-null-column-value) | A non-nullable `decimalColumn` got `null` |
+| [`E_ATOM_ENGINE_NOT_FOUND`](/en/reference/errors#e-atom-engine-not-found) | `nativeAtom()` found no native engine (N-API, WASM or the phone's JSI module) |
+| [`E_ATOM_NAPI_DISABLED`](/en/reference/errors#e-atom-napi-disabled) | `nativeAtom()` ran while a test disabled the native engine |
+| [`E_ATOM_INTERNAL`](/en/reference/errors#e-atom-internal) | An internal invariant broke, or the native engine panicked (a bug in atom) |
+| [`E_ATOM_BULK_NOT_RUN`](/en/reference/errors#e-atom-bulk-not-run) | A planned value was read before `run()` |
+| [`E_ATOM_BULK_NO_OUTPUT`](/en/reference/errors#e-atom-bulk-no-output) | `run()` got no value to compute |
+| [`E_ATOM_BULK_BAD_OUTPUT`](/en/reference/errors#e-atom-bulk-bad-output) | `run()` got something that is not a planned value |
+| [`E_ATOM_BULK_LENGTH_MISMATCH`](/en/reference/errors#e-atom-bulk-length-mismatch) | A plan's columns have different lengths |
+| [`E_ATOM_BULK_EMPTY_COLUMN`](/en/reference/errors#e-atom-bulk-empty-column) | A column has no value |
+| [`E_ATOM_BULK_BAD_INDEX`](/en/reference/errors#e-atom-bulk-bad-index) | `at()` is outside the column |
+| [`E_ATOM_BULK_BAD_PERCENTILE`](/en/reference/errors#e-atom-bulk-bad-percentile) | A percentile is not a fraction between 0 and 1 |
+| [`E_ATOM_BULK_BAD_EXPONENT`](/en/reference/errors#e-atom-bulk-bad-exponent) | A planned `pow` exponent is not a whole number in range |
+| [`E_ATOM_BULK_BAD_PRECISION`](/en/reference/errors#e-atom-bulk-bad-precision) | A planned precision is not a whole number from 0 to 10 000 |
+| [`E_ATOM_BULK_BAD_SCALE`](/en/reference/errors#e-atom-bulk-bad-scale) | `minorUnits()` got a scale that is not one |
+| [`E_ATOM_BULK_NOT_MINOR_UNITS`](/en/reference/errors#e-atom-bulk-not-minor-units) | `minorUnits()` got a value that is not a whole number of minor units |
+| [`E_ATOM_BULK_TOO_SHORT`](/en/reference/errors#e-atom-bulk-too-short) | A planned sample standard deviation has fewer than two values |
+| [`E_ATOM_BULK_NO_LENGTH`](/en/reference/errors#e-atom-bulk-no-length) | A column was built with no source (a bug in atom) |
+| [`E_ATOM_BULK_BAD_PROGRAM`](/en/reference/errors#e-atom-bulk-bad-program) | The TypeScript evaluator or the native engine met a malformed plan (a bug in atom) |
+| [`E_ATOM_BULK_LOST_OUTPUT`](/en/reference/errors#e-atom-bulk-lost-output) | A run returned fewer values than it was asked for (a bug in atom) |
+
+Each one is a class of the `errors` namespace and a `@c9up/flare` `Exception` with status 500: branch on `error.code` or on `error instanceof errors.E_ATOM_*`. The Rust engine and the TypeScript engine raise the same errors; a refusal of the Rust engine keeps its original error as `cause`.
+
+## Migration
+
+- `AtomError` is gone: test `error.code`, or `error instanceof errors.E_ATOM_*` with `import { errors } from '@c9up/atom'`.
+- `AtomTypeError` is gone, and the Atlas adapter's refusals are no longer a `TypeError`: replace `instanceof TypeError` with `error.code === 'E_ATOM_INVALID_COLUMN_VALUE'` (or `E_ATOM_NULL_COLUMN_VALUE`).
+- A refusal of the Rust engine (division by zero, negative root...) now carries its `E_ATOM_*` code instead of none: code that matched its message can test the code.
 
 ## See also
 

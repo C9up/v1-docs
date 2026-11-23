@@ -137,11 +137,7 @@ pnpm add @c9up/atlas
 | `onUnsafeStatement` | function | `onUnsafeStatement(listener: UnsafeStatementListener): () => void`: every statement the Rust compiler refused. |
 | `clearDbQueryListeners` / `clearUnsafeStatementListeners` | function | |
 | `DbQueryEvent` / `DbQueryListener` / `UnsafeStatementEvent` / `UnsafeStatementListener` | type | |
-| `AtlasError` | error | Base of every atlas error: `code` (a code without `E_` gets `E_ATLAS_`) and `hint?`. |
-| `EntityNotFoundError` | error | `E_ROW_NOT_FOUND`, status 404; `entityClass`, `criteria`. |
-| `MassAssignmentError` | error | `E_MASS_ASSIGNMENT`; `entityClass`, `attribute`. |
-| `OptimisticLockError` | error | `E_OPTIMISTIC_LOCK`; `entityClass`, `primaryKey`, `expectedVersion`. |
-| `RelationNotLoadedError` | error | `E_RELATION_NOT_LOADED`; `entityClass`, `relationName`. |
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors) |
 
 ### `@c9up/atlas/provider`
 
@@ -375,11 +371,11 @@ All are typed on `ContainerBindings` once `@c9up/atlas` is imported.
 
 ## Errors
 
-Codes without the `E_` prefix get `E_ATLAS_`. The Rust compiler's refusals (`E_UNSAFE_*`, `E_INJECTION_PATTERN`, `E_UNSUPPORTED`) are plain `Error`s whose message starts with the code. See [Error handling](/en/guides/database/orm/error-handling) for the typed subclasses.
+Each code is a class of the `errors` namespace (`import { errors } from '@c9up/atlas'`) and a `@c9up/flare` `Exception`: branch on `error.code` or on `error instanceof errors.E_…`. The status is 500, except `E_ROW_NOT_FOUND` (404); `help`, when set, says how to fix the cause. The Rust query compiler's and driver's refusals (`E_UNSAFE_*`, `E_INJECTION_PATTERN`, `E_UNSUPPORTED`, `E_ATLAS_INSECURE_SSLMODE`…) are rethrown as their class too, with the native error as `cause`. See [Error handling](/en/guides/database/orm/error-handling) for the classes that carry data.
 
 | Code | Raised when |
 |---|---|
-| [`E_ROW_NOT_FOUND`](/en/reference/errors#e-row-not-found-atlas) | A query that must return a row found none: `findOrFail`, `findByOrFail`, `refresh`, `fresh`, `firstOrFail()`, `sole()`. |
+| [`E_ROW_NOT_FOUND`](/en/reference/errors#e-row-not-found) | A query that must return a row found none: `findOrFail`, `findByOrFail`, `refresh`, `fresh`, `firstOrFail()`, `sole()`. |
 | [`E_MASS_ASSIGNMENT`](/en/reference/errors#e-mass-assignment) | `fill()` / `merge()` (and `create`, `createMany`, `updateOrCreate`) set an attribute outside `fillable`, or listed in `guarded`. |
 | [`E_EXTRA_PROPERTIES`](/en/reference/errors#e-extra-properties) | A fill named a property that is not a declared column. |
 | [`E_UNKNOWN_COLUMN`](/en/reference/errors#e-unknown-column) | A value was assigned to a key that is not a column. Pass `{ allowExtraProperties: true }` to keep unknown keys in `$extras`. |
@@ -391,10 +387,11 @@ Codes without the `E_` prefix get `E_ATLAS_`. The Rust compiler's refusals (`E_U
 | [`E_MISSING_OWNER_KEY`](/en/reference/errors#e-missing-owner-key) | `associate()` was given a parent whose key is not set. |
 | [`E_RELATION_NOT_LOADED`](/en/reference/errors#e-relation-not-loaded) | A relation was read before it was loaded. Call `.preload()` on the query or `.load()` on the instance. |
 | [`E_OPTIMISTIC_LOCK`](/en/reference/errors#e-optimistic-lock) | A save lost an optimistic lock: another transaction modified the row since it was read. |
-| [`E_STRICT_MODE`](/en/reference/errors#e-strict-mode) | Raw SQL refused by strict mode (a repository's `raw()`, or a `db.raw()` value written by a repository). |
+| [`E_STRICT_MODE`](/en/reference/errors#e-strict-mode) | Raw SQL refused by strict mode (a repository's `raw()`, a `db.raw()` value written by a repository, or `whereRaw()` / `havingRaw()` / `joinRaw()` on a model query). |
 | [`E_NO_INTERACTIVE_TRANSACTION`](/en/reference/errors#e-no-interactive-transaction) | The connection has no interactive `transaction()` (a model transaction, or `useTransaction()` in tests). |
 | [`E_ARRAY_PARAM`](/en/reference/errors#e-array-param) | A list was bound to a single placeholder. Expand it into one placeholder per element. |
-| [`E_ATLAS_MISSING_CONNECTION`](/en/reference/errors#e-atlas-missing-connection) | A model or repository names a connection that is not configured. |
+| [`E_UNMANAGED_DB_CONNECTION`](/en/reference/errors#e-unmanaged-db-connection) | A connection name that is not registered: a model's `static connection`, `db.connection(name)`, a factory's `connection(name)`, `manager.connect(name)`. |
+| [`E_ATLAS_MISSING_CONNECTION`](/en/reference/errors#e-atlas-missing-connection) | No connection to use at all: no default one (atlas has not booted), a `default` the config does not declare, or a repository built without a connection. |
 | [`E_ATLAS_EMPTY_SELECT`](/en/reference/errors#e-atlas-empty-select) | `select()` was called with no columns. Provide at least one column name. |
 | [`E_ATLAS_INVALID_PAGE`](/en/reference/errors#e-atlas-invalid-page) | `paginate()` was called with `page < 1`. |
 | [`E_ATLAS_INVALID_PER_PAGE`](/en/reference/errors#e-atlas-invalid-per-page) | `paginate()` was called with `perPage < 1`. |
@@ -402,14 +399,14 @@ Codes without the `E_` prefix get `E_ATLAS_`. The Rust compiler's refusals (`E_U
 | [`E_ATLAS_INVALID_CTE_NAME`](/en/reference/errors#e-atlas-invalid-cte-name) | A CTE name must be a valid identifier (letters, numbers, underscores). |
 | [`E_ATLAS_INVALID_OPERATOR`](/en/reference/errors#e-atlas-invalid-operator) | A `where()` or `wherePivot()` operator outside the allowed list. |
 | [`E_ATLAS_INVALID_INCREMENT`](/en/reference/errors#e-atlas-invalid-increment) | `increment()` / `decrement()` was given an amount that is not a finite number. |
-| [`E_ATLAS_INVALID_DATE_COLUMN_VALUE`](/en/reference/errors#e-atlas-invalid-date-column-value) | A date column was given a value that is not a valid date. |
+| [`E_INVALID_DATE_COLUMN_VALUE`](/en/reference/errors#e-invalid-date-column-value) | A date column was given a value that is not a valid date. |
 | [`E_ATLAS_UNDEFINED_BINDING`](/en/reference/errors#e-atlas-undefined-binding) | A query value is `undefined`. Validate the input first; use `whereNull()` to match NULL. |
 | [`E_ATLAS_DIALECT_MISMATCH`](/en/reference/errors#e-atlas-dialect-mismatch) | `useTransaction(trx)` was given a transaction of another dialect than the query was built for. Start the transaction on the query's connection, or build the query from the transaction. |
 | [`E_ATLAS_RAW_BINDINGS`](/en/reference/errors#e-atlas-raw-bindings) | A raw query has placeholders with no binding. |
 | [`E_ATLAS_RAW_VALUE`](/en/reference/errors#e-atlas-raw-value) | `defaultTo(db.raw())` was given bindings, which a column default cannot carry. |
 | [`E_ATLAS_NON_FINITE_NUMBER`](/en/reference/errors#e-atlas-non-finite-number) | `defaultTo()` was given a number that is not a SQL number (`NaN`, `Infinity`). |
 | [`E_ATLAS_FACTORY_FAKER_MISSING`](/en/reference/errors#e-atlas-factory-faker-missing) | A factory uses faker, an optional peer of atlas that is not installed. |
-| [`E_ATLAS_NAPI_NOT_FOUND`](/en/reference/errors#e-atlas-napi-not-found) | The Rust query compiler is not loaded. A plain `Error` whose message starts with the code. See [Troubleshooting](/en/guides/database/orm/troubleshooting). |
+| [`E_ATLAS_NAPI_NOT_FOUND`](/en/reference/errors#e-atlas-napi-not-found) | The Rust query compiler is not loaded; `cause` holds the load failure. See [Troubleshooting](/en/guides/database/orm/troubleshooting). |
 | [`E_ATLAS_INSECURE_SSLMODE`](/en/reference/errors#e-atlas-insecure-sslmode) | The connection asks for `sslmode=prefer` or `allow` (URL or `PGSSLMODE`), which fall back to plaintext without saying so. Use `disable` or `verify-full`. See [Encrypted connections](/en/guides/database/orm/connections#encrypted-connections-tls). |
 | [`E_ATLAS_LISTEN_UNSUPPORTED`](/en/reference/errors#e-atlas-listen-unsupported) | LISTEN / NOTIFY was used on a connection that is not PostgreSQL. |
 | [`E_ATLAS_LISTEN_CONNECT`](/en/reference/errors#e-atlas-listen-connect) | The listener could not open its own PostgreSQL connection. |
@@ -418,11 +415,12 @@ Codes without the `E_` prefix get `E_ATLAS_`. The Rust compiler's refusals (`E_U
 | [`E_ATLAS_LISTEN_CLOSED`](/en/reference/errors#e-atlas-listen-closed) | The listener was closed while a request was pending. |
 | [`E_ATLAS_LISTEN_EVENT`](/en/reference/errors#e-atlas-listen-event) | The native listener reported an event atlas does not define. |
 | [`E_ATLAS_MIGRATION_INVALID_TABLE_NAME`](/en/reference/errors#e-atlas-migration-invalid-table-name) | `migrations.tableName` is not a plain identifier. |
-| [`E_ATLAS_MIGRATION_NOT_FOUND`](/en/reference/errors#e-atlas-migration-not-found) | A migration to run or roll back has no file in the migrations directory. |
+| [`E_MISSING_SCHEMA_FILES`](/en/reference/errors#e-missing-schema-files) | A migration recorded as applied has no file in the migrations directory, so it cannot be rolled back. |
 | [`E_ATLAS_MIGRATION_INVALID`](/en/reference/errors#e-atlas-migration-invalid) | A migration file does not default-export a class. |
 | [`E_ATLAS_MIGRATION_DUPLICATE`](/en/reference/errors#e-atlas-migration-duplicate) | Two migration files share a name. |
 | [`E_ATLAS_MIGRATION_COMPILE_EMPTY`](/en/reference/errors#e-atlas-migration-compile-empty) | A migration compiled to no SQL statement. |
-| [`E_MIGRATION_LOCKED`](/en/reference/errors#e-migration-locked) | Another run holds the migration lock. Wait for it, or clear a stale lock with `migration:unlock`. |
+| [`E_UNABLE_ACQUIRE_LOCK`](/en/reference/errors#e-unable-acquire-lock) | Another run holds the migration lock. Wait for it, or clear a stale lock with `migration:unlock`. |
+| [`E_UNABLE_RELEASE_LOCK`](/en/reference/errors#e-unable-release-lock) | The run succeeded, but its migration lock had been cleared under it (`migration:unlock` during the run), so another run may have migrated at the same time. |
 | [`E_ROLLBACK_DISABLED_IN_PRODUCTION`](/en/reference/errors#e-rollback-disabled-in-production) | A rollback, reset, refresh, fresh or wipe in production without `--force`. |
 | [`E_ATLAS_DRY_RUN_WRITE`](/en/reference/errors#e-atlas-dry-run-write) | A migration tried to write while running under `dryRun()`. |
 | [`E_DEFER_REQUIRES_TRANSACTION`](/en/reference/errors#e-defer-requires-transaction) | A migration uses `this.defer()` on an adapter without an interactive `transaction()`. |
@@ -442,14 +440,75 @@ Codes without the `E_` prefix get `E_ATLAS_`. The Rust compiler's refusals (`E_U
 | [`E_EMPTY_VIEW_SELECT`](/en/reference/errors#e-empty-view-select) | A view has no SELECT, or a materialized view was asked of a dialect that has none. |
 | [`E_SPECIFIC_TYPE_EMPTY`](/en/reference/errors#e-specific-type-empty) | `specificType()` was given an empty type. |
 | [`E_SQLITE_DECIMAL_PRECISION`](/en/reference/errors#e-sqlite-decimal-precision) | A decimal precision SQLite cannot store exactly. |
-| [`E_UNSUPPORTED`](/en/reference/errors#e-unsupported) | A SQL feature the connection's dialect does not have (`DISTINCT ON` off Postgres, `UNION ALL` variants on SQLite…). |
-| [`E_UNSAFE_IDENTIFIER`](/en/reference/errors#e-unsafe-identifier) | The Rust compiler refused an identifier. |
+| [`E_UNSUPPORTED`](/en/reference/errors#e-unsupported) | A SQL feature the connection's dialect does not have (`DISTINCT ON` off Postgres, `UNION ALL` variants on SQLite, advisory locks on SQLite…). |
+| [`E_UNSAFE_IDENTIFIER`](/en/reference/errors#e-unsafe-identifier) | An identifier is not a plain name: refused by atlas's own checks or by the Rust compiler. |
 | [`E_UNSAFE_SQL`](/en/reference/errors#e-unsafe-sql) | The Rust compiler refused a SQL fragment. |
 | [`E_UNSAFE_EXPRESSION`](/en/reference/errors#e-unsafe-expression) | The Rust compiler refused an expression. |
 | [`E_UNSAFE_LITERAL`](/en/reference/errors#e-unsafe-literal) | The Rust compiler refused a literal value. |
 | [`E_INJECTION_PATTERN`](/en/reference/errors#e-injection-pattern) | The Rust compiler refused an input that looks like an injection attempt. |
 | [`E_ATLAS_FACTORY_INVALID`](/en/reference/errors#e-atlas-factory-invalid) | `make:factory` was given a name that is not a safe file name. |
 | [`E_ATLAS_SEEDER_INVALID`](/en/reference/errors#e-atlas-seeder-invalid) | `make:seeder` was given a name that is not a safe file name. |
+| [`E_ATLAS_NO_URL`](/en/reference/errors#e-atlas-no-url) | A connection config has no `url` (or `connection`), or the database config has neither a top-level `url` nor `connections`. |
+| [`E_ATLAS_NOT_BOOTED`](/en/reference/errors#e-atlas-not-booted) | The `db` service (`@c9up/atlas/services/db`) was used before `AtlasProvider.boot()` ran. |
+| [`E_ATLAS_CONNECTION_UNAVAILABLE`](/en/reference/errors#e-atlas-connection-unavailable) | A container connection token was resolved before boot opened it, or after shutdown closed it. |
+| [`E_ATLAS_BOOT_FAILED`](/en/reference/errors#e-atlas-boot-failed) | `AtlasProvider.boot()` could not open one or more configured connections; `cause` holds the first failure. |
+| [`E_ATLAS_READ_ONLY`](/en/reference/errors#e-atlas-read-only) | A write ran on a query builder scoped to a connection opened with `{ mode: 'read' }`. |
+| [`E_ATLAS_INVALID_PRAGMA`](/en/reference/errors#e-atlas-invalid-pragma) | A SQLite pragma key or value is outside `[A-Za-z0-9_]`. |
+| [`E_ATLAS_DB_DRIVER_NOT_FOUND`](/en/reference/errors#e-atlas-db-driver-not-found) | The Rust database driver could not be loaded, or the loaded binary is stale; `cause` holds the load failure. |
+| [`E_ATLAS_NO_REPOSITORY`](/en/reference/errors#e-atlas-no-repository) | `refresh()`, `fresh()`, `load()`, `loadCount()`, `loadAggregate()` or `related()` was called on an entity no repository hydrated. |
+| [`E_ATLAS_FILLABLE_AND_GUARDED`](/en/reference/errors#e-atlas-fillable-and-guarded) | A model declares both `static fillable` and `static guarded`. |
+| [`E_ATLAS_INVALID_ENTITY_CLASS`](/en/reference/errors#e-atlas-invalid-entity-class) | A relation's target (or through model) does not resolve to a `BaseEntity` subclass. |
+| [`E_ATLAS_INVALID_HOOK`](/en/reference/errors#e-atlas-invalid-hook) | A hook decorator is not on a static method, or `addHook()` was given something other than a function. |
+| [`E_ATLAS_INVALID_DECORATOR`](/en/reference/errors#e-atlas-invalid-decorator) | A date column decorator was applied to something other than a class property. |
+| [`E_UNDEFINED_RELATIONSHIP`](/en/reference/errors#e-undefined-relationship) | A relation name the model does not declare (`load()`, `withCount()`, `whereHas()`…). |
+| [`E_ATLAS_INVALID_RELATION`](/en/reference/errors#e-atlas-invalid-relation) | Relation metadata lacks what its kind needs: a `@ManyToMany` without pivot options, a through relation without a through model. |
+| [`E_ATLAS_RELATION_UNSUPPORTED_OPERATION`](/en/reference/errors#e-atlas-relation-unsupported-operation) | `related()` was asked for an operation its relation does not have: a write on `@BelongsTo` other than `associate()` / `dissociate()`, a write on a read-only through relation, a bulk write on `@HasOne`. |
+| [`E_ATLAS_ASSOCIATE_NULL`](/en/reference/errors#e-atlas-associate-null) | `associate()` was given `null` or `undefined`; use `dissociate()`. |
+| [`E_ATLAS_PIVOT_KEY_COLLISION`](/en/reference/errors#e-atlas-pivot-key-collision) | `attach()` / `sync()` extras name a pivot key column or a pivot timestamp column. |
+| [`E_ATLAS_COLUMN_ADAPTER`](/en/reference/errors#e-atlas-column-adapter) | A `@Column` `prepare` / `consume` adapter threw (`cause` holds its error) or returned a Promise. |
+| [`E_ATLAS_HAS_ONE_MULTIPLE_ROWS`](/en/reference/errors#e-atlas-has-one-multiple-rows) | A `@HasOne` preload found more than one related row for a parent. |
+| [`E_ATLAS_THROUGH_KEY_NOT_UNIQUE`](/en/reference/errors#e-atlas-through-key-not-unique) | A through relation's `secondLocalKey` maps to several parents. |
+| [`E_ATLAS_MULTIPLE_ROWS`](/en/reference/errors#e-atlas-multiple-rows) | `sole()` matched more than one row. |
+| [`E_ATLAS_SUBQUERY_ALIAS`](/en/reference/errors#e-atlas-subquery-alias) | `select()` was given a subquery not named with `.as()`. |
+| [`E_ATLAS_INVALID_ALIAS`](/en/reference/errors#e-atlas-invalid-alias) | An alias is not a bare identifier. |
+| [`E_ATLAS_INVALID_EXPRESSION`](/en/reference/errors#e-atlas-invalid-expression) | A `whereExpr()` extra expression holds forbidden characters, unbalanced parentheses, a SQL keyword, or a function outside the allowed list. |
+| [`E_ATLAS_INVALID_JSON_PATH`](/en/reference/errors#e-atlas-invalid-json-path) | A `whereJsonPath()` path does not start with `$`. |
+| [`E_ATLAS_INVALID_GROUP_LIMIT`](/en/reference/errors#e-atlas-invalid-group-limit) | `groupLimit()` was given a value that is not a non-negative integer. |
+| [`E_ATLAS_INVALID_LOCK`](/en/reference/errors#e-atlas-invalid-lock) | `skipLocked()` / `noWait()` was used without a base row lock. |
+| [`E_ATLAS_INVALID_COMMENT`](/en/reference/errors#e-atlas-invalid-comment) | `comment()` text contains `*/`. |
+| [`E_ATLAS_INVALID_JOIN`](/en/reference/errors#e-atlas-invalid-join) | A string-form `join()` is missing its right operand. |
+| [`E_ATLAS_INVALID_AGGREGATE`](/en/reference/errors#e-atlas-invalid-aggregate) | A `withAggregate()` callback set no aggregate. |
+| [`E_ATLAS_INVALID_PLUCK`](/en/reference/errors#e-atlas-invalid-pluck) | `pluck()` read a column whose value is an object or a relation. |
+| [`E_ATLAS_UNKNOWN_SCOPE`](/en/reference/errors#e-atlas-unknown-scope) | `apply()` reached a scope the model does not declare, or a model with no `static scopes`. |
+| [`E_ATLAS_CURSOR_ORDER_REQUIRED`](/en/reference/errors#e-atlas-cursor-order-required) | `cursorPaginate()` was called without an order column. |
+| [`E_ATLAS_INVALID_CURSOR`](/en/reference/errors#e-atlas-invalid-cursor) | A `cursorPaginate()` cursor does not decode, or its tuple length does not match the order columns. |
+| [`E_ATLAS_EMPTY_UPDATE`](/en/reference/errors#e-atlas-empty-update) | A model query's `update()` was given an empty payload. |
+| [`E_ATLAS_QUERY_TIMEOUT`](/en/reference/errors#e-atlas-query-timeout) | A query ran longer than its `timeout(ms)`. |
+| [`E_ATLAS_COMPILE_EMPTY`](/en/reference/errors#e-atlas-compile-empty) | The query compiler returned no statement. |
+| [`E_ATLAS_SCHEMA_MISMATCH`](/en/reference/errors#e-atlas-schema-mismatch) | `verifySchema()` in `throw` mode found drift between the models and the database; the message lists the findings. |
+| [`E_ATLAS_SCHEMA_DUMP_MANIFEST`](/en/reference/errors#e-atlas-schema-dump-manifest) | A schema-dump manifest (`.meta.json`) is not version 1 with a `schemaTableName`. |
+| [`E_ATLAS_SCHEMA_DUMP_SEQUENCE`](/en/reference/errors#e-atlas-schema-dump-sequence) | `schema:dump` read a sequence parameter from the catalog that is not an integer. |
+| [`E_ATLAS_SCHEMA_DUMP_PRUNE`](/en/reference/errors#e-atlas-schema-dump-prune) | `schema:dump --prune` ran without a `migrationsDir`. |
+| [`E_ATLAS_SCHEMA_GENERATE_IDENTIFIER`](/en/reference/errors#e-atlas-schema-generate-identifier) | `schema:generate` read a table or column name that does not make a TypeScript identifier. |
+| [`E_ATLAS_DB_ASSERTION`](/en/reference/errors#e-atlas-db-assertion) | A database assertion (`assertHas`, `assertMissing`, `assertCount`, `assertEmpty`) does not hold. |
+| [`E_ATLAS_FACTORY_NO_CONNECTION`](/en/reference/errors#e-atlas-factory-no-connection) | A factory's `create()` has no connection: none passed and none bound with `.client()` / `.connection()`. |
+| [`E_ATLAS_FACTORY_STATE`](/en/reference/errors#e-atlas-factory-state) | A factory state is not defined. |
+| [`E_ATLAS_FACTORY_UNKNOWN_RELATION`](/en/reference/errors#e-atlas-factory-unknown-relation) | A factory's `with()` names a relation the model does not declare, or one with no related factory. |
+| [`E_ATLAS_FACTORY_PIVOT_LENGTH`](/en/reference/errors#e-atlas-factory-pivot-length) | A factory's `pivotAttributes` array length differs from the related-row count. |
+| [`E_ATLAS_FACTORY_UNSUPPORTED_RELATION`](/en/reference/errors#e-atlas-factory-unsupported-relation) | A factory's `with()` names a relation kind it cannot build (a through relation). |
+| [`E_ATLAS_SEEDER_DIR_REQUIRED`](/en/reference/errors#e-atlas-seeder-dir-required) | `testUtils().db().seed()` ran without a `seedersDir`. |
+| [`E_ATLAS_INTERNAL`](/en/reference/errors#e-atlas-internal) | An invariant inside atlas broke: always a bug in atlas itself. |
+
+## Migration
+
+- `AtlasError` is gone: test `error.code`, or `error instanceof errors.E_…` with `import { errors } from '@c9up/atlas'`. Its `hint` is now `help`.
+- `EntityNotFoundError` becomes `errors.E_ROW_NOT_FOUND`, `MassAssignmentError` becomes `errors.E_MASS_ASSIGNMENT`, `OptimisticLockError` becomes `errors.E_OPTIMISTIC_LOCK` and `RelationNotLoadedError` becomes `errors.E_RELATION_NOT_LOADED`; their fields are unchanged, except those of `E_ROW_NOT_FOUND` (below).
+- A Rust compiler refusal (`E_UNSAFE_*`, `E_INJECTION_PATTERN`, `E_UNSUPPORTED`…) now carries its code in `error.code`; its message no longer starts with the code, so match `error.code` instead of the message.
+- `error.name` is now the class name (`Exception` for most codes), not `AtlasError`.
+- `E_ATLAS_INVALID_DATE_COLUMN_VALUE` is now `E_INVALID_DATE_COLUMN_VALUE`, `E_ATLAS_UNKNOWN_RELATION` is now `E_UNDEFINED_RELATIONSHIP`, `E_MIGRATION_LOCKED` is now `E_UNABLE_ACQUIRE_LOCK` and `E_ATLAS_MIGRATION_NOT_FOUND` is now `E_MISSING_SCHEMA_FILES`.
+- A connection name that is not registered is now `E_UNMANAGED_DB_CONNECTION` ("Cannot connect to unregistered connection `<name>`"); `E_ATLAS_MISSING_CONNECTION` stays for a missing default connection and a repository built without one.
+- `E_ROW_NOT_FOUND` carries the model class on `model` (it was the class name on `entityClass`), and its message is always "Row not found": the lookup criteria stay on `criteria` and never reach the message, which an exception handler sends to the client.
+- `E_MODEL_DELETED` reads "Cannot mutate delete model instance", and a successful migration run whose lock was cleared under it now fails with `E_UNABLE_RELEASE_LOCK`.
 
 ## See also
 

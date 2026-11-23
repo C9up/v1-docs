@@ -14,7 +14,7 @@ pnpm add @c9up/archive
 
 | Import | Contents |
 |---|---|
-| `@c9up/archive` | `DriveManager`, `StorageManager`, `defineConfig`, `services`, the three drivers, `DriveFile`, `DriveDirectory`, `StaticMiddleware`, `createSignedRouteHandler`, `ArchiveError`, types |
+| `@c9up/archive` | `DriveManager`, `StorageManager`, `defineConfig`, `services`, the three drivers, `DriveFile`, `DriveDirectory`, `StaticMiddleware`, `createSignedRouteHandler`, `errors`, types |
 | `@c9up/archive/provider` | `ArchiveProvider` (default export) |
 | `@c9up/archive/services/main` | The default disk, a `StorageManager` (default export), `setStorage`, `setStorageResolver`, `getStorage`, `clearStorage` |
 | `@c9up/archive/signed-route` | `createSignedRouteHandler` and its types |
@@ -38,7 +38,7 @@ pnpm add @c9up/archive
 | `DriveDirectory` | class | A directory entry of `listAll()`: `{ isFile: false; isDirectory: true; name; prefix }`. |
 | `StaticMiddleware` | class | Serves a directory under a URL prefix, with ETag and Last-Modified. `new StaticMiddleware(config: StaticConfig)`. |
 | `createSignedRouteHandler` | function | `createSignedRouteHandler(options: SignedRouteOptions)`: middleware that verifies the local disk's signed URLs and serves the file. |
-| `ArchiveError` | error | Every archive error: `code` (`E_ARCHIVE_…`) and an optional `hint`. |
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors) |
 | `DriveConfig` | interface | `{ default: string; services: Record<string, DriveServiceFactory>; fakes?: { location?: string } }`. |
 | `ArchiveConfig` | interface | The single-disk shape: `{ driver: 'local' \| 's3' \| 'gcs'; local?: { root; signingSecret?; routeBasePath? }; s3?: S3Config; gcs?: GcsConfig }`. Run as one disk named `default`. |
 | `DriveServiceFactory` | type | `() => StorageDriver`. |
@@ -121,7 +121,7 @@ moveToDisk(key: string, options?: MoveToDiskOptions): Promise<void>
 
 ### `StorageManager`
 
-`new StorageManager(driver: StorageDriver)`. The driver contract has the same methods, minus `file`, `fromSnapshot`, `copyFromFs`, `moveFromFs` and the aliases.
+`new StorageManager(driver: StorageDriver)`. The driver contract has the same methods, minus `file`, `fromSnapshot`, `copyFromFs`, `moveFromFs` and the aliases. Every operation but `list` / `listAll` wraps a driver failure in its own `E_CANNOT_*` error (see [Errors](#errors)), the driver's error as `cause`; a refused key keeps its own code.
 
 | Member | Signature | Description |
 |---|---|---|
@@ -129,8 +129,8 @@ moveToDisk(key: string, options?: MoveToDiskOptions): Promise<void>
 | `putStream` | `putStream(filePath: string, readable: NodeJS.ReadableStream, options?: PutStreamOptions): Promise<void>` | Write from a stream. |
 | `copyFromFs` / `moveFromFs` | `copyFromFs(source: string \| URL, destination: string, options?: WriteOptions): Promise<void>` | Copy (or move) a file of the local filesystem onto the disk. |
 | `get` | `get(filePath: string): Promise<Buffer \| null>` | Contents, `null` when absent. |
-| `getBytes` / `getArrayBuffer` | `getBytes(filePath: string): Promise<Uint8Array>` | Contents; throws `E_ARCHIVE_NOT_FOUND`. |
-| `getStream` | `getStream(filePath: string): Promise<NodeJS.ReadableStream>` | Throws `E_ARCHIVE_NOT_FOUND`. |
+| `getBytes` / `getArrayBuffer` | `getBytes(filePath: string): Promise<Uint8Array>` | Contents; an absent file throws `E_CANNOT_READ_FILE`, `E_ARCHIVE_NOT_FOUND` as its `cause`. |
+| `getStream` | `getStream(filePath: string): Promise<NodeJS.ReadableStream>` | An absent file throws `E_CANNOT_READ_FILE`, `E_ARCHIVE_NOT_FOUND` as its `cause`. |
 | `exists` | `exists(filePath: string): Promise<boolean>` | |
 | `delete` | `delete(filePath: string): Promise<boolean>` | |
 | `deleteAll` | `deleteAll(prefix: string): Promise<void>` | Every file under a prefix. |
@@ -139,7 +139,7 @@ moveToDisk(key: string, options?: MoveToDiskOptions): Promise<void>
 | `publicUrl` | `publicUrl(filePath: string): string` | Unsigned URL, visibility ignored. |
 | `getSignedUrl` | `getSignedUrl(filePath: string, options?: SignedUrlOptions): string \| Promise<string>` | Time-boxed read URL. |
 | `getSignedUploadUrl` | `getSignedUploadUrl(filePath: string, options?: SignedUrlOptions): string \| Promise<string>` | Time-boxed upload URL; cloud disks only. |
-| `getMetadata` / `getMetaData` | `getMetadata(filePath: string): Promise<Metadata>` | Throws `E_ARCHIVE_NOT_FOUND`. |
+| `getMetadata` / `getMetaData` | `getMetadata(filePath: string): Promise<Metadata>` | An absent file throws `E_CANNOT_GET_METADATA`, `E_ARCHIVE_NOT_FOUND` as its `cause`. |
 | `getVisibility` / `setVisibility` | `setVisibility(filePath: string, visibility: Visibility): Promise<void>` | |
 | `list` | `list(prefix: string): AsyncIterable<StorageEntry>` | Every file under a prefix, paged lazily. |
 | `listAll` | `listAll(prefix: string, options?: ListAllOptions): Promise<ListAllResult>` | One page of files and directories. |
@@ -194,10 +194,23 @@ The string tokens are typed on `ContainerBindings` once `@c9up/archive` is impor
 | [`E_ARCHIVE_INVALID_SIGNATURE`](/en/reference/errors#e-archive-invalid-signature) | A signed URL's signature is missing a part, malformed or does not match (403). |
 | [`E_ARCHIVE_EXPIRED_SIGNATURE`](/en/reference/errors#e-archive-expired-signature) | A signed URL has expired (403). |
 | [`E_ARCHIVE_ACCESS_DENIED`](/en/reference/errors#e-archive-access-denied) | An unsigned request asked for a private file (403). |
-| [`E_ARCHIVE_INVALID_KEY`](/en/reference/errors#e-archive-invalid-key) | The signed route refused the path (403). |
-| [`E_ARCHIVE_NOT_FOUND`](/en/reference/errors#e-archive-not-found) | No file under the key (404 on the signed route). |
-| [`E_ARCHIVE_PATH_TRAVERSAL_DETECTED`](/en/reference/errors#e-archive-path-traversal-detected) | A key resolves outside the disk root. |
-| [`E_ARCHIVE_UNALLOWED_CHARACTERS`](/en/reference/errors#e-archive-unallowed-characters) | A key holds characters a key may not hold. |
+| [`E_ARCHIVE_INVALID_KEY`](/en/reference/errors#e-archive-invalid-key) | The signed route refused the path (403); also thrown for a key naming a visibility marker, or a `moveToDisk()` key that is not a string. |
+| [`E_ARCHIVE_NOT_FOUND`](/en/reference/errors#e-archive-not-found) | No file under the key (status 404). A disk operation hands it on as the `cause` of its `E_CANNOT_*` error. |
+| [`E_CANNOT_WRITE_FILE`](/en/reference/errors#e-cannot-write-file) | `put`, `putStream`, `copyFromFs` or `moveFromFs` could not write the file; the driver's error is the `cause`. |
+| [`E_CANNOT_READ_FILE`](/en/reference/errors#e-cannot-read-file) | `get`, `getBytes`, `getArrayBuffer` or `getStream` could not read the file, an absent one included (`cause`: `E_ARCHIVE_NOT_FOUND`); `get` answers `null` for an absent file instead. |
+| [`E_CANNOT_DELETE_FILE`](/en/reference/errors#e-cannot-delete-file) | `delete` failed; the driver's error is the `cause`. |
+| [`E_CANNOT_DELETE_DIRECTORY`](/en/reference/errors#e-cannot-delete-directory) | `deleteAll` failed; the driver's error is the `cause`. |
+| [`E_CANNOT_COPY_FILE`](/en/reference/errors#e-cannot-copy-file) | `copy` failed, a missing source included; the driver's error is the `cause`. |
+| [`E_CANNOT_MOVE_FILE`](/en/reference/errors#e-cannot-move-file) | `move` failed, a missing source included; the driver's error is the `cause`. |
+| [`E_CANNOT_CHECK_FILE_EXISTENCE`](/en/reference/errors#e-cannot-check-file-existence) | `exists` could not tell; an absent file answers `false` instead. |
+| [`E_CANNOT_GET_METADATA`](/en/reference/errors#e-cannot-get-metadata) | `getMetadata` / `getMetaData` or `getVisibility` failed, an absent file included (`cause`: `E_ARCHIVE_NOT_FOUND`). |
+| [`E_CANNOT_SET_VISIBILITY`](/en/reference/errors#e-cannot-set-visibility) | `setVisibility` failed; the driver's error is the `cause`. |
+| [`E_CANNOT_GENERATE_URL`](/en/reference/errors#e-cannot-generate-url) | `url` / `getUrl`, `publicUrl`, `getSignedUrl` or `getSignedUploadUrl` could not build the URL (`cause`: `E_ARCHIVE_SIGNING_DISABLED`, `E_ARCHIVE_SIGNED_UPLOAD_UNSUPPORTED`, `E_ARCHIVE_INVALID_EXPIRY`, …). |
+| [`E_CANNOT_SERVE_FILE`](/en/reference/errors#e-cannot-serve-file) | The signed-URL route could not serve a file for a reason other than its absence (which answers 404); the failure is the `cause`. |
+| [`E_ARCHIVE_PATH_TRAVERSAL_DETECTED`](/en/reference/errors#e-archive-path-traversal-detected) | A local path resolves outside the disk root, or through a link that points outside it. |
+| [`E_UNALLOWED_CHARACTERS`](/en/reference/errors#e-unallowed-characters) | A key holds a control character, a backslash or an encoded separator. |
+| [`E_PATH_TRAVERSAL_DETECTED`](/en/reference/errors#e-path-traversal-detected) | A key has a dot-only segment such as `..`. |
+| [`E_INVALID_KEY`](/en/reference/errors#e-invalid-key) | A key is empty, or only separators, once normalised. |
 | [`E_ARCHIVE_INVALID_EXPIRY`](/en/reference/errors#e-archive-invalid-expiry) | `expiresIn` is not a positive duration within bounds. |
 | [`E_ARCHIVE_SIGNING_DISABLED`](/en/reference/errors#e-archive-signing-disabled) | `getSignedUrl()` on a local disk without `signingSecret`. |
 | [`E_ARCHIVE_WEAK_SIGNING_SECRET`](/en/reference/errors#e-archive-weak-signing-secret) | The local `signingSecret` is shorter than 16 characters. |
@@ -216,6 +229,27 @@ The string tokens are typed on `ContainerBindings` once `@c9up/archive` is impor
 | [`E_ARCHIVE_CONFIG_MISSING`](/en/reference/errors#e-archive-config-missing) | The driver is `s3` or `gcs` and its section is missing. |
 | [`E_ARCHIVE_PROVIDER_NOT_REGISTERED`](/en/reference/errors#e-archive-provider-not-registered) | `boot()` ran before `register()`. |
 | [`E_ARCHIVE_TEMPLATE_ENGINE`](/en/reference/errors#e-archive-template-engine) | The template helpers cannot be published on inker. |
+| [`E_ARCHIVE_REMOTE_FAILED`](/en/reference/errors#e-archive-remote-failed) | S3 or GCS refused a request or reported a failure; the provider's HTTP status is in `providerStatus`, while `status` stays 500. |
+| [`E_ARCHIVE_INVALID_DRIVER_CONFIG`](/en/reference/errors#e-archive-invalid-driver-config) | `S3Driver` got neither `region` nor `endpoint`, or `GcsDriver` lacks `bucket` or the service account's `client_email` / `private_key`. |
+| [`E_ARCHIVE_CONTENT_LENGTH_EXCEEDED`](/en/reference/errors#e-archive-content-length-exceeded) | `putStream()` read more bytes than its declared `contentLength`. |
+| [`E_ARCHIVE_INVALID_STATIC_PREFIX`](/en/reference/errors#e-archive-invalid-static-prefix) | `StaticMiddleware` was given an empty `prefix`. |
+| [`E_ARCHIVE_NOT_BOOTED`](/en/reference/errors#e-archive-not-booted) | The `storage` service was read before `ArchiveProvider` booted. |
+| [`E_ARCHIVE_INVALID_PREDICATE`](/en/reference/errors#e-archive-invalid-predicate) | A fake assertion got an empty `contentContaining`, which would match every file. |
+| [`E_ARCHIVE_INTERNAL`](/en/reference/errors#e-archive-internal) | An internal invariant broke: a bug in archive. |
+
+Each code is a class of the `errors` namespace and a `@c9up/flare` `Exception`, with status 500 unless the table says otherwise: branch on `error.code` or on `error instanceof errors.E_*`. The advice an error carries is in `help`; for `E_UNALLOWED_CHARACTERS`, `help` names the refused character. A fake's `assertExists()`, `assertMissing()`, `assertStored()` and `assertNotStored()` throw `node:assert`'s `AssertionError`.
+
+## Migration
+
+- `ArchiveError` is gone: test `error.code`, or `error instanceof errors.E_ARCHIVE_*` with `import { errors } from '@c9up/archive'`.
+- `ArchiveRemoteError` becomes `errors.E_ARCHIVE_REMOTE_FAILED`; `providerStatus` is unchanged.
+- `error.hint` becomes `error.help`.
+- The key refusals use new codes: `E_ARCHIVE_UNALLOWED_CHARACTERS` becomes `E_UNALLOWED_CHARACTERS`; a `..` segment raises `E_PATH_TRAVERSAL_DETECTED` and an empty key `E_INVALID_KEY`, where both raised `E_ARCHIVE_PATH_TRAVERSAL_DETECTED` / `E_ARCHIVE_INVALID_KEY` before.
+- `E_ARCHIVE_NOT_FOUND` now has status 404.
+- Each disk operation now wraps a driver failure in its own error, the driver's as `cause`: `E_CANNOT_WRITE_FILE`, `E_CANNOT_READ_FILE`, `E_CANNOT_DELETE_FILE`, `E_CANNOT_DELETE_DIRECTORY`, `E_CANNOT_COPY_FILE`, `E_CANNOT_MOVE_FILE`, `E_CANNOT_CHECK_FILE_EXISTENCE`, `E_CANNOT_GET_METADATA`, `E_CANNOT_SET_VISIBILITY`, `E_CANNOT_GENERATE_URL` (status 500). `E_ARCHIVE_NOT_FOUND`, `E_ARCHIVE_REMOTE_FAILED` and errno errors now reach you as that `cause`: read `error.cause` where you tested the error itself. A refused key keeps its own code.
+- The signed-URL route throws `E_CANNOT_SERVE_FILE` for a file it cannot serve, other than an absent one.
+- The key refusals read as the storage library writes them: `The key "a\\b" has unallowed characters` (the refused character is in `help`), `Path traversal segment detected in key "../a"`, `Invalid key "//". After normalization results in an empty string`.
+- `E_ARCHIVE_ASSERTION_FAILED` is gone: `assertStored()` / `assertNotStored()` throw `node:assert`'s `AssertionError`, as `assertExists()` / `assertMissing()` already did.
 
 ## See also
 

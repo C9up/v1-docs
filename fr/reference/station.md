@@ -40,6 +40,7 @@ Ajoutez `() => import('@c9up/station/provider')` aux providers de `reamrc.ts`, e
 | `AuditEvent`, `AuditSink` | type | L'enregistrement d'audit d'une écriture et son récepteur. |
 | `SecurityAuditEvent`, `SecurityAuditAction`, `SecurityAuditSink` | type | Les événements de connexion, déconnexion, refus et CSRF et leur récepteur. |
 | `kebabCase`, `titleCase`, `pluralise` | fonction | `(input: string): string` : la casse qui sert à dériver slugs et libellés. |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs). |
 
 ### `defineResource`
 
@@ -154,6 +155,8 @@ station.register(defineResource({ entity: User, label: 'Users' }))
 
 ## Erreurs
 
+Un refus levé au boot ou par le registre est une classe du namespace `errors` et une `Exception` de `@c9up/flare` (statut 500) : testez `error.code` ou `error instanceof errors.E_STATION_*`, avec `import { errors } from '@c9up/station'`. Les codes de connexion et de CSRF ne sont pas levés : ce sont le `code` de la réponse HTTP refusée.
+
 | Code | Levée quand |
 |---|---|
 | [`E_STATION_LOGIN_CREDENTIALS_REQUIRED`](/fr/reference/errors#e-station-login-credentials-required) | Le formulaire de connexion est envoyé sans e-mail ou sans mot de passe (400). |
@@ -163,6 +166,27 @@ station.register(defineResource({ entity: User, label: 'Users' }))
 | [`E_STATION_LOGIN_UNAVAILABLE`](/fr/reference/errors#e-station-login-unavailable) | La connexion est temporairement indisponible (503). |
 | [`E_STATION_CSRF_REQUIRED`](/fr/reference/errors#e-station-csrf-required) | Une action d'administration n'a pas de jeton CSRF actif et vérifié (403). |
 | [`E_VALIDATION_ERROR`](/fr/reference/errors#e-validation-error-station) | Un formulaire d'administration n'a pas passé la validation (422 pour un client JSON ; un navigateur est redirigé). |
+| [`E_STATION_NOT_BOOTED`](/fr/reference/errors#e-station-not-booted) | Le registre de `services/main` a servi avant le boot de `StationProvider`, ou avant `setStation()`. |
+| [`E_STATION_INVALID_RESOURCE`](/fr/reference/errors#e-station-invalid-resource) | `defineResource()` a reçu une déclaration invalide (entité, nom, actions, listes de colonnes, `formFields`, `audit`, `onAuditError`). |
+| [`E_STATION_DUPLICATE_RESOURCE`](/fr/reference/errors#e-station-duplicate-resource) | Deux ressources ont été enregistrées sous le même nom. |
+| [`E_STATION_UNKNOWN_RESOURCE`](/fr/reference/errors#e-station-unknown-resource) | `getOrThrow()` a nommé une ressource qui n'est pas enregistrée. |
+| [`E_STATION_UNKNOWN_COLUMN`](/fr/reference/errors#e-station-unknown-column) | `list.columns`, `show.columns` ou `editable` d'une ressource nomme une propriété qui n'est pas une colonne de l'entité. |
+| [`E_STATION_COLUMN_NOT_EDITABLE`](/fr/reference/errors#e-station-column-not-editable) | `editable` nomme une colonne que le framework gère (clé primaire, horodatage, relation, suppression douce) ou que `formFields` masque. |
+| [`E_STATION_PRIMARY_KEY_MISSING`](/fr/reference/errors#e-station-primary-key-missing) | Une entité d'administration ne déclare aucune colonne `@PrimaryKey()`. |
+| [`E_STATION_INVALID_CONFIG`](/fr/reference/errors#e-station-invalid-config) | Une option `station` est invalide (`audit`, `permissionPrefix`, `guard`, `loginRateLimit`). |
+| [`E_STATION_UNKNOWN_GUARD`](/fr/reference/errors#e-station-unknown-guard) | `station.guard` nomme une garde que warden ne connaît pas. |
+| [`E_STATION_GUARD_NOT_JWT`](/fr/reference/errors#e-station-guard-not-jwt) | La garde de l'administration n'émet pas de jeton bearer ; Station a besoin d'une garde JWT. |
+| [`E_STATION_AUTH_REQUIRED`](/fr/reference/errors#e-station-auth-required) | Aucune liaison `auth` utilisable n'est enregistrée alors que `requireAuth: true` est posé, ou hors développement et test. |
+| [`E_STATION_DATABASE_REQUIRED`](/fr/reference/errors#e-station-database-required) | Aucune connexion `db` n'est enregistrée pour l'administration (enregistrez `@c9up/atlas/provider`). |
+| [`E_STATION_RUNE_REQUIRED`](/fr/reference/errors#e-station-rune-required) | Une ressource avec des formulaires d'écriture a besoin de `@c9up/rune`, qui n'est pas installé. |
+| [`E_STATION_INKER_REQUIRED`](/fr/reference/errors#e-station-inker-required) | Aucun moteur de vues `@c9up/inker` n'est enregistré pour rendre l'administration. |
+| [`E_STATION_INKER_UNUSABLE`](/fr/reference/errors#e-station-inker-unusable) | `@c9up/inker` est enregistré mais ne se résout pas en un moteur de rendu utilisable ; voir `cause`. |
+| [`E_STATION_ROUTE_MIDDLEWARE_UNSUPPORTED`](/fr/reference/errors#e-station-route-middleware-unsupported) | `station.middleware` est défini mais les routes du routeur n'ont pas de méthode `middleware()`. |
+| [`E_STATION_INTERNAL`](/fr/reference/errors#e-station-internal) | Un invariant interne a été rompu (le moteur de vues n'était pas initialisé) ; signalez-le comme un bug. |
+
+## Migration
+
+- Un refus n'est plus une simple `Error` ou `TypeError` : testez `error.code`, ou `error instanceof errors.E_STATION_*`. Ceux qui étaient une `TypeError` (une option de `defineResource()` ou `station.audit` du mauvais type) ne le sont plus : remplacez `instanceof TypeError` par `error.code === 'E_STATION_INVALID_RESOURCE'` ou `'E_STATION_INVALID_CONFIG'`.
 
 ## Voir aussi
 

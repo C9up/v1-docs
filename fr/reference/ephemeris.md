@@ -27,8 +27,7 @@ ephemeris n'a ni provider, ni configuration, ni dépendance à l'exécution.
 | `toJsonLd` | fonction | `toJsonLd(data: object): JsonLdValue` : des données simples, `undefined` omis, dates en chaînes ISO ; ce que JSON ne sait pas porter est refusé. |
 | `stringifyJsonLd` | fonction | `stringifyJsonLd(data: object): string` : le texte JSON avec `<`, `>`, `&`, U+2028 et U+2029 échappés. |
 | `jsonLdScriptTag` | fonction | `jsonLdScriptTag(data: object, options?: ScriptTagOptions): string` : `<script type="application/ld+json">` pour le `<head>`, avec le nonce CSP de la requête s'il est fourni. |
-| `EphemerisError` | erreur | Tout refus ; `code` est un code `E_EPHEMERIS_…`. |
-| `RequirementError` | erreur | Une propriété exigée manque (`E_EPHEMERIS_MISSING_REQUIRED`) ; porte `type`, `property` et `source` (la page Search Central). |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs). `errors.E_EPHEMERIS_MISSING_REQUIRED` porte `type`, `property` et `source` (la page Search Central). |
 | `MAX_TEXT_LENGTH` | constante | `10000` : la plus longue valeur texte acceptée. |
 | `MAX_BREADCRUMB_ITEMS` | constante | `32`. |
 | `Schema` | espace de types | `@c9up/ephemeris/schema`, sous la forme `Schema.Product`, `Schema.Article`… |
@@ -44,7 +43,7 @@ ephemeris n'a ni provider, ni configuration, ni dépendance à l'exécution.
 
 ### Aides de nœuds
 
-Chaque aide vérifie un nœud et le renvoie inchangé, typé tel que donné : `aide<T>(node: T, options?: CheckOptions): T`. Une propriété exigée absente lève `RequirementError` ; une propriété recommandée absente est un avertissement. Chaque aide borne aussi le nœud (profondeur, longueur des textes, URL, dates, prix, devises).
+Chaque aide vérifie un nœud et le renvoie inchangé, typé tel que donné : `aide<T>(node: T, options?: CheckOptions): T`. Une propriété exigée absente lève `errors.E_EPHEMERIS_MISSING_REQUIRED` ; une propriété recommandée absente est un avertissement. Chaque aide borne aussi le nœud (profondeur, longueur des textes, URL, dates, prix, devises).
 
 | Aide | Type schema.org | Règle |
 |---|---|---|
@@ -115,6 +114,11 @@ Les règles appliquées aux nœuds imbriqués sont exportées aussi : `NESTED_RE
 | [`E_EPHEMERIS_TOO_DEEP`](/fr/reference/errors#e-ephemeris-too-deep) | Les données sont imbriquées sur plus de 64 niveaux. |
 | [`E_EPHEMERIS_TOO_LONG`](/fr/reference/errors#e-ephemeris-too-long) | Une valeur texte dépasse `MAX_TEXT_LENGTH`. |
 | [`E_EPHEMERIS_TOO_MANY`](/fr/reference/errors#e-ephemeris-too-many) | Une liste, comme un fil d'Ariane, a trop d'éléments. |
+
+## Migration
+
+- `EphemerisError` disparaît : testez `error.code`, ou `error instanceof errors.E_EPHEMERIS_*` avec `import { errors } from '@c9up/ephemeris'`.
+- `RequirementError` devient `errors.E_EPHEMERIS_MISSING_REQUIRED`, avec les mêmes `type`, `property` et `source`.
 
 ## Voir aussi
 

@@ -42,7 +42,7 @@ pnpm add @c9up/lumen
 | `TableRow` | type | `readonly TableInput[] \| Record<string, readonly TableInput[]>`. |
 | `TableChars` | interface | Les glyphes de bordure (`top`, `top-mid`, `left`, `mid-mid`, …). |
 | `TableOptions` | interface | `raw?: boolean` imprime les cellules jointes par `\|`, sans bordure ni couleur ; `chars?: Partial<TableChars>`. |
-| `InvalidColumnError` | erreur | Un tableau reçoit une forme de colonnes qu'il n'a pas (`E_LUMEN_INVALID_COLUMN`). |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs). |
 | `Steps` | classe | Une liste numérotée des choses à faire ensuite. |
 | `Tasks` | classe | Une suite d'étapes exécutées dans l'ordre, chacune avec son issue. |
 | `Task` | classe | Une étape : son état, et l'API que son callback utilise pour signaler sa progression. |
@@ -284,6 +284,14 @@ Tous deux implémentent `Renderer` :
 | Code | Levée quand |
 |---|---|
 | [`E_LUMEN_INVALID_COLUMN`](/fr/reference/errors#e-lumen-invalid-column) | `fluidColumnIndex()` ou `columnWidths()` reçoit une valeur négative ou non entière, un `colSpan` / `rowSpan` n'est pas un entier positif, ou `fullWidth()` désigne une colonne fluide que le tableau n'a pas. |
+| [`E_LUMEN_TASK_NO_RESULT`](/fr/reference/errors#e-lumen-task-no-result) | Le callback d'une tâche n'a rien renvoyé sans marquer la tâche lui-même ; se lit sur l'`error` du résultat, n'est pas levée. |
+| [`E_LUMEN_TASK_FAILED`](/fr/reference/errors#e-lumen-task-failed) | Une tâche a échoué avec autre chose qu'une `Error` (une chaîne, une valeur levée, un `{ message, isError: true }` renvoyé) ; se lit sur l'`error` du résultat, avec la valeur d'origine en `cause`. |
+| [`E_LUMEN_INTERNAL`](/fr/reference/errors#e-lumen-internal) | Un invariant interne de lumen a cédé ; un bogue à signaler. |
+
+## Migration
+
+- `InvalidColumnError` devient `errors.E_LUMEN_INVALID_COLUMN` : remplacez `instanceof InvalidColumnError` par `error.code === 'E_LUMEN_INVALID_COLUMN'` ou `instanceof errors.E_LUMEN_INVALID_COLUMN`.
+- L'échec d'une tâche bâti sur une valeur qui n'est pas une `Error` est `errors.E_LUMEN_TASK_FAILED`, et une tâche qui n'a rien renvoyé est `errors.E_LUMEN_TASK_NO_RESULT` : lisez `error.code` sur le résultat.
 
 ## Voir aussi
 

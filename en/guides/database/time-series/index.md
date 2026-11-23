@@ -63,7 +63,7 @@ Time-window clauses (`INTERVAL` / `SLIDING` / `FILL` / `PARTITION BY`), selector
 
 Eon is **ws-first**: it talks to TDengine through taosAdapter's WebSocket API with a client of its own, built on Node's built-in `WebSocket` (Node 24 or later) — no driver package, no `libtaos`, no native FFI, no install script, and nothing that touches the process (no signal handlers, no log files). A future native `taos` transport is deferred behind the same seam, not descoped.
 
-The client bounds what the server can do to it: every request has a deadline (`timeoutMs`, 60 s by default), a frame over 256 MiB or one that does not decode closes the connection, and closing it — from either side — rejects whatever is still waiting. Those failures carry `E_EON_TIMEOUT`, `E_EON_DECODE`, `E_EON_CLOSED` or `E_EON_CONNECT`; a refusal from the server carries the server's numeric `code` instead.
+The client bounds what the server can do to it: every request has a deadline (`timeoutMs`, 60 s by default), a frame over 256 MiB or one that does not decode closes the connection, and closing it — from either side — rejects whatever is still waiting. Those failures carry `E_EON_TIMEOUT`, `E_EON_DECODE`, `E_EON_CLOSED` or `E_EON_CONNECT`; a refusal from the server is `E_EON_SERVER_ERROR`, with the server's numeric code on `taosCode`.
 
 ### Configuration
 

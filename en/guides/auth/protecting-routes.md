@@ -4,7 +4,7 @@ This guide covers protecting routes and controllers:
 
 - Auth Middleware
 - Guards on Routes
-- E_UNAUTHORIZED and E_FORBIDDEN
+- E_UNAUTHORIZED_ACCESS and E_AUTHORIZATION_FAILURE
 - Decorators (Controller-Level Metadata)
 
 ## Auth Middleware
@@ -14,7 +14,7 @@ Create an `AuthMiddleware` class that calls `auth.verify()` and populates `ctx.a
 ```typescript
 // app/middleware/auth_middleware.ts
 import type { HttpContext } from '@c9up/ream'
-import { E_UNAUTHORIZED } from '@c9up/ream'
+import { errors } from '@c9up/ream'
 import { AuthManager } from '@c9up/warden'
 
 export default class AuthMiddleware {
@@ -25,12 +25,12 @@ export default class AuthMiddleware {
     const token = bearer?.startsWith('Bearer ') ? bearer.slice(7) : undefined
 
     if (!token) {
-      throw new E_UNAUTHORIZED('Bearer token required')
+      throw new errors.E_UNAUTHORIZED_ACCESS('Bearer token required')
     }
 
     const result = await this.auth.verify(token)
     if (!result.authenticated || !result.user) {
-      throw new E_UNAUTHORIZED('Invalid or expired token')
+      throw new errors.E_UNAUTHORIZED_ACCESS('Invalid or expired token')
     }
 
     ctx.auth = {
@@ -90,40 +90,42 @@ router.group(() => {
 
 ### Guard Enforcement Behaviour
 
-The route builder's gate is Ream's, not Warden's. It throws Ream's own exceptions, which the exception handler renders:
+The route builder's gate is Ream's, not Warden's. It throws Ream's own exceptions, with the codes, statuses and messages Warden raises for the same refusals. Each renders itself through its own `handle`, which writes the same bytes as Warden's error of the same code, so a refusal answers the same way whichever gate raised it:
 
-1. If the route has any guard, role, or permission and `ctx.auth.isAuthenticated` is `false`, it throws `E_UNAUTHORIZED`: `401 { error: { code: 'E_UNAUTHORIZED', message: 'Authentication required' } }`.
-2. If the route requires roles and the user holds **none** of them (`ctx.auth.roles`, or `ctx.auth.user.roles` where Warden puts them), it throws `E_FORBIDDEN`: `403 { error: { code: 'E_FORBIDDEN', message: 'Insufficient role', required: [...] } }`. `.role('a', 'b')` is any-of.
-3. If the route requires permissions and the user does not hold **all** of them, it throws `E_FORBIDDEN`: `403 { error: { code: 'E_FORBIDDEN', message: 'Insufficient permissions', required: [...] } }`. When `ctx.auth` offers `hasAllPermissions()` — Warden's authenticator does — that answer decides, through the rights resolver; otherwise the gate reads the payload's permissions. A request that came with a token (`user.currentAccessToken`) also needs the token to allow each one.
+1. If the route has any guard, role, or permission and `ctx.auth.isAuthenticated` is `false`, it throws `E_UNAUTHORIZED_ACCESS`: `401 { error: { code: 'E_UNAUTHORIZED_ACCESS', message: 'Unauthorized access' } }`, to every client.
+2. If the route requires roles and the user holds **none** of them (`ctx.auth.roles`, or `ctx.auth.user.roles` where Warden puts them), it throws `E_AUTHORIZATION_FAILURE` (403). `.role('a', 'b')` is any-of.
+3. If the route requires permissions and the user does not hold **all** of them, it throws `E_AUTHORIZATION_FAILURE` (403). The roles and permissions the route asks for are never sent: they would tell the client what to obtain. When `ctx.auth` offers `hasAllPermissions()` — Warden's authenticator does — that answer decides, through the rights resolver; otherwise the gate reads the payload's permissions. A request that came with a token (`user.currentAccessToken`) also needs the token to allow each one.
+
+`E_AUTHORIZATION_FAILURE` renders by content negotiation: `403 { errors: [{ message: 'Access denied' }] }` for a JSON client, `{ errors: [{ code: 'E_AUTHORIZATION_FAILURE', title: 'Access denied' }] }` for JSON:API, the message as text for an HTML request, and a form submission (`POST`, `PUT`, `PATCH`, `DELETE`) from a browser with a session is redirected back with the message flashed under `error` and under the code. The message is translated under `errors.E_AUTHORIZATION_FAILURE` when the context has an `i18n`.
 
 `ctx.auth` must be populated before the gate runs — that is the auth middleware's job.
 
 ### The decorator gate
 
-Warden's auth middleware (`@c9up/warden/middleware`) enforces the `@Guard`, `@Role` and `@Permission` decorators of the controller action and answers on its own, without the exception handler:
+Warden's auth middleware (`@c9up/warden/middleware`) enforces the `@Guard`, `@Role` and `@Permission` decorators of the controller action. A refusal is thrown, as AdonisJS's `auth` middleware and bouncer throw it, and the host's exception handler calls the error's own `handle`, which writes the response:
 
-- Authentication failure: `401 { error: { code: 'E_UNAUTHORIZED_ACCESS', message: ... } }` (an HTML request on a session guard with a login route is redirected instead).
-- Missing permissions or roles: `403 { error: { code: 'E_WARDEN_FORBIDDEN', message: 'Missing permissions: ...' } }` or `'Missing roles: ...'`. Here roles are **all-of**: `@Role('a', 'b')` requires both, and permissions are checked before roles.
+- Authentication failure: `errors.E_UNAUTHORIZED_ACCESS`, `401 { error: { code: 'E_UNAUTHORIZED_ACCESS', message: ... } }` (an HTML request on a session guard with a login route is redirected instead; a Basic guard adds its `WWW-Authenticate` challenge).
+- Missing permissions or roles: `errors.E_AUTHORIZATION_FAILURE`, rendered as a denied `authorize()` and as the route gate's `.role()` / `.permission()`: `403 { errors: [{ message: 'Access denied' }] }` for a JSON client, the other formats as above. The message is translated under `errors.E_AUTHORIZATION_FAILURE` when the context has an `i18n`; the missing roles and permissions are not sent. Here roles are **all-of**: `@Role('a', 'b')` requires both.
 
 ---
 
-## E_UNAUTHORIZED and E_FORBIDDEN
+## E_UNAUTHORIZED_ACCESS and E_AUTHORIZATION_FAILURE
 
-The route gate's two exceptions are exported by `@c9up/ream` and render their own HTTP responses. Throw them from your own middleware or controllers:
+The route gate's two exceptions are classes of the `errors` of `@c9up/ream`, and each renders itself. Throw them from your own middleware or controllers:
 
 ```typescript
-import { E_FORBIDDEN, E_UNAUTHORIZED } from '@c9up/ream'
+import { errors } from '@c9up/ream'
 
 // 401
-throw new E_UNAUTHORIZED('Bearer token required')
-// Response: { "error": { "code": "E_UNAUTHORIZED", "message": "Bearer token required" } }
+throw new errors.E_UNAUTHORIZED_ACCESS('Bearer token required')
+// Response: { "error": { "code": "E_UNAUTHORIZED_ACCESS", "message": "Bearer token required" } }
 
 // 403
-throw new E_FORBIDDEN('Insufficient permissions', ['posts.create'])
-// Response: { "error": { "code": "E_FORBIDDEN", "message": "Insufficient permissions", "required": ["posts.create"] } }
+throw new errors.E_AUTHORIZATION_FAILURE()
+// Response to a JSON client: { "errors": [{ "message": "Access denied" }] }
 ```
 
-Warden's own failures are `WardenError`s: `E_UNAUTHORIZED_ACCESS` (401), `E_INVALID_CREDENTIALS` (400) and `E_AUTHORIZATION_FAILURE` (403, a denied `authorize()`) are exported classes; `E_WARDEN_FORBIDDEN` is the code the decorator gate writes, not a class.
+Warden's own failures are classes of its `errors` namespace: `errors.E_UNAUTHORIZED_ACCESS` (401), `errors.E_INVALID_CREDENTIALS` (400) and `errors.E_AUTHORIZATION_FAILURE` (403, a denied `authorize()` or a role or permission the decorator gate refused). Ream's and Warden's classes are distinct, with the same codes: test `error.code` to catch either.
 
 ---
 

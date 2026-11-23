@@ -121,8 +121,8 @@ changes from HTTP:
   timeout before. Otherwise every call waiting keeps it, and the one it was for
   reports it when it times out.
 
-A failure of the transport itself is an `RpcTransportError` with a string
-`code`:
+A failure of the transport itself is one of comet's `errors` (a flare
+`Exception`) with a string `code`:
 
 | Code | Meaning |
 |---|---|

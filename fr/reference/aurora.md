@@ -116,17 +116,16 @@ Des effets qui se relancent sans fin dans une même mise à jour lèvent `E_AURO
 |---|---|---|
 | `HttpClient` | classe | Un client `fetch` avec URL de base, en-têtes par défaut, jeton bearer, délais et en-tête CSRF. |
 | `http` | const | Un `HttpClient` par défaut. |
-| `HttpError` | erreur | Une réponse hors 2xx : `status`, `response`, `data`. |
-| `isHttpError` | fonction | `isHttpError(value: unknown): value is HttpError`. |
+| `isHttpError` | fonction | `isHttpError(value: unknown): value is errors.E_AURORA_HTTP_REQUEST_FAILED` : l'erreur d'une réponse hors 2xx, avec `status`, `response` et `data`. |
 | `isAbortError` | fonction | `isAbortError(value: unknown): boolean`. |
 | `HttpClientOptions` | interface | `{ baseURL?; headers?; token?: string \| null \| (() => string \| null \| undefined); credentials?; allowCrossOriginAuth?: boolean; timeout?: number; xsrf?: boolean; xsrfCookieName?: string; xsrfHeaderName?: string }`. |
 | `HttpRequestOptions` | interface | `{ query?; headers?; token?; xsrf?; signal?; timeout?; credentials?; allowCrossOriginAuth?; parse?: (raw: unknown) => T }`. |
-| `HttpResult` | type | `{ ok: true; data: T; error: null } \| { ok: false; data: null; error: HttpError }`. |
+| `HttpResult` | type | `{ ok: true; data: T; error: null } \| { ok: false; data: null; error: errors.E_AURORA_HTTP_REQUEST_FAILED }`. |
 
 | Membre de `HttpClient` | Signature | Description |
 |---|---|---|
 | constructeur | `new HttpClient(options?: HttpClientOptions)` | |
-| `get` / `delete` | `get<T>(url: string, options?: HttpRequestOptions<T>): Promise<T>` | Rejette avec une `HttpError` hors 2xx. |
+| `get` / `delete` | `get<T>(url: string, options?: HttpRequestOptions<T>): Promise<T>` | Rejette avec `errors.E_AURORA_HTTP_REQUEST_FAILED` hors 2xx. |
 | `post` / `put` / `patch` | `post<T>(url: string, body?: unknown, options?: HttpRequestOptions<T>): Promise<T>` | |
 | `raw` | `raw(method: string, url: string, body?: unknown, options?: HttpRequestOptions)` | |
 | `attempt` | `attempt<T>(request: Promise<T>): Promise<HttpResult<T>>` | Un résultat au lieu d'un rejet. |
@@ -231,8 +230,7 @@ L'en-tête CSRF (`X-XSRF-TOKEN`, tiré du cookie `XSRF-TOKEN`) part sur les requ
 | Export | Nature | Description |
 |---|---|---|
 | `countRerenders` | fonction | `countRerenders(options?: RerenderOptions): RerenderCounter` : compte les réexécutions d'effets, memos, slots, listes, attributs, propriétés et setups ; peut les surligner ou les journaliser. |
-| `AuroraError` | erreur | Toutes les erreurs d'aurora : `readonly code: AuroraErrorCode`. |
-| `AuroraErrorCode` | type | Les codes `E_AURORA_*` ci-dessous. |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs) |
 | `TemplateResult` | interface | Ce que renvoie `html`. |
 | `Disposer` | type | `() => void`. |
 | `Context` | interface | `{ key: symbol; name: string; hasDefault: boolean; defaultValue: T \| undefined }`. |
@@ -241,7 +239,7 @@ L'en-tête CSRF (`X-XSRF-TOKEN`, tiré du cookie `XSRF-TOKEN`) part sur les requ
 
 ### `@c9up/aurora/core`
 
-Le sous-ensemble sans hôte de `@c9up/aurora` : `html`, `isTemplateResult`, `component`, `onMount`, `onUnmount`, `createContext`, `provide`, `inject`, `signal`, `memo`, `effect`, `onCleanup`, `batch`, `untrack`, `isSignal`, `each`, `isEach`, `form`, `command`, `uid`, `withIdScope`, `cn`, `clsx`, `twMerge`, les exports de mouvement, `countRerenders`, `AuroraError` et leurs types. Un composant qui n'importe que d'ici tourne côté serveur, dans le navigateur et sur un téléphone.
+Le sous-ensemble sans hôte de `@c9up/aurora` : `html`, `isTemplateResult`, `component`, `onMount`, `onUnmount`, `createContext`, `provide`, `inject`, `signal`, `memo`, `effect`, `onCleanup`, `batch`, `untrack`, `isSignal`, `each`, `isEach`, `form`, `command`, `uid`, `withIdScope`, `cn`, `clsx`, `twMerge`, les exports de mouvement, `countRerenders`, `errors` et leurs types. Un composant qui n'importe que d'ici tourne côté serveur, dans le navigateur et sur un téléphone.
 
 ### `@c9up/aurora/renderer`
 
@@ -313,7 +311,7 @@ Le sous-ensemble sans hôte de `@c9up/aurora` : `html`, `isTemplateResult`, `com
 | `serveAssets` | fonction | `serveAssets(options: ServeAssetsOptions): (ctx: AssetsHttpContext) => Promise<void>` : un handler de fichiers statiques confiné à `root`. |
 | `packageAssetDir` | fonction | `packageAssetDir(specifier: string): string` : le `dist/` d'un paquet installé. |
 | `auroraContext` | fonction | Identique à celui de `@c9up/aurora/middleware`. |
-| `AuroraError` | erreur | |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs) |
 | `pageImportError` | fonction | Construit l'erreur d'une page qui n'a pas pu être importée. |
 | `AuroraManagerConfig` | interface | Voir [Configuration](#configuration). |
 | `PagesConfig` | interface | `{ root: string; urlPrefix?: string; extension?: string }`. |
@@ -322,7 +320,7 @@ Le sous-ensemble sans hôte de `@c9up/aurora` : `html`, `isTemplateResult`, `com
 | `SharedProps` | type | `Record<string, unknown>`. |
 | `SharedPropsResolver` | type | `(ctx: RenderHttpContext) => SharedProps \| Promise<SharedProps>`. |
 | `ClientRoutesFilter` | type | `{ only?: readonly string[]; except?: readonly string[] } \| ((name: string, pattern: string) => boolean)`. |
-| `RenderHttpContext`, `RenderResponse`, `AssetsHttpContext`, `AssetsRequest`, `AssetsResponse`, `ServeAssetsOptions`, `AuroraRequestRenderer`, `AuroraErrorCode` | type | |
+| `RenderHttpContext`, `RenderResponse`, `AssetsHttpContext`, `AssetsRequest`, `AssetsResponse`, `ServeAssetsOptions`, `AuroraRequestRenderer` | type | |
 
 | Membre d'`AuroraManager` | Signature | Description |
 |---|---|---|
@@ -410,7 +408,7 @@ Le sous-ensemble sans hôte de `@c9up/aurora` : `html`, `isTemplateResult`, `com
 | [`E_AURORA_UNKNOWN_ROUTE`](/fr/reference/errors#e-aurora-unknown-route) | `urlFor` a reçu un nom absent de la table des routes. |
 | [`E_AURORA_MISSING_ROUTE_PARAMS`](/fr/reference/errors#e-aurora-missing-route-params) | `urlFor` n'a pas reçu tous les paramètres requis. |
 | [`E_AURORA_UNKNOWN_LIVE_COMPONENT`](/fr/reference/errors#e-aurora-unknown-live-component) | Un composant live a été monté avant que `registry.define()` le nomme. |
-| [`E_AURORA_LIVE_SESSION_LIMIT`](/fr/reference/errors#e-aurora-live-session-limit) | Le registre tient déjà `maxSessions` sessions. |
+| [`E_AURORA_LIVE_SESSION_LIMIT`](/fr/reference/errors#e-aurora-live-session-limit) | Le registre tient déjà `maxSessions` sessions. Statut 503. |
 | [`E_AURORA_RELAY_REQUEST_FAILED`](/fr/reference/errors#e-aurora-relay-request-failed) | Une requête relay a reçu un statut hors 2xx. |
 | [`E_AURORA_UNSAFE_URL`](/fr/reference/errors#e-aurora-unsafe-url) | Une URL de navigation a échoué au contrôle de même origine ou de schéma. |
 | [`E_AURORA_SLOT_IN_TAG_NAME`](/fr/reference/errors#e-aurora-slot-in-tag-name) | Un `${}` à la place d'un nom de balise. |
@@ -430,7 +428,21 @@ Le sous-ensemble sans hôte de `@c9up/aurora` : `html`, `isTemplateResult`, `com
 | [`E_AURORA_VISIT_PROPS`](/fr/reference/errors#e-aurora-visit-props) | Avec `visits` activé, les props d'une page n'étaient pas un objet. |
 | [`E_AURORA_INVALID_MOTION`](/fr/reference/errors#e-aurora-invalid-motion) | `motion=${…}` n'était pas un objet de valeurs de mouvement, ou nommait une propriété que le mouvement ne pilote pas. |
 | [`E_AURORA_REACTIVE_CYCLE`](/fr/reference/errors#e-aurora-reactive-cycle) | Des effets se sont relancés sans fin dans une même mise à jour. |
+| [`E_AURORA_VISIT_NO_PAGE_DATA`](/fr/reference/errors#e-aurora-visit-no-page-data) | Avec `visits` actif, la page ne porte aucun `aurora-page-data` exploitable pour démarrer. |
+| [`E_AURORA_VISIT_ASYNC_FIRST_PAGE`](/fr/reference/errors#e-aurora-visit-async-first-page) | Avec `visits` actif, la fabrique de la première page est asynchrone : une page hydratée se rend de façon synchrone. |
+| [`E_AURORA_INVALID_LIVE_LIMIT`](/fr/reference/errors#e-aurora-invalid-live-limit) | Une limite du registre live (`maxSessions`, `maxPerOwner`, `claimTimeoutMs`, `idleTimeoutMs`) n'est pas un nombre positif. |
+| [`E_AURORA_BROWSER_ENTRY_OUTSIDE_DIST`](/fr/reference/errors#e-aurora-browser-entry-outside-dist) | Un paquet navigateur déclare son point d'entrée hors du `dist/` qu'aurora sert pour lui. |
+| [`E_AURORA_BROWSER_ENTRY_AT_ROOT`](/fr/reference/errors#e-aurora-browser-entry-at-root) | Un paquet navigateur a son point d'entrée à la racine du paquet : le servir publierait tout le paquet. |
+| [`E_AURORA_BROWSER_PACKAGE_CLASH`](/fr/reference/errors#e-aurora-browser-package-clash) | Deux paquets navigateur se monteraient sur le même chemin d'assets. |
+| [`E_AURORA_HTTP_REQUEST_FAILED`](/fr/reference/errors#e-aurora-http-request-failed) | Une requête `HttpClient` a reçu un statut hors 2xx. Porte `response` et le `data` parsé ; `status` est celui de la réponse. |
 | [`E_AURORA_INTERNAL`](/fr/reference/errors#e-aurora-internal) | Un invariant interne d'aurora a cédé : un bug d'aurora. |
+
+## Migration
+
+- `AuroraError` disparaît : testez `error.code`, ou `error instanceof errors.E_AURORA_*` avec `import { errors } from '@c9up/aurora'` (aussi exporté par `@c9up/aurora/core` et `@c9up/aurora/server`).
+- `AuroraRangeError` disparaît : `E_AURORA_INVALID_LIVE_LIMIT` n'est plus une `RangeError` ; attrapez-la par son code.
+- `HttpError` devient `errors.E_AURORA_HTTP_REQUEST_FAILED`, avec les mêmes `status`, `response` et `data` ; `isHttpError` la reconnaît toujours.
+- Le type `AuroraErrorCode` disparaît : `error.code` est une `string`.
 
 ## Voir aussi
 

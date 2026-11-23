@@ -134,7 +134,7 @@ document de confiance.
 
 ## Erreurs
 
-Les échecs lèvent une `VellumError`, porteuse d'un `code` :
+Les échecs lèvent une classe de l'espace de noms `errors` (`import { errors } from '@c9up/vellum'`), une `Exception` de flare porteuse d'un `code` :
 
 | Code | Levée quand |
 | --- | --- |

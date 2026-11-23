@@ -116,7 +116,7 @@ All drivers run through the `sigil-engine` Rust crate (the native half of `@c9up
 
 Every value is validated when the driver is built — at boot, when `new Hash(...)`
 or the provider constructs it. A value out of range, or of the wrong type
-(`rounds: '12'` read from an environment variable), throws a `TypeError` there
+(`rounds: '12'` read from an environment variable), throws `E_SIGIL_INVALID_OPTION` there
 rather than on a user's first login, and is never quietly replaced by a default:
 
 - `argon2` — `variant` (`'d'` | `'i'` | `'id'`, default `id`), `memory` (KiB,
@@ -165,7 +165,7 @@ error to a 4xx:
 The limits count bytes, not characters: an accented or non-Latin passphrase
 reaches 72 bytes well before 72 characters. bcrypt reads only the first 72
 bytes, so two long passwords sharing that prefix would hash alike; sigil
-refuses rather than truncate. Both are plain `Error`s, not `SigilError`s.
+refuses rather than truncate. Both throw `E_SIGIL_PASSWORD_TOO_LONG`.
 `verify()` with a value past bcrypt's 72 bytes answers `false`, since no hash
 `make()` wrote can match it.
 

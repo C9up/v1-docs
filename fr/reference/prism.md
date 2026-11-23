@@ -41,8 +41,7 @@ ream configure @c9up/prism
 | `qrcode` | const | `toString`, `toBuffer`, `toDataURL` : des QR codes en SVG ou en image. |
 | `QRCodeOptions` et les autres types `QRCode*` | type | Les options des QR codes. |
 | `isNativeAvailable` | fonction | Indique si le moteur Rust est chargé. |
-| `PrismError` | erreur | Tout échec de prism. |
-| `PrismNativeRequiredError` | erreur | Le moteur Rust n'est pas chargé. |
+| `errors` | espace de noms | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs). Chacune est une `Exception` de flare avec un `code` chaîne. |
 | `PRISM_CODES` | const | Les codes du moteur, sans le préfixe `E_PRISM_`. |
 | `PrismCode` | type | Un des `PRISM_CODES`. |
 | `PrismConfig`, `Limits`, `ImageServingConfig` | type | La configuration. |
@@ -147,15 +146,6 @@ Chaque opération se met en attente et renvoie `this` ; rien ne touche le moteur
 
 `QRCodeGradient` vaut `{ type?: 'linear' | 'radial'; rotation?: number; colorStops: Array<{ offset: number; color: string }> }` avec 1 à 16 arrêts. Tout ce qui est dessiné doit garder un contraste de 3:1 avec le fond. Les options invalides sont refusées avec `E_PRISM_INVALID_QR_OPTION`.
 
-### `PrismError`
-
-Étend `Error` ; `name` vaut le nom de la classe. `PrismNativeRequiredError` l'étend avec le code `E_PRISM_NATIVE_REQUIRED`.
-
-| Membre | Signature | Description |
-|---|---|---|
-| `code` | `readonly code: string` | `E_PRISM_<code>` pour un code du moteur, `E_PRISM_ENGINE` sinon. |
-| constructeur | `new PrismError(code: string, message: string, options?: ErrorOptions)` | |
-
 ### `@c9up/prism/provider`
 
 | Export | Nature | Description |
@@ -219,7 +209,7 @@ Dessine dans un document PDFKit qui appartient à l'appelant ; PDFKit n'est pas 
 
 | Export | Nature | Description |
 |---|---|---|
-| `ValidationError` | erreur | Un bulletin QR que les règles suisses refusent ; étend `PrismError`. Son `code` est une clé de `ValidationErrors` (comme `ACCOUNT_IS_QR_IBAN_BUT_REFERENCE_IS_MISSING`), pas un code `E_`. |
+| `ValidationError` | erreur | Un bulletin QR que les règles suisses refusent ; une `Exception` de flare. Son `code` est une clé de `ValidationErrors` (comme `ACCOUNT_IS_QR_IBAN_BUT_REFERENCE_IS_MISSING`), pas un code `E_`. |
 | `ValidationErrors` | const | Chaque code de validation et son message. |
 | `ValidationErrorCode` | type | `keyof typeof ValidationErrors`. |
 
@@ -273,6 +263,8 @@ Les jetons en chaîne sont déclarés sur `ContainerBindings`.
 
 ## Erreurs
 
+Les codes `E_PRISM_IMAGE_*` ne sont pas levés : le point d'accès d'images les répond en `{ error: { code, message } }` avec le statut indiqué. Chaque autre code est une classe de l'espace de noms `errors` (`import { errors } from '@c9up/prism'`) : une `Exception` de flare avec `code` et `status`. Les refus du moteur qui signifient que l'entrée n'est pas une image que prism accepte (`E_PRISM_EMPTY_INPUT`, `E_PRISM_INPUT_TOO_LARGE`, `E_PRISM_TOO_MANY_PIXELS`, `E_PRISM_ZERO_DIMENSION`, `E_PRISM_UNKNOWN_FORMAT`, `E_PRISM_UNSUPPORTED_FORMAT`, `E_PRISM_FORMAT_NOT_ALLOWED`, `E_PRISM_UNREADABLE`, `E_PRISM_DECODE_FAILED`) ont le statut 422 ; les autres 500.
+
 | Code | Levée quand |
 |---|---|
 | [`E_PRISM_IMAGE_NO_SOURCE`](/fr/reference/errors#e-prism-image-no-source) | Le point d'accès est appelé sans `src` (400). |
@@ -301,6 +293,17 @@ Les jetons en chaîne sont déclarés sur `ContainerBindings`.
 | [`E_PRISM_INTERNAL_PANIC`](/fr/reference/errors#e-prism-internal-panic) | Le moteur a paniqué. |
 | [`E_PRISM_ENGINE`](/fr/reference/errors#e-prism-engine) | Le moteur a échoué sans code connu. |
 | [`E_PRISM_NATIVE_REQUIRED`](/fr/reference/errors#e-prism-native-required) | Le moteur d'images Rust n'est pas chargé. |
+| [`E_PRISM_NOT_BOOTED`](/fr/reference/errors#e-prism-not-booted) | Le moteur de `services/main` a servi avant le boot de `PrismProvider` ou l'appel de `setPrism()`. |
+| [`E_PRISM_INVALID_CONFIG`](/fr/reference/errors#e-prism-invalid-config) | `config/images.ts` n'exporte pas une configuration `defineConfig({ ... })`. |
+| [`E_PRISM_INVALID_SERVE_CONFIG`](/fr/reference/errors#e-prism-invalid-serve-config) | `images.serve` ne déclare aucune racine, ou l'un de ses compteurs (`concurrency`, `queueLimit`, `effort`, `memoryCacheBytes`…) sort de sa plage. |
+| [`E_PRISM_INVALID_BINDING`](/fr/reference/errors#e-prism-invalid-binding) | Le conteneur a résolu autre chose qu'un `Prism` pour le token `Prism`, ou autre chose qu'un routeur pour `router`. |
+
+## Migration
+
+- `PrismError` disparaît : testez `error.code`, ou `error instanceof errors.E_PRISM_*` avec `import { errors } from '@c9up/prism'`.
+- `PrismNativeRequiredError` devient `errors.E_PRISM_NATIVE_REQUIRED`.
+- `ValidationError` (`@c9up/prism/swissqrbill/errors`) n'étend plus `PrismError` ; son `code` ne change pas.
+- Un refus de l'entrée par le moteur a désormais le `status` 422 (voir [Erreurs](#erreurs)).
 
 ## Voir aussi
 

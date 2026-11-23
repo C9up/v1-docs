@@ -99,7 +99,7 @@ type PushResult =
 
 Un payload est chiffré en un seul enregistrement (RFC 8291 §4), qui contient au plus 3993 octets en clair : gardez son JSON en dessous, et envoyez un identifiant avec lequel le service worker récupère le reste.
 
-`nova.push()` ne lance jamais d'exception sur ce que fait l'endpoint — un statut HTTP, pas de réponse à temps, une connexion qui échoue — il renvoie `ok: false` pour que les callers traitent chaque abonnement indépendamment. Il LANCE bien `NovaError('E_NOVA_VAPID_NOT_CONFIGURED', ...)` si la config VAPID est absente ou malformée au premier appel (validation paresseuse), et lance sur un mauvais usage : un `ttl` ou un `topic` invalide, un payload qui ne se sérialise pas. `pushToUser()` transforme une exception sur un abonnement en résultat `server-error`, pour qu'un appareil n'arrête pas les autres.
+`nova.push()` ne lance jamais d'exception sur ce que fait l'endpoint — un statut HTTP, pas de réponse à temps, une connexion qui échoue — il renvoie `ok: false` pour que les callers traitent chaque abonnement indépendamment. Il LANCE bien `E_NOVA_VAPID_NOT_CONFIGURED` si la config VAPID est absente ou malformée au premier appel (validation paresseuse), et lance sur un mauvais usage : un `ttl` ou un `topic` invalide, un payload qui ne se sérialise pas. `pushToUser()` transforme une exception sur un abonnement en résultat `server-error`, pour qu'un appareil n'arrête pas les autres.
 
 ### Auto-nettoyage sur 404 / 410
 

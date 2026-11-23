@@ -160,7 +160,7 @@ it, read from Search Central — each rule carries its page and the page's date:
 | `merchantReturnPolicy`, `shippingService`, `memberProgram` | return, shipping and loyalty policies — also checked where an organization or a merchant's offer carries them |
 
 ```ts
-import { breadcrumb, localBusiness, RequirementError, type RequirementWarning } from '@c9up/ephemeris'
+import { breadcrumb, errors, localBusiness, type RequirementWarning } from '@c9up/ephemeris'
 
 const warnings: RequirementWarning[] = []
 localBusiness(
@@ -176,12 +176,11 @@ console.log(warnings.map((warning) => warning.property)) // what Google recommen
 try {
   breadcrumb([{ name: 'Home', item: 'https://shop.example/' }])
 } catch (error) {
-  if (error instanceof RequirementError) console.log(error.type, error.property)
+  if (error instanceof errors.E_EPHEMERIS_MISSING_REQUIRED) console.log(error.type, error.property)
 }
 ```
 
-A missing required property throws a `RequirementError`
-(`E_EPHEMERIS_MISSING_REQUIRED`), with `type`, `property` and `source`. A
+A missing required property throws `errors.E_EPHEMERIS_MISSING_REQUIRED`, with `type`, `property` and `source`. A
 missing recommended one is a warning, never an error: it goes to `onWarning`,
 or is written once per kind with `console.warn`; `{ onWarning: () => {} }`
 silences it.
@@ -225,7 +224,7 @@ request's nonce, escaped:
 
 | Code | Raised when |
 |---|---|
-| `E_EPHEMERIS_MISSING_REQUIRED` | a property Google requires is missing (`RequirementError`) |
+| `E_EPHEMERIS_MISSING_REQUIRED` | a property Google requires is missing (with `type`, `property` and `source`) |
 | `E_EPHEMERIS_INVALID_URL` | a URL that is not absolute http(s) |
 | `E_EPHEMERIS_INVALID_PRICE` | a price that is not a number or decimal digits |
 | `E_EPHEMERIS_INVALID_CURRENCY` | a currency that is not a three-letter code |
@@ -240,7 +239,7 @@ request's nonce, escaped:
 | `E_EPHEMERIS_TOO_LONG` | text over 10,000 characters |
 | `E_EPHEMERIS_TOO_MANY` | a breadcrumb of more than 32 items |
 
-Each is an `EphemerisError` with its `code`.
+Each is a class of the `errors` export, named by its code: test `error.code`, or `error instanceof errors.E_EPHEMERIS_…`.
 
 ## License
 

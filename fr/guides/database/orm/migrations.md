@@ -281,7 +281,7 @@ export default defineConfig({
 
 Les commandes `migration:*` et `AtlasProvider` lisent la même clé : tous voient le même historique.
 
-`tableName` doit correspondre à `/^[A-Za-z_][A-Za-z0-9_]*$/` — lettres, chiffres et underscores uniquement, sans commencer par un chiffre. Un nom invalide lève une `AtlasError` de code `E_ATLAS_MIGRATION_INVALID_TABLE_NAME`, de façon synchrone, depuis le constructeur `MigrationRunner` ; le compilateur de requêtes Rust applique la même forme en seconde ligne de défense.
+`tableName` doit correspondre à `/^[A-Za-z_][A-Za-z0-9_]*$/` — lettres, chiffres et underscores uniquement, sans commencer par un chiffre. Un nom invalide lève `errors.E_ATLAS_MIGRATION_INVALID_TABLE_NAME`, de façon synchrone, depuis le constructeur `MigrationRunner` ; le compilateur de requêtes Rust applique la même forme en seconde ligne de défense.
 
 Renommer ne déplace pas l'historique : le runner crée la nouvelle table vide, n'y voit aucune migration appliquée et les rejoue toutes. Copiez d'abord les lignes (`INSERT INTO schema_versions SELECT * FROM ream_migrations`), puis basculez.
 

@@ -30,19 +30,12 @@ Les deux modules de service résolvent l'instance au premier accès à un membre
 | `Protobuf` | classe | Les schémas chargés et leur codec. |
 | `GrpcServices` | classe | Les services gRPC servis, et le répartiteur remis au serveur. |
 | `GrpcMetadata` | classe | Les métadonnées d'un appel, valeurs `-bin` décodées. |
-| `GrpcError` | erreur | Levée par une méthode ou un intercepteur pour répondre un statut gRPC ; son message part au client. |
 | `GrpcStatus` | const | Les codes de statut gRPC, de `OK: 0` à `UNAUTHENTICATED: 16`. |
 | `GrpcContextKey` | classe | Une valeur qu'un intercepteur pose sur un appel pour que la méthode la lise. |
 | `bearerAuth` | fonction | Intercepteur qui exige `authorization: Bearer <token>`. |
 | `rateLimit` | fonction | Intercepteur qui répond `RESOURCE_EXHAUSTED` au-delà de la limite. |
 | `defineConfig` | fonction | `defineConfig(config: ProtobufConfig): ProtobufConfig`. Lève une erreur quand aucun schéma n'est donné. |
-| `NeutrinoError` | erreur | Classe de base : `readonly code: string`. |
-| `InvalidDescriptorError` | erreur | `E_NEUTRINO_INVALID_DESCRIPTOR`. |
-| `DuplicateTypeError` | erreur | `E_NEUTRINO_DUPLICATE_TYPE`. |
-| `UnknownTypeError` | erreur | `E_NEUTRINO_UNKNOWN_TYPE`. |
-| `UnknownMethodError` | erreur | `E_NEUTRINO_UNKNOWN_METHOD`. |
-| `InvalidMessageError` | erreur | `E_NEUTRINO_INVALID_MESSAGE`. |
-| `InvalidMetadataError` | erreur | `E_NEUTRINO_INVALID_METADATA`, avec `readonly key: string`. |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs) |
 | `ProtobufConfig` | interface | La forme de `config/protobuf.ts`. |
 | `GrpcConfig` | type | Les `GrpcServicesOptions` qu'une config peut fixer : `keepUnknownFields`, `maxReceiveMessageLength`, `maxSendMessageLength`, `maxInFlightRequestBytes`. |
 | `ProtobufSources` | interface | `{ descriptorSets?: readonly Uint8Array[]; files?: readonly DescFile[] }`. |
@@ -65,11 +58,11 @@ Les deux modules de service résolvent l'instance au premier accès à un membre
 
 | Membre | Signature | Description |
 |---|---|---|
-| constructeur | `new Protobuf(sources: ProtobufSources)` | Deux sources qui déclarent un même type différemment lèvent `DuplicateTypeError` ; le même fichier deux fois est accepté. |
+| constructeur | `new Protobuf(sources: ProtobufSources)` | Deux sources qui déclarent un même type différemment lèvent `E_NEUTRINO_DUPLICATE_TYPE` ; le même fichier deux fois est accepté. |
 | `message` | `message(typeName: string): DescMessage` | Un schéma de message par nom complet (`package.Message`). |
 | `service` | `service(typeName: string): DescService` | Un service par nom complet. |
 | `method` | `method(path: string): DescMethod` | La méthode que désigne un chemin gRPC (`/package.Service/Method`). |
-| `decode` | `decode<Desc extends DescMessage>(schema: Desc, bytes: Uint8Array, options?: DecodeOptions): MessageShape<Desc>` | Lève `InvalidMessageError` sur des octets qui ne se décodent pas (tronqués, malformés, UTF-8 invalide, imbrication trop profonde). |
+| `decode` | `decode<Desc extends DescMessage>(schema: Desc, bytes: Uint8Array, options?: DecodeOptions): MessageShape<Desc>` | Lève `E_NEUTRINO_INVALID_MESSAGE` sur des octets qui ne se décodent pas (tronqués, malformés, UTF-8 invalide, imbrication trop profonde). |
 | `encode` | `encode<Desc extends DescMessage>(schema: Desc, message: MessageShape<Desc>): Uint8Array` | |
 
 ### `GrpcServices`
@@ -81,11 +74,11 @@ Les deux modules de service résolvent l'instance au premier accès à un membre
 | `service` | `service<S extends DescService>(service: S, impl: ServiceImpl<S>, options?: ServiceOptions): this` | Sert un service. Une méthode omise répond `UNIMPLEMENTED`. Refuse une clé qui n'est pas une méthode du service, une implémentation qui n'est pas une fonction, une méthode en streaming et un service enregistré deux fois. |
 | `handle` | `readonly handle: (call: GrpcCall) => Promise<GrpcReply>` | Sert un appel ; la fonction que le provider remet au serveur. |
 
-Une `GrpcError` reçoit en réponse son statut et son message. Toute autre erreur reçoit `INTERNAL`, sans son message, et part à `onError`.
+Une `E_NEUTRINO_GRPC_STATUS` reçoit en réponse son `grpcStatus` et son message. Toute autre erreur reçoit `INTERNAL`, sans son message, et part à `onError`.
 
 | `GrpcServicesOptions` | Type | Défaut | Description |
 |---|---|---|---|
-| `onError` | `(error: unknown, call: { path: string }) => void` | `console.error` | Informé de chaque erreur qui n'est pas une `GrpcError`. |
+| `onError` | `(error: unknown, call: { path: string }) => void` | `console.error` | Informé de chaque erreur qui n'est pas une `E_NEUTRINO_GRPC_STATUS`. |
 | `keepUnknownFields` | `boolean` | `false` | Garder les champs de la requête que le schéma ne connaît pas. |
 | `maxReceiveMessageLength` | `number` | `4194304` (4 Mio) | Plus grande requête, en octets ; `-1` pour aucune limite. Une requête plus grande reçoit `RESOURCE_EXHAUSTED` avant tout intercepteur. |
 | `maxSendMessageLength` | `number` | `-1` | Plus grande réponse, en octets ; `-1` pour aucune limite. |
@@ -105,7 +98,7 @@ Une `GrpcError` reçoit en réponse son statut et son message. Toute autre erreu
 
 | Membre | Signature | Description |
 |---|---|---|
-| constructeur | `new GrpcMetadata(headers?: Readonly<Record<string, string \| readonly string[]>>)` | Lève `InvalidMetadataError` sur une valeur `-bin` qui n'est pas du base64. |
+| constructeur | `new GrpcMetadata(headers?: Readonly<Record<string, string \| readonly string[]>>)` | Lève `E_NEUTRINO_INVALID_METADATA` (avec `key`) sur une valeur `-bin` qui n'est pas du base64. |
 | `get` | `get(key: string): MetadataValue[]` | Toutes les valeurs de la clé, dans l'ordre ; `[]` en son absence. |
 | `getMap` | `getMap(): Record<string, MetadataValue>` | La première valeur de chaque clé. |
 
@@ -164,12 +157,24 @@ Les jetons chaîne sont déclarés sur `ContainerBindings`. Au boot, le provider
 | [`E_NEUTRINO_UNKNOWN_METHOD`](/fr/reference/errors#e-neutrino-unknown-method) | Aucune méthode de ce chemin n'est chargée, ou une implémentation nomme une méthode que le service n'a pas. |
 | [`E_NEUTRINO_INVALID_MESSAGE`](/fr/reference/errors#e-neutrino-invalid-message) | Les octets ne sont pas un message valide du type. |
 | [`E_NEUTRINO_INVALID_METADATA`](/fr/reference/errors#e-neutrino-invalid-metadata) | Une valeur de métadonnée `-bin` n'est pas du base64 ; l'appel reçoit `INTERNAL`. |
-| [`E_NEUTRINO_GRPC_STATUS`](/fr/reference/errors#e-neutrino-grpc-status) | Une `GrpcError` : une méthode répond un statut au lieu d'une réponse. |
+| [`E_NEUTRINO_GRPC_STATUS`](/fr/reference/errors#e-neutrino-grpc-status) | Levée par une méthode ou un intercepteur pour répondre un statut gRPC au lieu d'une réponse : `new errors.E_NEUTRINO_GRPC_STATUS(GrpcStatus.NOT_FOUND, message)`. Le statut est `grpcStatus` ; le message part au client. |
 | [`E_NEUTRINO_DUPLICATE_SERVICE`](/fr/reference/errors#e-neutrino-duplicate-service) | Un service est enregistré deux fois. |
 | [`E_NEUTRINO_INVALID_IMPLEMENTATION`](/fr/reference/errors#e-neutrino-invalid-implementation) | L'implémentation d'une méthode n'est pas une fonction. |
 | [`E_NEUTRINO_STREAMING_UNSUPPORTED`](/fr/reference/errors#e-neutrino-streaming-unsupported) | Une méthode en streaming a été implémentée ; seules les méthodes unaires sont servies. |
 | [`E_NEUTRINO_INVALID_OPTION`](/fr/reference/errors#e-neutrino-invalid-option) | Une option de taille n'est ni un nombre entier d'octets ni `-1`. |
 | [`E_NEUTRINO_GRPC_UNSUPPORTED`](/fr/reference/errors#e-neutrino-grpc-unsupported) | Le serveur n'a pas de méthode `grpc()`. Mettez à jour `@c9up/ream`. |
+| [`E_NEUTRINO_INVALID_CONFIG`](/fr/reference/errors#e-neutrino-invalid-config) | `defineConfig` ne charge aucun schéma, ou `config/protobuf.ts` n'exporte pas la forme de `defineConfig`. |
+| [`E_NEUTRINO_MISSING_CONFIG`](/fr/reference/errors#e-neutrino-missing-config) | `config/protobuf.ts` manque au boot. |
+| [`E_NEUTRINO_INVALID_BINDING`](/fr/reference/errors#e-neutrino-invalid-binding) | Le conteneur a renvoyé autre chose pour le jeton `Protobuf` ou `GrpcServices`. |
+| [`E_NEUTRINO_NOT_BOOTED`](/fr/reference/errors#e-neutrino-not-booted) | `@c9up/neutrino/services/main` ou `services/grpc` a servi avant le boot de `NeutrinoProvider`. |
+| [`E_NEUTRINO_INVALID_REPLY`](/fr/reference/errors#e-neutrino-invalid-reply) | Une méthode, ou un intercepteur, a renvoyé autre chose qu'un objet message ; l'appel reçoit `INTERNAL` et l'erreur part vers `onError`. |
+| [`E_NEUTRINO_NEXT_CALLED_TWICE`](/fr/reference/errors#e-neutrino-next-called-twice) | Un intercepteur a appelé `next()` plus d'une fois ; l'appel reçoit `INTERNAL`. |
+| [`E_NEUTRINO_VERIFIER_FAILED`](/fr/reference/errors#e-neutrino-verifier-failed) | Le vérificateur de jeton de `bearerAuth` a lui-même échoué ; l'appel reçoit `INTERNAL`. |
+
+## Migration
+
+- `NeutrinoError` disparaît, ainsi que `InvalidDescriptorError`, `DuplicateTypeError`, `UnknownTypeError`, `UnknownMethodError`, `InvalidMessageError` et `InvalidMetadataError` : testez `error.code`, ou `error instanceof errors.E_NEUTRINO_*` avec `import { errors } from '@c9up/neutrino'`.
+- `GrpcError` devient `errors.E_NEUTRINO_GRPC_STATUS`, construite de la même façon : `throw new errors.E_NEUTRINO_GRPC_STATUS(GrpcStatus.NOT_FOUND, 'no such text')`. Son statut gRPC passe de `status` à `grpcStatus` ; `status` est désormais le statut HTTP, comme sur toute erreur.
 
 ## Voir aussi
 

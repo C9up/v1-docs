@@ -146,7 +146,7 @@ router.get('/orders', async ({ photon, response }) => {
 
 ### Codes d'erreur
 
-Le point d'entrée `hydrate()` lance `PhotonClientError` (re-exporté depuis `@c9up/photon/client`). Attrapez-le via `instanceof` et inspectez le `code` :
+Le point d'entrée `hydrate()` lance les erreurs que `@c9up/photon/client` exporte sous `errors`. Testez `error.code`, ou `instanceof` l'une d'elles (`error instanceof errors.E_PHOTON_HYDRATION_NO_TARGET`) :
 
 | Code | Quand |
 |---|---|
@@ -176,7 +176,7 @@ Le côté SSR émet actuellement toujours `<div id="app">` ; si vous passez un `
 |---|---|---|
 | `hydrate({ resolveComponent })` + router de clics | 44.1 | Actif |
 | Mises a jour du `<head>` + décorateur `@Meta` | 44.2 | Actif |
-| Catalogue d'erreurs + `docsUrl` sur chaque `PhotonError` / `PhotonClientError` | 44.4 | Actif |
+| Catalogue d'erreurs + `docsUrl` sur chaque erreur Photon | 44.4 | Actif |
 
 ## Navigation SPA (détection côté serveur)
 

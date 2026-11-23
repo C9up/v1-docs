@@ -16,7 +16,7 @@ Le paquet embarque son moteur natif. Un schéma que le moteur sait exécuter est
 |---|---|
 | `@c9up/rune` | `rune` (export par défaut), `rules`, `schema`, `create`, `compile`, les fabriques de règles, les liaisons globales, les erreurs, les types |
 | `@c9up/rune/types` | Les types seuls |
-| `@c9up/rune/errors` | `RuneError`, `RuneValidationError`, `E_VALIDATION_ERROR`, `RuneErrorNode` |
+| `@c9up/rune/errors` | Les classes d'erreur, une par code, et `RuneErrorNode` |
 | `@c9up/rune/defaults` | Les modèles de messages par défaut |
 | `@c9up/rune/testing` | `runRule`, `runRuleAsync`, `fieldContext`, pour tester une règle personnalisée |
 
@@ -38,17 +38,16 @@ Le paquet embarque son moteur natif. Un schéma que le moteur sait exécuter est
 | `bindHostResolver` | fonction | `bindHostResolver(resolver: HostResolver \| null): void`, le contrôle DNS derrière `activeUrl()` |
 | `bindRosetta` | fonction | `bindRosetta(rosetta: { t(key, params?): string }): void`, des messages tirés d'un traducteur |
 | `setValidationTranslator` | fonction | `setValidationTranslator(translator?: ValidationTranslator): void` |
-| `setGlobalErrorReporter` | fonction | `setGlobalErrorReporter(reporter: ErrorReporterFactory \| ((error: ValidationError) => void) \| null): void` |
+| `setGlobalErrorReporter` | fonction | `setGlobalErrorReporter(reporter: ErrorReporterFactory \| ((error: ValidationErrorNode) => void) \| null): void` |
 | `setConvertEmptyStringsToNull` | fonction | `setConvertEmptyStringsToNull(enabled: boolean): void` ; `""` se lit alors comme absent |
 | `setDateTransform` | fonction | `setDateTransform(fn: ((value: Date) => unknown) \| null): void`, ce que devient une date validée |
 | `SimpleMessagesProvider` | classe | `new SimpleMessagesProvider(messages: Record<string, string>, fields?: Record<string, string>)` |
+| `SimpleErrorReporter` | classe | `new SimpleErrorReporter()` : recueille chaque échec comme un `ValidationErrorNode`, `{ hasErrors, errors, report(message, rule, field, meta?), createError() }` ; passez `errorReporter: () => new SimpleErrorReporter()` ou étendez-le |
+| `ValidationError` | classe | L'exception de validation sous son nom de classe : la même classe que `errors.E_VALIDATION_ERROR` |
 | `readHead` | fonction | `readHead(path: string, length?: number): Promise<Uint8Array>`, les premiers octets d'un fichier (32 par défaut), pour les contrôles de contenu |
 | `isNativeAvailable` | fonction | `isNativeAvailable(): boolean` |
-| `assertNativeAvailable` | fonction | `assertNativeAvailable(): void` ; lève `RuneNativeRequiredError` |
-| `RuneNativeRequiredError` | erreur | `code` `E_RUNE_NAPI_REQUIRED` |
-| `RuneError` | erreur | `code` (`E_RUNE_*`), `hint` |
-| `RuneValidationError` | erreur | `code` `E_VALIDATION_ERROR`, `status` 422, `messages: RuneErrorNode[]` |
-| `errors` | espace de noms | `@c9up/rune/errors` |
+| `assertNativeAvailable` | fonction | `assertNativeAvailable(): void` ; lève `E_RUNE_NAPI_REQUIRED` |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs) ; le même que `@c9up/rune/errors` |
 
 Types (aussi dans `@c9up/rune/types`) :
 
@@ -58,7 +57,7 @@ Types (aussi dans `@c9up/rune/types`) :
 | `RuleChain` | type | Une chaîne de règles (voir plus bas) |
 | `Infer` | type | `Infer<S>`, le type de sortie d'une forme |
 | `ValidationResult` | type | `{ valid: true; errors; data: T } \| { valid: false; errors; data?: undefined }` |
-| `ValidationError` | interface | `{ field, rule, message, index?, meta? }` |
+| `ValidationErrorNode` | interface | `{ field, rule, message, index?, meta? }`, one failure |
 | `ValidateOptions` | interface | `{ meta?, messagesProvider?, errorReporter? }` |
 | `FieldContext` | interface | Ce que reçoit une règle : `value`, `data`, `parent`, `field`, `meta`, `name`, `wildCardPath`, `isValid`, `isDefined`, `isArrayMember`, `isValidDataType`, `getFieldPath()`, `mutate(value)`, `report(message, rule, field, args?)` |
 | `RuleValidator` | type | `(value: unknown, options: Options, field: FieldContext) => void` |
@@ -127,12 +126,12 @@ Chaque méthode renvoie la chaîne. Le guide [Règles](/fr/guides/basics/validat
 
 | Membre | Signature | Description |
 |---|---|---|
-| `validate` | `validate(data: unknown, options?: ValidateOptions): Promise<T>` | Les données validées ; lève `RuneValidationError` |
-| `tryValidate` | `tryValidate(data: unknown, options?): Promise<[RuneValidationError, null] \| [null, T]>` | Ne lève jamais sur des données invalides |
-| `tryValidateSync` | `tryValidateSync(data: unknown, options?): [RuneValidationError, null] \| [null, T]` | |
+| `validate` | `validate(data: unknown, options?: ValidateOptions): Promise<T>` | Les données validées ; lève `errors.E_VALIDATION_ERROR` |
+| `tryValidate` | `tryValidate(data: unknown, options?): Promise<[errors.E_VALIDATION_ERROR, null] \| [null, T]>` | Ne lève jamais sur des données invalides |
+| `tryValidateSync` | `tryValidateSync(data: unknown, options?): [errors.E_VALIDATION_ERROR, null] \| [null, T]` | |
 | `validateResult` | `validateResult(data: unknown, options?): ValidationResult<T>` | Synchrone ; ne lève que pour un schéma à règles asynchrones (`E_RUNE_ASYNC_RULE_NOT_AWAITED`) |
 | `validateResultAsync` | `validateResultAsync(data: unknown, options?): Promise<ValidationResult<T>>` | |
-| `validateOrThrow` | `validateOrThrow(data: unknown, options?): T` | Synchrone, lève `RuneValidationError` |
+| `validateOrThrow` | `validateOrThrow(data: unknown, options?): T` | Synchrone, lève `errors.E_VALIDATION_ERROR` |
 | `validateOrThrowAsync` | `validateOrThrowAsync(data: unknown, options?): Promise<T>` | |
 | `fields` | `fields: Record<string, RuleChain>` | La forme |
 | `schema` | `schema: RuleChain` | La chaîne objet, pour `partial()`, `pick()`, `omit()` |
@@ -148,9 +147,8 @@ Chaque méthode renvoie la chaîne. Le guide [Règles](/fr/guides/basics/validat
 
 | Export | Nature | Description |
 |---|---|---|
-| `RuneError` | erreur | `new RuneError(code: string, message: string, options?: { hint?: string })` ; un code qui ne commence pas par `E_` reçoit le préfixe `E_RUNE_` |
-| `RuneValidationError` | erreur | `new RuneValidationError(messages: RuneErrorNode[])` |
-| `E_VALIDATION_ERROR` | erreur | La même classe que `RuneValidationError` |
+| `E_VALIDATION_ERROR` | erreur | `new E_VALIDATION_ERROR(messages: RuneErrorNode[], options?: ErrorOptions)` : `code` `E_VALIDATION_ERROR`, `status` 422, `messages` |
+| `E_RUNE_*` | erreur | Une classe par code du tableau ci-dessous ; un conseil pour la corriger est sur `help` |
 | `RuneErrorNode` | interface | `{ message, rule, field, index?, meta? }` |
 
 ### `@c9up/rune/defaults`
@@ -168,7 +166,7 @@ Chaque méthode renvoie la chaîne. Le guide [Règles](/fr/guides/basics/validat
 | `runRule` | fonction | `runRule(rule: CompiledRule \| AsyncCompiledRule, value: unknown, options?: FieldContextOptions): RuleRunResult` |
 | `runRuleAsync` | fonction | `runRuleAsync(rule, value, options?): Promise<RuleRunResult>` |
 | `fieldContext` | fonction | `fieldContext(value: unknown, options?: FieldContextOptions): FieldContext` |
-| `RuleRunResult` | interface | `{ valid: boolean; errors: ValidationError[]; value: unknown }` |
+| `RuleRunResult` | interface | `{ valid: boolean; errors: ValidationErrorNode[]; value: unknown }` |
 | `FieldContextOptions` | interface | `{ path?, data?, parent?, … }` |
 
 ```ts
@@ -183,7 +181,7 @@ result.errors[0]?.rule   // 'isEven'
 
 | Code | Levée quand |
 |---|---|
-| [`E_VALIDATION_ERROR`](/fr/reference/errors#e-validation-error-rune) | Les données sont invalides (`RuneValidationError`, 422) |
+| [`E_VALIDATION_ERROR`](/fr/reference/errors#e-validation-error-rune) | Les données sont invalides (422) |
 | [`E_RUNE_META_REQUIRED`](/fr/reference/errors#e-rune-meta-required) | Un validateur `withMetaData()` a été appelé sans `{ meta }` |
 | [`E_RUNE_NOT_A_REGULAR_FILE`](/fr/reference/errors#e-rune-not-a-regular-file) | Une valeur `file()` n'est pas un fichier ordinaire |
 | [`E_RUNE_INVALID_SIZE`](/fr/reference/errors#e-rune-invalid-size) | Une option de taille de fichier ne se lit pas |
@@ -199,12 +197,24 @@ result.errors[0]?.rule   // 'isEven'
 | [`E_RUNE_NO_HOST_RESOLVER`](/fr/reference/errors#e-rune-no-host-resolver) | `activeUrl()` a tourné sans résolveur d'hôte lié |
 | [`E_RUNE_UNSUPPORTED_LOCALE`](/fr/reference/errors#e-rune-unsupported-locale) | `mobile()` n'a pas de plan de numérotation pour la locale |
 | [`E_RUNE_UNSUPPORTED_COUNTRY`](/fr/reference/errors#e-rune-unsupported-country) | `postalCode()`, `passport()` ou `vat()` n'a pas de motif pour le pays |
+| [`E_RUNE_CONFLICTING_URL_OPTIONS`](/fr/reference/errors#e-rune-conflicting-url-options) | `normalizeUrl()` a reçu à la fois `forceHttp` et `forceHttps` |
 | [`E_RUNE_UNSUPPORTED_JSON_SCHEMA_TARGET`](/fr/reference/errors#e-rune-unsupported-json-schema-target) | Une cible JSON Schema que rune n'émet pas |
 | [`E_RUNE_NO_OUTPUT_SCHEMA`](/fr/reference/errors#e-rune-no-output-schema) | La forme de sortie ne peut être décrite : une transformation peut produire n'importe quoi |
 | [`E_RUNE_NAPI_REQUIRED`](/fr/reference/errors#e-rune-napi-required) | Le moteur natif n'est pas chargé |
 | [`E_RUNE_NAPI_NOT_FOUND`](/fr/reference/errors#e-rune-napi-not-found) | Le binaire du moteur natif est introuvable |
 | [`E_RUNE_NAPI_REQUEST_REFUSED`](/fr/reference/errors#e-rune-napi-request-refused) | Le moteur natif a refusé la requête |
 | [`E_RUNE_NAPI_INVALID_RESPONSE`](/fr/reference/errors#e-rune-napi-invalid-response) | Le moteur natif a répondu une forme inattendue |
+
+Chacune est une classe d'`errors`, une `Exception` de flare : lisez `error.code`, ou testez `error instanceof errors.E_VALIDATION_ERROR`.
+
+## Migration
+
+- `RuneValidationError` devient `errors.E_VALIDATION_ERROR`, qui existait déjà comme alias : remplacez `instanceof RuneValidationError` par `instanceof errors.E_VALIDATION_ERROR`. Son `name` vaut désormais `E_VALIDATION_ERROR`.
+- `RuneError` disparaît : chaque code `E_RUNE_*` a sa propre classe. Testez `error.code`, ou `instanceof errors.E_RUNE_UNSUPPORTED_COUNTRY` et consorts.
+- `RuneNativeRequiredError` devient `errors.E_RUNE_NAPI_REQUIRED`.
+- Le conseil qu'une erreur portait dans `hint` est sur `help`.
+- L'interface `ValidationError` (`{ field, rule, message, index?, meta? }`) devient `ValidationErrorNode` : `ValidationError` est la classe d'exception, la même que `errors.E_VALIDATION_ERROR`. Remplacez `import type { ValidationError }` par `ValidationErrorNode` là où il typait un nœud d'échec.
+- `SimpleErrorReporter` est nouveau.
 
 ## Voir aussi
 

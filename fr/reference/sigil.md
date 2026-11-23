@@ -31,11 +31,7 @@ pnpm add @c9up/sigil
 | `defineConfig` | fonction | `defineConfig(config: HashConfig): HashConfig`, type `config/hash.ts` |
 | `drivers` | const | `drivers.argon2(options?)`, `drivers.bcrypt(options?)`, `drivers.scrypt(options?)` : construisent un `HashDriverConfig` |
 | `SigilProvider` | provider | Même classe que `@c9up/sigil/provider` |
-| `SigilError` | erreur | Classe de base de toutes les erreurs de sigil ; `code` porte le nom `E_SIGIL_*` |
-| `E_SIGIL_NAPI_REQUIRED` | erreur | Un driver a tourné sans le moteur natif |
-| `E_SIGIL_NOT_BOOTED` | erreur | `@c9up/sigil/services/main` utilisé avant le boot du provider |
-| `E_SIGIL_UNKNOWN_DRIVER` | erreur | Un hasher nomme un driver que sigil n'a pas |
-| `E_SIGIL_UNKNOWN_HASHER` | erreur | Un nom de hasher que la configuration ne déclare pas |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs) |
 | `HashConfig` | interface | `{ default: string; list?: Record<string, HashDriverConfig>; drivers?: Record<string, HashDriverConfig> }` |
 | `HashDriverConfig` | interface | `{ driver: string; [key: string]: unknown }` |
 | `HashDriver` | interface | Ce qu'un driver implémente : `isValidHash`, `make`, `verify`, `needsReHash` |
@@ -46,7 +42,7 @@ pnpm add @c9up/sigil
 
 ### `Hash`
 
-`new Hash(config: HashConfig)`. Le constructeur valide chaque hasher : un driver inconnu, une option hors limites (`TypeError`) ou un `default` qui ne nomme aucun hasher échoue ici, au boot.
+`new Hash(config: HashConfig)`. Le constructeur valide chaque hasher : un driver inconnu, une option hors limites (`E_SIGIL_INVALID_OPTION`) ou un `default` qui ne nomme aucun hasher échoue ici, au boot.
 
 | Membre | Signature | Description |
 |---|---|---|
@@ -171,8 +167,17 @@ bcrypt écrit la forme MCF (`$2b$12$…`) et vérifie aussi la forme PHC `$bcryp
 | [`E_SIGIL_UNKNOWN_HASHER`](/fr/reference/errors#e-sigil-unknown-hasher) | `default` (dans le constructeur) ou `use(name)` nomme un hasher que la configuration ne déclare pas |
 | [`E_SIGIL_NAPI_REQUIRED`](/fr/reference/errors#e-sigil-napi-required) | `make` ou `verify` a tourné sans le moteur natif chargé |
 | [`E_SIGIL_NOT_BOOTED`](/fr/reference/errors#e-sigil-not-booted) | `@c9up/sigil/services/main` a été lu avant `SigilProvider.boot()` |
+| [`E_SIGIL_INVALID_OPTION`](/fr/reference/errors#e-sigil-invalid-option) | Une option de driver n'est pas un entier, sort de ses limites, n'est pas une valeur permise, un `cost` scrypt n'est pas une puissance de deux, ou une combinaison coûte plus que ce qu'accepte `verify` ; levée à la construction du driver |
+| [`E_SIGIL_PASSWORD_TOO_LONG`](/fr/reference/errors#e-sigil-password-too-long) | `make` a reçu un mot de passe plus long que le plafond commun en octets, ou plus long que 72 octets pour bcrypt |
 
-Toutes sont des `SigilError` ; testez `error.code`. Une option hors limites lève une `TypeError` à la construction du driver.
+Chacune est une classe du namespace `errors` et une `Exception` de `@c9up/flare` de statut 500 : testez `error.code` ou `error instanceof errors.E_SIGIL_*`.
+
+## Migration
+
+- `SigilError` disparaît : testez `error.code`, ou `error instanceof errors.E_SIGIL_*` avec `import { errors } from '@c9up/sigil'`.
+- Les classes d'erreur ne sont plus exportées une à une : `E_SIGIL_NAPI_REQUIRED` devient `errors.E_SIGIL_NAPI_REQUIRED`, et ainsi de suite.
+- `E_SIGIL_INVALID_OPTION` n'est plus une `TypeError` : remplacez `instanceof TypeError` par `error.code === 'E_SIGIL_INVALID_OPTION'`.
+- `error.name` ne vaut plus le code : lisez `error.code`.
 
 ## Voir aussi
 

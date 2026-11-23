@@ -10,9 +10,9 @@ Ce guide couvre les erreurs, leurs codes et leur signalement :
 - Conventions
 - Gestion des erreurs
 - `prettyPrintError(error)`
-- `isReamError(error, ...codes)`
+- Intercepter une erreur par son code
 
-`@c9up/ream` expose une petite famille de sous-classes d'`Exception` identifiées par un code `E_*`. Chacune se self-handle en réponse JSON structurée — un `throw new E_FORBIDDEN()` dans un handler arrive au client en 403 avec `{ error: { code: 'E_FORBIDDEN', message } }`, sans try/catch dans le contrôleur.
+`@c9up/ream` expose ses erreurs dans un seul sac `errors` : une classe `Exception` par code `E_*`. Chacune porte son `status` et son `code`, et le gestionnaire d'exceptions en fait une réponse : un `throw new errors.E_AUTHORIZATION_FAILURE()` dans un handler arrive à un client JSON en 403 avec `{ error: { code: 'E_AUTHORIZATION_FAILURE', message: 'Access denied' } }`, sans try/catch dans le contrôleur.
 
 Pour les catalogues spécifiques aux modules (photon, atlas, container, pipeline), voir le [catalogue d'erreurs](/fr/reference/errors) dédié.
 
@@ -20,55 +20,60 @@ Pour les catalogues spécifiques aux modules (photon, atlas, container, pipeline
 
 ### `Exception`
 
-Parent de toutes les exceptions HTTP intégrées. Porte `status` + `code` et expose les hooks optionnels `handle(error, ctx)` et `report(error, ctx)` pour le self-handling et le logging custom.
+Parent de toutes les erreurs du framework et de ses paquets (elle vient de `@c9up/flare`). Porte `status` + `code` (et `help`, un conseil pour corriger l'erreur), et le handler appelle les hooks optionnels `handle(error, ctx)` et `report(error, ctx)` pour le self-handling et le logging custom.
 
 ```ts
-import { Exception } from '@c9up/ream'
+import { createError, Exception } from '@c9up/ream'
 
 class PaymentFailed extends Exception {
   static override status = 402
   static override code = 'E_PAYMENT_FAILED'
 }
+
+// La même, en une ligne ; les valeurs des `%s` se passent en tableau.
+const E_PLAN_LIMIT = createError<[string]>('The %s plan has no more seats', 'E_PLAN_LIMIT', 402)
+throw new E_PLAN_LIMIT(['starter'])
 ```
 
 ## Codes intégrés
 
 | Code | Statut | Throws | Notes |
 |---|---|---|---|
-| `E_HTTP_EXCEPTION` | configurable | `new E_HTTP_EXCEPTION(message, status)` | Erreur HTTP générique. Préférer une sous-classe spécifique quand elle existe. |
-| `E_UNAUTHORIZED` | 401 | `new E_UNAUTHORIZED('Bearer token required')` | Self-handle vers `{ error: { code, message } }`. Message par défaut : `Authentication required`. |
-| `E_FORBIDDEN` | 403 | `new E_FORBIDDEN('Insufficient permissions', ['admin'])` | `required: string[]` optionnel des rôles/permissions manquants, exposé dans le body de réponse. |
-| `E_VALIDATION_ERROR` | 422 | `new E_VALIDATION_ERROR(errors)` | Le body de réponse est `{ errors }` directement (pas wrappé). `errors: unknown[]` est ce que votre validateur émet. |
-| `E_ROUTE_NOT_FOUND` | 404 | lancé en interne par le router quand aucune route ne matche | Auto-émis ; vous ne l'instanciez normalement pas. |
-| `E_ROW_NOT_FOUND` | 404 | `new E_ROW_NOT_FOUND('User')` | À coupler avec un lookup côté service qui retourne `null`. Le nom de modèle optionnel est interpolé dans le message par défaut. |
+| `E_HTTP_EXCEPTION` | configurable | `E_HTTP_EXCEPTION.invoke(body, status)` | Erreur HTTP générique qui porte le `body` de la réponse. Le message est le corps s'il est une chaîne, ou le `message` d'un corps objet. Préférez une sous-classe spécifique quand elle existe. |
+| `E_HTTP_REQUEST_ABORTED` | configurable (400) | `response.abort(body, status?)` | Étend `E_HTTP_EXCEPTION` et en porte le code. Se self-handle : envoie `body` avec `status`. |
+| `E_UNAUTHORIZED_ACCESS` | 401 | `new E_UNAUTHORIZED_ACCESS()` | Levée par le garde `.auth()` d'une route. Message : `Unauthorized access`, comme `@c9up/warden` la lève. Se rend elle-même (`handle`) comme celle de warden : `401 { error: { code, message } }`. |
+| `E_AUTHORIZATION_FAILURE` | 403 | `new E_AUTHORIZATION_FAILURE()` | Levée par le `.role()` / `.permission()` d'une route. Message : `Access denied`, comme `@c9up/warden` la lève. Se rend elle-même (`handle`) comme celle de warden : `{ errors: [{ message }] }` en JSON, le message en texte pour du HTML, un formulaire refusé redirigé vers la page précédente avec un flash. Les rôles et permissions demandés ne sont pas envoyés. |
+| `E_VALIDATION_ERROR` | 422 | `new E_VALIDATION_ERROR(messages)` | Message `Validation failure`. Le body de réponse est `{ errors: messages }` directement (pas wrappé). `messages: unknown[]` est ce que votre validateur émet. |
+| `E_ROUTE_NOT_FOUND` | 404 | lancé en interne quand aucune route ne correspond | Message `Cannot GET:/chemin`. Auto-émis ; vous ne l'instanciez normalement pas. |
+| `E_ROW_NOT_FOUND` | 404 | `new errors.E_ROW_NOT_FOUND(User)` (de `@c9up/atlas`) | À coupler avec un lookup côté service qui retourne `null`. La classe du modèle est dans `model` ; le message reste `Row not found`, ce qui était cherché n'atteint donc jamais le client. |
 | `E_UNKNOWN` | 500 | fallback pour les throws non-Exception attrapés par `ExceptionHandler` | Surface en 500 générique. |
 
 ## Utilisation
 
 ```ts
-import { E_FORBIDDEN, E_UNAUTHORIZED, E_VALIDATION_ERROR } from '@c9up/ream'
+import { errors } from '@c9up/ream'
 
 router.post('/orders', async ({ auth, request }) => {
-  if (!auth.user) throw new E_UNAUTHORIZED()
+  if (!auth.user) throw new errors.E_UNAUTHORIZED_ACCESS()
   if (!auth.user.roles.includes('staff')) {
-    throw new E_FORBIDDEN('Staff only', ['staff'])
+    throw new errors.E_AUTHORIZATION_FAILURE()
   }
   const parsed = OrderValidator.validate(await request.body())
-  if (!parsed.valid) throw new E_VALIDATION_ERROR(parsed.errors)
+  if (!parsed.valid) throw new errors.E_VALIDATION_ERROR(parsed.errors)
   // …
 })
 ```
 
 ## Self-handling vs `ExceptionHandler` global
 
-Les exceptions intégrées surchargent `handle(error, ctx)` et bypassent donc le handler global. Vos propres sous-classes peuvent faire pareil :
+Une exception qui définit `handle(error, ctx)` contourne le handler global : c'est le cas d'`E_HTTP_REQUEST_ABORTED`, qui envoie le corps donné à `response.abort()`. Vos propres sous-classes peuvent faire pareil :
 
 ```ts
 class TenantSuspended extends Exception {
   static override status = 423
   static override code = 'E_TENANT_SUSPENDED'
 
-  override handle(_error: this, ctx: HttpContext): void {
+  handle(_error: this, ctx: HttpContext): void {
     ctx.response.status(423).json({
       error: { code: this.code, message: this.message, supportUrl: '/help/billing' },
     })
@@ -81,7 +86,27 @@ Quand une exception ne définit PAS `handle`, `ExceptionHandler.handle()` (le ha
 1. Détermine la forme de réponse voulue par content negotiation (`Accept: application/json` → JSON, sinon page HTML minimale).
 2. Récupère `status` + `code` depuis l'instance `Exception` (ou défaut `500` / `E_UNKNOWN`).
 3. Inclut une stack trace dans le body JSON si `debug: true`.
-4. Hors mode debug, n'affiche le message de l'erreur que s'il est écrit pour le client : une `Exception` (quel que soit son statut), toute erreur de statut inférieur à 500, ou une erreur portant `expose: true`. Tout le reste — erreur de driver, erreur système Node comme `ECONNREFUSED`, `Error` simple — répond `An internal error occurred`, même avec un `code`. L'erreur levée garde son message pour `report()`.
+4. Hors mode debug, n'affiche le message de l'erreur que s'il est écrit pour le client : une erreur de statut inférieur à 500, ou une erreur portant `expose: true`. Tout le reste répond `An internal error occurred`, même avec un `code` : erreur de driver, erreur système Node comme `ECONNREFUSED`, `Error` simple, et `Exception` de statut 500. Être une `Exception` ne suffit pas, car chaque paquet lève des `Exception`, de statut 500 par défaut, dont les messages nomment des hôtes, des chemins et des requêtes. L'erreur levée garde son message pour `report()`.
+
+### Où l'erreur est traitée
+
+Le gestionnaire s'exécute là où l'erreur est levée, dans la chaîne de middlewares, et non une fois toute la chaîne déroulée. Les middlewares autour finissent ensuite normalement : le middleware de session enregistre la session, donc un `handle()` qui met un message en flash et redirige en arrière fonctionne comme prévu, et un en-tête posé après `await next()` s'ajoute à la réponse d'erreur.
+
+### Afficher le message d'une erreur 5xx
+
+Pour montrer au client le message d'une erreur 5xx, posez `expose = true` sur elle :
+
+```ts
+class ProviderDown extends Exception {
+  static override status = 503
+  static override code = 'E_PROVIDER_DOWN'
+  expose = true
+}
+
+throw new ProviderDown('Payments are paused, retry in a few minutes')
+```
+
+Ne le faites que pour un message écrit pour le client : il est affiché tel quel.
 
 ## Reporting
 
@@ -106,13 +131,13 @@ class Handler extends ExceptionHandler {
 
 ## Gestion des erreurs
 
-Utiliser les exceptions framework (`E_UNAUTHORIZED`, `E_FORBIDDEN`, etc.) et un handler central.
+Utilisez les exceptions framework (`E_UNAUTHORIZED_ACCESS`, `E_AUTHORIZATION_FAILURE`, etc.) et un handler central.
 
 ```ts
-import { E_UNAUTHORIZED } from '@c9up/ream'
+import { errors } from '@c9up/ream'
 
 if (!token) {
-  throw new E_UNAUTHORIZED('Bearer token required')
+  throw new errors.E_UNAUTHORIZED_ACCESS('Bearer token required')
 }
 ```
 
@@ -124,7 +149,7 @@ Règles :
 
 ## `prettyPrintError(error)`
 
-Formate une erreur survenue au démarrage pour le terminal et l'écrit dans `stderr`. Les instances de `ReamError` incluent un message structuré avec un indice et du contexte. Les instances `Error` ordinaires affichent le message et la trace de la pile.
+Formate une erreur survenue au démarrage pour le terminal et l'écrit dans `stderr`. Une erreur du framework (l'une des `errors`) s'affiche dans un cadre avec son code, son conseil (`help`) et le lien vers sa documentation. Toute autre erreur affiche le message et la trace de la pile.
 
 ```typescript
 .start()
@@ -134,35 +159,32 @@ Formate une erreur survenue au démarrage pour le terminal et l'écrit dans `std
 })
 ```
 
-## `isReamError(error, ...codes)`
+## Intercepter une erreur par son code
 
-Teste en une fois qu'une valeur **est** une erreur du framework et qu'elle porte
-l'un des codes attendus :
+Chaque erreur du framework et de ses paquets est une classe `Exception` nommée
+d'après son code, dans le `errors` du paquet. Testez la classe, ou le code :
 
 ```typescript
-import { isReamError } from '@c9up/ream'
+import { errors } from '@c9up/ream'
 import consoleApp from '@c9up/ream/services/console'
 
 try {
   await consoleApp.exec('provision')
 } catch (error) {
-  if (isReamError(error, 'E_CONSOLE_MISSING_FLAG', 'E_CONSOLE_MISSING_ARGUMENT')) {
-    console.error(error.hint)   // narrowing : `error` est une ReamError ici
+  if (
+    error instanceof errors.E_CONSOLE_MISSING_FLAG ||
+    error instanceof errors.E_CONSOLE_MISSING_ARGUMENT
+  ) {
+    console.error(error.help)
     return
   }
   throw error
 }
 ```
 
-Sans code, il répond simplement « est-ce une `ReamError` ». Avec un ou
-plusieurs, il vérifie aussi le code — et TypeScript restreint `error.code` au(x)
-littéral(aux) demandé(s), donc une faute de frappe dans un code se voit à la
-compilation.
-
-C'est la forme que prend `instanceof MonErreur` dans Ream : le framework porte
-**un** type d'erreur muni d'un code, parce qu'une erreur peut naître en Rust et
-être reconstruite en TypeScript à la traversée de NAPI — ce qu'une classe par
-code ne sait pas faire.
+`instanceof` restreint le type de `error` : `help` et les champs propres à
+l'erreur sont typés. `error.code` est la même chaîne que le nom de la classe :
+testez-le là où vous ne voulez pas importer le paquet qui a levé l'erreur.
 
 ## Voir aussi
 - [Catalogue d'erreurs](/fr/reference/errors) — Codes container, router, pipeline, photon

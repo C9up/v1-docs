@@ -23,7 +23,7 @@ const result = await UserSchema.validateResultAsync(body)
 // result : ValidationResult<T> — même forme que validate(), ne lève jamais
 
 const data = await UserSchema.validateOrThrowAsync(body)
-// retourne le T validé, ou lève RuneValidationError (E_VALIDATION_ERROR, HTTP 422)
+// retourne le T validé, ou lève errors.E_VALIDATION_ERROR (HTTP 422)
 ```
 
 `validateResultAsync` exécute d'abord les règles synchrones, puis attend les règles

@@ -103,7 +103,6 @@ Chaque commande `make:` accepte `--force` (`-f`), `--dry-run` et `--json`. L'Ign
 | `defineModuleConfig` | fonction | `defineModuleConfig<T>(config: T): T` : type la configuration d'un module. |
 | `env` | fonction | `env(key: string)` : lit une variable d'environnement dans un fichier de configuration. |
 | `Env` | classe | Charge les fichiers `.env*` et valide `process.env` selon un schéma. |
-| `EnvValidationException`, `EnvVarError` | classe | Levées par `Env.create()` (`E_INVALID_ENV_VARIABLES`), une entrée par variable en échec. |
 | `SchemaNode`, `RequiredNode`, `SchemaFnOptions`, `StringOptions`, `OptionalCondition` | type | Les types des nœuds de `Env.schema`. |
 | `Secret` | classe | Une valeur qui s'imprime `[redacted]` ; `.release()` la lit. |
 | `loadEnvFiles` | fonction | `loadEnvFiles(appRoot: URL, options?: { skipEnvLocal?: boolean }): Promise<void>`. |
@@ -184,23 +183,17 @@ Chaque commande `make:` accepte `--force` (`-f`), `--dry-run` et `--json`. L'Ign
 | `SessionConfig`, `SessionDriver`, `SessionDriverWithTagging`, `TaggedSession`, `SessionDatabaseDriverOptions`, `SessionDbConnection`, `SessionFileDriverOptions`, `RedisSessionOptions`, `SessionRedisClient`, `SessionRedisClientSource` | type | Les contrats de la configuration et des stores. |
 | `sessionStoreSupportsTagging` | fonction | `(driver: SessionDriver): driver is SessionDriverWithTagging`. |
 | `ReadOnlyValuesStore`, `ValuePath` | classe / type | Le store des messages flash. |
-| `E_SESSION_NOT_READY`, `E_SESSION_STORE_NOT_CONDITIONAL`, `E_SESSION_TAGGING_NOT_SUPPORTED` | erreur | Les erreurs de session. |
 
 #### Erreurs
 
 | Export | Nature | Description |
 |---|---|---|
-| `Exception` | classe | Exception de base avec `status`, `code`, `help`, et `handle()` / `report()` facultatifs. |
-| `createError` | fonction | `createError(message: string, code: string, status?: number): ExceptionConstructor`. |
-| `ExceptionConstructor`, `ExceptionClass`, `HttpError`, `StatusPageRenderer` | type | |
+| `Exception` | classe | Exception de base (celle de `@c9up/flare`, que chaque paquet étend) avec `status`, `code`, `help`, et `handle()` / `report()` facultatifs. |
+| `createError` | fonction | `createError<T extends unknown[]>(message: string, code: string, status?: number): ErrorClass<T>` ; la classe reçoit les valeurs des `%s` en tableau : `new E_X([valeur])`. |
+| `ErrorClass`, `ExceptionClass`, `HttpError`, `StatusPageRenderer` | type | |
 | `ExceptionHandler` | classe | Rend et rapporte les erreurs ; étendez-le dans l'app. |
-| `RuntimeException`, `InvalidArgumentsException` | erreur | `E_RUNTIME_EXCEPTION`, `E_INVALID_ARGUMENTS`. |
-| `E_ROUTE_NOT_FOUND`, `E_UNAUTHORIZED`, `E_FORBIDDEN`, `E_VALIDATION_ERROR`, `E_ROW_NOT_FOUND`, `E_HTTP_EXCEPTION`, `E_HTTP_REQUEST_ABORTED` | erreur | Les exceptions HTTP. |
-| `E_WEBSOCKET_UNSUPPORTED`, `E_WEBSOCKET_UPGRADE_REQUIRED` | erreur | Les erreurs des routes WebSocket. |
-| `E_MISSING_APP_KEY`, `E_INSECURE_APP_KEY` | erreur | Les erreurs d'`APP_KEY`. |
-| `errors` | const | Chaque classe d'erreur ci-dessus, par code, pour les tests `instanceof`. |
-| `ReamError`, `isReamError` | classe / fonction | L'erreur du framework : `code`, `hint`, `context`, `docsUrl`, `sourceFile`, `sourceLine`. |
-| `AtlasError`, `ContainerError`, `EventsError`, `ForgeError`, `PipelineError`, `RouterError`, `RuneError`, `WardenError` | classe | Une `ReamError` par module. |
+| `RuntimeException`, `InvalidArgumentsException` | erreur | `E_RUNTIME_EXCEPTION`, `E_INVALID_ARGUMENTS_EXCEPTION`. |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs) : `error instanceof errors.E_ROUTE_NOT_FOUND`. |
 | `createPipelineError`, `validatePipelineConfig`, `PIPELINE_STAGES`, `PipelineStageName` | fonction / const / type | Les erreurs des étapes du pipeline. |
 | `errorDocsUrl`, `DOCS_BASE_URL` | fonction / const | `errorDocsUrl(code)` : la ligne du code dans l'index des erreurs. |
 | `ErrorBoundary`, `ErrorEvent`, `ErrorEmitter`, `ErrorSeverity` | classe / type | La frontière d'erreurs racine. |
@@ -273,7 +266,7 @@ Chaque commande `make:` accepte `--force` (`-f`), `--dry-run` et `--json`. L'Ign
 | `createCodemods` | fonction | L'API qu'utilise le hook `configure()` d'un paquet pour modifier le projet. |
 | `Codemods`, `EnvValidationNode`, `EnvVarsOptions`, `GeneratedStub`, `MiddlewarePosition`, `PreloadEnvironment` | type | Ses types. |
 | `compileStub`, `renderStub`, `escapeHtml` | fonction | Le moteur de templates des stubs. |
-| `StubSyntaxError`, `StubState`, `StubValue`, `StubFunction`, `StubBlock`, `TemplateOptions` | classe / type | Ses types. |
+| `StubState`, `StubValue`, `StubFunction`, `StubBlock`, `TemplateOptions` | type | Ses types. |
 
 #### Services et types
 
@@ -488,7 +481,7 @@ new Container(options?: ContainerOptions)
 | `clearCookie` | `clearCookie(name: string, options?): Response` | |
 | `setEtag` | `setEtag(body: string \| Buffer, weak?: boolean): Response` | |
 | `fresh` | `fresh(): boolean` | |
-| `abort` | `abort(body: unknown, status?: number): never` | Lève `E_HTTP_REQUEST_ABORTED` (400 par défaut). |
+| `abort` | `abort(body: unknown, status?: number): never` | Lève `E_HTTP_REQUEST_ABORTED` (400 par défaut), construite par `E_HTTP_EXCEPTION.invoke()` : son `code` est `E_HTTP_EXCEPTION`. |
 | `abortIf` / `abortUnless` | `abortIf(condition: unknown, body: unknown, status?: number)` | |
 | `setRequestId` | `setRequestId(): Response` | Renvoie `x-request-id`. |
 | `onFinish` | `onFinish(callback: (err: Error \| null) => void): void` | |
@@ -674,7 +667,7 @@ new ExceptionHandler(debug: boolean)
 
 ### `@c9up/ream/exceptions`
 
-`Exception`, `createError`, `ExceptionConstructor`, `RuntimeException`, `InvalidArgumentsException`, `E_ROUTE_NOT_FOUND`, `E_UNAUTHORIZED`, `E_FORBIDDEN`, `E_VALIDATION_ERROR`, `E_ROW_NOT_FOUND`, `E_HTTP_EXCEPTION`, `E_HTTP_REQUEST_ABORTED`, `HttpError`, `StatusPageRenderer`, `ExceptionClass`, `ExceptionHandler` : identiques à ceux de `@c9up/ream`.
+`Exception`, `createError`, `ErrorClass`, `RuntimeException`, `InvalidArgumentsException`, `E_ROUTE_NOT_FOUND`, `E_UNAUTHORIZED_ACCESS`, `E_AUTHORIZATION_FAILURE`, `E_VALIDATION_ERROR`, `E_HTTP_EXCEPTION`, `E_HTTP_REQUEST_ABORTED`, `HttpError`, `StatusPageRenderer`, `ExceptionClass`, `ExceptionHandler` : identiques à ceux de `@c9up/ream`.
 
 ### `@c9up/ream/env`
 
@@ -806,12 +799,13 @@ locks.redis(options: { connection: string | LockRedisResolver; prefix?: string }
 |---|---|---|
 | `HttpClient` | classe | `get`, `post`, `put`, `patch`, `delete`, `request(input, options?)`, `close()`. Refuse les adresses non publiques. |
 | `HttpResponse` | classe | `status`, `headers`, `url`, `body`, `ok`, `header(name)`, `text()`, `json()`. |
-| `HttpClientError`, `HttpClientFailure` | classe / type | Une requête en échec ; `reason` vaut `invalidUrl`, `privateAddress`, `unreachable`, `timedOut`, `tooLarge` ou `redirect`, et `url` est l'URL demandée. |
 | `HttpClientOptions`, `HttpRequestOptions`, `OutgoingRequest` | interface | |
 | `fakeHttp` | fonction | `fakeHttp(options?: HttpClientOptions): FakeHttpClient`. |
 | `FakeHttpClient` | classe | `on(method, match, response)`, `onAny(match, response)`, `requests`, `reset()`. |
 | `FakeMatcher`, `FakeResponse`, `RecordedRequest` | type | |
 | `isPublicAddress` | fonction | `isPublicAddress(address: string): boolean`. |
+
+Une requête en échec lève l'une des erreurs `errors.E_HTTP_CLIENT_INVALID_URL`, `E_HTTP_CLIENT_PRIVATE_ADDRESS`, `E_HTTP_CLIENT_UNREACHABLE`, `E_HTTP_CLIENT_TIMED_OUT`, `E_HTTP_CLIENT_TOO_LARGE` ou `E_HTTP_CLIENT_REDIRECT_REFUSED` (`errors` de `@c9up/ream`) ; chacune porte `url`, l'URL demandée sans sa chaîne de requête.
 
 `HttpClientOptions` : `timeout` (ms, `10000` par défaut, redirections comprises), `maxResponseBytes` (5 MiB par défaut), `maxRedirects` (`3` par défaut), `crossHostRedirects` (`false` par défaut), `userAgent` (`@c9up/ream` par défaut), `headers`, `allowHosts` (des hôtes exemptés de la règle des adresses publiques). `HttpRequestOptions` : `method`, `headers`, `body`, `json`, `signal`, `timeout`, `maxResponseBytes`.
 
@@ -831,7 +825,6 @@ Un loader de commandes : `getMetaData(): Promise<SerializedCommand[]>` et `getCo
 | `compile` | fonction | `compile(input: string, options?: TemplateOptions): (state: StubState) => string`. |
 | `render` | fonction | `render(input: string, state?: StubState, options?: TemplateOptions): string`. |
 | `escapeHtml` | fonction | `escapeHtml(value: unknown): string`. |
-| `StubSyntaxError` | classe | `E_REAM_STUB_SYNTAX`. |
 | `StubValue`, `StubFunction`, `StubState`, `StubBlock`, `TemplateOptions` | type | |
 
 ### `@c9up/ream/helpers`
@@ -869,7 +862,7 @@ Un loader de commandes : `getMetaData(): Promise<SerializedCommand[]>` et `getCo
 | `createTestClient` | fonction | `createTestClient(bootFn, options?: { auth?: AuthStrategy }): Promise<TestClient>` : en crée un et le démarre. |
 | `RequestBuilder` | classe | Une requête : awaitable, avec des assertions chaînées. |
 | `ApiResponse` | classe | La réponse, avec ses assertions. |
-| `TestWebSocket`, `TestWebSocketOptions`, `TestWebSocketClose`, `WebSocketRefused` | classe / type | `client.ws(path)`. |
+| `TestWebSocket`, `TestWebSocketOptions`, `TestWebSocketClose` | classe / type | `client.ws(path)`. |
 | `AuthStrategy`, `AuthSubject` | interface | La façon dont `withAuth()` / `asUser()` authentifient. |
 | `RouteManifest`, `RouteEntry`, `resolveNamedRoute` | type / fonction | Les routes nommées pour `visit()`. |
 | `HttpMethod`, `HttpSender`, `QueryParams`, `TestResponse` | type | |
@@ -1052,12 +1045,15 @@ Chaque code renvoie à sa ligne dans l'[index des erreurs](/fr/reference/errors)
 | [`E_CIRCULAR_DEPENDENCY`](/fr/reference/errors#e-circular-dependency) | Dépendance circulaire (ou alias circulaire) détectée pendant la résolution. Utilisez des factories explicites ou découplez via des événements. |
 | [`E_CONTAINER_MISSING_METADATA`](/fr/reference/errors#e-container-missing-metadata) | Une classe déclare des paramètres de constructeur mais le conteneur ne trouve aucune métadonnée de dépendance pour eux. Activez les métadonnées de décorateurs, annotez les paramètres avec `@inject()`, ou déclarez `static containerInjections`. |
 | [`E_CONTAINER_RESERVED_TOKEN`](/fr/reference/errors#e-container-reserved-token) | Le nom du token se lit comme une clé d'`Object.prototype` (`constructor`, `__proto__`…). Choisissez un autre nom. |
+| [`E_CONTAINER_MISSING_ASKS_FOR`](/fr/reference/errors#e-container-missing-asks-for) | `container.when(...).provide()` a été appelé avant `asksFor()` : la liaison contextuelle ne dit pas quelle dépendance elle remplace. |
+| [`E_CONTAINER_METHOD_NOT_CALLABLE`](/fr/reference/errors#e-container-method-not-callable) | `container.call()` a nommé un membre de l'instance qui n'est pas une méthode. |
+| [`E_CONTAINER_INVALID_DECORATOR_TARGET`](/fr/reference/errors#e-container-invalid-decorator-target) | `@Service()` ou `@inject()` a été posé sur autre chose qu'une classe (ou, pour `@inject()`, l'une de ses méthodes). |
 
 ### Routeur
 
 | Code | Levée quand |
 |---|---|
-| [`E_ROUTE_NOT_FOUND`](/fr/reference/errors#e-route-not-found) (404) | Aucune route ne correspond à la méthode et au chemin demandés. |
+| [`E_ROUTE_NOT_FOUND`](/fr/reference/errors#e-route-not-found) (404) | Aucune route ne correspond à la méthode et au chemin demandés. Le message est `Cannot GET:/chemin`. |
 | [`E_DUPLICATE_ROUTE`](/fr/reference/errors#e-duplicate-route) | Deux routes déclarent la même méthode et le même chemin. |
 | [`E_DUPLICATE_ROUTE_NAME`](/fr/reference/errors#e-duplicate-route-name) | Deux routes portent le même nom. |
 | [`E_MISSING_ROUTE_NAME`](/fr/reference/errors#e-missing-route-name) | Un groupe nommé préfixe une route qui n'a pas de nom. Nommez chaque route d'un groupe nommé. |
@@ -1065,6 +1061,11 @@ Chaque code renvoie à sa ligne dans l'[index des erreurs](/fr/reference/errors)
 | [`E_UNREGISTERED_CONTROLLER`](/fr/reference/errors#e-unregistered-controller) | Une route nomme par une chaîne un contrôleur qui n'est pas enregistré. |
 | [`E_NO_VIEW_ENGINE`](/fr/reference/errors#e-no-view-engine) | `router.on(path).render()` est utilisé alors qu'aucun moteur de templates n'est installé. |
 | [`E_VALIDATOR_NOT_FOUND`](/fr/reference/errors#e-validator-not-found) | Une route nomme un validateur qui n'est pas enregistré. |
+| [`E_INVALID_CONTROLLER_REFERENCE`](/fr/reference/errors#e-invalid-controller-reference) | Une chaîne de handler de route n'a pas la forme `'Controller.method'`. |
+| [`E_INVALID_RESOURCE_NAME`](/fr/reference/errors#e-invalid-resource-name) | `router.resource()` a reçu un nom vide. |
+| [`E_CONTROLLER_METHOD_NOT_FOUND`](/fr/reference/errors#e-controller-method-not-found) | Le contrôleur que nomme une route n'a pas cette méthode. Répond 500. |
+| [`E_CANNOT_LOOKUP_ROUTE`](/fr/reference/errors#e-cannot-lookup-route) (500) | `urlFor()`, `findOrFail()` ou le `visit()` du client de test a nommé une route qui n'existe pas. |
+| [`E_MISSING_ROUTE_PARAMS`](/fr/reference/errors#e-missing-route-params) | Une URL a été construite pour une route sans l'un de ses paramètres requis. |
 
 ### WebSocket
 
@@ -1083,6 +1084,7 @@ Chaque code renvoie à sa ligne dans l'[index des erreurs](/fr/reference/errors)
 | [`E_WEBSOCKET_CLOSE_CODE`](/fr/reference/errors#e-websocket-close-code) | `socket.close()` avec un code qu'une trame de fermeture ne peut pas porter (RFC 6455 §7.4). |
 | [`E_WEBSOCKET_CLOSE_REASON`](/fr/reference/errors#e-websocket-close-reason) | Une raison de fermeture de plus de 123 octets. |
 | [`E_INVALID_WEBSOCKET_CONFIG`](/fr/reference/errors#e-invalid-websocket-config) | Une limite WebSocket native de 0 octet. |
+| [`E_TEST_CLIENT_WEBSOCKET_REFUSED`](/fr/reference/errors#e-test-client-websocket-refused) | La poignée de main WebSocket du client de test a été refusée (son `status` et son `body` sont la réponse de l'application) ou a échoué. |
 
 ### Pipeline de middleware
 
@@ -1099,29 +1101,44 @@ Chaque code renvoie à sa ligne dans l'[index des erreurs](/fr/reference/errors)
 
 | Code | Levée quand |
 |---|---|
-| [`E_UNKNOWN`](/fr/reference/errors#e-unknown) (500) | Le code par défaut d'une `Exception` qui n'en fixe aucun, et d'une erreur reconstruite depuis la couche native sans code. |
+| [`E_UNKNOWN`](/fr/reference/errors#e-unknown) (500) | Le code que le gestionnaire d'exceptions rapporte pour une valeur levée qui n'en porte aucun. |
 | [`E_RUNTIME_EXCEPTION`](/fr/reference/errors#e-runtime-exception) (500) | `RuntimeException` : une défaillance du programme, pas de la requête. |
-| [`E_INVALID_ARGUMENTS`](/fr/reference/errors#e-invalid-arguments) (500) | `InvalidArgumentsException` : une fonction a été appelée avec des arguments inutilisables. |
-| [`E_HTTP_EXCEPTION`](/fr/reference/errors#e-http-exception) (variable) | Une erreur HTTP générique qui répond avec le statut qu'on lui a donné. |
-| [`E_HTTP_REQUEST_ABORTED`](/fr/reference/errors#e-http-request-aborted) (400) | `response.abort()` (ou `abortIf` / `abortUnless`) a arrêté la requête ; le corps donné part avec le statut donné, 400 par défaut. |
-| [`E_UNAUTHORIZED`](/fr/reference/errors#e-unauthorized) (401) | La requête n'est pas authentifiée. |
-| [`E_FORBIDDEN`](/fr/reference/errors#e-forbidden) (403) | La requête est authentifiée mais pas autorisée. |
-| [`E_ROW_NOT_FOUND`](/fr/reference/errors#e-row-not-found) (404) | Un enregistrement qui doit exister est introuvable. |
-| [`E_VALIDATION_ERROR`](/fr/reference/errors#e-validation-error) (422) | Les données de la requête n'ont pas passé la validation. Le corps porte un message par champ et par règle ; un formulaire de navigateur est renvoyé en arrière avec les erreurs en flash. |
+| [`E_INVALID_ARGUMENTS_EXCEPTION`](/fr/reference/errors#e-invalid-arguments-exception) (500) | `InvalidArgumentsException` : une fonction a été appelée avec des arguments inutilisables. |
+| [`E_HTTP_EXCEPTION`](/fr/reference/errors#e-http-exception) (variable) | Une erreur HTTP générique qui porte le `body` de la réponse. `E_HTTP_EXCEPTION.invoke(body, status, code?)` en construit une : le message est le corps s'il est une chaîne, ou le `message` d'un corps objet. |
+| [`E_HTTP_REQUEST_ABORTED`](/fr/reference/errors#e-http-request-aborted) (400) | La classe que lève `response.abort()` (ou `abortIf` / `abortUnless`) ; le corps donné part avec le statut donné, 400 par défaut. Elle étend `E_HTTP_EXCEPTION` et en porte le code. |
+| [`E_UNAUTHORIZED_ACCESS`](/fr/reference/errors#e-unauthorized-access-ream) (401) | Le garde `.auth()` d'une route a refusé la requête, ou `.role()` / `.permission()` n'a trouvé aucun utilisateur authentifié. Mêmes code, statut, message (`Unauthorized access`), `identifier`, `getResponseMessage` et `handle` que celle de `@c9up/warden` : elle se rend elle-même en `401 { "error": { "code", "message" } }`. |
+| [`E_AUTHORIZATION_FAILURE`](/fr/reference/errors#e-authorization-failure-ream) (403) | Le `.role()` ou le `.permission()` d'une route a refusé un utilisateur authentifié. Mêmes code, statut, message (`Access denied`), `identifier`, `getResponseMessage` et `handle` que celle de `@c9up/warden` : elle se rend elle-même en négociant le contenu, `{ "errors": [{ "message" }] }` en JSON, un objet d'erreur JSON:API, le message en texte pour du HTML, une soumission de formulaire refusée avec une session redirigée vers la page précédente avec le message en flash. Les rôles et permissions demandés ne sont pas envoyés. |
+| [`E_VALIDATION_ERROR`](/fr/reference/errors#e-validation-error) (422) | Les données de la requête n'ont pas passé la validation. Le message est `Validation failure`, `messages` porte une entrée par champ et par règle ; un formulaire de navigateur est renvoyé en arrière avec les erreurs en flash. |
 | [`E_REQUEST_ENTITY_TOO_LARGE`](/fr/reference/errors#e-request-entity-too-large) (413) | Le corps de la requête dépasse la limite du body parser. Lire le corps brut d'une telle requête la lève aussi. |
 | [`E_HANDLER_FAILURE`](/fr/reference/errors#e-handler-failure) (500) | Le gestionnaire d'exceptions a lui-même levé une erreur en rendant une erreur. |
 | [`E_HTTP_CONTEXT_NOT_FOUND`](/fr/reference/errors#e-http-context-not-found) | `HttpContext.getOrFail()` a été appelé hors d'une requête, ou avec le suivi du contexte ambiant désactivé. Passez `ctx` explicitement. |
 | [`E_RESPONSE_TOO_LARGE`](/fr/reference/errors#e-response-too-large) | Un corps de réponse dépasse le plafond configuré. Les corps sont gardés entiers en mémoire : servez un gros fichier en flux ou depuis le stockage. |
 | [`E_BODYPARSER_CONFIG`](/fr/reference/errors#e-bodyparser-config) | La configuration du body parser utilise une option qui n'est plus prise en charge. |
 | [`E_BODYPARSER_INVALID_SIZE`](/fr/reference/errors#e-bodyparser-invalid-size) | Une limite de taille de corps n'est ni un nombre d'octets ni une taille comme `'1mb'`. |
+| [`E_ENCODING_UNSUPPORTED`](/fr/reference/errors#e-encoding-unsupported) (415) | Un corps JSON, formulaire ou texte arrive avec un `Content-Encoding` autre que `identity`. Le parseur de corps ne décompresse pas les corps, gzip et deflate compris. |
 | [`E_BODYPARSER_INVALID_JSON`](/fr/reference/errors#e-bodyparser-invalid-json) (400 / 422) | Un corps JSON est mal formé (400), ou, avec `json.strict`, n'est ni un objet ni un tableau (422). |
 | [`E_HTTP_REQUEST_TIMEOUT`](/fr/reference/errors#e-http-request-timeout) (408) | Le serveur natif n'a pas reçu le corps de la requête à temps. |
 | [`E_REQUEST_ABORTED`](/fr/reference/errors#e-request-aborted) (400) | Le client a fermé la connexion pendant la lecture du corps. |
-| [`E_BAD_MULTIPART`](/fr/reference/errors#e-bad-multipart) (400) | Un corps `multipart/form-data` est mal formé, ou son paramètre `boundary` manque. |
+| [`E_INVALID_MULTIPART_REQUEST`](/fr/reference/errors#e-invalid-multipart-request) (400) | Un corps `multipart/form-data` est mal formé, ou son paramètre `boundary` manque. |
 | [`E_PATH_TRAVERSAL`](/fr/reference/errors#e-path-traversal) (400) | Le serveur natif a trouvé `..` dans le chemin, brut ou encodé en pourcentage. |
 | [`E_PARAMETER_POLLUTION`](/fr/reference/errors#e-parameter-pollution) (400) | Le serveur natif a trouvé deux fois la même clé dans la query string. |
 | [`E_TOO_MANY_REQUESTS`](/fr/reference/errors#e-too-many-requests) (429) | La limite de débit du serveur natif a refusé la requête ; le corps porte `retryAfter`, avec les headers `Retry-After` et `X-RateLimit-*`. |
 | [`E_STREAM_UNKNOWN`](/fr/reference/errors#e-stream-unknown) (500) | Un identifiant de flux server-sent events est inconnu du serveur. |
+| [`E_RESPONSE_INVALID_HEADER`](/fr/reference/errors#e-response-invalid-header) | Un nom ou une valeur d'en-tête contient CR, LF ou NUL, ce qui scinderait la réponse. |
+| [`E_RESPONSE_INVALID_COOKIE`](/fr/reference/errors#e-response-invalid-cookie) | Des options de cookie qu'un navigateur rejette : `sameSite: true`, `SameSite=None` ou `partitioned` sans `secure`, ou une date `expires` invalide. |
+| [`E_RESPONSE_NO_CONTEXT`](/fr/reference/errors#e-response-no-context) | `response.redirect()` sur une réponse construite hors d'une requête. |
+| [`E_RESPONSE_SSE_UNSUPPORTED`](/fr/reference/errors#e-response-sse-unsupported) | `response.sse()` sur un serveur qui n'a pas de backend de flux. |
+| [`E_REDIRECT_NO_ROUTER`](/fr/reference/errors#e-redirect-no-router) | `redirect().toRoute()` sans résolveur d'URL de route branché. |
+| [`E_STREAM_REGISTER`](/fr/reference/errors#e-stream-register) | Le serveur a refusé un nouvel identifiant de flux d'événements serveur. |
+| [`E_MULTIPART_UNSAFE_FILE_NAME`](/fr/reference/errors#e-multipart-unsafe-file-name) | `file.move()` a reçu, ou a tiré du nom de fichier du client, un nom qui n'est pas un simple nom de fichier. |
+| [`E_MULTIPART_FILE_EXISTS`](/fr/reference/errors#e-multipart-file-exists) | `file.move()` a trouvé un fichier à la destination et `overwrite` est désactivé. |
+| [`E_TEST_CLIENT_NO_ROUTE_MANIFEST`](/fr/reference/errors#e-test-client-no-route-manifest) | Le `visit()` du client de test exige `routes: router.namedManifest()` dans les options du client. |
+| [`E_TEST_CLIENT_TIMEOUT`](/fr/reference/errors#e-test-client-timeout) | Une requête du client de test, ou un message WebSocket de test, n'est pas arrivé dans son délai. |
+| [`E_TEST_CLIENT_MISSING_CSRF_TOKEN`](/fr/reference/errors#e-test-client-missing-csrf-token) | `withCsrf()` a été appelé sans token et sans cookie CSRF posé. |
+| [`E_TEST_CLIENT_NO_AUTH_STRATEGY`](/fr/reference/errors#e-test-client-no-auth-strategy) | `withAuth()` ou `asUser()` a servi sans stratégie `auth` dans les options du client. |
+| [`E_TEST_CLIENT_NO_SESSION_SEEDER`](/fr/reference/errors#e-test-client-no-session-seeder) | `loginAs()` avec un guard de session, et aucun `sessionSeeder` dans les options du client. |
+| [`E_TEST_CLIENT_UNKNOWN_SERIALIZER`](/fr/reference/errors#e-test-client-unknown-serializer) | `serialize()` a nommé un sérialiseur qui n'est pas enregistré. |
+| [`E_TEST_CLIENT_ASSERTION_FAILED`](/fr/reference/errors#e-test-client-assertion-failed) | Une assertion sur la réponse du client de test a échoué. |
 
 ### Sessions
 
@@ -1133,15 +1150,28 @@ Chaque code renvoie à sa ligne dans l'[index des erreurs](/fr/reference/errors)
 | [`E_SESSION_TAGGING_NOT_SUPPORTED`](/fr/reference/errors#e-session-tagging-not-supported) (500) | Une méthode d'étiquetage de session a été appelée sur un store qui ne la prend pas en charge. Utilisez le store memory, redis ou database. |
 | [`E_SESSION_COOKIE_NOT_HTTP_ONLY`](/fr/reference/errors#e-session-cookie-not-http-only) (500) | Le cookie de session est configuré avec `httpOnly: false`. Retirez-le : un script capable de lire le cookie change toute XSS en prise de compte. |
 | [`E_SESSION_TEMPLATE_ENGINE_UNUSABLE`](/fr/reference/errors#e-session-template-engine-unusable) | Le moteur de templates est installé mais les tags de session ne peuvent pas y être enregistrés. |
+| [`E_SESSION_MISSING_SECRET`](/fr/reference/errors#e-session-missing-secret) | Le store de session cookie n'a pas de secret. |
+| [`E_SESSION_MISSING_LOCATION`](/fr/reference/errors#e-session-missing-location) | Le store de session fichier n'a pas de `location`. |
+| [`E_SESSION_INVALID_CONNECTION`](/fr/reference/errors#e-session-invalid-connection) | La `connection` du store de session base de données n'a pas `query()` et `execute()`. |
+| [`E_SESSION_UNKNOWN_DRIVER`](/fr/reference/errors#e-session-unknown-driver) | La configuration de session nomme un driver qui n'existe pas. |
+| [`E_SESSION_INVALID_GC_PROBABILITY`](/fr/reference/errors#e-session-invalid-gc-probability) | `gcProbability` n'est pas un pourcentage entre 0 et 100. |
+| [`E_SESSION_INVALID_TABLE_NAME`](/fr/reference/errors#e-session-invalid-table-name) | Le nom de la table de session n'est pas un simple identifiant. |
+| [`E_SESSION_FILE_LOCKED`](/fr/reference/errors#e-session-file-locked) | Une autre requête a gardé le fichier de session verrouillé plus longtemps que le store n'attend. |
+| [`E_SESSION_QUASAR_MISSING`](/fr/reference/errors#e-session-quasar-missing) | Un store de session Redis nomme une connexion quasar et `@c9up/quasar` n'est pas installé. |
+| [`E_SESSION_INCOMPLETE_CONNECTION`](/fr/reference/errors#e-session-incomplete-connection) | La connexion quasar n'a pas les commandes qu'envoie un store de session. |
 
 ### Application, env et Ignitor
 
 | Code | Levée quand |
 |---|---|
-| [`E_INVALID_ENV_VARIABLES`](/fr/reference/errors#e-invalid-env-variables) | `Env.create()` a trouvé des variables d'environnement qui ne respectent pas leur schéma. Le message les liste une par une. |
-| [`E_MISSING_APP_KEY`](/fr/reference/errors#e-missing-app-key) | Le chiffrement a été utilisé et `APP_KEY` n'est pas défini (au moins 16 caractères). |
-| [`E_INSECURE_APP_KEY`](/fr/reference/errors#e-insecure-app-key) | `APP_KEY` n'est pas utilisable pour signer : trop court, ou une clé connue de la génération de projet ou de la documentation. |
+| [`E_INVALID_ENV_VARIABLES`](/fr/reference/errors#e-invalid-env-variables) | `Env.create()` a trouvé des variables d'environnement qui ne respectent pas leur schéma. Le message est `Validation failed for one or more environment variables` ; `help` les liste une par ligne `- `, et `failures` les contient. |
+| [`E_MISSING_ENCRYPTER_KEY`](/fr/reference/errors#e-missing-encrypter-key) | Le chiffrement, un cookie signé ou une URL signée a été utilisé et `APP_KEY` n'est pas défini. `help` nomme ce qui en avait besoin. |
+| [`E_INSECURE_ENCRYPTER_KEY`](/fr/reference/errors#e-insecure-encrypter-key) | `APP_KEY` fait moins de 16 caractères, ou est une clé connue de la génération de projet ou de la documentation. |
 | [`E_REAMRC_UNKNOWN_OPTION`](/fr/reference/errors#e-reamrc-unknown-option) | `tests` dans `reamrc.ts` contient une option qui n'existe pas. |
+| [`E_MISSING_PROVIDER_FILE`](/fr/reference/errors#e-missing-provider-file) | Une entrée `providers` de `reamrc.ts` n'a pas de `file`. |
+| [`E_INVALID_PROVIDER`](/fr/reference/errors#e-invalid-provider) | Une entrée `providers` de `reamrc.ts` a un `file` qui n'est pas une fonction. Un module de provider sans export par défaut, ou dont l'export par défaut n'est pas une classe, lève `E_RUNTIME_EXCEPTION`. |
+| [`E_MISSING_PRELOAD_FILE`](/fr/reference/errors#e-missing-preload-file) | Une entrée `preloads` de `reamrc.ts` n'a pas de `file`. |
+| [`E_INVALID_PRELOAD_FILE`](/fr/reference/errors#e-invalid-preload-file) | Une entrée `preloads` de `reamrc.ts` a un `file` qui n'est pas une fonction. |
 | [`E_IGNITOR_ALREADY_STARTED`](/fr/reference/errors#e-ignitor-already-started) | `warmUp()` a été appelé alors que l'application avait déjà dépassé cette phase. |
 | [`E_IGNITOR_WARMUP_ONLY`](/fr/reference/errors#e-ignitor-warmup-only) | Une application assemblée par `warmUp()` a été démarrée. Construisez un nouvel Ignitor pour en lancer une. |
 | [`E_IGNITOR_INVALID_PORT`](/fr/reference/errors#e-ignitor-invalid-port) | `PORT` n'est pas un entier entre 0 et 65535. |
@@ -1153,9 +1183,35 @@ Chaque code renvoie à sa ligne dans l'[index des erreurs](/fr/reference/errors)
 | [`E_REAM_STUB_SYNTAX`](/fr/reference/errors#e-ream-stub-syntax) | Un template de stub a une erreur de syntaxe. |
 | [`E_ENV_FILE_NOT_FOUND`](/fr/reference/errors#e-env-file-not-found) | Une valeur `.env` `file:<chemin>` désigne un fichier qui n'existe pas. Le message nomme la variable et le chemin. |
 | [`E_ENV_CIRCULAR_REFERENCE`](/fr/reference/errors#e-env-circular-reference) | Des valeurs `.env` se citent en boucle (`A=$B`, `B=$A`). |
-| [`E_IDENTIFIER_ALREADY_DEFINED`](/fr/reference/errors#e-identifier-already-defined) | `Env.defineIdentifier()` a reçu un nom déjà enregistré (`file` est fourni). Utilisez `defineIdentifierIfMissing()` ou retirez d'abord l'identifiant. |
+| [`E_IDENTIFIER_ALREADY_DEFINED`](/fr/reference/errors#e-identifier-already-defined) (500) | `Env.defineIdentifier()` a reçu un nom déjà enregistré (`file` est fourni). Utilisez `defineIdentifierIfMissing()` ou retirez d'abord l'identifiant. |
 | [`E_APP_MISSING_IMPORTER`](/fr/reference/errors#e-app-missing-importer) | `app.import()` / `app.importDefault(id)` a été appelé sur une application construite sans `importer`. |
 | [`E_DUMP_DIE_EXCEPTION`](/fr/reference/errors#e-dump-die-exception) (500) | `dd()` a arrêté la requête (réponse avec un dump HTML) ou la commande (dump affiché). Jamais rapporté. |
+| [`E_APP_ALREADY_BOOTED`](/fr/reference/errors#e-app-already-booted) | `app.setMode()` ou `app.setEnvironment()` a été appelé après le boot de l'application. |
+| [`E_APP_ROOT_NOT_SET`](/fr/reference/errors#e-app-root-not-set) | `app.makePath()` (ou un autre helper de chemin) sur une application sans racine. |
+| [`E_APP_MISSING_DEFAULT_EXPORT`](/fr/reference/errors#e-app-missing-default-export) | Un module importé paresseusement (`app.importDefault()`, un listener paresseux) n'a pas d'export par défaut. |
+| [`E_APP_SHUTDOWN_FAILED`](/fr/reference/errors#e-app-shutdown-failed) | Plusieurs hooks d'arrêt ont échoué ; `errors` porte chaque échec. |
+| [`E_SERVICE_NOT_BOOTED`](/fr/reference/errors#e-service-not-booted) | Un accesseur `@c9up/ream/services/*`, `urlFor()` ou `signedUrlFor()` a servi avant que l'application ne le démarre. |
+| [`E_ENV_PATH_NO_FILE`](/fr/reference/errors#e-env-path-no-file) | `ENV_PATH` désigne un dossier qui ne contient aucun des fichiers `.env`. |
+| [`E_MIGRATION_SOURCE_CONFLICT`](/fr/reference/errors#e-migration-source-conflict) | Deux providers ont enregistré une source de migrations sous le même nom. |
+| [`E_INVALID_DURATION`](/fr/reference/errors#e-invalid-duration) | Une durée (âge de session, `maxAge` de cookie, expiration d'URL signée…) n'est ni un nombre ni une chaîne comme `'30m'`. |
+| [`E_BASE64_MALFORMED`](/fr/reference/errors#e-base64-malformed) | `base64.decode()` ou `base64.urlDecode()` en mode strict a rencontré une valeur malformée. |
+| [`E_HEALTH_INVALID_THRESHOLD`](/fr/reference/errors#e-health-invalid-threshold) | Un seuil de vérification de santé mémoire n'est pas une taille en octets, ou pas un pourcentage entre 0 et 100. |
+| [`E_REAM_STUB_NOT_FOUND`](/fr/reference/errors#e-ream-stub-not-found) | Aucun stub au chemin donné. |
+| [`E_REAM_STUB_UNSAFE_PATH`](/fr/reference/errors#e-ream-stub-unsafe-path) | Le chemin d'un stub, ou la destination qu'il déclare, est absolu ou sort de sa racine. |
+| [`E_REAM_STUB_NO_DESTINATION`](/fr/reference/errors#e-ream-stub-no-destination) | Un stub ne déclare aucune destination (pas de ligne `to:` en front matter), ou une destination vide. |
+| [`E_REAM_STUB_FORBIDDEN_KEY`](/fr/reference/errors#e-ream-stub-forbidden-key) | Un template de stub lit ou écrit une clé qui lui est interdite (`constructor`, `__proto__`…). Une `TypeError`. |
+| [`E_REAM_STUB_EVALUATION`](/fr/reference/errors#e-ream-stub-evaluation) | Un template de stub a échoué au rendu : un nom inconnu, une propriété de rien, un appel à ce qui n'est pas une fonction, `{{#each}}` sur ce qui n'est pas une liste. Une `TypeError` ou une `ReferenceError`. |
+| [`E_CODEMODS_FILE_NOT_FOUND`](/fr/reference/errors#e-codemods-file-not-found) | Un codemod a besoin de `reamrc.ts`, `start/kernel.ts` ou `start/env.ts` et le fichier n'existe pas. |
+| [`E_CODEMODS_UNRECOGNIZED_SOURCE`](/fr/reference/errors#e-codemods-unrecognized-source) | Un codemod n'a pas trouvé ce qu'il modifie dans le fichier (`providers: [`, `defineConfig({ ... })`, `router.use([`, `Env.create(...)`…). Faites la modification à la main. |
+| [`E_CODEMODS_UNSAFE_PATH`](/fr/reference/errors#e-codemods-unsafe-path) | Un codemod devait écrire hors du projet : un chemin absolu, `..`, un lien symbolique qui pointe dehors, ou un chemin de module dangereux. |
+| [`E_CODEMODS_INVALID_OPTION`](/fr/reference/errors#e-codemods-invalid-option) | Une option de codemod est hors domaine : la `position` ou le `tier` d'un middleware, l'environnement d'un preload. |
+| [`E_CODEMODS_INVALID_ENV_VARIABLE`](/fr/reference/errors#e-codemods-invalid-env-variable) | Un nom de variable d'environnement n'est pas un identifiant, ou sa valeur contient un saut de ligne. |
+| [`E_CODEMODS_INVALID_ENV_VALIDATION`](/fr/reference/errors#e-codemods-invalid-env-validation) | `defineEnvValidations()` a reçu un commentaire sur plusieurs lignes, ou une règle qui n'est pas une expression complète. |
+| [`E_CODEMODS_MIDDLEWARE_CONFLICT`](/fr/reference/errors#e-codemods-middleware-conflict) | Un middleware est déjà enregistré dans l'autre tier de `start/kernel.ts`. |
+| [`E_REAM_INTERNAL`](/fr/reference/errors#e-ream-internal) | Un invariant interne de `@c9up/ream` a cédé ; un bogue à signaler. |
+| [`E_REAM_NAPI_UNSUPPORTED_PLATFORM`](/fr/reference/errors#e-ream-napi-unsupported-platform) | Aucun binaire natif précompilé (scheduler, bus d'événements, GraphQL) n'existe pour cette plateforme. |
+| [`E_REAM_NAPI_LOAD_FAILED`](/fr/reference/errors#e-ream-napi-load-failed) | Un binaire natif existe mais ne se charge pas ; `cause` est l'erreur du chargeur. |
+| [`E_REAM_NAPI_NOT_FOUND`](/fr/reference/errors#e-ream-napi-not-found) | Un binaire natif est introuvable. |
 
 ### Console
 
@@ -1187,6 +1243,7 @@ Chaque code renvoie à sa ligne dans l'[index des erreurs](/fr/reference/errors)
 | [`E_CONSOLE_NOT_BOOTED`](/fr/reference/errors#e-console-not-booted) | Une méthode de l'application console a été appelée avant le chargement des commandes. |
 | [`E_CONSOLE_NO_APP`](/fr/reference/errors#e-console-no-app) | Une commande a besoin de l'application et le kernel n'en a pas. Passez par le kernel console de l'Ignitor. |
 | [`E_CONSOLE_APP_NOT_STARTED`](/fr/reference/errors#e-console-app-not-started) | Une commande a utilisé l'application sans déclarer `startApp: true` dans ses options. |
+| [`E_CONSOLE_ASSERTION_FAILED`](/fr/reference/errors#e-console-assertion-failed) | Une assertion sur une commande lancée dans un test a échoué (`assertSucceeded()`, `assertLog()`, `assertTableRows()`…). |
 
 ### Planificateur
 
@@ -1207,6 +1264,11 @@ Chaque code renvoie à sa ligne dans l'[index des erreurs](/fr/reference/errors)
 | [`E_SCHEDULE_TASK_TIMEOUT`](/fr/reference/errors#e-schedule-task-timeout) | Une tâche n'a pas fini dans son `timeoutMs` ; elle continue en arrière-plan. |
 | [`E_SCHEDULE_PROVIDER_ALREADY_REGISTERED`](/fr/reference/errors#e-schedule-provider-already-registered) | Le provider du scheduler a été enregistré deux fois sur le même conteneur. |
 | [`E_SCHEDULER_NATIVE_ERROR`](/fr/reference/errors#e-scheduler-native-error) | Un appel au scheduler natif a échoué. |
+| [`E_SCHEDULER_INVALID_CRON`](/fr/reference/errors#e-scheduler-invalid-cron) | Le scheduler natif a refusé une expression cron. |
+| [`E_SCHEDULER_CRON_NO_FIRE`](/fr/reference/errors#e-scheduler-cron-no-fire) | Le scheduler natif a refusé une expression cron qui ne se déclenche jamais. |
+| [`E_SCHEDULER_DUPLICATE_TASK`](/fr/reference/errors#e-scheduler-duplicate-task) | Le scheduler natif a déjà une tâche de ce nom. |
+| [`E_SCHEDULE_QUASAR_MISSING`](/fr/reference/errors#e-schedule-quasar-missing) | Le verrou du planificateur nomme une connexion quasar et `@c9up/quasar` n'est pas installé. |
+| [`E_SCHEDULE_INCOMPLETE_CONNECTION`](/fr/reference/errors#e-schedule-incomplete-connection) | La connexion quasar n'a pas les commandes qu'envoie un verrou du planificateur. |
 
 ### Événements
 
@@ -1214,6 +1276,12 @@ Chaque code renvoie à sa ligne dans l'[index des erreurs](/fr/reference/errors)
 |---|---|
 | [`E_EVENTS_UNSUPPORTED_STORE`](/fr/reference/errors#e-events-unsupported-store) | `config/events.ts` nomme un `store` autre que `'memory'`, le seul de ce build. |
 | [`E_EVENTS_UNSUPPORTED_OPTION`](/fr/reference/errors#e-events-unsupported-option) | `config/events.ts` contient une option que rien ne lit (`retries` compris), ou n'est pas un objet. |
+| [`E_EVENTS_MISSING_LISTENER_METHOD`](/fr/reference/errors#e-events-missing-listener-method) | Une classe listener n'a pas de méthode du nom sous lequel le listener a été enregistré. |
+| [`E_EVENTS_INVALID_ARGUMENT`](/fr/reference/errors#e-events-invalid-argument) | `onAny()` sans listener, ou `waitForChain()` sans noms d'événements. |
+| [`E_EVENTS_ASSERTION_FAILED`](/fr/reference/errors#e-events-assertion-failed) | Une assertion sur les événements a échoué (`assertEmitted()`, `assertNotEmitted()`, sur les helpers ou le `FakeBus`). |
+| [`E_EVENTS_TIMEOUT`](/fr/reference/errors#e-events-timeout) | Un événement, une chaîne d'événements ou la réponse à une requête factice attendus ne sont pas arrivés dans leur délai. |
+| [`E_EVENTS_DUPLICATE_REQUEST_HANDLER`](/fr/reference/errors#e-events-duplicate-request-handler) | `FakeBus.onRequest()` a reçu un second handler pour le même nom. |
+| [`E_EVENTS_NO_REQUEST_HANDLER`](/fr/reference/errors#e-events-no-request-handler) | `FakeBus.request()` a nommé une requête à laquelle aucun handler ne répond. |
 
 ### RPC et GraphQL
 
@@ -1224,6 +1292,7 @@ Chaque code renvoie à sa ligne dans l'[index des erreurs](/fr/reference/errors)
 | [`E_RPC_UNKNOWN_CONTROLLER_METHOD`](/fr/reference/errors#e-rpc-unknown-controller-method) | Une route RPC nomme une méthode de contrôleur qui n'existe pas. |
 | [`E_RPC_PROVIDER_ALREADY_REGISTERED`](/fr/reference/errors#e-rpc-provider-already-registered) | Le provider RPC a été enregistré deux fois sur le même conteneur. |
 | [`E_GRAPHQL_PROVIDER_ALREADY_REGISTERED`](/fr/reference/errors#e-graphql-provider-already-registered) | Le provider GraphQL a été enregistré deux fois sur le même conteneur. |
+| [`E_GRAPHQL_SCHEMA_NOT_FOUND`](/fr/reference/errors#e-graphql-schema-not-found) | Le `schemaPath` GraphQL désigne un fichier qui n'existe pas. |
 
 ### Client HTTP
 
@@ -1235,6 +1304,26 @@ Chaque code renvoie à sa ligne dans l'[index des erreurs](/fr/reference/errors)
 | [`E_HTTP_CLIENT_TIMED_OUT`](/fr/reference/errors#e-http-client-timed-out) | La requête n'a pas abouti dans son délai. |
 | [`E_HTTP_CLIENT_TOO_LARGE`](/fr/reference/errors#e-http-client-too-large) | Le corps de la réponse dépasse la limite de taille. |
 | [`E_HTTP_CLIENT_REDIRECT_REFUSED`](/fr/reference/errors#e-http-client-redirect-refused) | Une redirection a été refusée : trop nombreuses, de https vers http, ou vers un autre hôte. |
+
+Chacune est une classe d'`errors`, une `Exception` de flare : lisez `error.code`, ou testez `error instanceof errors.E_ROUTE_NOT_FOUND`. Une erreur qui sait comment la corriger porte ce conseil dans `help`.
+
+## Migration
+
+- `ReamError`, `isReamError` et les erreurs de module (`AtlasError`, `ContainerError`, `EventsError`, `ForgeError`, `PipelineError`, `RouterError`, `RuneError`, `WardenError`) disparaissent. Remplacez `isReamError(error, 'E_X')` et `instanceof ReamError` par `error instanceof errors.E_X` ou un test sur `error.code`. Le conseil qui était dans `hint` est dans `help` ; les données qui étaient dans `context` sont sur des champs nommés (`E_CIRCULAR_DEPENDENCY.chain`, `E_RESPONSE_TOO_LARGE.bytes` et `ceiling`, `E_SCHEDULE_INVALID_CRON.task` et `cronExpr`…). `error.docsUrl` devient `errorDocsUrl(error.code)`.
+- Les classes d'erreur ne sont plus exportées une à une par `@c9up/ream` : `import { E_ROUTE_NOT_FOUND } from '@c9up/ream'` devient `import { errors } from '@c9up/ream'` puis `errors.E_ROUTE_NOT_FOUND`. `@c9up/ream/exceptions` exporte toujours les exceptions HTTP par leur nom.
+- Classes renommées : `ShutdownError` devient `errors.E_APP_SHUTDOWN_FAILED` (une `Exception` avec `errors`, plus une `AggregateError`) ; `EnvValidationException` et `EnvVarError` deviennent `errors.E_INVALID_ENV_VARIABLES` (`failures` liste chaque variable) ; `HttpClientError` devient une classe par code, `errors.E_HTTP_CLIENT_*`, et `reason` disparaît : lisez `error.code` ; `WebSocketRefused` devient `errors.E_TEST_CLIENT_WEBSOCKET_REFUSED` ; `ExpectationError` devient `errors.E_TEST_CLIENT_ASSERTION_FAILED` ; `StubSyntaxError`, `StubTypeError` et `StubReferenceError` deviennent `errors.E_REAM_STUB_SYNTAX`, `E_REAM_STUB_FORBIDDEN_KEY` et `E_REAM_STUB_EVALUATION`, et n'étendent plus `TypeError` ni `ReferenceError`.
+- `Exception`, `createError`, `RuntimeException` et `InvalidArgumentsException` sont ceux de `@c9up/flare`. Une classe de `createError` reçoit les valeurs de ses marqueurs en tableau : `new E_X('a', 'b')` devient `new E_X(['a', 'b'])`. `InvalidArgumentsException` a pour code `E_INVALID_ARGUMENTS_EXCEPTION` (au lieu de `E_INVALID_ARGUMENTS`) et n'étend plus `RuntimeException`.
+- Hors mode debug, le gestionnaire d'exceptions n'affiche le message d'une erreur 5xx que si elle est marquée `expose: true` ; être une `Exception` ne suffit plus.
+- Les gardes de route lèvent les codes que lève `@c9up/warden` : `E_UNAUTHORIZED` devient `E_UNAUTHORIZED_ACCESS` (401, `Unauthorized access`) et `E_FORBIDDEN` devient `E_AUTHORIZATION_FAILURE` (403, `Access denied`, sans la liste `required`). Les deux se rendent elles-mêmes (`handle`), exactement comme les erreurs de warden du même code : un refus répond les mêmes octets, qu'un garde de route ou warden l'ait levé. `401 { "error": { "code", "message" } }` pour `E_UNAUTHORIZED_ACCESS` ; pour `E_AUTHORIZATION_FAILURE`, `{ "errors": [{ "message" }] }` en JSON, un objet d'erreur JSON:API, le message en texte pour du HTML, et une soumission de formulaire refusée avec une session redirigée vers la page précédente avec le message en flash. Les deux portent un `identifier` (`errors.<CODE>`) sous lequel `ctx.i18n` traduit le message. `E_ROW_NOT_FOUND` est retiré d'`errors` : rien dans ream ne le levait ; `@c9up/atlas` lève le sien.
+- `E_UNKNOWN_ROUTE` devient `E_CANNOT_LOOKUP_ROUTE` (500, `Cannot lookup route "<nom>"`). Le client de test liste les noms du manifeste dans `help` ; `urlFor()` ne liste plus les noms enregistrés.
+- `E_ROUTE_NOT_FOUND` est une classe de `createError` : `new errors.E_ROUTE_NOT_FOUND([method, url])`, message `Cannot GET:/chemin`.
+- `E_HTTP_EXCEPTION` porte `body` et se construit avec `E_HTTP_EXCEPTION.invoke(body, status, code?)`. `E_HTTP_REQUEST_ABORTED` l'étend, et l'erreur que lève `response.abort()` a pour code `E_HTTP_EXCEPTION` : testez `error instanceof errors.E_HTTP_REQUEST_ABORTED` plutôt que son code.
+- `E_MISSING_APP_KEY` devient `E_MISSING_ENCRYPTER_KEY` et `E_INSECURE_APP_KEY` devient `E_INSECURE_ENCRYPTER_KEY`. Leur message est fixe ; ce qui avait besoin de la clé est dans `help`.
+- `E_BAD_MULTIPART` devient `E_INVALID_MULTIPART_REQUEST`.
+- Le gestionnaire d'exceptions s'exécute là où une erreur est levée, dans la chaîne de middlewares : le `next()` des middlewares extérieurs rend la main normalement, et leur code après `await next()` s'exécute (la session est enregistrée, un message en flash survit). Un `try { await next() } catch` autour d'une couche intérieure ne voit plus ses erreurs.
+- `E_INVALID_ENV_VARIABLES` a pour message `Validation failed for one or more environment variables` ; les échecs sont dans `help`, une ligne `- ` chacun. `E_IDENTIFIER_ALREADY_DEFINED` est une classe de `createError` (`new E_IDENTIFIER_ALREADY_DEFINED([name])`) de statut 500, sans champ `identifier`.
+- Un corps JSON, formulaire ou texte compressé (`Content-Encoding` autre que `identity`) est refusé avec `E_ENCODING_UNSUPPORTED` (415) au lieu d'être lu comme du texte.
+- Les codes du scheduler natif portent l'espace de noms : `INVALID_CRON` devient `E_SCHEDULER_INVALID_CRON`, `CRON_NO_FIRE` devient `E_SCHEDULER_CRON_NO_FIRE`, `DUPLICATE_TASK` devient `E_SCHEDULER_DUPLICATE_TASK` ; les codes `<PREFIX>_NAPI_NOT_FOUND`, `<PREFIX>_NAPI_LOAD_FAILED` et `<PREFIX>_UNSUPPORTED_PLATFORM` du chargeur natif deviennent `E_REAM_NAPI_NOT_FOUND`, `E_REAM_NAPI_LOAD_FAILED` et `E_REAM_NAPI_UNSUPPORTED_PLATFORM`.
 
 ## Voir aussi
 

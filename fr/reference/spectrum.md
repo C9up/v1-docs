@@ -44,7 +44,7 @@ pnpm add @c9up/spectrum
 | `logLevel` | fonction | `logLevel(raw: unknown, fallback?: LogLevelWithSilent): LogLevelWithSilent` ; absent ou vide donne `fallback` (`'info'`), une valeur qui n'est pas un niveau lève une erreur |
 | `isLogLevelWithSilent` | fonction | `isLogLevelWithSilent(value: unknown): value is LogLevelWithSilent` |
 | `logEntryExtras` | fonction | `logEntryExtras(entry: LogEntry): Record<string, unknown>`, les champs fusionnés d'une entrée |
-| `SpectrumError` | erreur | Toute erreur codée de spectrum ; `code` porte le nom `E_SPECTRUM_*` |
+| `errors` | espace de noms | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs). Chacune est une `Exception` de flare avec un `code` chaîne. |
 | `LogLevel` | type | `'trace' \| 'debug' \| 'info' \| 'warn' \| 'error' \| 'fatal'` |
 | `LogLevelWithSilent` | type | `LogLevel \| 'silent'` |
 | `LogEntry` | interface | `{ level, message, module, correlationId?, timestamp, [key: string]: unknown }`, champs fusionnés à la racine |
@@ -225,6 +225,8 @@ Les options `customLevels`, `useOnlyCustomLevels`, `levelComparison`, `nestedKey
 
 ## Erreurs
 
+Chaque code est une classe de l'espace de noms `errors` (`import { errors } from '@c9up/spectrum'`) : une `Exception` de flare avec `code` et `status` (500 pour toutes).
+
 | Code | Levée quand |
 |---|---|
 | [`E_SPECTRUM_UNKNOWN_LEVEL`](/fr/reference/errors#e-spectrum-unknown-level) | Un niveau configuré, un niveau de `modules`, un niveau de cible ou l'entrée de `logLevel()` n'est pas un niveau |
@@ -235,8 +237,17 @@ Les options `customLevels`, `useOnlyCustomLevels`, `levelComparison`, `nestedKey
 | [`E_SPECTRUM_INVALID_STRINGIFY_LIMIT`](/fr/reference/errors#e-spectrum-invalid-stringify-limit) | `depthLimit` ou `edgeLimit` n'est pas un entier positif |
 | [`E_SPECTRUM_UNSUPPORTED_OPTION`](/fr/reference/errors#e-spectrum-unsupported-option) | La configuration fixe une option que spectrum ne prend pas en charge |
 | [`E_SPECTRUM_LOGGER_NOT_BOUND`](/fr/reference/errors#e-spectrum-logger-not-bound) | Au boot, le conteneur résout autre chose qu'un `Logger` pour le token `Logger` |
+| [`E_SPECTRUM_MISSING_DEFAULT_LOGGER`](/fr/reference/errors#e-spectrum-missing-default-logger) | Une configuration multi-loggers (`{ default, loggers }`) ne nomme aucun logger `default`. |
+| [`E_SPECTRUM_UNKNOWN_DEFAULT_LOGGER`](/fr/reference/errors#e-spectrum-unknown-default-logger) | Le logger `default` n'est pas déclaré dans `loggers`. |
+| [`E_SPECTRUM_UNKNOWN_LOGGER`](/fr/reference/errors#e-spectrum-unknown-logger) | `logger.use(name)` nomme un logger absent de `loggers`. |
+| [`E_SPECTRUM_NOT_BOOTED`](/fr/reference/errors#e-spectrum-not-booted) | Le logger de `services/main` a servi avant le boot de `SpectrumProvider`. |
+| [`E_SPECTRUM_ASSERTION_FAILED`](/fr/reference/errors#e-spectrum-assertion-failed) | `FakeLogger.assertLogged` / `assertNotLogged` a échoué : les entrées capturées ne correspondent pas. |
+| [`E_SPECTRUM_INVALID_PREDICATE`](/fr/reference/errors#e-spectrum-invalid-predicate) | Une assertion de `FakeLogger` a reçu un `containing` vide, qui correspondrait à toutes les entrées. |
 
-Un `default` qui ne nomme aucun logger, `use()` avec un nom inconnu et une lecture de `@c9up/spectrum/services/main` avant le boot lèvent une `Error` simple.
+## Migration
+
+- `SpectrumError` disparaît : testez `error.code`, ou `error instanceof errors.E_SPECTRUM_*` avec `import { errors } from '@c9up/spectrum'`.
+- Le `name` d'une erreur ne vaut plus `"SpectrumError"`.
 
 ## Voir aussi
 

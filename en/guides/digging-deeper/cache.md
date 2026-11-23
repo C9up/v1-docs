@@ -60,7 +60,7 @@ const profile = await cache.getOrSet('profile:42', 60, async () => {
 })
 ```
 
-`lockTimeout` bounds how long a caller waits on another caller's factory for the same key. Past it, the stale value is returned when there is one (grace), and a `LockTimeoutError` (`E_ECHO_LOCK_TIMEOUT`) is thrown when there is not. `hardTimeout` bounds the factory itself. A timeout of `Infinity` means none; a longer one than 24.8 days is clamped to that; `NaN` or a negative one is refused.
+`lockTimeout` bounds how long a caller waits on another caller's factory for the same key. Past it, the stale value is returned when there is one (grace), and an `errors.E_ECHO_LOCK_TIMEOUT` is thrown when there is not. `hardTimeout` bounds the factory itself. A timeout of `Infinity` means none; a longer one than 24.8 days is clamped to that; `NaN` or a negative one is refused.
 
 ### Namespaces
 
@@ -123,7 +123,7 @@ store({ suppressL2Errors: true, l2CircuitBreakerDuration: '10s' })
   .useL2Layer(drivers.redis({ connection: 'main' }))
 ```
 
-- `suppressL2Errors` (default `true`): `false` surfaces each L2 failure as an `L2CacheError` (`E_L2_CACHE_ERROR`, the original error as `cause`).
+- `suppressL2Errors` (default `true`): `false` surfaces each L2 failure as an `errors.E_L2_CACHE_ERROR` (the original error as `cause`).
 - `l2CircuitBreakerDuration`: after a failure, skip the L2 for that long instead of waiting on a dead server for every call.
 - `delete`, `clear` and `deleteByTag` always report a failed L2, breaker or not: a removal that did not reach the shared layer leaves the value served to every other instance, and the caller has to know.
 
@@ -149,12 +149,12 @@ Tags belong to the namespace that wrote them: `tenantA.deleteByTag(['user:1'])` 
 
 ## Errors
 
-Every error carries a `code`:
+Every error carries a `code`, and is the class of the same name on the `errors` namespace of `@c9up/echo` (`error instanceof errors.E_ECHO_LOCK_TIMEOUT`):
 
 | Code | Raised when |
 | --- | --- |
-| `E_FACTORY_ERROR` | a `getOrSet` factory threw (`FactoryError`, passed to `onFactoryError`) |
-| `E_FACTORY_HARD_TIMEOUT` | a factory exceeded `hardTimeout` (`TimeoutError`) |
+| `E_FACTORY_ERROR` | a `getOrSet` factory threw (passed to `onFactoryError`) |
+| `E_FACTORY_HARD_TIMEOUT` | a factory exceeded `hardTimeout` |
 | `E_UNDEFINED_VALUE` | caching `null` or `undefined` |
 | `E_L2_CACHE_ERROR` | an L2 failure that is not suppressed |
 | `E_ECHO_LOCK_TIMEOUT` | `lockTimeout` passed with no stale value |
@@ -167,7 +167,7 @@ Every error carries a `code`:
 | `E_ECHO_NOT_BOOTED` | `services/main` read before the provider booted |
 | `E_ECHO_QUASAR_MISSING`, `E_ECHO_INCOMPLETE_CONNECTION` | a named Redis connection that cannot be used |
 
-`errors` maps `E_FACTORY_ERROR`, `E_FACTORY_HARD_TIMEOUT`, `E_UNDEFINED_VALUE` and `E_L2_CACHE_ERROR` to their classes.
+`errors` maps `E_FACTORY_ERROR`, `E_FACTORY_SOFT_TIMEOUT`, `E_FACTORY_HARD_TIMEOUT`, `E_UNDEFINED_VALUE` and `E_L2_CACHE_ERROR` to their classes. `E_FACTORY_SOFT_TIMEOUT` is never raised: at the soft timeout the stale value is served.
 
 ## Commands
 

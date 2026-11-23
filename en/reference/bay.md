@@ -14,7 +14,7 @@ pnpm add @c9up/bay
 
 | Import | Contents |
 |---|---|
-| `@c9up/bay` | `Job`, `QueueManager`, dispatchers, `defineConfig`, `drivers`, the two drivers, backoff helpers, types |
+| `@c9up/bay` | `Job`, `QueueManager`, dispatchers, `defineConfig`, `drivers`, the two drivers, backoff helpers, `errors`, types |
 | `@c9up/bay/provider` | `BayProvider` (default export) |
 | `@c9up/bay/services/main` | The booted `QueueManager` (default export), `setQueue`, `getQueue`, `clearQueue` |
 | `@c9up/bay/testing` | `FakeQueue` |
@@ -42,7 +42,7 @@ pnpm add @c9up/bay
 | `linearBackoff` | function | `linearBackoff(config?): BackoffFactory`; defaults `baseDelay: '5s'`, `maxDelay: '2m'`. |
 | `fixedBackoff` | function | `fixedBackoff(delay?: Duration): BackoffFactory`; default `'10s'`. |
 | `customBackoff` | function | `customBackoff(config: BackoffConfig): BackoffFactory`. |
-| `JobTimeoutError` | error | An attempt ran past its `timeout`; what `failOnTimeout` looks for. |
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors) |
 | `jobNameOf` | function | `jobNameOf(job: JobClass): string`: `options.name`, else the class name. |
 | `isJobClass` | function | `isJobClass(value: unknown): value is JobClass`. |
 | `queueOf` | function | `queueOf(job: JobRecord): string`: the record's queue, `'default'` when it has none. |
@@ -127,7 +127,7 @@ export default class SendEmail extends Job<{ to: string }> {
 | `signal` | `readonly signal: AbortSignal` | Aborts when the attempt's `timeout` passes. |
 | `context` | `readonly context: JobContext` | Id, attempt, queue, priority of this attempt. |
 | `execute` | `abstract execute(): Promise<void> \| void` | The work. |
-| `failed` | `failed?(error: Error): Promise<void> \| void` | Called once the last attempt failed. |
+| `failed` | `failed?(error: Error): Promise<void> \| void` | Called once the last attempt failed: with `E_JOB_MAX_ATTEMPTS_REACHED` (the attempt's error as `cause`) once retries ran out, with the attempt's own error when `maxAttempts` is 1 or `failOnTimeout` ended it. |
 
 ### `JobOptions`
 
@@ -185,8 +185,8 @@ Both are `PromiseLike`: `await` sends.
 |---|---|---|
 | `getPushed` | `getPushed(): JobRecord[]` | Copies of the recorded jobs. |
 | `reset` | `reset(): void` | Forget them. |
-| `assertPushed` | `assertPushed(name: string, predicate?: FakeQueuePredicateArg): void` | Throws unless a recorded job matches. |
-| `assertNotPushed` | `assertNotPushed(name: string, predicate?: FakeQueuePredicateArg): void` | Throws if one matches. |
+| `assertPushed` | `assertPushed(name: string, predicate?: FakeQueuePredicateArg): void` | Throws an `AssertionError` unless a recorded job matches. |
+| `assertNotPushed` | `assertNotPushed(name: string, predicate?: FakeQueuePredicateArg): void` | Throws an `AssertionError` if one matches. |
 
 ## Configuration
 
@@ -218,7 +218,56 @@ The two string tokens are typed on `ContainerBindings` once `@c9up/bay` is impor
 
 ## Errors
 
-bay raises no `E_` code. Its refusals are plain `Error`s whose message starts with `[bay]` (an invalid config, an adapter that is not declared, a job class with invalid options, a service read before boot), and an attempt past its timeout fails with `JobTimeoutError`.
+| Code | Raised when |
+|---|---|
+| [`E_CONFIGURATION_ERROR`](/en/reference/errors#e-configuration-error) | `config.queue` is not what `defineConfig` returns, declares adapters without a `default`, its `default` names an adapter it does not declare, a backoff names an unknown strategy, or a `RedisDriver` option (`visibilityTimeoutMs`, `maxStalledCount`, `maxFailedJobs`) is out of range. |
+| [`E_ADAPTER_INIT_ERROR`](/en/reference/errors#e-adapter-init-error) | The selected adapter's factory threw while building its driver; its error is the `cause`. |
+| [`E_BAY_INVALID_ADAPTER`](/en/reference/errors#e-bay-invalid-adapter) | An adapter factory did not build a queue driver. |
+| [`E_BAY_UNSUPPORTED_DRIVER`](/en/reference/errors#e-bay-unsupported-driver) | The `driver` key names a driver; declare it under `adapters` instead. |
+| [`E_BAY_INVALID_BINDING`](/en/reference/errors#e-bay-invalid-binding) | The container answers something other than a `QueueManager` for the `QueueManager` token. |
+| [`E_QUEUE_NOT_INITIALIZED`](/en/reference/errors#e-queue-not-initialized) | The queue is used before `BayProvider` booted or `setQueue()` was called (service accessor, `Job.dispatch()`, `queue:work`), or `ready()` ran before `boot()`. |
+| [`E_BAY_QUASAR_MISSING`](/en/reference/errors#e-bay-quasar-missing) | A Redis adapter names a quasar connection and `@c9up/quasar` is not installed, or its manager is not available yet. |
+| [`E_BAY_INCOMPLETE_CONNECTION`](/en/reference/errors#e-bay-incomplete-connection) | The Redis connection lacks a command the driver issues (EVALSHA, SCRIPT LOAD, …). |
+| [`E_BAY_UNEXPECTED_REPLY`](/en/reference/errors#e-bay-unexpected-reply) | A Redis script answered with a reply the driver cannot read. |
+| [`E_BAY_INVALID_JOB_OPTIONS`](/en/reference/errors#e-bay-invalid-job-options) | A job class declares an option it cannot run with; the specific refusal is in `cause`. |
+| [`E_BAY_INVALID_JOB_NAME`](/en/reference/errors#e-bay-invalid-job-name) | A job's `options.name` is empty, or `make:job` is given a name that cannot become a file and a class. |
+| [`E_BAY_DUPLICATE_JOB`](/en/reference/errors#e-bay-duplicate-job) | Two job classes answer to the same name. |
+| [`E_BAY_INVALID_ATTEMPTS`](/en/reference/errors#e-bay-invalid-attempts) | `maxAttempts` / `maxRetries` is not a whole number >= 1, or a backoff is asked for an attempt below 1. |
+| [`E_BAY_INVALID_PRIORITY`](/en/reference/errors#e-bay-invalid-priority) | A priority is not a whole number from 1 to 10. |
+| [`E_INVALID_TIMEOUT`](/en/reference/errors#e-invalid-timeout) | A job `timeout` is not `0` or a whole number of milliseconds `setTimeout` can hold (1 to 2147483647). |
+| [`E_INVALID_DURATION_EXPRESSION`](/en/reference/errors#e-invalid-duration-expression) | A duration is neither a non-negative number of milliseconds nor a string like `'10s'`. The message names the value; `help` names the option that held it. |
+| [`E_BAY_INVALID_RETENTION`](/en/reference/errors#e-bay-invalid-retention) | `removeOnComplete` / `removeOnFail` is not a boolean or a valid `{ age?, count? }`. |
+| [`E_INVALID_BASE_DELAY`](/en/reference/errors#e-invalid-base-delay) | A backoff `baseDelay` is not above zero. |
+| [`E_INVALID_MAX_DELAY`](/en/reference/errors#e-invalid-max-delay) | A backoff `maxDelay` is not above zero, or not above `baseDelay`. |
+| [`E_INVALID_MULTIPLIER`](/en/reference/errors#e-invalid-multiplier) | A backoff `multiplier` is not above zero, or is below 1 for the exponential strategy. |
+| [`E_BAY_INVALID_DEDUP`](/en/reference/errors#e-bay-invalid-dedup) | A `dedup` has an empty id, a ttl that is not a whole number from 1, or `extend` without a ttl. |
+| [`E_BAY_INVALID_WORKER_OPTIONS`](/en/reference/errors#e-bay-invalid-worker-options) | A worker option is out of range: `idleDelay`, `stalledInterval`, `concurrency`, `unknownJobRetries` or `queues`. |
+| [`E_WORKER_ALREADY_RUNNING`](/en/reference/errors#e-worker-already-running) | `work()` is called while the manager's worker is already running. |
+| [`E_BAY_UNSUPPORTED_OPERATION`](/en/reference/errors#e-bay-unsupported-operation) | The queue driver has no `getJob()` or `sizeOf()` for the lookup asked. |
+| [`E_BAY_INVALID_JOB_FACTORY`](/en/reference/errors#e-bay-invalid-job-factory) | The job factory built something that is not the job class, or a handler without `handle()`; the attempt fails with it. |
+| [`E_JOB_TIMEOUT`](/en/reference/errors#e-job-timeout) | An attempt ran past its `timeout`; carries `job` (its name) and `timeout` (ms). What `failOnTimeout` looks for. |
+| [`E_JOB_MAX_ATTEMPTS_REACHED`](/en/reference/errors#e-job-max-attempts-reached) | Handed to a job's `failed()` hook once its retries ran out; the last attempt's error is the `cause`. |
+| [`E_JOB_NOT_FOUND`](/en/reference/errors#e-job-not-found) | A job no handler or job class answers to stays unknown past `unknownJobRetries`; the failed record keeps its message. |
+| [`E_JOB_STALLED`](/en/reference/errors#e-job-stalled) | The Redis driver files a job reclaimed from a dead worker more than `maxStalledCount` times as failed; the failed record keeps its message. |
+| [`E_BAY_UNSERIALIZABLE_JOB`](/en/reference/errors#e-bay-unserializable-job) | A job record cannot be stored as JSON the way Redis would carry it. |
+| [`E_BAY_JOBS_DIRECTORY_UNREADABLE`](/en/reference/errors#e-bay-jobs-directory-unreadable) | A declared jobs directory exists but cannot be read. |
+| [`E_BAY_NO_JOBS_FOUND`](/en/reference/errors#e-bay-no-jobs-found) | Job files were scanned and none yielded a `Job` subclass. |
+| [`E_BAY_DUPLICATE_JOB_ID`](/en/reference/errors#e-bay-duplicate-job-id) | `FakeQueue.push()` is given a job id it already holds. |
+| [`E_BAY_FAKE_JOB_NOT_FOUND`](/en/reference/errors#e-bay-fake-job-not-found) | `FakeQueue` is asked to complete, fail or retry a job it does not hold. |
+
+Each one is a class of the `errors` namespace and a `@c9up/flare` `Exception` with status 500: branch on `error.code` or on `error instanceof errors.E_*`. A failure the queue library has too keeps that library's code and message (`E_JOB_TIMEOUT`, `E_CONFIGURATION_ERROR`, …); what bay adds carries `E_BAY_`. `FakeQueue.assertPushed()` / `assertNotPushed()` throw `node:assert`'s `AssertionError`.
+
+## Migration
+
+- `BayError` is gone: test `error.code`, or `error instanceof errors.E_BAY_*` with `import { errors } from '@c9up/bay'`.
+- `JobTimeoutError` becomes `errors.E_JOB_TIMEOUT`; it carries `job` and `timeout`, and is built as `new errors.E_JOB_TIMEOUT([name, ms])`.
+- Codes the queue library also has now carry its name: `E_BAY_JOB_TIMEOUT` is now `E_JOB_TIMEOUT`, `E_BAY_ALREADY_RUNNING` is now `E_WORKER_ALREADY_RUNNING`, `E_BAY_INVALID_TIMEOUT` is now `E_INVALID_TIMEOUT`, `E_BAY_INVALID_CONFIG` is now `E_CONFIGURATION_ERROR`, `E_BAY_NOT_BOOTED` is now `E_QUEUE_NOT_INITIALIZED`, `E_BAY_INVALID_DURATION` is now `E_INVALID_DURATION_EXPRESSION`.
+- `E_BAY_UNKNOWN_ADAPTER` is now `E_CONFIGURATION_ERROR`.
+- `E_BAY_INVALID_BACKOFF` is split: `E_INVALID_BASE_DELAY`, `E_INVALID_MAX_DELAY`, `E_INVALID_MULTIPLIER`; an unknown strategy is `E_CONFIGURATION_ERROR`.
+- `E_BAY_JOB_NOT_FOUND` (the `FakeQueue` lookup) is now `E_BAY_FAKE_JOB_NOT_FOUND`; `E_JOB_NOT_FOUND` now means a job name nothing is registered under.
+- `E_BAY_ASSERTION_FAILED` is gone: `FakeQueue` assertions throw `AssertionError` from `node:assert`.
+- An adapter factory that throws now raises `E_ADAPTER_INIT_ERROR`, with the factory's error as `cause` (`E_BAY_QUASAR_MISSING` included).
+- A job's `failed()` hook now receives `E_JOB_MAX_ATTEMPTS_REACHED`, with the last attempt's error as `cause`, once retries ran out; it still receives the attempt's own error when `maxAttempts` is 1 or `failOnTimeout` ended the job.
 
 ## See also
 

@@ -15,11 +15,11 @@ ream configure @c9up/photon
 
 | Import | Contenu |
 |---|---|
-| `@c9up/photon` | Côté serveur : `PhotonRenderer`, `PhotonMiddleware`, `defineConfig`, les helpers de props, les helpers du protocole, le SEO, `PhotonError`. |
+| `@c9up/photon` | Côté serveur : `PhotonRenderer`, `PhotonMiddleware`, `defineConfig`, les helpers de props, les helpers du protocole, le SEO, `errors`. |
 | `@c9up/photon/provider` | `PhotonProvider` (export par défaut). |
 | `@c9up/photon/configure` | `configure(codemods)`, exécuté par `ream configure @c9up/photon`. |
-| `@c9up/photon/client` | Navigateur : `hydrate`, `bootPage`, `router`, les helpers de routes, le défilement infini, `PhotonClientError`. |
-| `@c9up/photon/client/core` | Navigateur, sans les adaptateurs de framework : `bootPage`, `router`, les helpers de routes, `browserHost`, `PhotonClientError`. |
+| `@c9up/photon/client` | Navigateur : `hydrate`, `bootPage`, `router`, les helpers de routes, le défilement infini, les `errors` du client. |
+| `@c9up/photon/client/core` | Navigateur, sans les adaptateurs de framework : `bootPage`, `router`, les helpers de routes, `browserHost`, les `errors` du client. |
 | `@c9up/photon/react` | Composants et hooks React. |
 | `@c9up/photon/vue` | Composants et composables Vue. |
 | `@c9up/photon/svelte` | Composants et fonctions Svelte. |
@@ -59,7 +59,8 @@ L'entrée serveur et les entrées navigateur ne s'importent pas l'une l'autre ; 
 | `resolveMeta` | fonction | `resolveMeta<Ctx>(resolver: MetaResolver<Ctx> \| undefined, ctx: Ctx): Promise<MetaTags \| undefined>`. |
 | `mergeMeta` | fonction | `mergeMeta(...layers: Array<MetaTags \| undefined>): MetaTags` : la dernière l'emporte par champ. |
 | `serializeMetaTags` | fonction | `serializeMetaTags(meta: MetaTags \| undefined, options?: { nonce?: string }): string` : le balisage du `<head>`. |
-| `PhotonError` | erreur | Erreurs serveur : `code`, `hint?`, `context?`, `docsUrl` ; `toJSON()` garde la chaîne des causes. |
+| `errors` | namespace | Les erreurs serveur du paquet, une classe par code, voir [Erreurs](#erreurs) |
+| `PhotonError`, `PhotonErrorCode` | type | Ce que porte toute erreur serveur : `code`, `help?`, `context?`, `docsUrl` ; `toJSON()` garde la chaîne des causes. |
 | `PhotonConfig` | interface | Voir [Configuration](#configuration). |
 | `SsrConfig` | interface | `{ enabled?: boolean; entrypoint?: string; pages?: string[] \| ((ctx, page: string) => boolean \| Promise<boolean>) }`. |
 | `SsrRequestContext` | type | Le contexte de requête sur lequel travaille le middleware. |
@@ -147,7 +148,8 @@ L'entrée serveur et les entrées navigateur ne s'importent pas l'une l'autre ; 
 | `useInfiniteScrollData` | fonction | `useInfiniteScrollData(options: InfiniteScrollDataOptions): InfiniteScrollData`. |
 | `getScrollableParent` | fonction | L'ancêtre défilant le plus proche d'un élément. |
 | `browserHost` | fonction | `browserHost(): PhotonHost` : l'adresse, l'historique et le `fetch` du navigateur. |
-| `PhotonClientError` | erreur | Erreurs client : `code`, `hint?`, `context?`, `docsUrl`. |
+| `errors` | namespace | Les erreurs du client, une classe par code, voir [Erreurs](#erreurs) |
+| `PhotonClientError` | type | Ce que porte toute erreur client : `code`, `help?`, `context?`, `docsUrl`. |
 | `HydrateOptions` | interface | `{ resolveComponent: ResolveComponent; target?: string; onHydrated?: () => void; svelteRoot?: unknown }`. `target` vaut `'#app'` par défaut. |
 | `BootPageOptions` | interface | `{ target?; host?: PhotonHost; url?; resolveComponent; mount(target, Component, page); onHydrated? }`. |
 | `PhotonPageData` | interface | L'objet de page tel que le lit le client. |
@@ -160,7 +162,7 @@ L'entrée serveur et les entrées navigateur ne s'importent pas l'une l'autre ; 
 | `ScrollPropMeta`, `PhotonAdapterHandle`, `PhotonClientErrorCode` | type | |
 | `InfiniteScrollData`, `InfiniteScrollDataOptions`, `InfiniteScrollElementManager`, `InfiniteScrollOnCompleteDetails`, `InfiniteScrollPageIdentifier`, `UseInfiniteScrollOptions`, `UseInfiniteScrollProps` | type | Défilement infini. |
 
-`@c9up/photon/client/core` exporte `bootPage`, `router`, `urlFor`, `setRoutes`, `getRoute`, `browserHost`, `PhotonClientError` et leurs types, sans `hydrate` ni les adaptateurs.
+`@c9up/photon/client/core` exporte `bootPage`, `router`, `urlFor`, `setRoutes`, `getRoute`, `browserHost`, `errors` et leurs types, sans `hydrate` ni les adaptateurs.
 
 ### `router`
 
@@ -231,7 +233,7 @@ Chaque entrée exporte aussi les types d'options et de props correspondants : `C
 
 ## Erreurs
 
-Les deux classes d'erreur portent `code`, un `hint` et un `context` optionnels, et un `docsUrl` vers la ligne du code ci-dessous ; `docsUrl` est énumérable, donc les chaînes de logs le transmettent.
+Chaque erreur, serveur ou client, est une `Exception` de flare nommée par son code, et porte `code`, un `help` et un `context` optionnels, et un `docsUrl` vers la ligne du code ci-dessous ; `docsUrl` est énumérable, donc les chaînes de logs le transmettent.
 
 | Code | Levée quand |
 |---|---|
@@ -244,10 +246,29 @@ Les deux classes d'erreur portent `code`, un `hint` et un `context` optionnels, 
 | [`E_PHOTON_HYDRATION_BAD_DATA`](/fr/reference/errors#e-photon-hydration-bad-data) | Le script de données n'est pas un objet de page valide. |
 | [`E_PHOTON_HYDRATION_NO_TARGET`](/fr/reference/errors#e-photon-hydration-no-target) | La cible de montage (`#app` par défaut) ne correspond à aucun élément. |
 | [`E_PHOTON_HYDRATION_UNSUPPORTED_FRAMEWORK`](/fr/reference/errors#e-photon-hydration-unsupported-framework) | La page nomme un autre framework que React, Vue ou Svelte. |
-| [`E_PHOTON_HYDRATION_ADAPTER_LOAD_FAILED`](/fr/reference/errors#e-photon-hydration-adapter-load-failed) | Le runtime du framework n'est pas installé. |
+| [`E_PHOTON_HYDRATION_ADAPTER_LOAD_FAILED`](/fr/reference/errors#e-photon-hydration-adapter-load-failed) | Le runtime du framework n'est pas installé, ou est trop ancien (Svelte avant 5). |
 | [`E_PHOTON_UNKNOWN_ROUTE`](/fr/reference/errors#e-photon-unknown-route) | Un `Link`, un `Form`, `router.visit` ou `urlFor` a nommé une route non transmise par `setRoutes()`. |
 | [`E_PHOTON_MISSING_ROUTE_PARAMS`](/fr/reference/errors#e-photon-missing-route-params) | Les paramètres d'une route nommée n'ont pas tous été fournis. |
-| [`E_PHOTON_UNKNOWN_PAGE`](/fr/reference/errors#e-photon-unknown-page) | Le `resolve` donné à `createPhotonApp` n'a rien renvoyé pour un nom de page. |
+| [`E_PHOTON_UNKNOWN_PAGE`](/fr/reference/errors#e-photon-unknown-page) | Le `resolve` donné à `createPhotonApp` n'a rien renvoyé pour un nom de page, ou `resolvePageComponent` n'a trouvé aucune page au chemin. |
+| [`E_PHOTON_MISSING_CONFIG`](/fr/reference/errors#e-photon-missing-config) | Le conteneur a résolu `PhotonRenderer` et il n'y a pas de `config/photon.ts`. |
+| [`E_PHOTON_INVALID_DURATION`](/fr/reference/errors#e-photon-invalid-duration) | L'`expiresIn` d'une prop `once()` n'est ni des millisecondes ni une durée comme `30s`, `5m`, `7d`. |
+| [`E_PHOTON_SCROLL_CURSOR_UNDERIVABLE`](/fr/reference/errors#e-photon-scroll-cursor-underivable) | `scroll()` a reçu une valeur qui n'est pas un paginateur par offset, sans callback de curseur ; passez-en un en second argument. |
+| [`E_PHOTON_INVALID_PAGE_MODULE`](/fr/reference/errors#e-photon-invalid-page-module) | `resolvePageComponent` a chargé un module sans export par défaut. |
+| [`E_PHOTON_INVALID_PAGE_RESPONSE`](/fr/reference/errors#e-photon-invalid-page-response) | La première page demandée au serveur a répondu un statut d'erreur, ou autre chose qu'un objet page JSON. |
+| [`E_PHOTON_NO_ROUTER_HOST`](/fr/reference/errors#e-photon-no-router-host) | Le routeur client a tourné sans hôte : pas de document de navigateur, et aucun passé à `bootPage`. |
+| [`E_PHOTON_NO_PAGE`](/fr/reference/errors#e-photon-no-page) | `usePage()` a été appelé hors d'une page Photon (côté serveur, hors de `<PhotonPage>`). |
+| [`E_PHOTON_UNKNOWN_SCROLL_PROP`](/fr/reference/errors#e-photon-unknown-scroll-prop) | Un défilement infini nomme une prop pour laquelle l'objet page n'a pas de prop de défilement. |
+| [`E_PHOTON_INVALID_DEFERRED`](/fr/reference/errors#e-photon-invalid-deferred) | Il manque à `<Deferred>` sa prop `data` ou son fallback. |
+| [`E_PHOTON_FORM_DATA_MISSING`](/fr/reference/errors#e-photon-form-data-missing) | `useForm(rememberKey)` a été appelé sans les données du formulaire. |
+| [`E_PHOTON_FORM_DEFAULTS_UNSUPPORTED`](/fr/reference/errors#e-photon-form-defaults-unsupported) | `setDefaults()` a été appelé sur un formulaire dont les données sont une fonction. |
+| [`E_PHOTON_INVALID_SVELTE_ROOT`](/fr/reference/errors#e-photon-invalid-svelte-root) | Le `svelteRoot` passé à l'adaptateur Svelte n'exporte pas `setPage()` ; passez la racine de `@c9up/photon/svelte`. |
+| [`E_PHOTON_INVALID_SSR_SETUP`](/fr/reference/errors#e-photon-invalid-ssr-setup) | Le `createPhotonApp` de Svelte a rendu côté serveur sans `setup`, ou son `setup` n'a pas renvoyé `render(App, { props })` de `svelte/server`. |
+
+## Migration
+
+- `PhotonError` disparaît comme classe : testez `error.code`, ou `error instanceof errors.E_PHOTON_*` avec `import { errors } from '@c9up/photon'`. `PhotonError` reste le type que toute erreur serveur satisfait.
+- `PhotonClientError` disparaît aussi comme classe : `import { errors } from '@c9up/photon/client'` (ou `/client/core`) et testez `errors.E_PHOTON_*`.
+- `error.hint` devient `error.help`, et `toJSON()` émet `help`. `error.name` est désormais le code.
 
 ## Voir aussi
 

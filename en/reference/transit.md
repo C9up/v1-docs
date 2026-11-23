@@ -89,11 +89,10 @@ Apple, SAML, XML and LDAP helpers:
 | `parseAppleUser` | function | `parseAppleUser(value: unknown): { name: string } \| undefined`, the name Apple posts on the first sign-in only |
 | `AppleKey` | interface | `{ clientId, teamId, keyId, privateKey }` |
 | `validateAssertion` | function | `validateAssertion(assertion: XmlElement, expected: SamlExpectations): SamlIdentity` |
-| `assertResponseSucceeded` | function | `assertResponseSucceeded(response: XmlElement): void`; throws `SamlError` unless the status is Success |
+| `assertResponseSucceeded` | function | `assertResponseSucceeded(response: XmlElement): void`; throws `E_TRANSIT_SAML_REJECTED` unless the status is Success |
 | `assertionInside` | function | `assertionInside(signed: XmlElement): XmlElement`, the assertion a signature covers |
 | `SamlIdentity` | interface | `{ nameId, nameIdFormat, attributes: Record<string, string[]>, assertionId, notOnOrAfter, rememberUntil, sessionIndex }` |
 | `SamlExpectations` | interface | `{ issuer, audience, recipient, inResponseTo?, clockSkewSeconds?, now? }` |
-| `SamlError` | error | A SAML response refused |
 | `SAML_PROTOCOL_NS`, `SAML_ASSERTION_NS` | const | The SAML 2.0 protocol and assertion namespaces |
 | `AssertionReplayStore` | interface | `{ remember(assertionId: string, expiresAt: number): Promise<boolean> }`; `false` for an assertion already seen |
 | `MemoryAssertionReplayStore` | class | Remembers assertions in this process |
@@ -115,8 +114,7 @@ Apple, SAML, XML and LDAP helpers:
 | `LdapOptions` | interface | `{ url, allowInsecure?, timeoutMs?, rejectUnauthorized? }` |
 | `LdapFilter` | type | `{ equals: [attribute, value] } \| { present } \| { and } \| { or } \| { not }` |
 | `LdapEntry` | interface | `{ dn: string; attributes: Record<string, string[]> }` |
-| `LdapError` | error | A directory refusal; `code` is the LDAP result code |
-| `E_TRANSIT_PROTECTED_PARAMETER` | error | A customizer touched a parameter the sign-in owns |
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors) |
 
 ### `TransitManager`
 
@@ -306,8 +304,55 @@ export default defineConfig({
 |---|---|
 | [`E_TRANSIT_INVALID_XML`](/en/reference/errors#e-transit-invalid-xml) | A provider answered XML that cannot be parsed or uses a refused construct (a DOCTYPE, an entity reference) |
 | [`E_TRANSIT_PROTECTED_PARAMETER`](/en/reference/errors#e-transit-protected-parameter) | A customizer set or cleared a parameter the sign-in owns, or `scope` through `param()` |
+| [`E_TRANSIT_NOT_BOOTED`](/en/reference/errors#e-transit-not-booted) | `@c9up/transit/services/main` was read before the provider booted, or before `setTransit()` |
+| [`E_TRANSIT_UNKNOWN_PROVIDER`](/en/reference/errors#e-transit-unknown-provider) | No provider of this name is registered. The message names only the provider asked for |
+| [`E_TRANSIT_NOT_A_REDIRECT_PROVIDER`](/en/reference/errors#e-transit-not-a-redirect-provider) | `use()` / `begin()` named a directory (LDAP); call `authenticate()` |
+| [`E_TRANSIT_NOT_A_DIRECTORY`](/en/reference/errors#e-transit-not-a-directory) | `directory()` / `authenticate()` named a redirect provider; call `begin()` |
+| [`E_TRANSIT_BEGIN_UNSUPPORTED`](/en/reference/errors#e-transit-begin-unsupported) | `begin()` on a driver that has no `begin()` |
+| [`E_TRANSIT_TOKEN_PROFILE_UNSUPPORTED`](/en/reference/errors#e-transit-token-profile-unsupported) | `userFromToken()` on a driver that cannot read a profile from a token |
+| [`E_TRANSIT_USE_BEGIN`](/en/reference/errors#e-transit-use-begin) | `redirectUrl()` on a provider whose redirect needs a round trip (OAuth1, OpenID Connect, SAML); call `begin()` |
+| [`E_TRANSIT_NO_AUTHORIZE_PARAMS`](/en/reference/errors#e-transit-no-authorize-params) | A customizer was passed to an OAuth1 or SAML sign-in, which has no per-request scopes or parameters |
+| [`E_TRANSIT_STATE_REQUIRED`](/en/reference/errors#e-transit-state-required) | A callback ran without `expectedState` |
+| [`E_OAUTH_STATE_MISMATCH`](/en/reference/errors#e-oauth-state-mismatch) | The callback's state is missing or differs from the stored one (possible CSRF): "Unable to verify re-redirect state" |
+| [`E_OAUTH_MISSING_CODE`](/en/reference/errors#e-oauth-missing-code) | The callback came back without its grant (`code`, `oauth_verifier` for OAuth1, `SAMLResponse` for SAML), as when the user denied access; nothing is sent to the provider |
+| [`E_TRANSIT_MISSING_SECRET`](/en/reference/errors#e-transit-missing-secret) | A flow lacks the secret it needs: the `secret` `begin()` returned (PKCE verifier, OAuth1 request-token secret), or the token secret an OAuth1 access token signs with |
+| [`E_TRANSIT_PKCE_REQUIRED`](/en/reference/errors#e-transit-pkce-required) | A provider that requires PKCE got no code verifier |
+| [`E_TRANSIT_TOKEN_EXCHANGE_FAILED`](/en/reference/errors#e-transit-token-exchange-failed) | The provider's token endpoint answered an HTTP error |
+| [`E_TRANSIT_NO_ACCESS_TOKEN`](/en/reference/errors#e-transit-no-access-token) | The token response carries no access token |
+| [`E_TRANSIT_PROFILE_REQUEST_FAILED`](/en/reference/errors#e-transit-profile-request-failed) | The provider's profile or userinfo endpoint answered an HTTP error |
+| [`E_TRANSIT_INVALID_RESPONSE`](/en/reference/errors#e-transit-invalid-response) | A provider's response is not JSON, or not a JSON object |
+| [`E_TRANSIT_NO_EMAIL`](/en/reference/errors#e-transit-no-email) | LinkedIn returned no email address; the application needs the `r_emailaddress` scope |
+| [`E_TRANSIT_CALLBACK_NOT_CONFIRMED`](/en/reference/errors#e-transit-callback-not-confirmed) | An OAuth1 provider did not confirm the callback URL |
+| [`E_TRANSIT_NO_REQUEST_TOKEN`](/en/reference/errors#e-transit-no-request-token) | An OAuth1 provider answered without a request token |
+| [`E_TRANSIT_DISCOVERY_FAILED`](/en/reference/errors#e-transit-discovery-failed) | OpenID Connect discovery answered an HTTP error |
+| [`E_TRANSIT_INVALID_DISCOVERY`](/en/reference/errors#e-transit-invalid-discovery) | The discovery document lacks a required field, or names another issuer |
+| [`E_TRANSIT_JWKS_FAILED`](/en/reference/errors#e-transit-jwks-failed) | Fetching the provider's JWKS failed, or it has no `keys` array |
+| [`E_TRANSIT_UNKNOWN_SIGNING_KEY`](/en/reference/errors#e-transit-unknown-signing-key) | The id_token names a signing key the provider did not publish |
+| [`E_TRANSIT_UNSUPPORTED_ALGORITHM`](/en/reference/errors#e-transit-unsupported-algorithm) | The provider declares only id_token algorithms transit refuses (asymmetric signatures are required) |
+| [`E_TRANSIT_NO_ID_TOKEN`](/en/reference/errors#e-transit-no-id-token) | The token response carries no id_token; check that the `openid` scope is granted |
+| [`E_TRANSIT_INVALID_ID_TOKEN`](/en/reference/errors#e-transit-invalid-id-token) | The id_token is refused: malformed, bad signature or algorithm, wrong issuer, audience or nonce, expired |
+| [`E_TRANSIT_NO_USERINFO_ENDPOINT`](/en/reference/errors#e-transit-no-userinfo-endpoint) | A profile was asked from a token alone and the provider publishes no userinfo endpoint |
+| [`E_TRANSIT_USERINFO_MISMATCH`](/en/reference/errors#e-transit-userinfo-mismatch) | The userinfo response describes another subject than the id_token |
+| [`E_TRANSIT_SAML_REJECTED`](/en/reference/errors#e-transit-saml-rejected) | A SAML response or assertion is refused |
+| [`E_TRANSIT_INVALID_SIGNATURE`](/en/reference/errors#e-transit-invalid-signature) | An XML signature does not verify, or is not one transit accepts |
+| [`E_TRANSIT_INVALID_BER`](/en/reference/errors#e-transit-invalid-ber) | An LDAP message does not encode or decode as BER |
+| [`E_TRANSIT_QUASAR_MISSING`](/en/reference/errors#e-transit-quasar-missing) | A Redis replay store names a quasar connection and `@c9up/quasar` is not installed, or its provider has not booted |
+| [`E_TRANSIT_INCOMPLETE_CONNECTION`](/en/reference/errors#e-transit-incomplete-connection) | The quasar connection lacks a command the replay store issues |
+| [`E_TRANSIT_FAKE_NOT_DECLARED`](/en/reference/errors#e-transit-fake-not-declared) | `FakeTransit` was asked for a provider no `willReturn()` declared |
+| [`E_TRANSIT_FAKE_ASSERTION`](/en/reference/errors#e-transit-fake-assertion) | A `FakeTransit` assertion (`assertBegan`, `assertSignedIn`, `assertNobodySignedIn`) failed |
+| [`E_TRANSIT_LDAP_ERROR`](/en/reference/errors#e-transit-ldap-error) | A directory refused or could not be reached; `resultCode` is the LDAP result code when the directory answered one (49 for invalid credentials, status 400) |
 
-A refused SAML response throws `SamlError`, a directory refusal `LdapError`, and a state mismatch, an unknown provider name or a missing `expectedState` a plain `Error`.
+Each one is a class of the `errors` namespace and a `@c9up/flare` `Exception`, with status 500 except `E_OAUTH_STATE_MISMATCH` (400), `E_TRANSIT_UNKNOWN_PROVIDER` (404), and `E_TRANSIT_LDAP_ERROR` for invalid credentials or an empty login or password (400): branch on `error.code` or on `error instanceof errors.E_*`. `E_TRANSIT_PROTECTED_PARAMETER` carries the refused `parameter`.
+
+The errors a visitor meets during a sign-in (`E_OAUTH_MISSING_CODE`, `E_OAUTH_STATE_MISMATCH`, `E_TRANSIT_UNKNOWN_PROVIDER`) extend `errors.HttpResponseException` and render themselves. Each has an `identifier` (`errors.<CODE>`, the translation key read through `ctx.i18n`), `getResponseMessage(error, ctx)` and `handle(error, ctx)`. `handle` negotiates with `request.accepts`: `{ errors: [{ message }] }` for JSON, a JSON:API error object for JSON:API, and otherwise a flash (`error`, and the message under its code) with a redirect back when the request has a session, or the message as text when it has none.
+
+## Migration
+
+- `TransitError` is gone: test `error.code`, or `error instanceof errors.E_TRANSIT_*` with `import { errors } from '@c9up/transit'`.
+- `SamlError` becomes `errors.E_TRANSIT_SAML_REJECTED`; `E_TRANSIT_PROTECTED_PARAMETER` moves to `errors.E_TRANSIT_PROTECTED_PARAMETER`.
+- `LdapError` becomes `errors.E_TRANSIT_LDAP_ERROR`: its `code` is now `'E_TRANSIT_LDAP_ERROR'`, and the LDAP result code moved to `resultCode` (`error.code === 49` becomes `error.resultCode === 49`).
+- `E_TRANSIT_STATE_MISMATCH` is now `E_OAUTH_STATE_MISMATCH`, with the message "Unable to verify re-redirect state".
+- A callback without its code raises `E_OAUTH_MISSING_CODE` before anything is sent to the provider, where it used to fail as `E_TRANSIT_TOKEN_EXCHANGE_FAILED`.
 
 ## See also
 

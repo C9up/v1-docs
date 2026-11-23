@@ -79,7 +79,7 @@ réponse que la recherche ne sait pas lire fait échouer la connexion.
 
 Une réponse impossible à découper ou à décoder — BER mal formé, longueur
 indéfinie, message annoncé à plus de 8 Mio — fait échouer les opérations en
-attente sur cette connexion avec une `LdapError` et la ferme. Elle ne sort
+attente sur cette connexion avec une `E_TRANSIT_LDAP_ERROR` et la ferme. Elle ne sort
 jamais du socket : une mauvaise réponse d'un annuaire n'arrête pas le processus.
 
 ### Ce qu'un annuaire rend

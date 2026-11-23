@@ -15,10 +15,10 @@ ailleurs — un jeton de réinitialisation présenté comme cookie de session é
 ici au lieu d'être honoré. `expiresIn` est en millisecondes. Les deux valent
 aussi pour `sign()` / `unsign()`.
 
-L'APP_KEY est validée à la construction : absente elle lève `E_MISSING_APP_KEY`,
-plus courte que 16 caractères `E_INSECURE_APP_KEY`. Une clé qui figure dans un
+L'APP_KEY est validée à la construction : absente elle lève `E_MISSING_ENCRYPTER_KEY`,
+plus courte que 16 caractères `E_INSECURE_ENCRYPTER_KEY`. Une clé qui figure dans un
 squelette ou une documentation (`change-me`, `secret`, `your-app-key-here`, la
-valeur provisoire du squelette) est refusée elle aussi par `E_INSECURE_APP_KEY`,
+valeur provisoire du squelette) est refusée elle aussi par `E_INSECURE_ENCRYPTER_KEY`,
 au démarrage : une clé lisible par tous permet à n'importe qui de forger cookies,
 sessions, jetons CSRF et URL signées. Lancez `ream generate:key` pour en écrire
 une nouvelle dans `.env`.

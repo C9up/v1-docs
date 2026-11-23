@@ -35,7 +35,7 @@ Durability is the server's, not the store's: a Redis with no persistence loses e
 
 ### Writing your own
 
-`SubscriptionStore` is three methods. Endpoint URLs are globally unique per push service, so `delete(endpoint)` removes the subscription whoever owns it, and `save()` re-owns an endpoint rather than leaving it attached to two accounts — a browser reused across a logout/login pair would otherwise keep delivering the old account's notifications to the new user. It re-owns it only when the new owner posts the same `p256dh` and `auth` as the stored ones: the browser holding the subscription does, anyone who merely learned the endpoint does not. Otherwise `save()` throws `NovaError('E_NOVA_SUBSCRIPTION_CONFLICT')`, which the subscribe route answers with `409`. `listByUser()` lists oldest first: the per-user cap drops from the front.
+`SubscriptionStore` is three methods. Endpoint URLs are globally unique per push service, so `delete(endpoint)` removes the subscription whoever owns it, and `save()` re-owns an endpoint rather than leaving it attached to two accounts — a browser reused across a logout/login pair would otherwise keep delivering the old account's notifications to the new user. It re-owns it only when the new owner posts the same `p256dh` and `auth` as the stored ones: the browser holding the subscription does, anyone who merely learned the endpoint does not. Otherwise `save()` throws `E_NOVA_SUBSCRIPTION_CONFLICT`, which the subscribe route answers with `409`. `listByUser()` lists oldest first: the per-user cap drops from the front.
 
 ```ts
 import type { PushSubscription, SubscriptionStore } from '@c9up/nova'

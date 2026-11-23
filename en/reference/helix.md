@@ -84,7 +84,7 @@ A non-boolean flag takes its value after `=` (`--timeout=5000`); `--flag=false` 
 | `Test` | const | `Test.macro(name, fn)`: adds a named method to every `TestHandle`. |
 | `expect` | const | `expect(value, message?)`: a chainable assertion (`ExpectStatic`). |
 | `createAssert` | function | Builds an `Assert`, the object behind `ctx.assert`. |
-| `AssertionError` | class | Thrown by a failed assertion; carries `actual`, `expected`, `operator`, `showDiff`. |
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors) |
 | `vi` | const | Mocks, spies, fake timers and system time. |
 | `configure` | function | `configure(options: ConfigureOptions): Promise<void>`: installs plugins and runner hooks. |
 | `drainRunnerTeardowns` | function | `drainRunnerTeardowns(): Promise<unknown[]>`: runs every registered runner teardown, in reverse order. |
@@ -130,7 +130,7 @@ Everything above except the container facade and `time`, plus:
 | `equals` | function | `equals(a: unknown, b: unknown, options?: EqualsOptions): boolean`: deep equality (`strict` for `toStrictEqual`). |
 | `partialEquals` | function | `partialEquals(actual: unknown, expected: unknown): boolean`. |
 | `matchers` | const | The matcher implementations behind `expect`. |
-| `isAssertionError` | function | `isAssertionError(value: unknown): value is AssertionError`. |
+| `isAssertionError` | function | `isAssertionError(value: unknown): value is errors.E_HELIX_ASSERTION_FAILED`. |
 | `withViContext` | function | `withViContext<T>(body: () => Promise<T>): Promise<T>`: runs `body` under its own `vi` state. |
 | `runTestFile` | function | As in `@c9up/helix/runtime/worker`. |
 | `AssertionErrorInit`, `Constructor`, `EqualsOptions`, `Getter`, `SpyLike`, `SerializedError`, `RunMode`, `SuiteNode`, `TestNode`, `TestFn`, `CreateSpyOptions`, `MockCallResult`, `MockInternals`, `SpyOnOptions`, `RunFileOptions` | type | Their supporting types. |
@@ -296,6 +296,43 @@ The bootstrap module (`tests/bootstrap.ts`) may export `plugins: Plugin[]`, `run
 | `forceExit` | `boolean` | |
 | `suite` | `string` | The suite these tests belong to. |
 | `cwd`, `reporters`, `exclude`, `refiner` | | Filled in by the runner. |
+
+## Errors
+
+Each code is a class of the `errors` namespace and a `@c9up/flare` `Exception` with status 500: branch on `error.code` or on `error instanceof errors.E_HELIX_*`.
+
+| Code | Raised when |
+|---|---|
+| [`E_HELIX_ASSERTION_FAILED`](/en/reference/errors#e-helix-assertion-failed) | An `expect()` or `assert` check failed; carries `actual`, `expected`, `operator`, `showDiff`, and keeps the name `AssertionError` that reporters recognise. |
+| [`E_HELIX_TIMEOUT`](/en/reference/errors#e-helix-timeout) | A test or hook did not settle within its timeout. |
+| [`E_HELIX_TEST_ABORTED`](/en/reference/errors#e-helix-test-aborted) | The running test called `meta.abort(message)`. |
+| [`E_HELIX_NO_ACTIVE_TEST`](/en/reference/errors#e-helix-no-active-test) | A test-only helper (`getActiveTestOrFail()`, `time.freeze`/`travel`, `override()`, a `test.macro` function) was called outside a running test. |
+| [`E_HELIX_NO_ACTIVE_CONTAINER`](/en/reference/errors#e-helix-no-active-container) | `override()` was called before `useContainer()`. |
+| [`E_HELIX_ASYNC_DESCRIBE`](/en/reference/errors#e-helix-async-describe) | A `describe` body returned a Promise; await the setup in `beforeAll` instead. |
+| [`E_HELIX_NESTED_GROUP`](/en/reference/errors#e-helix-nested-group) | A `test.group()` was declared inside another group. |
+| [`E_HELIX_INVALID_TIME`](/en/reference/errors#e-helix-invalid-time) | A time value cannot be used: a non-finite or out-of-range epoch, an unreadable date, a fractional month or year, an unknown unit, or a negative `advanceTimersByTime`. |
+| [`E_HELIX_FAKE_TIMERS_NOT_INSTALLED`](/en/reference/errors#e-helix-fake-timers-not-installed) | A `vi` timer control was called before `vi.useFakeTimers()`. |
+| [`E_HELIX_TIMER_LOOP`](/en/reference/errors#e-helix-timer-loop) | Draining fake timers exceeded its iteration cap: a timer keeps rescheduling itself. |
+| [`E_HELIX_SPY_NO_PROPERTY`](/en/reference/errors#e-helix-spy-no-property) | `vi.spyOn()` targets a property the object does not have. |
+| [`E_HELIX_SPY_NOT_FUNCTION`](/en/reference/errors#e-helix-spy-not-function) | `vi.spyOn()` targets a value that is not a function; pass `{ accessor }` for a getter or setter. |
+| [`E_HELIX_SPY_NO_ACCESSOR`](/en/reference/errors#e-helix-spy-no-accessor) | `vi.spyOn()` asked for a getter or setter the property does not define. |
+| [`E_HELIX_ALREADY_SPIED`](/en/reference/errors#e-helix-already-spied) | `vi.spyOn()` targets a method that is already a spy; call `mockRestore()` first. |
+| [`E_HELIX_RUNNER_NOT_DRIVABLE`](/en/reference/errors#e-helix-runner-not-drivable) | A plugin called `runner.add/start/exec/end()`: the CLI owns discovery and execution. |
+| [`E_HELIX_RELATIVE_PATH`](/en/reference/errors#e-helix-relative-path) | `runTestFile()` was given a relative path. |
+| [`E_HELIX_INVALID_GLOB`](/en/reference/errors#e-helix-invalid-glob) | An include or exclude glob has an unclosed `{`, `(` or `[`; `cause` holds the regex error. |
+| [`E_HELIX_INVALID_THREADS`](/en/reference/errors#e-helix-invalid-threads) | The thread count is not a finite number. |
+| [`E_HELIX_INVALID_COVERAGE_THRESHOLD`](/en/reference/errors#e-helix-invalid-coverage-threshold) | A coverage threshold is not a number from 0 to 100, or a diff-coverage threshold names `functions` or `branches` (diff coverage is line-only). |
+| [`E_HELIX_INVALID_DIFF_COVERAGE`](/en/reference/errors#e-helix-invalid-diff-coverage) | Diff coverage is enabled without coverage, or its `cwd` and `coverage.root` are disjoint. |
+| [`E_HELIX_INVALID_WATCH_OPTIONS`](/en/reference/errors#e-helix-invalid-watch-options) | Watch mode got an empty `include` or a `debounceMs` out of range. |
+| [`E_HELIX_WATCH_FAILED`](/en/reference/errors#e-helix-watch-failed) | Watch mode could not watch its root directory; `cause` holds the `fs.watch` error. |
+| [`E_HELIX_NATIVE_REQUIRED`](/en/reference/errors#e-helix-native-required) | The helix native binary is missing, failed to load, or is stale, or the platform has none. |
+| [`E_HELIX_INTERNAL`](/en/reference/errors#e-helix-internal) | An internal invariant of helix broke: a bug in helix, worth reporting. |
+
+## Migration
+
+- `HelixError` is gone: test `error.code`, or `error instanceof errors.E_HELIX_*` with `import { errors } from '@c9up/helix'`.
+- `AssertionError` becomes `errors.E_HELIX_ASSERTION_FAILED`, with the same fields; `error.name` is still `'AssertionError'`, and `isAssertionError()` is unchanged.
+- `RunnerNotDrivableError` becomes `errors.E_HELIX_RUNNER_NOT_DRIVABLE`.
 
 ## See also
 

@@ -14,7 +14,7 @@ pnpm add @c9up/bay
 
 | Import | Contenu |
 |---|---|
-| `@c9up/bay` | `Job`, `QueueManager`, les dispatchers, `defineConfig`, `drivers`, les deux drivers, les aides de backoff, les types |
+| `@c9up/bay` | `Job`, `QueueManager`, les dispatchers, `defineConfig`, `drivers`, les deux drivers, les aides de backoff, `errors`, les types |
 | `@c9up/bay/provider` | `BayProvider` (export par défaut) |
 | `@c9up/bay/services/main` | Le `QueueManager` démarré (export par défaut), `setQueue`, `getQueue`, `clearQueue` |
 | `@c9up/bay/testing` | `FakeQueue` |
@@ -42,7 +42,7 @@ pnpm add @c9up/bay
 | `linearBackoff` | fonction | `linearBackoff(config?): BackoffFactory` ; par défaut `baseDelay: '5s'`, `maxDelay: '2m'`. |
 | `fixedBackoff` | fonction | `fixedBackoff(delay?: Duration): BackoffFactory` ; `'10s'` par défaut. |
 | `customBackoff` | fonction | `customBackoff(config: BackoffConfig): BackoffFactory`. |
-| `JobTimeoutError` | erreur | Une tentative a dépassé son `timeout` ; ce que `failOnTimeout` reconnaît. |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs) |
 | `jobNameOf` | fonction | `jobNameOf(job: JobClass): string` : `options.name`, sinon le nom de la classe. |
 | `isJobClass` | fonction | `isJobClass(value: unknown): value is JobClass`. |
 | `queueOf` | fonction | `queueOf(job: JobRecord): string` : la file de l'enregistrement, `'default'` s'il n'en a pas. |
@@ -127,7 +127,7 @@ export default class SendEmail extends Job<{ to: string }> {
 | `signal` | `readonly signal: AbortSignal` | Annulé quand le `timeout` de la tentative est dépassé. |
 | `context` | `readonly context: JobContext` | Identifiant, tentative, file et priorité de cette tentative. |
 | `execute` | `abstract execute(): Promise<void> \| void` | Le travail. |
-| `failed` | `failed?(error: Error): Promise<void> \| void` | Appelée une fois la dernière tentative échouée. |
+| `failed` | `failed?(error: Error): Promise<void> \| void` | Appelée une fois la dernière tentative échouée : avec `E_JOB_MAX_ATTEMPTS_REACHED` (l'erreur de la tentative en `cause`) une fois les relances épuisées, avec l'erreur de la tentative quand `maxAttempts` vaut 1 ou que `failOnTimeout` y a mis fin. |
 
 ### `JobOptions`
 
@@ -185,8 +185,8 @@ Les deux sont des `PromiseLike` : `await` envoie.
 |---|---|---|
 | `getPushed` | `getPushed(): JobRecord[]` | Copies des jobs enregistrés. |
 | `reset` | `reset(): void` | Les oublie. |
-| `assertPushed` | `assertPushed(name: string, predicate?: FakeQueuePredicateArg): void` | Lève une erreur si aucun job enregistré ne correspond. |
-| `assertNotPushed` | `assertNotPushed(name: string, predicate?: FakeQueuePredicateArg): void` | Lève une erreur si l'un correspond. |
+| `assertPushed` | `assertPushed(name: string, predicate?: FakeQueuePredicateArg): void` | Lève une `AssertionError` si aucun job enregistré ne correspond. |
+| `assertNotPushed` | `assertNotPushed(name: string, predicate?: FakeQueuePredicateArg): void` | Lève une `AssertionError` si l'un correspond. |
 
 ## Configuration
 
@@ -218,7 +218,56 @@ Les deux jetons texte sont typés sur `ContainerBindings` dès que `@c9up/bay` e
 
 ## Erreurs
 
-bay ne lève aucun code `E_`. Ses refus sont des `Error` simples dont le message commence par `[bay]` (configuration invalide, adaptateur non déclaré, classe de job aux options invalides, service lu avant le démarrage), et une tentative qui dépasse son délai échoue avec `JobTimeoutError`.
+| Code | Levée quand |
+|---|---|
+| [`E_CONFIGURATION_ERROR`](/fr/reference/errors#e-configuration-error) | `config.queue` n'est pas ce que renvoie `defineConfig`, déclare des adaptateurs sans `default`, son `default` nomme un adaptateur qu'il ne déclare pas, un backoff nomme une stratégie inconnue, ou une option de `RedisDriver` (`visibilityTimeoutMs`, `maxStalledCount`, `maxFailedJobs`) est hors limites. |
+| [`E_ADAPTER_INIT_ERROR`](/fr/reference/errors#e-adapter-init-error) | La fabrique de l'adaptateur choisi a levé une erreur en construisant son driver ; cette erreur est la `cause`. |
+| [`E_BAY_INVALID_ADAPTER`](/fr/reference/errors#e-bay-invalid-adapter) | Une fabrique d'adaptateur n'a pas construit de driver de file. |
+| [`E_BAY_UNSUPPORTED_DRIVER`](/fr/reference/errors#e-bay-unsupported-driver) | La clé `driver` nomme un driver ; déclarez-le plutôt sous `adapters`. |
+| [`E_BAY_INVALID_BINDING`](/fr/reference/errors#e-bay-invalid-binding) | Le conteneur répond autre chose qu'un `QueueManager` pour le jeton `QueueManager`. |
+| [`E_QUEUE_NOT_INITIALIZED`](/fr/reference/errors#e-queue-not-initialized) | La file sert avant le boot de `BayProvider` ou l'appel à `setQueue()` (accesseur du service, `Job.dispatch()`, `queue:work`), ou `ready()` passe avant `boot()`. |
+| [`E_BAY_QUASAR_MISSING`](/fr/reference/errors#e-bay-quasar-missing) | Un adaptateur Redis nomme une connexion quasar et `@c9up/quasar` n'est pas installé, ou son gestionnaire n'est pas encore disponible. |
+| [`E_BAY_INCOMPLETE_CONNECTION`](/fr/reference/errors#e-bay-incomplete-connection) | La connexion Redis n'a pas une commande qu'émet le driver (EVALSHA, SCRIPT LOAD, …). |
+| [`E_BAY_UNEXPECTED_REPLY`](/fr/reference/errors#e-bay-unexpected-reply) | Un script Redis a répondu quelque chose que le driver ne sait pas lire. |
+| [`E_BAY_INVALID_JOB_OPTIONS`](/fr/reference/errors#e-bay-invalid-job-options) | Une classe de job déclare une option avec laquelle elle ne peut pas tourner ; le refus précis est dans `cause`. |
+| [`E_BAY_INVALID_JOB_NAME`](/fr/reference/errors#e-bay-invalid-job-name) | Le `options.name` d'un job est vide, ou `make:job` reçoit un nom qui ne peut devenir ni un fichier ni une classe. |
+| [`E_BAY_DUPLICATE_JOB`](/fr/reference/errors#e-bay-duplicate-job) | Deux classes de job répondent au même nom. |
+| [`E_BAY_INVALID_ATTEMPTS`](/fr/reference/errors#e-bay-invalid-attempts) | `maxAttempts` / `maxRetries` n'est pas un entier >= 1, ou un backoff est demandé pour une tentative inférieure à 1. |
+| [`E_BAY_INVALID_PRIORITY`](/fr/reference/errors#e-bay-invalid-priority) | Une priorité n'est pas un entier de 1 à 10. |
+| [`E_INVALID_TIMEOUT`](/fr/reference/errors#e-invalid-timeout) | Le `timeout` d'un job n'est ni `0` ni un nombre entier de millisecondes que `setTimeout` peut tenir (1 à 2147483647). |
+| [`E_INVALID_DURATION_EXPRESSION`](/fr/reference/errors#e-invalid-duration-expression) | Une durée n'est ni un nombre positif ou nul de millisecondes ni une chaîne comme `'10s'`. Le message nomme la valeur ; `help` nomme l'option qui la portait. |
+| [`E_BAY_INVALID_RETENTION`](/fr/reference/errors#e-bay-invalid-retention) | `removeOnComplete` / `removeOnFail` n'est ni un booléen ni un `{ age?, count? }` valide. |
+| [`E_INVALID_BASE_DELAY`](/fr/reference/errors#e-invalid-base-delay) | Le `baseDelay` d'un backoff n'est pas supérieur à zéro. |
+| [`E_INVALID_MAX_DELAY`](/fr/reference/errors#e-invalid-max-delay) | Le `maxDelay` d'un backoff n'est pas supérieur à zéro, ou pas supérieur à `baseDelay`. |
+| [`E_INVALID_MULTIPLIER`](/fr/reference/errors#e-invalid-multiplier) | Le `multiplier` d'un backoff n'est pas supérieur à zéro, ou est inférieur à 1 pour la stratégie exponentielle. |
+| [`E_BAY_INVALID_DEDUP`](/fr/reference/errors#e-bay-invalid-dedup) | Un `dedup` a un id vide, un ttl qui n'est pas un entier à partir de 1, ou `extend` sans ttl. |
+| [`E_BAY_INVALID_WORKER_OPTIONS`](/fr/reference/errors#e-bay-invalid-worker-options) | Une option du worker est hors limites : `idleDelay`, `stalledInterval`, `concurrency`, `unknownJobRetries` ou `queues`. |
+| [`E_WORKER_ALREADY_RUNNING`](/fr/reference/errors#e-worker-already-running) | `work()` est appelée alors que le worker du gestionnaire tourne déjà. |
+| [`E_BAY_UNSUPPORTED_OPERATION`](/fr/reference/errors#e-bay-unsupported-operation) | Le driver de file n'a pas de `getJob()` ou de `sizeOf()` pour la recherche demandée. |
+| [`E_BAY_INVALID_JOB_FACTORY`](/fr/reference/errors#e-bay-invalid-job-factory) | La fabrique de jobs a construit autre chose que la classe de job, ou un handler sans `handle()` ; la tentative échoue avec cette erreur. |
+| [`E_JOB_TIMEOUT`](/fr/reference/errors#e-job-timeout) | Une tentative a dépassé son `timeout` ; porte `job` (son nom) et `timeout` (ms). Ce que `failOnTimeout` reconnaît. |
+| [`E_JOB_MAX_ATTEMPTS_REACHED`](/fr/reference/errors#e-job-max-attempts-reached) | Remise au hook `failed()` d'un job une fois ses relances épuisées ; l'erreur de la dernière tentative est la `cause`. |
+| [`E_JOB_NOT_FOUND`](/fr/reference/errors#e-job-not-found) | Un job auquel aucun handler ni aucune classe ne répond reste inconnu au-delà de `unknownJobRetries` ; l'enregistrement en échec garde son message. |
+| [`E_JOB_STALLED`](/fr/reference/errors#e-job-stalled) | Le driver Redis classe en échec un job repris à un worker mort plus de `maxStalledCount` fois ; l'enregistrement en échec garde son message. |
+| [`E_BAY_UNSERIALIZABLE_JOB`](/fr/reference/errors#e-bay-unserializable-job) | Un enregistrement de job ne peut pas être stocké en JSON comme Redis le transporterait. |
+| [`E_BAY_JOBS_DIRECTORY_UNREADABLE`](/fr/reference/errors#e-bay-jobs-directory-unreadable) | Un répertoire de jobs déclaré existe mais ne peut pas être lu. |
+| [`E_BAY_NO_JOBS_FOUND`](/fr/reference/errors#e-bay-no-jobs-found) | Des fichiers de jobs ont été parcourus et aucun n'a fourni de sous-classe de `Job`. |
+| [`E_BAY_DUPLICATE_JOB_ID`](/fr/reference/errors#e-bay-duplicate-job-id) | `FakeQueue.push()` reçoit un id de job qu'elle détient déjà. |
+| [`E_BAY_FAKE_JOB_NOT_FOUND`](/fr/reference/errors#e-bay-fake-job-not-found) | On demande à `FakeQueue` de terminer, d'échouer ou de relancer un job qu'elle ne détient pas. |
+
+Chacune est une classe du namespace `errors` et une `Exception` de `@c9up/flare` de statut 500 : testez `error.code` ou `error instanceof errors.E_*`. Un échec que la bibliothèque de files connaît aussi garde le code et le message de cette bibliothèque (`E_JOB_TIMEOUT`, `E_CONFIGURATION_ERROR`, …) ; ce que bay ajoute porte `E_BAY_`. `FakeQueue.assertPushed()` / `assertNotPushed()` lèvent l'`AssertionError` de `node:assert`.
+
+## Migration
+
+- `BayError` disparaît : testez `error.code`, ou `error instanceof errors.E_BAY_*` avec `import { errors } from '@c9up/bay'`.
+- `JobTimeoutError` devient `errors.E_JOB_TIMEOUT` ; elle porte `job` et `timeout`, et se construit avec `new errors.E_JOB_TIMEOUT([name, ms])`.
+- Les codes que la bibliothèque de files connaît aussi portent désormais son nom : `E_BAY_JOB_TIMEOUT` devient `E_JOB_TIMEOUT`, `E_BAY_ALREADY_RUNNING` devient `E_WORKER_ALREADY_RUNNING`, `E_BAY_INVALID_TIMEOUT` devient `E_INVALID_TIMEOUT`, `E_BAY_INVALID_CONFIG` devient `E_CONFIGURATION_ERROR`, `E_BAY_NOT_BOOTED` devient `E_QUEUE_NOT_INITIALIZED`, `E_BAY_INVALID_DURATION` devient `E_INVALID_DURATION_EXPRESSION`.
+- `E_BAY_UNKNOWN_ADAPTER` devient `E_CONFIGURATION_ERROR`.
+- `E_BAY_INVALID_BACKOFF` se divise en `E_INVALID_BASE_DELAY`, `E_INVALID_MAX_DELAY` et `E_INVALID_MULTIPLIER` ; une stratégie inconnue lève `E_CONFIGURATION_ERROR`.
+- `E_BAY_JOB_NOT_FOUND` (la recherche de `FakeQueue`) devient `E_BAY_FAKE_JOB_NOT_FOUND` ; `E_JOB_NOT_FOUND` désigne désormais un nom de job sous lequel rien n'est enregistré.
+- `E_BAY_ASSERTION_FAILED` disparaît : les assertions de `FakeQueue` lèvent l'`AssertionError` de `node:assert`.
+- Une fabrique d'adaptateur qui lève une erreur lève désormais `E_ADAPTER_INIT_ERROR`, avec l'erreur de la fabrique en `cause` (`E_BAY_QUASAR_MISSING` compris).
+- Le hook `failed()` d'un job reçoit désormais `E_JOB_MAX_ATTEMPTS_REACHED`, avec l'erreur de la dernière tentative en `cause`, une fois les relances épuisées ; il reçoit toujours l'erreur de la tentative quand `maxAttempts` vaut 1 ou que `failOnTimeout` a mis fin au job.
 
 ## Voir aussi
 

@@ -88,7 +88,7 @@ Core exports include:
 - `Ignitor`, `Application`, `Provider`,
 - `Router`, `Server`, `HttpContext`, `Request`, `Response`,
 - `MiddlewareRegistry`,
-- `ReamError` and HTTP exceptions,
+- `errors`, one `Exception` class per code, and the HTTP exception handler,
 - lifecycle utilities (`HealthCheck`, graceful shutdown, hot reload).
 
 ## Module integration

@@ -195,7 +195,7 @@ La phase requête se résout en l'un de :
 | Résultat | Signification |
 |----------|---------------|
 | `Allow` | La requête a passé toutes les vérifications — votre handler s'exécute |
-| `Reject` | Requête bloquée — `400` (`E_BLACKHOLE_PATH_TRAVERSAL` / `E_BLACKHOLE_PARAMETER_POLLUTION` / `E_BLACKHOLE_MISSING_IP`), `403` (`E_BAD_CSRF_TOKEN` / `E_BLACKHOLE_CSRF_ORIGIN_MISMATCH`) ou `429` (`E_BLACKHOLE_RATE_LIMITED`) |
+| `Reject` | Requête bloquée — `400` (`E_BLACKHOLE_PATH_TRAVERSAL` / `E_BLACKHOLE_PARAMETER_POLLUTION` / `E_BLACKHOLE_MISSING_IP`), `403` (`E_BAD_CSRF_TOKEN` / `E_BLACKHOLE_CSRF_ORIGIN_MISMATCH`) ou `429` (`E_TOO_MANY_REQUESTS`) |
 
 Un rejet porte les mêmes en-têtes de protection (CSP, HSTS, `nosniff`…) qu'une
 page, tout comme un préflight CORS. Ils sont posés avant le handler, si bien

@@ -38,15 +38,7 @@ pnpm add @c9up/eclipse
 | `parseDuration` | fonction | `parseDuration(value: string): number` : `'30s'`, `'5m'`, `'500ms'` en millisecondes ; un nombre seul est en millisecondes. |
 | `resolveMs` | fonction | `resolveMs(value: Duration \| undefined, fallback: number \| null): number \| null`. |
 | `assertValidTtl` | fonction | `assertValidTtl(ttl: number \| null): void` : lève `E_ECLIPSE_INVALID_TTL` sauf pour un nombre fini positif ou `null`. |
-| `EclipseError` | erreur | Classe de base de toutes les erreurs d'eclipse ; `code` porte le code `E_…`. |
-| `LockNotOwnedError` | erreur | `E_LOCK_NOT_OWNED`. |
-| `LockStorageError` | erreur | `E_LOCK_STORAGE_ERROR`. |
-| `InvalidTtlError` | erreur | `E_ECLIPSE_INVALID_TTL`. |
-| `InvalidRetryError` | erreur | `E_ECLIPSE_INVALID_RETRY`. |
-| `InvalidDurationError` | erreur | `E_ECLIPSE_INVALID_DURATION`. |
-| `MissingConfigError` | erreur | `E_ECLIPSE_MISSING_CONFIG`. |
-| `InvalidConfigError` | erreur | `E_ECLIPSE_INVALID_CONFIG`. |
-| `UnknownStoreError` | erreur | `E_ECLIPSE_UNKNOWN_STORE`. |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs). |
 | `Duration` | type | `number \| string \| null` : des millisecondes, une durée en texte, ou `null` pour « n'expire jamais ». |
 | `LockConfig` | interface | `{ default: string; stores: Record<string, StoreFactory>; retry?: RetryConfig; ttl?: Duration }`. |
 | `StoreFactory` | type | `() => LockStore`. |
@@ -85,7 +77,7 @@ pnpm add @c9up/eclipse
 | Export | Nature | Description |
 |---|---|---|
 | `schedulerBackend` | fonction | `schedulerBackend(manager: LockManager \| (() => LockManager), options?: SchedulerBackendOptions): SchedulerLockBackend`. Prend le bail de chaque tâche avec `acquireImmediately()` et le renouvelle tous les tiers de son TTL pendant que la tâche tourne. |
-| `SchedulerBackendOptions` | interface | `{ store?: string; prefix?: string; ttl?: Duration; onLeaseLost?: (name: string, error: LockNotOwnedError) => void }`. `prefix` vaut `'schedule:'` par défaut ; `ttl` remplace celui du planificateur ; `onLeaseLost` émet par défaut un avertissement du processus. |
+| `SchedulerBackendOptions` | interface | `{ store?: string; prefix?: string; ttl?: Duration; onLeaseLost?: (name: string, error: Exception) => void }`. `prefix` vaut `'schedule:'` par défaut ; `ttl` remplace celui du planificateur ; `onLeaseLost` émet par défaut un avertissement du processus. |
 | `SchedulerLockBackend` | interface | `{ acquire(name: string, ttlMs: number): Promise<boolean>; release(name: string): Promise<void> }`. |
 
 ### `@c9up/eclipse/testing`
@@ -188,6 +180,16 @@ Les deux jetons texte sont typés sur `ContainerBindings` dès que `@c9up/eclips
 | [`E_ECLIPSE_INCOMPLETE_CONNECTION`](/fr/reference/errors#e-eclipse-incomplete-connection) | La connexion quasar n'a pas une commande qu'envoie le magasin Redis. |
 | [`E_ECLIPSE_DATABASE_UNAVAILABLE`](/fr/reference/errors#e-eclipse-database-unavailable) | Un magasin base de données demande atlas, qui n'est pas installé ou n'a pas démarré. |
 | [`E_ECLIPSE_UNSUPPORTED_DATABASE`](/fr/reference/errors#e-eclipse-unsupported-database) | Un magasin base de données a reçu un dialecte autre que PostgreSQL, MySQL ou SQLite. |
+| [`E_ECLIPSE_NOT_BOOTED`](/fr/reference/errors#e-eclipse-not-booted) | `services/main` a servi avant `EclipseProvider.boot()` ou `setLocks()`. |
+| [`E_ECLIPSE_INVALID_BINDING`](/fr/reference/errors#e-eclipse-invalid-binding) | Le conteneur a résolu le jeton `LockManager` en autre chose qu'un `LockManager`. |
+
+Chacune est une classe d'`errors`, une `Exception` de flare : lisez `error.code`, ou testez `error instanceof errors.E_LOCK_NOT_OWNED`.
+
+## Migration
+
+- `EclipseError` disparaît : testez `error.code`, ou `instanceof` une classe d'`errors`.
+- Les classes portent le nom de leur code : `LockNotOwnedError` devient `errors.E_LOCK_NOT_OWNED`, `LockStorageError` devient `errors.E_LOCK_STORAGE_ERROR`, `InvalidTtlError` devient `errors.E_ECLIPSE_INVALID_TTL`, `InvalidRetryError` devient `errors.E_ECLIPSE_INVALID_RETRY`, `InvalidDurationError` devient `errors.E_ECLIPSE_INVALID_DURATION`, `MissingConfigError` devient `errors.E_ECLIPSE_MISSING_CONFIG`, `InvalidConfigError` devient `errors.E_ECLIPSE_INVALID_CONFIG`, `UnknownStoreError` devient `errors.E_ECLIPSE_UNKNOWN_STORE`.
+- `E_LOCK_NOT_OWNED` et `E_LOCK_STORAGE_ERROR` portent désormais les messages du module de verrous dont ils viennent : « Looks like you are trying to update or release a lock that is not acquired by you » et « Lock storage error: `<raison>` ». Le nom du verrou est sur `error.key`, l'opération du store qui a échoué sur `error.operation` ; construisez-les avec `new errors.E_LOCK_NOT_OWNED(undefined, { key })` et `new errors.E_LOCK_STORAGE_ERROR([raison], { operation })`.
 
 ## Voir aussi
 

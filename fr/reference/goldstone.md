@@ -55,9 +55,8 @@ Ajoutez `() => import('@c9up/goldstone/provider')` aux providers de `reamrc.ts` 
 | `ReplayGuard` | interface | Où sont mémorisés les jetons de livraison traités. |
 | `MemoryReplayGuard` | classe | Le `ReplayGuard` en processus. |
 | `isNativeAvailable` | fonction | Indique si le moteur Rust est chargé. |
-| `GoldstoneError` | erreur | Tout échec de goldstone. |
-| `GoldstoneNativeRequiredError` | erreur | Le moteur Rust n'est pas chargé. |
-| `fromEngine` | fonction | Transforme un échec du moteur en `GoldstoneError` avec son code. |
+| `errors` | espace de noms | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs). Chacune est une `Exception` de flare avec un `code` chaîne. |
+| `fromEngine` | fonction | Transforme un échec du moteur en la classe d'`errors` de son code. |
 
 ### `InboxManager`
 
@@ -102,7 +101,7 @@ Chaque méthode qui prend un `folder` vaut `'INBOX'` par défaut. Les messages s
 | `readMessage` | `readMessage(raw: Uint8Array, options?: ReadOptions): Promise<ReceivedMessage>` | Analyse et vérifie l'expéditeur à partir d'une seule analyse, le verdict dans `message.authenticity`. |
 | `authenticate` | `authenticate(raw: Uint8Array, options?: AuthenticateOptions): Promise<Authenticity>` | Vérifie qui a envoyé le message. |
 | `isNativeAvailable` | `isNativeAvailable(): boolean` | |
-| `fromEngine` | `fromEngine(error: unknown): GoldstoneError` | |
+| `fromEngine` | `fromEngine(error: unknown): Exception` | |
 
 | Option | Type | Défaut | Description |
 |---|---|---|---|
@@ -138,7 +137,7 @@ Chaque borne est un entier positif inférieur à 2^32.
 | `headers` | `readonly Header[]` | Tous les en-têtes, tels que reçus. |
 | `text` | `string \| undefined` | Le corps texte. |
 | `html` | `string \| undefined` | Assaini pour l'affichage : ni script, ni gestionnaire d'événement, ni URL `javascript:`, ni contenu distant sauf autorisation. |
-| `htmlError` | `GoldstoneError \| undefined` | Pourquoi `html` est absent alors que le message a un corps HTML (`E_GOLDSTONE_HTML_TOO_LARGE`, `…_TOO_DEEP`, `…_TOO_COMPLEX`). |
+| `htmlError` | `Exception \| undefined` | Pourquoi `html` est absent alors que le message a un corps HTML (`E_GOLDSTONE_HTML_TOO_LARGE`, `…_TOO_DEEP`, `…_TOO_COMPLEX`). |
 | `attachments` | `readonly Attachment[]` | |
 | `authenticity` | `Authenticity \| undefined` | Présent quand le message est lu avec `readMessage`. |
 | `header(name)` | `header(name: string): string \| undefined` | Le premier en-tête de ce nom, sans tenir compte de la casse. |
@@ -190,15 +189,6 @@ La route doit passer par le body parser, avec des limites de formulaire et de mu
 | `ReplayGuard.claim` | `claim(token: string, ttlSeconds: number): boolean \| Promise<boolean>` | Prend le jeton ; `false` s'il est déjà pris. Doit être atomique. |
 | `ReplayGuard.release` | `release(token: string): void \| Promise<void>` | Rend un jeton. |
 | constructeur de `MemoryReplayGuard` | `new MemoryReplayGuard(capacity?: number)` | Capacité par défaut : 100000. |
-
-### `GoldstoneError`
-
-Étend `Error` ; `name` vaut le nom de la classe. `GoldstoneNativeRequiredError` l'étend avec le code `E_GOLDSTONE_NATIVE_REQUIRED`.
-
-| Membre | Signature | Description |
-|---|---|---|
-| `code` | `readonly code: string` | Un code `E_GOLDSTONE_*`. |
-| constructeur | `new GoldstoneError(code: string, message: string, options?: ErrorOptions)` | |
 
 ### `@c9up/goldstone/provider`
 
@@ -252,6 +242,8 @@ Les jetons en chaîne sont déclarés sur `ContainerBindings`.
 
 ## Erreurs
 
+Chaque code est une classe de l'espace de noms `errors` (`import { errors } from '@c9up/goldstone'`) : une `Exception` de flare avec `code` et `status`. Les refus du contenu d'un message (de `E_GOLDSTONE_MESSAGE_TOO_LARGE` à `E_GOLDSTONE_HTML_TOO_COMPLEX` ci-dessous) ont le statut 422 ; les autres 500.
+
 | Code | Levée quand |
 |---|---|
 | [`E_GOLDSTONE_MESSAGE_TOO_LARGE`](/fr/reference/errors#e-goldstone-message-too-large) | Un message dépasse `maxBytes` ; refusé avant téléchargement quand le serveur annonce sa taille. |
@@ -277,6 +269,15 @@ Les jetons en chaîne sont déclarés sur `ContainerBindings`.
 | [`E_GOLDSTONE_INSECURE_CONNECTION`](/fr/reference/errors#e-goldstone-insecure-connection) | Une boîte se connecterait sans TLS ou sans vérifier le certificat. |
 | [`E_GOLDSTONE_UNKNOWN_MAILBOX`](/fr/reference/errors#e-goldstone-unknown-mailbox) | Un nom de boîte n'est pas configuré. |
 | [`E_GOLDSTONE_UIDVALIDITY_CHANGED`](/fr/reference/errors#e-goldstone-uidvalidity-changed) | Un dossier surveillé a renuméroté ses messages ; la surveillance reprend au plus récent. |
+| [`E_GOLDSTONE_MISSING_CONFIG`](/fr/reference/errors#e-goldstone-missing-config) | `GoldstoneProvider` s'est enregistré sans `config/inbox.ts`. |
+| [`E_GOLDSTONE_NOT_BOOTED`](/fr/reference/errors#e-goldstone-not-booted) | La boîte de `services/main` a servi avant l'enregistrement de `GoldstoneProvider` ou l'appel de `setInbox()`. |
+
+## Migration
+
+- `GoldstoneError` disparaît : testez `error.code`, ou `error instanceof errors.E_GOLDSTONE_*` avec `import { errors } from '@c9up/goldstone'`.
+- `GoldstoneNativeRequiredError` devient `errors.E_GOLDSTONE_NATIVE_REQUIRED`.
+- `fromEngine()` et `htmlError` donnent une `Exception` de flare, la classe du code.
+- Un refus du contenu d'un message a désormais le `status` 422 (voir [Erreurs](#erreurs)).
 
 ## Voir aussi
 

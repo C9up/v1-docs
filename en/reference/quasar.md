@@ -14,7 +14,7 @@ pnpm add @c9up/quasar
 
 | Import | Contents |
 |---|---|
-| `@c9up/quasar` | `defineConfig`, `QuasarManager`, `QuasarConnection`, health checks, tracing channels, types |
+| `@c9up/quasar` | `defineConfig`, `QuasarManager`, `QuasarConnection`, health checks, tracing channels, `errors`, types |
 | `@c9up/quasar/provider` | `QuasarProvider` (default export) |
 | `@c9up/quasar/services/main` | The default manager (default export), `setQuasar`, `getQuasar`, `clearQuasar` |
 | `@c9up/quasar/configure` | `configure(codemods)`, run by `ream configure` |
@@ -31,8 +31,7 @@ pnpm add @c9up/quasar
 | `QuasarConnection` | class | One connection: the ioredis commands, pub/sub, state and events. |
 | `QuasarCheck` | class | Health check that PINGs a connection. |
 | `QuasarMemoryUsageCheck` | class | Health check comparing the server's memory use with a warning and a failure threshold. |
-| `InvalidBytesValueError` | error | A memory threshold cannot be read as a size (`E_INVALID_BYTES_VALUE`, status 500). |
-| `errors` | const | `{ E_INVALID_BYTES_VALUE: InvalidBytesValueError }`. |
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors) |
 | `tracingChannels` | const | Namespace holding `redisCommand`, the `quasar.redis.command` tracing channel. |
 | `QuasarConfig` | type | `{ connection: keyof Connections & string; connections: Connections }`. |
 | `ConnectionConfig` | type | `StandaloneConnectionConfig \| ClusterConnectionConfig`. |
@@ -170,8 +169,21 @@ Both tokens are typed on `ContainerBindings` once `@c9up/quasar` is imported.
 | Code | Raised when |
 |---|---|
 | [`E_INVALID_BYTES_VALUE`](/en/reference/errors#e-invalid-bytes-value) | A memory threshold of `QuasarMemoryUsageCheck` cannot be read as a size. |
+| [`E_QUASAR_MISSING_CONFIG`](/en/reference/errors#e-quasar-missing-config) | `QuasarProvider` registers and `config/redis.ts` does not exist. |
+| [`E_QUASAR_INVALID_CONFIG`](/en/reference/errors#e-quasar-invalid-config) | `defineConfig` declares no connection, or names a default connection it does not declare. |
+| [`E_QUASAR_INVALID_PORT`](/en/reference/errors#e-quasar-invalid-port) | A connection's `port` is not a whole number between 0 and 65535. |
+| [`E_QUASAR_UNKNOWN_CONNECTION`](/en/reference/errors#e-quasar-unknown-connection) | `connection(name)` names a connection the config does not declare. |
+| [`E_QUASAR_UNKNOWN_COMMAND`](/en/reference/errors#e-quasar-unknown-command) | `runCommand()` names a command never defined with `defineCommand()`, or the connection lacks a forwarded command. |
+| [`E_QUASAR_NOT_A_CLUSTER`](/en/reference/errors#e-quasar-not-a-cluster) | `nodes()` is called on a standalone connection. |
+| [`E_QUASAR_INVALID_DURATION`](/en/reference/errors#e-quasar-invalid-duration) | `cacheFor()` on a health check is given a duration it cannot read. |
+| [`E_QUASAR_NOT_BOOTED`](/en/reference/errors#e-quasar-not-booted) | A member of `services/main` is read before `QuasarProvider` seated a manager, or before `setQuasar()`. |
 
-The other refusals are plain `Error`s whose message starts with `[redis]`: missing `config/redis.ts`, an undeclared connection name, a port that is not a port number, `nodes()` on a standalone connection, a member of `services/main` read before a manager is seated.
+Each one is a class of the `errors` namespace and a `@c9up/flare` `Exception` with status 500: branch on `error.code` or on `error instanceof errors.E_*`. The messages of the `E_QUASAR_` refusals start with `[redis]`.
+
+## Migration
+
+- `QuasarError` is gone: test `error.code`, or `error instanceof errors.E_QUASAR_*` with `import { errors } from '@c9up/quasar'`.
+- `InvalidBytesValueError` is no longer exported: use `errors.E_INVALID_BYTES_VALUE`, which was already its alias.
 
 ## See also
 

@@ -30,8 +30,7 @@ Texte brut uniquement.
 |---|---|---|
 | `writeText` | fonction | Place du texte dans le presse-papiers du système. |
 | `readText` | fonction | Lit le texte du presse-papiers du système. |
-| `OrbitClipboardError` | erreur | Tout échec des deux appels. |
-| `OrbitClipboardErrorCode` | type | Les codes que porte une `OrbitClipboardError`. |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs) |
 
 ### Fonctions
 
@@ -40,22 +39,9 @@ Texte brut uniquement.
 | `writeText` | `writeText(text: string): Promise<void>` | Place `text` dans le presse-papiers du système. |
 | `readText` | `readText(): Promise<string>` | Le texte du presse-papiers du système ; `""` s'il n'en contient pas. |
 
-### `OrbitClipboardError`
-
-Étend `Error` ; `name` vaut `"OrbitClipboardError"`. L'échec de la plateforme est conservé dans `cause`.
-
-| Membre | Signature | Description |
-|---|---|---|
-| `code` | `readonly code: OrbitClipboardErrorCode` | Le code stable sur lequel brancher, le même dans le navigateur et sur un téléphone. |
-| constructeur | `new OrbitClipboardError(code: OrbitClipboardErrorCode, message: string, options?: ErrorOptions)` | |
-
-```ts
-type OrbitClipboardErrorCode =
-  | 'E_ORBIT_CLIPBOARD_UNAVAILABLE'
-  | 'E_ORBIT_CLIPBOARD_DENIED'
-```
-
 ## Erreurs
+
+Chaque code est une classe de l'export `errors`, la même dans le navigateur et sur un téléphone ; l'échec de la plateforme est conservé dans `cause`.
 
 | Code | Levée quand |
 |---|---|

@@ -34,7 +34,7 @@ The server:
 |---|---|---|
 | `VisaManager` | class | The authorization server: clients, authorize, consent, token, introspection, revocation, verification |
 | `VisaConfig` | interface | `VisaManager` options (see Configuration) |
-| `AuthorizationOutcome` | type | `{ type: 'redirect'; url } \| { type: 'consent'; request: ValidatedRequest } \| { type: 'error'; error: OAuthError }` |
+| `AuthorizationOutcome` | type | `{ type: 'redirect'; url } \| { type: 'consent'; request: ValidatedRequest } \| { type: 'error'; error: errors.E_VISA_OAUTH_ERROR }` |
 | `ConsentTicket` | interface | `{ id: string; userId: string; expiresAt: number; request: AuthorizationRequest }`, kept in the session between the consent page and its answer |
 | `defineConfig` | function | Same as `@c9up/visa/config` |
 | `VisaConfigInput` | interface | Same as `@c9up/visa/config` |
@@ -47,10 +47,10 @@ Protocol functions, each also reachable through `VisaManager`:
 
 | Export | Kind | Description |
 |---|---|---|
-| `validateAuthorizationRequest` | function | `validateAuthorizationRequest(request: UntrustedAuthorizationRequest, store: VisaStore, options?: AuthorizeOptions): Promise<ValidatedRequest>`; throws `UnredirectableError` or `OAuthError` |
+| `validateAuthorizationRequest` | function | `validateAuthorizationRequest(request: UntrustedAuthorizationRequest, store: VisaStore, options?: AuthorizeOptions): Promise<ValidatedRequest>`; throws `errors.E_VISA_UNREDIRECTABLE` or `errors.E_VISA_OAUTH_ERROR` |
 | `issueAuthorizationCode` | function | `issueAuthorizationCode(validated: ValidatedRequest, userId: string, store: VisaStore, options?: AuthorizeOptions, now?: Date): Promise<string>`; the code lives `codeTtlSeconds` (30 s) |
 | `successRedirect` | function | `successRedirect(validated: ValidatedRequest, code: string): string` |
-| `errorRedirect` | function | `errorRedirect(redirectUri: string, error: OAuthError, state?: string): string` |
+| `errorRedirect` | function | `errorRedirect(redirectUri: string, error: errors.E_VISA_OAUTH_ERROR, state?: string): string` |
 | `token` | function | `token(request: TokenRequest, credentials: ClientCredentials, store: VisaStore, options?: TokenOptions, now?: Date): Promise<TokenResponse>` |
 | `introspect` | function | `introspect(request, credentials, store, now?, issuer?, options?: IntrospectionOptions): Promise<IntrospectionResponse>` |
 | `revoke` | function | `revoke(request, credentials, store, now?): Promise<void>` |
@@ -92,10 +92,7 @@ Guard, stores and errors:
 | `MemoryStore` | class | Same as `@c9up/visa/stores/memory` |
 | `AtlasStore` | class | Same as `@c9up/visa/stores/atlas` |
 | `AtlasDb`, `AtlasQuery`, `AtlasStoreTables` | interface | Same as `@c9up/visa/stores/atlas` |
-| `OAuthError` | error | A protocol error: `code` (`invalid_grant`…), `description`, `status` (401 for `invalid_client` and `invalid_token`, else 400), `challenge`, `toResponse()` |
-| `UnredirectableError` | error | An authorization failure to show the user, never to redirect; carries `error: OAuthError` |
-| `UnauthorizedAccessError` | error | `code` `E_UNAUTHORIZED_ACCESS`, `status` 403: a token lacks an ability |
-| `VisaError` | error | An application mistake: `code` (`E_VISA_*`), `hint` |
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors) |
 | `ProtocolErrorCode` | type | Union of the four code types below |
 | `AuthorizationErrorCode` | type | `'invalid_request' \| 'unauthorized_client' \| 'access_denied' \| 'unsupported_response_type' \| 'invalid_scope' \| 'invalid_target' \| 'server_error' \| 'temporarily_unavailable'` |
 | `TokenErrorCode` | type | `'invalid_request' \| 'invalid_client' \| 'invalid_grant' \| 'unauthorized_client' \| 'unsupported_grant_type' \| 'invalid_scope' \| 'invalid_target'` |
@@ -159,7 +156,7 @@ Request and option types:
 | `authenticateAsClient` | `authenticateAsClient(user, abilities?, options?): Promise<GuardClientResponse>` | The `Authorization` header a test client sends to be `user` |
 | `challenge` | `challenge(options?: { error?: string; scope?: readonly string[] }): string` | The `WWW-Authenticate` value of a 401 from this guard |
 
-`VisaAccessToken` carries `clientId`, `userId?`, `abilities`, `name`, `expiresAt`, `lastUsedAt` and `value?` (the plaintext, only right after `createToken`), with `allows(ability)`, `denies(ability)`, `authorize(ability)` (throws `UnauthorizedAccessError`), `isExpired()` and `toJSON()`. `*` allows every ability.
+`VisaAccessToken` carries `clientId`, `userId?`, `abilities`, `name`, `expiresAt`, `lastUsedAt` and `value?` (the plaintext, only right after `createToken`), with `allows(ability)`, `denies(ability)`, `authorize(ability)` (throws `E_UNAUTHORIZED_ACCESS`), `isExpired()` and `toJSON()`. `*` allows every ability.
 
 `VisaGuardConfig`:
 
@@ -225,7 +222,7 @@ Routes the provider mounts (`prefix` defaults to `/oauth`):
 | `GET /.well-known/oauth-authorization-server{issuer path}` | always | The authorization server metadata |
 | `GET /.well-known/oauth-protected-resource[/{resource path}]` | `protectedResource` is set | `ProtectedResourceMetadata` |
 
-These endpoints read their parameters from the body only; an OAuth parameter in the query string is refused with `invalid_request`. An `OAuthError` becomes its `status` and `toResponse()` body, with `WWW-Authenticate` on a 401. `{prefix}/authorize` is not mounted: build it with `visa.authorize()`, `consentTicket()`, `redeemConsentTicket()`, `grant()` and `deny()`.
+These endpoints read their parameters from the body only; an OAuth parameter in the query string is refused with `invalid_request`. An `E_VISA_OAUTH_ERROR` becomes its `status` and `toResponse()` body, with `WWW-Authenticate` on a 401. `{prefix}/authorize` is not mounted: build it with `visa.authorize()`, `consentTicket()`, `redeemConsentTicket()`, `grant()` and `deny()`.
 
 ### `@c9up/visa/services/main`
 
@@ -344,11 +341,28 @@ export default defineConfig({
 | [`E_VISA_INVALID_INITIAL_ACCESS_TOKEN`](/en/reference/errors#e-visa-invalid-initial-access-token) | `registration.initialAccessToken` is the empty string |
 | [`E_VISA_INVALID_SECRET_TTL`](/en/reference/errors#e-visa-invalid-secret-ttl) | `registration.secretTtlSeconds` is not a positive whole number |
 | [`E_VISA_STORE_READ_ONLY`](/en/reference/errors#e-visa-store-read-only) | The store has no `saveClient`, and `registerClient()` was called or registration is enabled |
+| [`E_VISA_MISSING_CONFIG`](/en/reference/errors#e-visa-missing-config) | `VisaProvider` found no `config/visa.ts` |
+| [`E_VISA_NOT_BOOTED`](/en/reference/errors#e-visa-not-booted) | `@c9up/visa/services/main` was read before the provider booted, or before `setVisa()` |
+| [`E_VISA_CREDENTIALS_UNSUPPORTED`](/en/reference/errors#e-visa-credentials-unsupported) | `authenticate()` with credentials on the visa guard; send the bearer token to `verify()` |
+| [`E_VISA_NO_TOKEN_CLIENT`](/en/reference/errors#e-visa-no-token-client) | `createToken()` on a guard built without `tokenClientId` |
+| [`E_VISA_INVALID_RESOURCE`](/en/reference/errors#e-visa-invalid-resource) | A resource identifier is not an absolute URI, or carries a fragment |
+| [`E_VISA_INVALID_CHALLENGE_PARAMETER`](/en/reference/errors#e-visa-invalid-challenge-parameter) | A `wwwAuthenticate()` parameter holds a quote, a backslash or a control character |
+| [`E_VISA_CORRUPT_ROW`](/en/reference/errors#e-visa-corrupt-row) | The Atlas store read a column it cannot decode (a list, a date, a string, an auth method) |
+| [`E_VISA_TEST_AUTHORIZE_FAILED`](/en/reference/errors#e-visa-test-authorize-failed) | The testing helper's authorization request was refused; the message carries the OAuth error |
+| [`E_VISA_INTERNAL`](/en/reference/errors#e-visa-internal) | An internal invariant broke (a bug in visa) |
 | [`E_UNAUTHORIZED_ACCESS`](/en/reference/errors#e-unauthorized-access) | `currentAccessToken.authorize(ability)` on a token without that ability (403) |
+| [`E_VISA_OAUTH_ERROR`](/en/reference/errors#e-visa-oauth-error) | A client's mistake, answered on the wire: `oauthCode` is the protocol string (`invalid_grant`, `invalid_client`…), with `description`, `challenge` and `toResponse()`; `status` 401 for `invalid_client` and `invalid_token`, else 400 |
+| [`E_VISA_UNREDIRECTABLE`](/en/reference/errors#e-visa-unredirectable) | An authorization failure to show the user, never to redirect (unknown client or redirect URI); `error` is the `E_VISA_OAUTH_ERROR` to show (400) |
 
-These are `VisaError`s, raised to the application. A client's mistake is an `OAuthError` whose `code` is the protocol string (`invalid_grant`, `invalid_client`…), sent as the endpoint's answer.
+Each one is a class of the `errors` namespace and a `@c9up/flare` `Exception`, with status 500 unless stated: branch on `error.code` or on `error instanceof errors.E_VISA_*`. A configuration mistake's advice is in `help`.
 
 ## Migration
+
+- `VisaError` is gone: test `error.code`, or `error instanceof errors.E_VISA_*` with `import { errors } from '@c9up/visa'`. Its `hint` is now `help`.
+- `OAuthError` becomes `errors.E_VISA_OAUTH_ERROR`: its `code` is now `'E_VISA_OAUTH_ERROR'`, and the protocol string moved to `oauthCode` (`error.code === 'invalid_grant'` becomes `error.oauthCode === 'invalid_grant'`). The constructor, `description`, `status`, `challenge` and `toResponse()` are unchanged.
+- `UnredirectableError` becomes `errors.E_VISA_UNREDIRECTABLE`, still carrying `error`.
+- `UnauthorizedAccessError` becomes `errors.E_UNAUTHORIZED_ACCESS`; its `code` and status 403 are unchanged.
+
 
 An application on `AtlasStore` whose tables came from an earlier version runs `ream configure @c9up/visa` again before upgrading, then its migrations. The existing `9000_create_visa_tables` is left alone; the command adds `9001_add_visa_client_secret_expiry` (the `secret_expires_at` column of `visa_clients`, missing up to 0.1.3) and `9002_add_visa_code_redirect_uri_omitted` (the `redirect_uri_omitted` column of `visa_authorization_codes`).
 

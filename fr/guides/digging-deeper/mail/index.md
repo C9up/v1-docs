@@ -85,7 +85,7 @@ Les transports HTTP (`mailgun`, `sparkpost`, `brevo`, `sendgrid`) acceptent un
 porte la clé d'API : il doit donc être en `https://` — `http://` seulement vers
 `localhost`, pour une imitation locale de l'API — sans identifiants, ni
 paramètres, ni fragment ; sinon la construction du transport échoue avec
-`E_MAIL_PROVIDER_CONFIG`. Omis, c'est l'adresse du fournisseur.
+`E_INVALID_CONFIG`. Omis, c'est l'adresse du fournisseur.
 
 `transports` est l'ancien nom rover de la même table. Il fonctionne toujours —
 une config écrite ainsi n'a rien à changer — mais les nouvelles déclarent

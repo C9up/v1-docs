@@ -273,7 +273,7 @@ export default defineConfig({
 
 The `migration:*` commands and `AtlasProvider` read the same key, so they all see one history.
 
-`tableName` must match `/^[A-Za-z_][A-Za-z0-9_]*$/` — letters, digits, and underscores only, and must not start with a digit. An invalid name throws an `AtlasError` with code `E_ATLAS_MIGRATION_INVALID_TABLE_NAME` synchronously from the `MigrationRunner` constructor; the Rust query compiler enforces the same shape as a second defense layer.
+`tableName` must match `/^[A-Za-z_][A-Za-z0-9_]*$/` — letters, digits, and underscores only, and must not start with a digit. An invalid name throws `errors.E_ATLAS_MIGRATION_INVALID_TABLE_NAME` synchronously from the `MigrationRunner` constructor; the Rust query compiler enforces the same shape as a second defense layer.
 
 Renaming does not move the history: the runner creates the new table empty, sees no applied migration and replays every one. Copy the rows first (`INSERT INTO schema_versions SELECT * FROM ream_migrations`), then switch.
 

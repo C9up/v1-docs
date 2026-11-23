@@ -155,7 +155,7 @@ package exists to prevent, so the rule refuses to be built at all:
 
 ```typescript
 rules.string().postalCode({ countryCode: 'ZZ' })
-// RuneError: postalCode(): no pattern for country 'ZZ'.
+// E_RUNE_UNSUPPORTED_COUNTRY: postalCode(): no pattern for country 'ZZ'.
 ```
 
 `mobile()` with no `locale` accepts a number matching **any** known plan, or a

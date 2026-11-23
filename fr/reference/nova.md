@@ -60,7 +60,7 @@ ream configure @c9up/nova
 | `VapidKeyPair` | interface | `{ publicKey: string; privateKey: string }`, en base64url. |
 | `NovaProvider` | provider | Aussi l'export par défaut de `@c9up/nova/provider`. |
 | `NovaAppContext` | interface | Ce que le provider lit de l'application. |
-| `NovaError` | erreur | Tout échec côté serveur de nova. |
+| `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs) |
 
 ### `Nova`
 
@@ -163,12 +163,12 @@ await push.pushToUser(user.id, { title: 'New task', body: task.title })
 | `urlBase64ToUint8Array` | fonction | Une clé publique VAPID base64url sous la forme `Uint8Array` que prend `applicationServerKey`. |
 | `SubscribeOptions` | interface | Options de `subscribe` et `unsubscribe`. |
 | `RegisterServiceWorkerOptions` | interface | `{ scope?: string }`, `'/'` par défaut. |
-| `NovaClientError` | erreur | Une API navigateur absente ou une requête refusée. |
+| `errors` | namespace | Les erreurs du client, une classe par code, voir [Erreurs](#erreurs) |
 
 | Fonction | Signature | Description |
 |---|---|---|
 | `registerServiceWorker` | `registerServiceWorker(path?: string, options?: RegisterServiceWorkerOptions): Promise<ServiceWorkerRegistration>` | `path` vaut `'/sw.js'` par défaut. |
-| `subscribe` | `subscribe(vapidPublicKey: string, options?: SubscribeOptions): Promise<PushSubscription>` | Attend le service worker actif, s'abonne avec `userVisibleOnly`, et envoie l'abonnement par POST ; lève `NovaClientError` sur une réponse hors 2xx. |
+| `subscribe` | `subscribe(vapidPublicKey: string, options?: SubscribeOptions): Promise<PushSubscription>` | Attend le service worker actif, s'abonne avec `userVisibleOnly`, et envoie l'abonnement par POST ; lève `E_NOVA_ENDPOINT_REJECTED` sur une réponse hors 2xx. |
 | `unsubscribe` | `unsubscribe(options?: SubscribeOptions): Promise<boolean>` | Supprime l'abonnement sur le serveur par DELETE, puis l'abandonne dans le navigateur même si le serveur a échoué ; `false` si le navigateur n'en avait pas. Appelez-la à la déconnexion. |
 | `urlBase64ToUint8Array` | `urlBase64ToUint8Array(base64url: string): Uint8Array` | |
 
@@ -179,7 +179,7 @@ await push.pushToUser(user.id, { title: 'New task', body: task.title })
 | `headers` | `HeadersInit` | | Des en-têtes supplémentaires, fusionnés par-dessus `content-type: application/json`. |
 | `accessToken` | `string` | | Raccourci pour `Authorization: Bearer <accessToken>` ; ignoré si `headers` contient déjà un `authorization`. |
 
-`NovaClientError` étend `Error` avec `status?: number` et `responseBody?: string`.
+`E_NOVA_ENDPOINT_REJECTED` porte la réponse de la route dans `status` et `responseBody`.
 
 ### `@c9up/nova/configure`
 
@@ -210,16 +210,6 @@ await push.pushToUser(user.id, { title: 'New task', body: task.title })
 | `reset` | `reset(): void` | Oublie ce qui a été enregistré. |
 | `assertPushed` | `assertPushed(predicate: FakeNovaPredicateArg): void` | Lève une erreur si aucun envoi enregistré ne correspond. |
 | `assertNotPushed` | `assertNotPushed(predicate: FakeNovaPredicateArg): void` | Lève une erreur si un envoi enregistré correspond. |
-
-### `NovaError`
-
-Étend `Error` ; `name` vaut `"NovaError"`.
-
-| Membre | Signature | Description |
-|---|---|---|
-| `code` | `readonly code: string` | Un code `E_NOVA_*`. |
-| `hint` | `readonly hint?: string` | Comment corriger. |
-| constructeur | `new NovaError(code: string, message: string, options?: { hint?: string; cause?: unknown })` | |
 
 ## Configuration
 
@@ -262,7 +252,7 @@ Les jetons sont déclarés sur `ContainerBindings` : `container.resolve('nova.pu
 | [`E_NOVA_SUBSCRIPTION_CONFLICT`](/fr/reference/errors#e-nova-subscription-conflict) | Une autre requête écrivait le même endpoint au même moment (HTTP 409). |
 | [`E_NOVA_SUBSCRIPTION_NOT_FOUND`](/fr/reference/errors#e-nova-subscription-not-found) | L'utilisateur n'a pas cet abonnement (HTTP 404). |
 | [`E_NOVA_MISSING_USER`](/fr/reference/errors#e-nova-missing-user) | Le gestionnaire d'abonnement s'est exécuté sans utilisateur authentifié. |
-| [`E_NOVA_INVALID_USER_ID`](/fr/reference/errors#e-nova-invalid-user-id) | L'utilisateur n'a pas d'id utilisable (une chaîne non vide ou un entier). |
+| [`E_NOVA_INVALID_USER_ID`](/fr/reference/errors#e-nova-invalid-user-id) | L'utilisateur n'a pas d'id utilisable (une chaîne non vide ou un entier), ou `pushToUser` en a reçu un qui n'en est pas un. |
 | [`E_NOVA_VAPID_NOT_CONFIGURED`](/fr/reference/errors#e-nova-vapid-not-configured) | Un envoi a lieu sans clé ou sujet VAPID. |
 | [`E_NOVA_HTTP_CLIENT_MISSING`](/fr/reference/errors#e-nova-http-client-missing) | L'envoi a besoin du client HTTP sortant de `@c9up/ream` et aucun n'est fourni. |
 | [`E_NOVA_UNKNOWN_STORE`](/fr/reference/errors#e-nova-unknown-store) | `default` désigne un magasin que `stores` ne déclare pas, ou `stores` n'a pas de `default`. |
@@ -272,6 +262,26 @@ Les jetons sont déclarés sur `ContainerBindings` : `container.resolve('nova.pu
 | [`E_NOVA_STORE_FILE_UNREADABLE`](/fr/reference/errors#e-nova-store-file-unreadable) | Le fichier du magasin fichier n'est pas du JSON valide. |
 | [`E_NOVA_QUASAR_MISSING`](/fr/reference/errors#e-nova-quasar-missing) | Un magasin Redis désigne une connexion et `@c9up/quasar` n'est pas installé. |
 | [`E_NOVA_REDIS_INCOMPLETE`](/fr/reference/errors#e-nova-redis-incomplete) | La connexion quasar n'offre pas une commande qu'émet le magasin. |
+| [`E_NOVA_NOT_BOOTED`](/fr/reference/errors#e-nova-not-booted) | `@c9up/nova/services/main` a servi avant l'exécution de `NovaProvider.boot()`. |
+| [`E_NOVA_INVALID_OPTION`](/fr/reference/errors#e-nova-invalid-option) | Une option d'envoi ou de magasin sort de ses limites : `concurrency`, `timeout`, une entrée de `pushServices` ou `allowHosts`, `maxSubscriptionsPerUser`, `maxPerUser`, ou le `ttl` ou le `topic` d'un envoi. |
+| [`E_NOVA_ASSERTION_FAILED`](/fr/reference/errors#e-nova-assertion-failed) | `FakeNova.assertPushed()` ou `assertNotPushed()` n'est pas vérifiée. |
+| [`E_NOVA_INVALID_PREDICATE`](/fr/reference/errors#e-nova-invalid-predicate) | Une assertion de `FakeNova` a reçu un `containing` vide, qui correspondrait à tout envoi. |
+| [`E_NOVA_INTERNAL`](/fr/reference/errors#e-nova-internal) | Un invariant de nova a cédé (la paire de clés VAPID générée par Node a une forme inattendue). Un bug : signalez-le. |
+
+Levées par `@c9up/nova/client`, exportées depuis son propre `errors` :
+
+| Code | Levée quand |
+|---|---|
+| [`E_NOVA_SERVICE_WORKER_UNSUPPORTED`](/fr/reference/errors#e-nova-service-worker-unsupported) | L'environnement n'a pas de `navigator.serviceWorker`. |
+| [`E_NOVA_PUSH_SUBSCRIBE_FAILED`](/fr/reference/errors#e-nova-push-subscribe-failed) | Le navigateur a refusé `pushManager.subscribe()` ; l'erreur du navigateur est la `cause`. |
+| [`E_NOVA_ENDPOINT_REJECTED`](/fr/reference/errors#e-nova-endpoint-rejected) | La route d'abonnement a répondu à `subscribe()` autre chose que 201, ou à `unsubscribe()` une erreur autre que 404. `status` et `responseBody` gardent la réponse. |
+
+## Migration
+
+- Nova exige maintenant `@c9up/ream` 0.2.32 ou plus récent : il reconnaît les échecs du client HTTP à leur code `E_HTTP_CLIENT_*`. Mettez les deux paquets à jour ensemble.
+- `NovaError` et `NovaTypeError` disparaissent : testez `error.code`, ou `error instanceof errors.E_NOVA_*` avec `import { errors } from '@c9up/nova'`. `E_NOVA_INVALID_OPTION` et `E_NOVA_INVALID_USER_ID` ne sont plus des `TypeError`.
+- `error.hint` devient `error.help`.
+- `NovaClientError` disparaît : `import { errors } from '@c9up/nova/client'` et testez `E_NOVA_SERVICE_WORKER_UNSUPPORTED`, `E_NOVA_PUSH_SUBSCRIBE_FAILED` ou `E_NOVA_ENDPOINT_REJECTED` ; ce dernier garde `status` et `responseBody`.
 
 ## Voir aussi
 

@@ -36,6 +36,7 @@ chronos has no provider and no configuration. The native engine ships prebuilt i
 | `isHoliday` | function | `isHoliday(date: string \| DateTime, options: HolidayOptions): boolean`. |
 | `easterDate` | function | `easterDate(year: number): string`: Gregorian Easter Sunday as `YYYY-MM-DD`, years 1583 to 9999. |
 | `SWISS_CANTONS` | const | The 26 two-letter canton codes. |
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors). Each is a flare `Exception` with a string `code`. |
 | `at` | function | `at(input?: string \| Date): DateTime`. |
 | `Chronos` | const | Shortcuts: `at`, `now`, `parse`, `add`, `subtract`, `diff`, `inRange`, `rangeContains`, `rangesOverlap`, `rangeRelation`, `rrule`, `buildRRule`. |
 | `DateInput` | type | `string \| Date \| DateTime`. |
@@ -163,9 +164,35 @@ chronos has no provider and no configuration. The native engine ships prebuilt i
 | [`E_CHRONOS_INVALID_YEAR`](/en/reference/errors#e-chronos-invalid-year) | `easterDate` or `holidays` got a year that is not an integer from 1583 to 9999. |
 | [`E_CHRONOS_UNKNOWN_COUNTRY`](/en/reference/errors#e-chronos-unknown-country) | `holidays` or `isHoliday` got a country without a holiday calendar. |
 | [`E_CHRONOS_UNKNOWN_REGION`](/en/reference/errors#e-chronos-unknown-region) | The region is not a Swiss canton code, or a region was given for `FR`. |
-| [`E_CHRONOS_INVALID_DATE`](/en/reference/errors#e-chronos-invalid-date) | `isHoliday` got a string that is not `YYYY-MM-DD`. |
+| [`E_CHRONOS_INVALID_DATE`](/en/reference/errors#e-chronos-invalid-date) | A date that does not exist or does not parse: `2026-02-30`, a field out of range, a string `fromFormat` cannot match, an `Invalid Date`, a `NaN` instant; or `isHoliday` got a string that is not `YYYY-MM-DD`. |
+| [`E_CHRONOS_ENGINE_REQUIRED`](/en/reference/errors#e-chronos-engine-required) | The Chronos engine (the NAPI binary in Node, the WASM build in a browser) did not load. |
+| [`E_CHRONOS_INVALID_ARGUMENT`](/en/reference/errors#e-chronos-invalid-argument) | An argument has the wrong type (`fromMillis("12")`, `fromFormat` without a string, `expandRRule(rule, options)` without the rule text), or `toRelative` got an unknown `rounding`. |
+| [`E_CHRONOS_OUT_OF_RANGE`](/en/reference/errors#e-chronos-out-of-range) | A value or a `plus`/`minus` result falls outside years 0000-9999. |
+| [`E_CHRONOS_CONFLICTING_FIELDS`](/en/reference/errors#e-chronos-conflicting-fields) | A format mixes fields that contradict each other: a meridiem with a 24-hour hour, week fields with year/month/day, an ordinal with month/day. |
+| [`E_CHRONOS_UNSUPPORTED_UNIT`](/en/reference/errors#e-chronos-unsupported-unit) | A unit chronos does not know (`fortnight`) was given to `plus`, `diff`, `toRelative`, `Duration` or an `Interval` method. |
+| [`E_CHRONOS_MISSING_UNIT`](/en/reference/errors#e-chronos-missing-unit) | `plus(amount)` / `minus(amount)` without a unit, or `diff` / `toRelative` with an empty unit list. |
+| [`E_CHRONOS_INVALID_UNIT_VALUE`](/en/reference/errors#e-chronos-invalid-unit-value) | A unit amount is not a finite number (`NaN`, `Infinity`, a string). |
+| [`E_CHRONOS_INVALID_DURATION`](/en/reference/errors#e-chronos-invalid-duration) | A duration that cannot be read or used: an ISO 8601 duration that does not parse, a value that is not an object of units, a non-positive `splitBy` step. |
+| [`E_CHRONOS_INVALID_INTERVAL`](/en/reference/errors#e-chronos-invalid-interval) | An `Interval` whose start is after its end, or an ISO 8601 interval that does not parse. |
+| [`E_CHRONOS_INVALID_RANGE`](/en/reference/errors#e-chronos-invalid-range) | A `DateRange` given to `inRange`, `containsRange`, `overlapsRange` or `analyzeRange` starts after it ends. |
+| [`E_CHRONOS_INVALID_LOCALE`](/en/reference/errors#e-chronos-invalid-locale) | `setLocale` got a tag `Intl` does not accept. |
+| [`E_CHRONOS_INVALID_RRULE`](/en/reference/errors#e-chronos-invalid-rrule) | `toRRuleString` (or `expandRRule` with a structured rule) got a field it cannot write into the rule text. |
+| [`E_CHRONOS_INVALID_RRULE_LIMIT`](/en/reference/errors#e-chronos-invalid-rrule-limit) | The `expandRRule` limit is not a positive integer. |
+| [`E_CHRONOS_RRULE_LIMIT_EXCEEDED`](/en/reference/errors#e-chronos-rrule-limit-exceeded) | The `expandRRule` limit is above the 10,000 cap. |
+| [`E_CHRONOS_INVALID_COLUMN_VALUE`](/en/reference/errors#e-chronos-invalid-column-value) | The atlas `DateTime` column adapter read a database value of an unexpected type, or was asked to store something other than a `DateTime`. |
+| [`E_CHRONOS_UNKNOWN_ZONE`](/en/reference/errors#e-chronos-unknown-zone) | A zone the tz database does not know: `new DateTime(input, zone)`, `DateTime.now(zone)`, `setZone`, `fromSQL`, the `tzid` of `expandRRule` or a `TZID` in its text. |
+| [`E_CHRONOS_UNREADABLE_RRULE`](/en/reference/errors#e-chronos-unreadable-rrule) | `expandRRule` got rule text the engine cannot read or expand: an unknown or repeated property, a value out of range, no start, a rule over the size limit. |
+| [`E_CHRONOS_INTERNAL`](/en/reference/errors#e-chronos-internal) | The engine answered something chronos does not expect (a bug in chronos, not in your code). |
 
-The other refusals carry no code: a `RangeError` for a field out of range, an unknown zone or a string that does not parse; a `TypeError` for an input of the wrong type; an `Error` for an interval whose start is after its end. A missing native engine throws an `Error` whose message starts with `[CHRONOS_ENGINE_REQUIRED]`.
+Every code is on `error.code`, and each code is a class of the `errors` namespace: `error instanceof errors.E_CHRONOS_INVALID_DATE`, with `import { errors } from '@c9up/chronos'`. Each is a flare `Exception`.
+
+The Rust engine's refusals reach you with the same codes: chronos reads the engine's message back into the matching error, the engine's own failure kept as `cause`.
+
+## Migration
+
+- `ChronosError`, `ChronosTypeError` and `ChronosRangeError` are gone. Replace `instanceof ChronosError` (or one of the other two) with a test on `error.code`, or with `instanceof errors.E_CHRONOS_...`, `errors` coming from `@c9up/chronos`.
+- A refusal is no longer a `TypeError` or a `RangeError`: `catch (e) { if (e instanceof RangeError) ... }` must test the code instead.
+- The engine's refusals no longer carry `code: 'GenericFailure'` with the code at the start of the message: an unknown zone is `E_CHRONOS_UNKNOWN_ZONE`, unreadable rule text `E_CHRONOS_UNREADABLE_RRULE`, a date-arithmetic result outside 0000-9999 `E_CHRONOS_OUT_OF_RANGE`, and `E_CHRONOS_UNKNOWN_COUNTRY`, `E_CHRONOS_UNKNOWN_REGION`, `E_CHRONOS_INVALID_YEAR`, `E_CHRONOS_INVALID_DATE` are on `error.code`, no longer in the message.
 
 ## See also
 

@@ -42,7 +42,7 @@ pnpm add @c9up/lumen
 | `TableRow` | type | `readonly TableInput[] \| Record<string, readonly TableInput[]>`. |
 | `TableChars` | interface | The border glyphs (`top`, `top-mid`, `left`, `mid-mid`, …). |
 | `TableOptions` | interface | `raw?: boolean` prints cells joined by `\|` with no border or colour; `chars?: Partial<TableChars>`. |
-| `InvalidColumnError` | error | A table asked for a column shape it does not have (`E_LUMEN_INVALID_COLUMN`). |
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors). |
 | `Steps` | class | A numbered list of things to do next. |
 | `Tasks` | class | A sequence of steps run in order, each with its outcome. |
 | `Task` | class | One step: its state, and the API its callback uses to report progress. |
@@ -284,6 +284,14 @@ Both implement `Renderer`:
 | Code | Raised when |
 |---|---|
 | [`E_LUMEN_INVALID_COLUMN`](/en/reference/errors#e-lumen-invalid-column) | `fluidColumnIndex()` or `columnWidths()` gets a negative or fractional value, a `colSpan` / `rowSpan` is not a positive integer, or `fullWidth()` names a fluid column the table does not have. |
+| [`E_LUMEN_TASK_NO_RESULT`](/en/reference/errors#e-lumen-task-no-result) | A task callback returned nothing and did not mark the task itself; found on the outcome's `error`, not thrown. |
+| [`E_LUMEN_TASK_FAILED`](/en/reference/errors#e-lumen-task-failed) | A task failed with something that is not an `Error` (a string, a thrown value, a returned `{ message, isError: true }`); found on the outcome's `error`, with the original value as `cause`. |
+| [`E_LUMEN_INTERNAL`](/en/reference/errors#e-lumen-internal) | An invariant inside lumen broke; a bug to report. |
+
+## Migration
+
+- `InvalidColumnError` is now `errors.E_LUMEN_INVALID_COLUMN`: replace `instanceof InvalidColumnError` with `error.code === 'E_LUMEN_INVALID_COLUMN'` or `instanceof errors.E_LUMEN_INVALID_COLUMN`.
+- A task's failure built from a value that is not an `Error` is `errors.E_LUMEN_TASK_FAILED`, and a task that returned nothing is `errors.E_LUMEN_TASK_NO_RESULT`: read `error.code` on the outcome.
 
 ## See also
 

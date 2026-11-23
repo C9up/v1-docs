@@ -99,7 +99,7 @@ type PushResult =
 
 A payload is encrypted as a single record (RFC 8291 §4), which holds at most 3993 bytes of plaintext: keep its JSON under that, and send an identifier the service worker can fetch the rest with.
 
-`nova.push()` never throws on what the endpoint does — an HTTP status, no answer in time, a connection that fails — it returns `ok: false` so callers can handle each subscription independently. It DOES throw `NovaError('E_NOVA_VAPID_NOT_CONFIGURED', ...)` if the VAPID config is missing or malformed on the first call (lazy validation), and throws on misuse: an invalid `ttl` or `topic`, a payload that will not serialise. `pushToUser()` turns a throw on one subscription into a `server-error` result, so one device cannot stop the others.
+`nova.push()` never throws on what the endpoint does — an HTTP status, no answer in time, a connection that fails — it returns `ok: false` so callers can handle each subscription independently. It DOES throw `E_NOVA_VAPID_NOT_CONFIGURED` if the VAPID config is missing or malformed on the first call (lazy validation), and throws on misuse: an invalid `ttl` or `topic`, a payload that will not serialise. `pushToUser()` turns a throw on one subscription into a `server-error` result, so one device cannot stop the others.
 
 ### Auto-cleanup on 404 / 410
 

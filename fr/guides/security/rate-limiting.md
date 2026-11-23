@@ -21,7 +21,7 @@ rateLimit: { max: 100, windowSeconds: 60 } // 100 requêtes / 60s
 Quand la limite est dépassée, la requête est rejetée avec :
 
 ```json
-{ "error": { "code": "E_BLACKHOLE_RATE_LIMITED", "message": "Too many requests" } }
+{ "error": { "code": "E_TOO_MANY_REQUESTS", "message": "Too many requests" } }
 ```
 
 Statut HTTP : `429 Too Many Requests`
@@ -53,7 +53,7 @@ router.post('/login', [AuthController, 'login']).use(loginThrottle)
 ```
 
 La clé est `<nom>_<usingKey>`, ou `<nom>_ip_<IP client>` (IPv6 par /64). Au-delà
-de la limite, le middleware lève `ThrottleException` (`E_TOO_MANY_REQUESTS`,
+de la limite, le middleware lève `errors.E_TOO_MANY_REQUESTS` (`ThrottleException`,
 `429`), rendue avec `X-RateLimit-*` et `Retry-After` en texte, JSON ou JSON:API
 selon `Accept`, son message traduit sous `errors.E_TOO_MANY_REQUESTS` quand le
 contexte a un `i18n`. `limitExceeded((error) => error.setMessage(…))`
@@ -86,7 +86,7 @@ const multi = limiter.multi([
   { key: `login_${ip}`, requests: 100, duration: '1 day', blockDuration: '1 hour' },
 ])
 
-await multi.consume()                          // lève la première ThrottleException
+await multi.consume()                          // lève la première E_TOO_MANY_REQUESTS
 const [error, user] = await multi.penalize(() => verify(email, password))
 ```
 

@@ -30,8 +30,7 @@ Plain text only.
 |---|---|---|
 | `writeText` | function | Puts text on the system clipboard. |
 | `readText` | function | Reads the text on the system clipboard. |
-| `OrbitClipboardError` | error | Every failure of the two calls. |
-| `OrbitClipboardErrorCode` | type | The codes an `OrbitClipboardError` carries. |
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors) |
 
 ### Functions
 
@@ -40,22 +39,9 @@ Plain text only.
 | `writeText` | `writeText(text: string): Promise<void>` | Puts `text` on the system clipboard. |
 | `readText` | `readText(): Promise<string>` | The text on the system clipboard; `""` when it holds none. |
 
-### `OrbitClipboardError`
-
-Extends `Error`; `name` is `"OrbitClipboardError"`. A platform failure is kept as `cause`.
-
-| Member | Signature | Description |
-|---|---|---|
-| `code` | `readonly code: OrbitClipboardErrorCode` | The stable code to branch on, the same in the browser and on a phone. |
-| constructor | `new OrbitClipboardError(code: OrbitClipboardErrorCode, message: string, options?: ErrorOptions)` | |
-
-```ts
-type OrbitClipboardErrorCode =
-  | 'E_ORBIT_CLIPBOARD_UNAVAILABLE'
-  | 'E_ORBIT_CLIPBOARD_DENIED'
-```
-
 ## Errors
+
+Each code is a class of the `errors` export, the same in the browser and on a phone; a platform failure is kept as `cause`.
 
 | Code | Raised when |
 |---|---|

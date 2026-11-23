@@ -106,7 +106,8 @@ written when `end()` is called.
 
 ## Errors
 
-Every refusal is a `VellumError` with a code: `E_VELLUM_INVALID_OPTIONS`,
+Every refusal is a class of the `errors` namespace of `@c9up/vellum`, with a
+code: `E_VELLUM_INVALID_OPTIONS`,
 `E_VELLUM_INVALID_FONT`, `E_VELLUM_INVALID_IMAGE`, `E_VELLUM_INVALID_SVG`,
 `E_VELLUM_INVALID_LINK`, `E_VELLUM_INVALID_OUTLINE`,
 `E_VELLUM_INVALID_STRUCTURE`, and `E_VELLUM_VALIDATION` when the document does

@@ -41,8 +41,7 @@ ream configure @c9up/prism
 | `qrcode` | const | `toString`, `toBuffer`, `toDataURL`: QR codes as SVG or images. |
 | `QRCodeOptions` and the other `QRCode*` types | type | The QR code options. |
 | `isNativeAvailable` | function | Whether the Rust engine is loaded. |
-| `PrismError` | error | Every failure of prism. |
-| `PrismNativeRequiredError` | error | The Rust engine is not loaded. |
+| `errors` | namespace | The package's errors, one class per code, see [Errors](#errors). Each is a flare `Exception` with a string `code`. |
 | `PRISM_CODES` | const | The engine's codes, without the `E_PRISM_` prefix. |
 | `PrismCode` | type | One of `PRISM_CODES`. |
 | `PrismConfig`, `Limits`, `ImageServingConfig` | type | The configuration. |
@@ -147,15 +146,6 @@ Every operation queues and returns `this`; nothing touches the engine until `toB
 
 `QRCodeGradient` is `{ type?: 'linear' | 'radial'; rotation?: number; colorStops: Array<{ offset: number; color: string }> }` with 1 to 16 stops. Anything drawn must keep a 3:1 contrast with the background. Invalid options are refused with `E_PRISM_INVALID_QR_OPTION`.
 
-### `PrismError`
-
-Extends `Error`; `name` is the class name. `PrismNativeRequiredError` extends it with the code `E_PRISM_NATIVE_REQUIRED`.
-
-| Member | Signature | Description |
-|---|---|---|
-| `code` | `readonly code: string` | `E_PRISM_<code>` for an engine code, `E_PRISM_ENGINE` otherwise. |
-| constructor | `new PrismError(code: string, message: string, options?: ErrorOptions)` | |
-
 ### `@c9up/prism/provider`
 
 | Export | Kind | Description |
@@ -219,7 +209,7 @@ Draws into a PDFKit document the caller owns; PDFKit is not a dependency. The co
 
 | Export | Kind | Description |
 |---|---|---|
-| `ValidationError` | error | A QR-bill the Swiss rules refuse; extends `PrismError`. Its `code` is a key of `ValidationErrors` (such as `ACCOUNT_IS_QR_IBAN_BUT_REFERENCE_IS_MISSING`), not an `E_` code. |
+| `ValidationError` | error | A QR-bill the Swiss rules refuse; a flare `Exception`. Its `code` is a key of `ValidationErrors` (such as `ACCOUNT_IS_QR_IBAN_BUT_REFERENCE_IS_MISSING`), not an `E_` code. |
 | `ValidationErrors` | const | Every validation code and its message. |
 | `ValidationErrorCode` | type | `keyof typeof ValidationErrors`. |
 
@@ -273,6 +263,8 @@ The string tokens are declared on `ContainerBindings`.
 
 ## Errors
 
+The `E_PRISM_IMAGE_*` codes are not thrown: the image endpoint answers them as `{ error: { code, message } }` with the status shown. Every other code is a class of the `errors` namespace (`import { errors } from '@c9up/prism'`): a flare `Exception` with `code` and `status`. The engine refusals that mean the input is not an image prism takes (`E_PRISM_EMPTY_INPUT`, `E_PRISM_INPUT_TOO_LARGE`, `E_PRISM_TOO_MANY_PIXELS`, `E_PRISM_ZERO_DIMENSION`, `E_PRISM_UNKNOWN_FORMAT`, `E_PRISM_UNSUPPORTED_FORMAT`, `E_PRISM_FORMAT_NOT_ALLOWED`, `E_PRISM_UNREADABLE`, `E_PRISM_DECODE_FAILED`) have status 422; the others 500.
+
 | Code | Raised when |
 |---|---|
 | [`E_PRISM_IMAGE_NO_SOURCE`](/en/reference/errors#e-prism-image-no-source) | The endpoint was called without `src` (400). |
@@ -301,6 +293,17 @@ The string tokens are declared on `ContainerBindings`.
 | [`E_PRISM_INTERNAL_PANIC`](/en/reference/errors#e-prism-internal-panic) | The engine panicked. |
 | [`E_PRISM_ENGINE`](/en/reference/errors#e-prism-engine) | The engine failed without a known code. |
 | [`E_PRISM_NATIVE_REQUIRED`](/en/reference/errors#e-prism-native-required) | The Rust image engine is not loaded. |
+| [`E_PRISM_NOT_BOOTED`](/en/reference/errors#e-prism-not-booted) | The `services/main` engine was used before `PrismProvider` booted or `setPrism()` was called. |
+| [`E_PRISM_INVALID_CONFIG`](/en/reference/errors#e-prism-invalid-config) | `config/images.ts` does not export a `defineConfig({ ... })` config. |
+| [`E_PRISM_INVALID_SERVE_CONFIG`](/en/reference/errors#e-prism-invalid-serve-config) | `images.serve` declares no roots, or one of its counts (`concurrency`, `queueLimit`, `effort`, `memoryCacheBytes`…) is out of range. |
+| [`E_PRISM_INVALID_BINDING`](/en/reference/errors#e-prism-invalid-binding) | The container resolved something other than a `Prism` for the `Prism` token, or other than a router for `router`. |
+
+## Migration
+
+- `PrismError` is gone: test `error.code`, or `error instanceof errors.E_PRISM_*` with `import { errors } from '@c9up/prism'`.
+- `PrismNativeRequiredError` becomes `errors.E_PRISM_NATIVE_REQUIRED`.
+- `ValidationError` (`@c9up/prism/swissqrbill/errors`) no longer extends `PrismError`; its `code` is unchanged.
+- An engine refusal of the input now has `status` 422 (see [Errors](#errors)).
 
 ## See also
 
