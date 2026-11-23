@@ -22,6 +22,8 @@ frappe et compare des identifiants est un paquet qui peut les remplacer.
 ream configure @c9up/visa
 ```
 
+![Le flux OAuth 2.1 authorization code avec PKCE. 1. L'application cliente redirige le navigateur de l'utilisateur avec un code_challenge (S256). 2. Le navigateur demande GET /oauth/authorize à votre app ream, où visa.authorize() vérifie le client et l'URI de redirection exacte. 3. Votre app fait se connecter l'utilisateur, puis affiche votre page de consentement, protégée contre le CSRF et impossible à encadrer. 4. Le navigateur envoie le consentement à POST /oauth/consent avec un ticket à usage unique. 5. Votre app redirige vers la redirect_uri du client avec un code. 6. L'application cliente envoie le code et son code_verifier à POST /oauth/token et reçoit un jeton d'accès et un jeton de rafraîchissement. Chaque rafraîchissement crée un nouveau jeton ; un jeton de rafraîchissement déjà utilisé qui revient révoque toute la famille ; codes, jetons et secrets sont hachés au repos.](/images/oauth-en.webp){width=640 height=640 loading=lazy}
+
 ## Ce qui est implémenté
 
 | | |

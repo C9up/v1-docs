@@ -22,6 +22,8 @@ and compares credentials is a package that can replace them.
 ream configure @c9up/visa
 ```
 
+![The OAuth 2.1 authorization code flow with PKCE. 1. The client app redirects the user's browser with a code_challenge (S256). 2. The browser requests GET /oauth/authorize from your ream app, where visa.authorize() checks the client and the exact redirect URI. 3. Your app has the user sign in, then shows your consent page, which is CSRF-protected and cannot be framed. 4. The browser posts the consent to POST /oauth/consent with a single-use ticket. 5. Your app redirects to the client's redirect_uri with a code. 6. The client app posts the code and its code_verifier to POST /oauth/token and receives an access token and a refresh token. Every refresh mints a new token; a spent refresh token coming back revokes the whole family; codes, tokens and secrets are hashed at rest.](/images/oauth-en.webp){width=640 height=640 loading=lazy}
+
 ## What it implements
 
 | | |
