@@ -45,7 +45,13 @@ function nebulaSidebar(lang: 'en' | 'fr') {
 export default defineConfig({
   title: 'Ream',
   description: 'Rust Engine, Agnostic Modules',
-  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }]],
+  head: [
+    ['link', { rel: 'icon', href: '/favicon.ico', sizes: '48x48' }],
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
+    ['link', { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' }],
+    ['link', { rel: 'manifest', href: '/site.webmanifest' }],
+    ['meta', { name: 'theme-color', content: '#0c121e' }],
+  ],
 
   // What a link to the docs shows when it is shared (Slack, Discord, X,
   // LinkedIn…): the page's own title and description, and the card image of
