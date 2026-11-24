@@ -45,6 +45,13 @@ function nebulaSidebar(lang: 'en' | 'fr') {
 export default defineConfig({
   title: 'Ream',
   description: 'Rust Engine, Agnostic Modules',
+  // The host serves /en/x for x.html and answers /en/x.html with a redirect:
+  // links, and the sitemap, use the form it serves.
+  cleanUrls: true,
+  // The repository's own README is not a page of the site.
+  srcExclude: ['README.md'],
+  // /sitemap.xml, every page of both languages; robots.txt points at it.
+  sitemap: { hostname: 'https://reamjs.com' },
   head: [
     ['link', { rel: 'icon', href: '/favicon.ico', sizes: '48x48' }],
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }],
