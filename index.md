@@ -3,7 +3,7 @@ layout: home
 head:
   - - script
     - {}
-    - "(function () { var l = (navigator.languages || [navigator.language || '']).join(',').toLowerCase(); location.replace((/(^|,)fr/.test(l) ? '/fr/' : '/en/') + location.search + location.hash) })()"
+    - "(function () { var ls = navigator.languages || [navigator.language || ''], lang = 'en'; for (var i = 0; i < ls.length; i++) { var p = String(ls[i]).toLowerCase().split('-')[0]; if (p === 'fr' || p === 'en') { lang = p; break } } location.replace('/' + lang + '/' + location.search + location.hash) })()"
 hero:
   name: REAM
   text: Rust Engine, Agnostic Modules
