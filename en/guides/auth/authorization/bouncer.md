@@ -124,12 +124,17 @@ registered: `new Bouncer(user, abilities, { Post: PostPolicy })` →
 The optional `before` and `after` hooks run around every action in this
 order — **before → guest-deny → action → after**:
 
-- `before(user, action, ...args)` runs first. A non-`undefined` return
-  short-circuits the action (this is how a moderator bypass, or an early
-  `deny("not found", 404)`, works — including for a guest).
+- `before(user, action, ...args)` runs first. A boolean or an
+  `AuthorizationResponse` short-circuits the action (this is how a moderator
+  bypass, or an early `deny("not found", 404)`, works — including for a guest).
+  Any other value (`undefined`, a string, a number) lets the action decide.
 - the guest-deny rule applies only if `before` fell through.
-- `after(user, action, response)` runs last. A non-`undefined` return overrides
-  the response; `undefined` keeps it.
+- `after(user, action, response)` runs last. A boolean or an
+  `AuthorizationResponse` overrides the response; any other value keeps it.
+
+Only `true` or an allowing `AuthorizationResponse` grants. An ability or an
+action that returns anything else — a column holding `"false"`, a lookup
+result, `1` — is a denial. Return a real boolean: `return user.isAdmin === true`.
 
 ```ts
 class PostPolicy extends BasePolicy {

@@ -11,8 +11,8 @@ This guide covers checking credentials safely:
 A sign-in that returns early for an unknown account answers in microseconds; one
 that verifies a password hash answers in ~100 ms. That difference alone tells an
 anonymous caller which emails are registered. `authFinder` closes it: an unknown
-uid pays one hash too, and every failure throws the same
-`E_INVALID_CREDENTIALS` (400).
+uid runs the same verification a known one does, and every failure throws the
+same `E_INVALID_CREDENTIALS` (400).
 
 ```ts
 import { Hash } from '@c9up/sigil'
@@ -29,11 +29,17 @@ await users.verifyPassword(user, currentPassword)           // boolean
 ```
 
 - An empty uid or password fails at once — it says nothing about any account.
-- An unknown uid runs `hash.make(password)`, the cost a real verification has,
-  then fails.
+- An unknown uid verifies the password against a decoy hash, made once by the
+  same hasher: the call a real account costs. Then it fails.
 - A row without a password hash (an account that signs in through SSO) is a
-  failed credential, after the same one hash — not a crash that would mark the
-  account as existing.
+  failed credential, after the same verification — not a crash that would mark
+  the account as existing.
+- A password the hasher refuses is a wrong password, on the three branches
+  alike: same error, same cost. sigil refuses a password over 1024 bytes, 72
+  with bcrypt. Check the length when the password is set (registration,
+  password change), not at sign-in.
+- A hasher that cannot hash at all (its native binary is missing) is not a
+  wrong password: its own error is thrown.
 
 Hand `users.verifyCredentials` to a guard as it is, or wrap it to shape the
 payload: a guard reads a thrown `E_INVALID_CREDENTIALS` as a rejection.
@@ -60,7 +66,7 @@ The four `NativeWarden.hashPassword*` interface methods (`hashPasswordArgon2`, `
 ## Throttling sign-in — AuthRateLimiter
 
 Count a sign-in attempt **before** checking the password, under the client's IP
-and the identifier it tries, and clear both on success:
+and the identifier it tries. On success, clear the identifier's key only:
 
 ```ts
 import { AuthRateLimiter, RedisAttemptStore } from '@c9up/warden'
@@ -75,8 +81,13 @@ const keys = AuthRateLimiter.loginKeys(ctx.request.ip(), email)
 const decision = await limiter.attempt(...keys)
 if (!decision.allowed) return response.status(429).json({ retryAfter: decision.retryAfterSeconds })
 const user = await verify(email, password)
-if (user) await limiter.clear(...keys)
+if (user) await limiter.clear(AuthRateLimiter.identifierKey(email))
 ```
+
+The address's key is not cleared on success: it runs to the end of its window.
+If a success cleared it, a client that owns one account could try a password on
+a few other accounts, sign in to its own, and start again with a fresh count.
+To unblock an address by hand, clear `AuthRateLimiter.ipKey(ip)`.
 
 Counting first is what holds against a burst: each attempt is one atomic
 increment, so twenty concurrent guesses cannot all read "not blocked yet". The

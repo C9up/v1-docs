@@ -8,6 +8,7 @@ This guide covers health checks.
 import {
   HealthChecks, DiskSpaceCheck, MemoryHeapCheck, MemoryRSSCheck,
 } from '@c9up/ream/health'
+import { safeEqual } from '@c9up/ream/helpers'
 
 const healthChecks = new HealthChecks().register([
   new DiskSpaceCheck().warnWhenExceeds(70).failWhenExceeds(85).cacheFor('1 minute'),
@@ -15,11 +16,25 @@ const healthChecks = new HealthChecks().register([
   new MemoryRSSCheck().failWhenExceeds('512 mb'),
 ])
 
-router.get('/health', async ({ response }) => {
+// Liveness: the process answers. Public, and says nothing else.
+router.get('/health/live', ({ response }) => response.status(200).send(''))
+
+// Readiness: the full report, for your monitoring only.
+router.get('/health/ready', async ({ request, response }) => {
+  if (!safeEqual(request.header('x-monitoring-secret') ?? '', env.get('MONITORING_SECRET'))) {
+    return response.status(401).send('')
+  }
   const report = await healthChecks.run()
   return response.status(report.isHealthy ? 200 : 503).json(report)
 })
 ```
+
+The report is not for the public. It contains the process details (`pid`,
+`ppid`, platform, uptime, Node.js version) and, for each failed check, the
+error it failed with — for a database that is down, its private address and
+port. Serve it behind a secret header, as above, or a guard; give the load
+balancer the liveness route. Declare `MONITORING_SECRET` in your env schema so
+the app does not start without it.
 
 A **warning does not make the app unhealthy** — `isHealthy` only goes false on
 `error`, so a disk at 72% tells an operator to act without a readiness probe
@@ -55,4 +70,8 @@ subprocess.
 ground with a home-grown shape — `register(name, fn)`, a per-check timeout, and
 a ready-made `handler()`. It still works and nothing was removed, but new code
 should use `HealthChecks` from `@c9up/ream/health`.
+
+A check that throws is reported as `Health check failed`, never with what it
+threw; the error goes to the `onError` option (stderr by default). A check that
+returns `{ status: 'error', message }` keeps its own message.
 :::

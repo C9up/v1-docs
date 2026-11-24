@@ -265,6 +265,9 @@ le même nom.
 
 - si la tentative échoue et que `attempts < maxAttempts`, le job repasse en `pending`
 - sinon il passe en `failed`, `failed()` est appelé une fois, et il est conservé
+- un job dont le worker est mort plus de `maxStalledCount` fois (driver Redis,
+  1 par défaut) passe aussi en `failed`, et son hook `failed()` reçoit
+  `E_JOB_STALLED` ; son handler ne tourne plus
 - vous pouvez lire les échecs via `failedJobs()`
 
 ```ts

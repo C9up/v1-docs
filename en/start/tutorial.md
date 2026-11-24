@@ -8,38 +8,44 @@ This guide covers building a first application, step by step:
 - 3. The Task Module
 - 4. Auth Middleware
 - 5. The Kernel — start/kernel.ts
-- 6. AppProvider — providers/AppProvider.ts
-- 7. The Server Entry Point — bin/server.ts
-- 8. Run and Test
+- 6. The Server Entry Point — bin/server.ts
+- 7. Run and Test
 - What Happened Under the Hood
 
 Build a working Tasks API from scratch. By the end you will have a running HTTP server with JWT auth, a CRUD controller backed by a service, and module-based routing — all tested with `curl`.
 
 ## Prerequisites
 
+Create the project with the `api` template (see [Installation](/en/start/installation#create-a-new-project)), then add the logger:
+
 ```bash
-npm install @c9up/ream @c9up/warden reflect-metadata
+npm install -g @c9up/ream-cli
+ream new tasks --template api --db sqlite
+cd tasks
+ream configure @c9up/spectrum
 ```
 
-Your `tsconfig.json` must enable decorators:
+`ream new` installs `@c9up/ream`, `@c9up/warden`, `@c9up/atlas` and `@c9up/spectrum`. It also writes `tsconfig.json` with decorators enabled, the `#app/*`, `#middleware/*`, `#providers/*` and `#start/*` import aliases of `package.json`, `start/env.ts`, `.env` and `bin/server.ts`. `ream configure @c9up/spectrum` registers the logger's provider and writes `config/logger.ts`.
 
-```json
-{
-  "compilerOptions": {
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true,
-    "module": "NodeNext",
-    "moduleResolution": "NodeNext",
-    "target": "ES2022"
-  }
-}
+The API signs its tokens with `JWT_SECRET`. Declare it in `start/env.ts`, next to the variables `ream new` wrote:
+
+```typescript
+// start/env.ts — add this line to the schema
+  JWT_SECRET: Env.schema.secret(),
+```
+
+Then give it a value in `.env`: at least 32 random characters, for example the output of `openssl rand -hex 32`.
+
+```bash
+# .env
+JWT_SECRET=<the output of openssl rand -hex 32>
 ```
 
 ---
 
 ## 1. Project Configuration — reamrc.ts
 
-The `reamrc.ts` file is the project manifest. It declares providers, preload files (middleware, kernel), and which module directories to auto-load routes from.
+The `reamrc.ts` file is the project manifest. It declares providers, preload files (routes, kernel), and which module directories to auto-load routes from. Replace the generated one:
 
 ```typescript
 // reamrc.ts
@@ -47,16 +53,26 @@ import { defineConfig } from '@c9up/ream'
 
 export default defineConfig({
   providers: [
+    () => import('@c9up/spectrum/provider'),
+    () => import('@c9up/warden/provider'),
+    () => import('@c9up/blackhole/provider'),
     () => import('@c9up/ream/events/provider'),
-    () => import('./providers/AppProvider.js'),
+    () => import('#providers/AppProvider.js'),
   ],
   preloads: [
-    () => import('./start/kernel.js'),
+    () => import('#start/routes.js'),
+    () => import('#start/kernel.js'),
   ],
   modules: {
     // Auto-load routes.ts and events.ts from every subdirectory of app/modules/
     path: './app/modules',
     autoload: ['routes', 'events'],
+  },
+  tests: {
+    suites: [
+      { name: 'unit', files: ['tests/unit/**/*.test.ts'], timeout: 2000 },
+      { name: 'functional', files: ['tests/functional/**/*.test.ts'], timeout: 30000 },
+    ],
   },
 })
 ```
@@ -65,47 +81,42 @@ export default defineConfig({
 
 ## 2. Config Files
 
-The framework reads every file in `config/` during startup and stores each one under its filename (without extension). `config/auth.ts` is available as `app.config.get('auth')` inside providers.
+The framework reads every file in `config/` during startup and stores each one under its filename (without extension). Warden's provider reads `config/auth.ts` as `app.config.get('auth')` and builds its guards from it:
 
 ```typescript
 // config/auth.ts
+import { defineConfig, jwtGuard } from '@c9up/warden'
 import env from '#start/env.js'
 
-export default {
-  defaultStrategy: 'jwt',
-  jwt: {
-    // No fallback: start/env.ts refuses to boot when JWT_SECRET is missing.
-    secret: env.get('JWT_SECRET').release(),
-    expiresInSeconds: 3600,
-  },
+// The quick start's only user. Replace both lookups with your user model, and
+// verifyCredentials with authFinder({ hash, findForAuth }) from @c9up/warden:
+// it checks a password hash, and pays one for an unknown email too, so the
+// response time does not reveal which accounts exist.
+const admin = {
+  id: 'user-1',
+  email: 'admin@example.com',
+  roles: ['admin'],
+  permissions: ['tasks.create'],
 }
+
+export default defineConfig({
+  default: 'jwt',
+  guards: {
+    jwt: jwtGuard({
+      // No fallback: start/env.ts refuses to boot when JWT_SECRET is missing.
+      secret: env.get('JWT_SECRET').release(),
+      expiresIn: '1h',
+      verifyCredentials: async (email, password) =>
+        email === admin.email && password === 'secret' ? admin : null,
+      findUser: async (id) => (id === admin.id ? admin : null),
+    }),
+  },
+})
 ```
 
 `JWT_SECRET` is declared `Env.schema.secret()` in `start/env.ts` (see [Configuration](/en/start/configuration#environment-variables)), so `env.get()` hands back a value that prints as `[redacted]` and `.release()` reads it. Never write a fallback such as `process.env.JWT_SECRET ?? '…'`: `config/auth.ts` is committed, so the fallback is a secret anyone can read, and an environment that forgets the variable would sign every token with it — anyone could then mint a token for any user.
 
-```typescript
-// config/database.ts
-export default {
-  connection: 'postgres',
-  connections: {
-    postgres: {
-      host: process.env.DB_HOST ?? 'localhost',
-      port: Number(process.env.DB_PORT ?? 5432),
-      database: process.env.DB_DATABASE ?? 'ream_dev',
-      user: process.env.DB_USER ?? 'postgres',
-      password: process.env.DB_PASSWORD ?? '',
-    },
-  },
-}
-```
-
-```typescript
-// config/logger.ts
-export default {
-  level: process.env.LOG_LEVEL ?? 'info',
-  pretty: process.env.NODE_ENV !== 'production',
-}
-```
+The other files of `config/` stay as `ream new` and `ream configure` wrote them.
 
 ---
 
@@ -168,7 +179,9 @@ export class TaskService {
   async update(id: string, data: { title?: string; done?: boolean }): Promise<Task | undefined> {
     const task = await this.find(id)
     if (!task) return undefined
-    Object.assign(task, data)
+    // Only what the request sent: a field left out keeps its value.
+    if (data.title !== undefined) task.title = data.title
+    if (data.done !== undefined) task.done = data.done
     return task
   }
 
@@ -211,8 +224,9 @@ export default class TasksController {
   }
 
   // GET /tasks/:id
-  async show({ params, response }: HttpContext) {
-    const task = await this.tasks.find(params.id)
+  async show({ request, response }: HttpContext) {
+    // The route always carries an id: the default only satisfies the type.
+    const task = await this.tasks.find(request.param('id', ''))
     if (!task) {
       response.status(404).json({ error: 'Task not found' })
       return
@@ -221,8 +235,8 @@ export default class TasksController {
   }
 
   // PUT /tasks/:id
-  async update({ params, request, response }: HttpContext) {
-    const task = await this.tasks.update(params.id, {
+  async update({ request, response }: HttpContext) {
+    const task = await this.tasks.update(request.param('id', ''), {
       title: request.input<string>('title'),
       done: request.input<boolean>('done'),
     })
@@ -234,8 +248,8 @@ export default class TasksController {
   }
 
   // DELETE /tasks/:id
-  async destroy({ params, response }: HttpContext) {
-    const deleted = await this.tasks.delete(params.id)
+  async destroy({ request, response }: HttpContext) {
+    const deleted = await this.tasks.delete(request.param('id', ''))
     if (!deleted) {
       response.status(404).json({ error: 'Task not found' })
       return
@@ -252,18 +266,23 @@ export default class TasksController {
 import router from '@c9up/ream/services/router'
 import TasksController from './controllers/TasksController.js'
 
-router.get('/api/tasks', [TasksController, 'index']).guard('jwt')
-router.post('/api/tasks', [TasksController, 'store']).guard('jwt')
-router.get('/api/tasks/:id', [TasksController, 'show']).guard('jwt')
-router.put('/api/tasks/:id', [TasksController, 'update']).guard('jwt')
-router.delete('/api/tasks/:id', [TasksController, 'destroy']).guard('jwt')
+router
+  .group(() => {
+    router.get('/api/tasks', [TasksController, 'index'])
+    router.post('/api/tasks', [TasksController, 'store'])
+    router.get('/api/tasks/:id', [TasksController, 'show'])
+    router.put('/api/tasks/:id', [TasksController, 'update'])
+    router.delete('/api/tasks/:id', [TasksController, 'destroy'])
+  })
+  .middleware('auth')
+  .guard('jwt')
 ```
 
-Routes that need authentication call `.guard('jwt')`. The guard is fed by the global `AuthMiddleware` (registered in `start/kernel.ts`) which best-effort populates `ctx.auth` — the guard itself enforces `ctx.auth.isAuthenticated === true` and emits a 401 when missing.
+The group protects its five routes. `.middleware('auth')` runs the named `auth` middleware (section 4, declared in `start/kernel.ts`): it refuses a request nobody is signed in to with a 401. `.guard('jwt')` then requires that the `jwt` guard is the one that vouched for the request.
 
 ### Login Route
 
-The token the guarded routes expect comes from a login route. `auth.authenticate()` runs the default strategy's `verifyCredentials` (wired in `AppProvider` below):
+The token the guarded routes expect comes from a login route. `auth.authenticate()` runs the default guard's `verifyCredentials`, from `config/auth.ts`:
 
 ```typescript
 // app/modules/auth/routes.ts
@@ -317,18 +336,19 @@ export default class LogTaskCreated {
 
 ```typescript
 // app/modules/task/events.ts
-import app from '@c9up/ream/services/app'
-import { Emitter } from '@c9up/ream/events'
+import emitter from '@c9up/ream/events/services/main'
 import TaskCreated from './events/TaskCreated.js'
 import LogTaskCreated from './listeners/LogTaskCreated.js'
 
-const emitter = await app.container.make(Emitter)
-emitter.on(TaskCreated, LogTaskCreated)
+emitter.on(TaskCreated, [LogTaskCreated])
 ```
 
 Then dispatch from `TaskService.create()`:
 
 ```typescript
+// At the top of TaskService.ts
+import TaskCreated from '../events/TaskCreated.js'
+
 // Inside TaskService.create()
 this.store.push(task)
 TaskCreated.dispatch(task.id, task.title)
@@ -339,34 +359,36 @@ return task
 
 ## 4. Auth Middleware
 
-The middleware does **one** thing — populate `ctx.auth` when a valid Bearer token is present. It never rejects; rejection is the route guard's job (`.guard('jwt')`). That split lets public routes still read `ctx.auth.user?.id` defensively without paying the 401 cost.
+Two middlewares share the work, as in a project made with `ream new --template web`:
+
+- `@c9up/warden/silent-auth` runs on every routed request (section 5). It reads the Bearer token, and when the token is valid it signs the user in on `ctx.auth`, recording the guard that vouched for the request. It never refuses anybody, so a public route can still read `ctx.auth.user?.id`.
+- The `auth` middleware below refuses a request nobody is signed in to. Routes use it by name, `.middleware('auth')`.
 
 ```typescript
 // app/middleware/auth_middleware.ts
 import type { HttpContext } from '@c9up/ream'
-import auth from '@c9up/warden/services/main'
+import { errors } from '@c9up/ream'
 
 export default class AuthMiddleware {
-  async handle(ctx: HttpContext, next: () => Promise<void>) {
-    const header = ctx.request.header('authorization') ?? ''
-    if (header.startsWith('Bearer ')) {
-      const token = header.slice(7)
-      const result = await auth.verify(token)
-      if (result.authenticated && result.user) {
-        ctx.auth = {
-          isAuthenticated: true,
-          user: result.user,
-          roles: result.user.roles ?? [],
-          permissions: result.user.permissions ?? [],
-        }
-      }
+  async handle(
+    ctx: HttpContext,
+    next: () => Promise<void>,
+    options: { guards?: string[] } = {},
+  ) {
+    // Without Warden's authenticator on ctx.auth, nobody can be signed in.
+    if (typeof ctx.auth.authenticateUsing !== 'function') {
+      throw new errors.E_UNAUTHORIZED_ACCESS()
     }
+    // Throws E_UNAUTHORIZED_ACCESS (401) when no guard vouches for the request.
+    await ctx.auth.authenticateUsing(options.guards)
     await next()
   }
 }
 ```
 
-Inside a guarded controller the guard has already rejected anonymous requests, but `auth.user` stays optional in the type: narrow it once and the rest of the handler reads it as present:
+Do not fill `ctx.auth` by hand: Warden's authenticator records which guard authenticated the request (`authenticatedViaGuard`), and `.guard('jwt')` answers 401 without it. To pass the guards, use the factory form, `.use(middleware.auth({ guards: ['jwt'] }))`.
+
+Inside a guarded controller the middleware has already rejected anonymous requests, but `auth.user` stays optional in the type: narrow it once and the rest of the handler reads it as present:
 
 ```typescript
 async store({ request, response, auth }: HttpContext) {
@@ -381,113 +403,52 @@ async store({ request, response, auth }: HttpContext) {
 
 ## 5. The Kernel — start/kernel.ts
 
+Replace the generated kernel:
+
 ```typescript
 // start/kernel.ts
 import router from '@c9up/ream/services/router'
 import server from '@c9up/ream/services/server'
 
-// Custom error handler
-server.errorHandler(() => import('#app/exceptions/handler.js'))
+// Runs on every request, even one no route matches.
+server.use([
+  () => import('@c9up/blackhole/server_middleware'),
+])
 
-// Global middleware — runs on every routed request.
-// AuthMiddleware best-effort populates ctx.auth so guarded routes
-// (and any controller that reads `ctx.auth.user?.id`) work uniformly.
-// The body parser reads request bodies: without it every JSON POST reads as `{}`.
+// Runs on every request with a matched route. Silent auth reads who is
+// signed in and never refuses anybody.
 router.use([
   () => import('@c9up/ream/bodyparser_middleware'),
-  () => import('#app/middleware/auth_middleware.js'),
+  () => import('@c9up/blackhole/middleware'),
+  () => import('@c9up/warden/silent-auth'),
 ])
-```
 
-There's no separate "named middleware" map anymore — `.guard('jwt')` on a route is sufficient. The guard reads `ctx.auth` set by the global middleware.
-
----
-
-## 6. AppProvider — providers/AppProvider.ts
-
-The provider registers Warden's `AuthManager` with a `JwtStrategy` wired up to your user store. For this quick start the user lookup is a hardcoded stub — replace it with a real database query.
-
-```typescript
-// providers/AppProvider.ts
-import { Provider } from '@c9up/ream'
-import { AuthManager } from '@c9up/warden'
-import { JwtStrategy } from '@c9up/warden'
-
-export default class AppProvider extends Provider {
-  register() {
-    this.app.container.singleton(AuthManager, () => {
-      const authConfig = this.app.config.get<{
-        defaultStrategy: string
-        jwt: { secret: string; expiresInSeconds: number }
-      }>('auth')
-      if (!authConfig) throw new Error('config/auth.ts is missing')
-
-      const jwtStrategy = new JwtStrategy({
-        secret: authConfig.jwt.secret,
-        expiresInSeconds: authConfig.jwt.expiresInSeconds,
-        verifyCredentials: async (email, password) => {
-          // Replace with a real lookup built on authFinder({ hash, findForAuth })
-          // from @c9up/warden: it pays a hash for an unknown email too, so the
-          // response time does not reveal which accounts exist.
-          if (email === 'admin@example.com' && password === 'secret') {
-            return { id: 'user-1', email, roles: ['admin'], permissions: ['tasks.create'] }
-          }
-          return null
-        },
-        findUser: async (id) => {
-          if (id === 'user-1') {
-            return { id, email: 'admin@example.com', roles: ['admin'], permissions: ['tasks.create'] }
-          }
-          return null
-        },
-      })
-
-      return new AuthManager({
-        defaultStrategy: authConfig.defaultStrategy,
-        strategies: { jwt: jwtStrategy },
-      })
-    })
-  }
-}
-```
-
----
-
-## 7. The Server Entry Point — bin/server.ts
-
-```typescript
-// bin/server.ts
-import 'reflect-metadata'
-import { Ignitor } from '@c9up/ream'
-import reamrc from '../reamrc.js'
-
-new Ignitor(new URL('../', import.meta.url), {
-  importer: (path) => import(path),
-  port: Number(process.env.PORT) || 3000,
+// Attached to the routes that need it, by name: `.middleware('auth')`.
+export const middleware = router.named({
+  auth: () => import('#middleware/auth_middleware.js'),
 })
-  .httpServer()
-  .tap((app) => {
-    app.listen('SIGTERM', () => app.terminate())
-    app.listen('SIGINT', () => app.terminate())
-  })
-  .useRcFile(reamrc)
-  .start()
-  .then(async (ignitor) => {
-    const port = await ignitor.port()
-    console.log(`Ream listening on http://localhost:${port}`)
-  })
 ```
+
+The body parser reads request bodies: without it every JSON POST reads as `{}`. Blackhole adds the protective headers and the rate limit. A name given to `.middleware()` must be declared in `router.named()`: a misspelt `.middleware('auht')` stops the server at boot with `E_MIDDLEWARE_NOT_FOUND`.
 
 ---
 
-## 8. Run and Test
+## 6. The Server Entry Point — bin/server.ts
+
+`ream new` wrote `bin/server.ts`: keep it. It loads `start/env.ts` first (a missing `JWT_SECRET` stops it there), reads `reamrc.ts`, and starts the HTTP server on `PORT`.
+
+---
+
+## 7. Run and Test
 
 Start the server:
 
 ```bash
 node --import @swc-node/register/esm-register bin/server.ts
-# Ream listening on http://localhost:3000
+#   ➜ Ream ready on http://localhost:3000
 ```
+
+`npm run dev` does the same and restarts on every change.
 
 **Authenticate and get a token:**
 
@@ -577,11 +538,11 @@ curl -s http://localhost:3000/api/tasks | jq .
 
 ## What Happened Under the Hood
 
-1. `bin/server.ts` constructed an `Ignitor` with the `reamrc.ts` manifest.
-2. The Ignitor's **register** phase loaded `config/auth.ts`, `config/database.ts`, `config/logger.ts` into `app.config`, then called `AppProvider.register()` — binding `AuthManager` into the container.
-3. The **boot** phase called `AppProvider.boot()`.
-4. The **start** phase imported `start/kernel.ts` (registering the body parser and the global `AuthMiddleware`), then auto-loaded `app/modules/auth/routes.ts` (the login route), `app/modules/task/routes.ts` (registering the five task routes) and `app/modules/task/events.ts` (wiring `TaskCreated` to `LogTaskCreated`).
-5. The **ready** phase started the HyperServer. Each request flows through the middleware pipeline: the body parser and the global `AuthMiddleware` → the route's `.guard('jwt')` (protected routes only) → controller.
+1. `bin/server.ts` constructed an `Ignitor` with the `reamrc.ts` manifest, and validated `.env` against `start/env.ts`.
+2. The Ignitor's **register** phase loaded every file of `config/` into `app.config`. Warden's provider built the `jwt` guard from `config/auth.ts` and bound `AuthManager` into the container; Spectrum's provider bound the logger.
+3. The **boot** phase made `@c9up/warden/services/main` usable, which the login route calls.
+4. The **start** phase imported `start/routes.ts` and `start/kernel.ts` (the router middleware and the named `auth` middleware), then auto-loaded `app/modules/auth/routes.ts` (the login route), `app/modules/task/routes.ts` (the five task routes) and `app/modules/task/events.ts` (wiring `TaskCreated` to `LogTaskCreated`).
+5. The **ready** phase built the HTTP kernel, checking that every name given to `.middleware()` is declared, and started the HyperServer. Each request flows through the middleware pipeline: Blackhole → the body parser, Blackhole and silent auth → the `auth` middleware → the group's `.guard('jwt')` (protected routes only) → controller.
 6. The container resolved `TasksController` per request, injecting its `TaskService` singleton automatically.
 
 ---
@@ -589,6 +550,7 @@ curl -s http://localhost:3000/api/tasks | jq .
 ## Next Steps
 - [Folder Structure](/en/start/folder-structure) — Every directory and file explained
 - [Routing](/en/guides/basics/routing) — Route groups, guards, param matchers, named routes
+- [Protecting routes](/en/guides/auth/protecting-routes) — Guards, roles, permissions and the auth middleware
 - [Warden](/en/guides/auth/introduction) — Multi-strategy auth, RBAC, JWT details
 - [Atlas](/en/guides/database/orm/) — Replacing the in-memory store with a real database
 - [Event Bus](/en/guides/digging-deeper/emitter) — Full typed event system with Emitter and BaseEvent

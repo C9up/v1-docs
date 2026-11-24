@@ -9,7 +9,11 @@ pnpm add @c9up/prism
 ream configure @c9up/prism
 ```
 
-`ream configure @c9up/prism` ajoute le provider, la variable `IMAGE_MAX_PIXELS`, et écrit `config/images.ts`. Le moteur est livré en binaire précompilé par plateforme ; `@c9up/ream` est une dépendance pair facultative.
+`ream configure @c9up/prism` ajoute le provider, la variable `IMAGE_MAX_PIXELS`, et écrit `config/images.ts`. `@c9up/ream` est une dépendance pair facultative.
+
+Le moteur natif est livré dans un petit paquet par plateforme, `@c9up/prism-<plateforme>`, pour linux x64 et arm64 (glibc), macOS x64 et arm64, et Windows x64. `@c9up/prism` les déclare en dépendances optionnelles, et votre gestionnaire de paquets installe seulement celui de votre machine. Vous n'avez pas besoin de toolchain Rust. N'installez pas avec les dépendances optionnelles désactivées (`--no-optional`, `--omit=optional`) : le moteur serait absent.
+
+Il n'existe pas de repli JavaScript. Sans le moteur, la première opération sur une image lève `E_PRISM_NATIVE_REQUIRED`, et son message nomme le paquet à installer, par exemple `@c9up/prism-linux-x64-gnu`.
 
 ## Points d'entrée
 
@@ -85,7 +89,7 @@ Chaque opération se met en attente et renvoie `this` ; rien ne touche le moteur
 | `filter3x3` | `filter3x3(kernel: readonly number[]): this` | Une convolution 3×3, par lignes, exactement neuf valeurs. |
 | `convertColorSpace` | `convertColorSpace(options: ConvertColorSpaceOptions): this` | Convertit les échantillons vers l'espace `to` ; `from` remplace ce que déclare le fichier. |
 | `operations` | `operations(): readonly Operation[]` | Les opérations en attente. |
-| `toBuffer` | `toBuffer(output: OutputOptions): Promise<Buffer>` | Exécute tout et encode. |
+| `toBuffer` | `toBuffer(output: OutputOptions): Promise<Buffer>` | Exécute tout et encode, dans l'une des places `concurrency` de l'instance ; attend une place quand toutes sont prises. |
 | `toFormat` | `toFormat(format: ImageFormat, quality?: number): Promise<Buffer>` | `toBuffer` en ne nommant que le format. |
 
 | Champ de `OutputOptions` | Type | Défaut | Description |
@@ -93,7 +97,7 @@ Chaque opération se met en attente et renvoie `this` ; rien ne touche le moteur
 | `format` | `ImageFormat` | requis | |
 | `quality` | `number` | `quality` de la configuration, sinon 82 | Un entier de 1 à 100, pour les formats qui ont un réglage de qualité. |
 | `background` | `Colour` | blanc opaque | Ce sur quoi la transparence est fondue pour un format sans alpha. |
-| `depth` | `8 \| 16` | `8` | Bits par canal ; seuls PNG et TIFF portent 16, les autres le réduisent. |
+| `depth` | `8 \| 16` | `8` | Bits par canal ; seuls PNG et TIFF portent 16, les autres le réduisent. Une source en 16 bits est réduite à 8 bits dès le décodage, sauf si `depth` vaut 16. |
 | `effort` | `number` | `4` | L'effort CPU d'AVIF, de 0 (le plus rapide) à 9. |
 
 | Type | Valeurs |
@@ -117,7 +121,7 @@ Chaque opération se met en attente et renvoie `this` ; rien ne touche le moteur
 
 | Fonction | Signature | Description |
 |---|---|---|
-| `registerImageRoute` | `registerImageRoute(router: ImageRouter, images: Prism, config: ImageServingConfig): unknown` | Monte `GET <path>?src=&w=&f=&q=` ; renvoie ce que renvoie le routeur, pour pouvoir ajouter des middlewares. Chaque axe est sur liste blanche et une requête hors des listes est refusée avant tout décodage ; les réponses ne portent pas d'EXIF et ont une CSP en bac à sable. Le provider l'appelle quand `serve` est configuré. |
+| `registerImageRoute` | `registerImageRoute(router: ImageRouter, images: Prism, config: ImageServingConfig): unknown` | Monte `GET <path>?src=&w=&f=&q=` ; renvoie ce que renvoie le routeur, pour pouvoir ajouter des middlewares. Derrière une authentification, mettez `serve.cacheControl` à `'private'` : avec `public`, la valeur par défaut, un cache partagé peut garder l'image et la servir à n'importe qui. Chaque axe est sur liste blanche et une requête hors des listes est refusée avant tout décodage ; les réponses ne portent pas d'EXIF et ont une CSP en bac à sable. Le provider l'appelle quand `serve` est configuré. |
 
 `DEFAULT_WIDTHS` vaut `16, 32, 48, 64, 96, 128, 256, 384, 640, 750, 828, 960, 1080, 1280, 1668, 1920, 2048, 2560, 3200, 3840, 4480, 5120, 6016`.
 
@@ -232,10 +236,12 @@ Dessine dans un document PDFKit qui appartient à l'appelant ; PDFKit n'est pas 
 
 | Option | Type | Défaut | Description |
 |---|---|---|---|
-| `limits.maxPixels` | `number` | `50000000` | Le plus grand nombre de pixels décodés, vérifié avant décodage. La configuration générée lit `IMAGE_MAX_PIXELS`. |
+| `limits.maxPixels` | `number` | `50000000` | Le plus grand nombre de pixels décodés, vérifié avant décodage sur l'en-tête et sur chaque trame d'un GIF ou d'un WebP étendu. La configuration générée lit `IMAGE_MAX_PIXELS`. |
 | `limits.maxBytes` | `number` | `67108864` (64 Mio) | La plus grande entrée acceptée. |
+| `limits.maxMemory` | `number` | `536870912` (512 Mio) | La plus grande mémoire de travail d'un pipeline, en octets. Chaque étape est refusée avec `E_PRISM_MEMORY_LIMIT` avant d'allouer quand ce qu'elle garde plus ce qu'elle ajoute dépasse cette valeur. Voir [Mémoire](#memoire). |
 | `limits.allowedFormats` | `readonly ReadableFormat[]` | `['jpeg', 'png', 'webp']` | Les formats que l'application décode ; un nom inconnu lève une erreur. |
 | `quality` | `number` | `82` | La qualité de sortie par défaut. |
+| `concurrency` | `number` | `2` | Les pipelines qu'un `Prism` exécute en même temps ; les autres attendent. Une valeur qui n'est pas un entier positif vaut la valeur par défaut. |
 | `autoOrient` | `boolean` | `true` | Appliquer l'orientation EXIF au décodage. |
 | `serve` | `ImageServingConfig` | aucun | Monte le point d'accès images ; absent, aucune route n'est ajoutée. |
 | `serve.path` | `string` | `'/__image'` | Le chemin de la route. |
@@ -246,10 +252,28 @@ Dessine dans un document PDFKit qui appartient à l'appelant ; PDFKit n'est pas 
 | `serve.quality` | `number` | `82` | La qualité quand la requête n'en nomme aucune. |
 | `serve.cacheDir` | `string` | | Conserve les variantes rendues sur disque. |
 | `serve.memoryCacheBytes` | `number` | 32 Mio | Sans `cacheDir`, la taille du cache en mémoire ; 0 le désactive. |
+| `serve.maxCacheBytes` | `number` | 1 Gio | Avec `cacheDir`, la taille maximale du cache. Au-delà, les variantes des sources qui n'existent plus partent d'abord, puis les plus anciennes, jusqu'à neuf dixièmes de la limite ; 0 la désactive. Une source qu'une requête trouve absente perd ses variantes tout de suite. |
 | `serve.maxAge` | `number` | un an | `max-age`, en secondes. |
+| `serve.cacheControl` | `'public' \| 'private' \| false` | `'public'` | Qui peut garder une réponse. `'private'` pour une route derrière une authentification ; `false` n'envoie pas de `Cache-Control`, pour un middleware qui pose le sien. Un refus dit toujours `no-store`. |
 | `serve.concurrency` | `number` | `2` | Le nombre de rendus simultanés ; gardez-le sous `UV_THREADPOOL_SIZE`. |
 | `serve.queueLimit` | `number` | `64` | Le nombre de rendus autorisés à attendre ; au-delà, 503 avec `Retry-After`. |
 | `serve.effort` | `number` | `1` | L'effort d'encodage AVIF pour le point d'accès. |
+
+### Mémoire
+
+`maxPixels` borne les pixels, `maxMemory` borne les octets. Chaque étape additionne ce qui reste en mémoire (l'image qu'elle lit) et ce qu'elle alloue. Elle est refusée avant d'allouer quand la somme dépasse `maxMemory` :
+
+| Étape | Ce qui est compté |
+|---|---|
+| Décodage | Le tampon décodé : pixels × octets par pixel lus dans l'en-tête (4 en RGBA 8 bits, 8 en RGBA 16 bits). En plus, le tampon de trame d'un GIF (4 octets par pixel de la première trame), les plans d'un WebP (4 par pixel), 8 par pixel pour un AVIF. Le double du tampon décodé quand une orientation EXIF est appliquée. |
+| `resize` | Source + intermédiaire flottant de largeur source × hauteur cible × 16 octets + sortie (+ le recadrage de `cover`). |
+| `thumbnail`, `crop` | Source + sortie. |
+| `blur`, `fastBlur`, `sharpen` | Source + deux copies. |
+| Autres filtres, `rotate`, `flip` | Source + une copie. |
+| `composite`, `watermarkText` | Les deux calques + une copie RGBA 8 bits de chacun. |
+| Encodage | Image + copie convertie + sortie : 2 × 3 octets par pixel en JPEG, 2 × 4 en PNG 8 bits, 3 × 4 en WebP et AVIF. |
+
+Exemple : un JPEG de 7071 × 7071 (50 MP) se décode en 150 Mo de RGB 8 bits. Redimensionné à 6016 de large, il garde 150 Mo + 7071 × 6016 × 16 = 681 Mo de flottants + 109 Mo de sortie : 940 Mo. C'est plus que les 512 Mio par défaut, donc il est refusé avec `E_PRISM_MEMORY_LIMIT` avant que le redimensionnement n'alloue quoi que ce soit. Redimensionné à 1920 de large, il demande 150 + 217 + 11 Mo et passe. Un PNG RGBA 16 bits de 50 MP se décode en 400 Mo, et le réduire à 8 bits ajoute 200 Mo : il lui faut un `maxMemory` de plus de 600 Mo, plus ses étapes. Un `Prism` garde au plus `concurrency` × `maxMemory` : 1 Gio par défaut.
 
 ## Liaisons du conteneur
 
@@ -263,7 +287,7 @@ Les jetons en chaîne sont déclarés sur `ContainerBindings`.
 
 ## Erreurs
 
-Les codes `E_PRISM_IMAGE_*` ne sont pas levés : le point d'accès d'images les répond en `{ error: { code, message } }` avec le statut indiqué. Chaque autre code est une classe de l'espace de noms `errors` (`import { errors } from '@c9up/prism'`) : une `Exception` de flare avec `code` et `status`. Les refus du moteur qui signifient que l'entrée n'est pas une image que prism accepte (`E_PRISM_EMPTY_INPUT`, `E_PRISM_INPUT_TOO_LARGE`, `E_PRISM_TOO_MANY_PIXELS`, `E_PRISM_ZERO_DIMENSION`, `E_PRISM_UNKNOWN_FORMAT`, `E_PRISM_UNSUPPORTED_FORMAT`, `E_PRISM_FORMAT_NOT_ALLOWED`, `E_PRISM_UNREADABLE`, `E_PRISM_DECODE_FAILED`) ont le statut 422 ; les autres 500.
+Les codes `E_PRISM_IMAGE_*` ne sont pas levés : le point d'accès d'images les répond en `{ error: { code, message } }` avec le statut indiqué. Chaque autre code est une classe de l'espace de noms `errors` (`import { errors } from '@c9up/prism'`) : une `Exception` de flare avec `code` et `status`. Les refus du moteur qui signifient que l'entrée n'est pas une image que prism accepte (`E_PRISM_EMPTY_INPUT`, `E_PRISM_INPUT_TOO_LARGE`, `E_PRISM_TOO_MANY_PIXELS`, `E_PRISM_MEMORY_LIMIT`, `E_PRISM_ZERO_DIMENSION`, `E_PRISM_UNKNOWN_FORMAT`, `E_PRISM_UNSUPPORTED_FORMAT`, `E_PRISM_FORMAT_NOT_ALLOWED`, `E_PRISM_UNREADABLE`, `E_PRISM_DECODE_FAILED`) ont le statut 422 ; les autres 500.
 
 | Code | Levée quand |
 |---|---|
@@ -276,12 +300,13 @@ Les codes `E_PRISM_IMAGE_*` ne sont pas levés : le point d'accès d'images les 
 | [`E_PRISM_IMAGE_BUSY`](/fr/reference/errors#e-prism-image-busy) | Trop de rendus attendent (503). |
 | [`E_PRISM_EMPTY_INPUT`](/fr/reference/errors#e-prism-empty-input) | L'entrée est vide. |
 | [`E_PRISM_INPUT_TOO_LARGE`](/fr/reference/errors#e-prism-input-too-large) | L'entrée dépasse `maxBytes`. |
-| [`E_PRISM_TOO_MANY_PIXELS`](/fr/reference/errors#e-prism-too-many-pixels) | L'image, ou celle qu'une opération construirait, dépasse `maxPixels`. |
+| [`E_PRISM_TOO_MANY_PIXELS`](/fr/reference/errors#e-prism-too-many-pixels) | L'image (son en-tête, ou une trame d'un GIF), ou celle qu'une opération construirait, dépasse `maxPixels`. |
+| [`E_PRISM_MEMORY_LIMIT`](/fr/reference/errors#e-prism-memory-limit) | Une étape garderait plus de `maxMemory` octets, voir [Mémoire](#memoire). |
 | [`E_PRISM_ZERO_DIMENSION`](/fr/reference/errors#e-prism-zero-dimension) | L'image a une largeur ou une hauteur nulle. |
 | [`E_PRISM_UNKNOWN_FORMAT`](/fr/reference/errors#e-prism-unknown-format) | Les octets ne sont pas un format d'image que prism reconnaît. |
 | [`E_PRISM_UNSUPPORTED_FORMAT`](/fr/reference/errors#e-prism-unsupported-format) | Le format est reconnu mais non pris en charge. |
 | [`E_PRISM_FORMAT_NOT_ALLOWED`](/fr/reference/errors#e-prism-format-not-allowed) | Le format n'est pas dans `allowedFormats`. |
-| [`E_PRISM_UNREADABLE`](/fr/reference/errors#e-prism-unreadable) | L'image ne peut pas être lue. |
+| [`E_PRISM_UNREADABLE`](/fr/reference/errors#e-prism-unreadable) | L'image ne peut pas être lue : un flux WebP qui n'a pas la taille de sa trame, un item AVIF placé dans plus d'octets que le fichier n'en contient. |
 | [`E_PRISM_DECODE_FAILED`](/fr/reference/errors#e-prism-decode-failed) | Le décodage a échoué. |
 | [`E_PRISM_ENCODE_FAILED`](/fr/reference/errors#e-prism-encode-failed) | L'encodage de la sortie a échoué. |
 | [`E_PRISM_INVALID_GEOMETRY`](/fr/reference/errors#e-prism-invalid-geometry) | Un recadrage hors de l'image, une taille cible nulle. |
@@ -295,7 +320,7 @@ Les codes `E_PRISM_IMAGE_*` ne sont pas levés : le point d'accès d'images les 
 | [`E_PRISM_NATIVE_REQUIRED`](/fr/reference/errors#e-prism-native-required) | Le moteur d'images Rust n'est pas chargé. |
 | [`E_PRISM_NOT_BOOTED`](/fr/reference/errors#e-prism-not-booted) | Le moteur de `services/main` a servi avant le boot de `PrismProvider` ou l'appel de `setPrism()`. |
 | [`E_PRISM_INVALID_CONFIG`](/fr/reference/errors#e-prism-invalid-config) | `config/images.ts` n'exporte pas une configuration `defineConfig({ ... })`. |
-| [`E_PRISM_INVALID_SERVE_CONFIG`](/fr/reference/errors#e-prism-invalid-serve-config) | `images.serve` ne déclare aucune racine, ou l'un de ses compteurs (`concurrency`, `queueLimit`, `effort`, `memoryCacheBytes`…) sort de sa plage. |
+| [`E_PRISM_INVALID_SERVE_CONFIG`](/fr/reference/errors#e-prism-invalid-serve-config) | `images.serve` ne déclare aucune racine, l'un de ses compteurs (`concurrency`, `queueLimit`, `effort`, `memoryCacheBytes`, `maxCacheBytes`…) sort de sa plage, ou `cacheControl` n'est ni `'public'`, ni `'private'`, ni `false`. |
 | [`E_PRISM_INVALID_BINDING`](/fr/reference/errors#e-prism-invalid-binding) | Le conteneur a résolu autre chose qu'un `Prism` pour le token `Prism`, ou autre chose qu'un routeur pour `router`. |
 
 ## Migration
@@ -304,6 +329,14 @@ Les codes `E_PRISM_IMAGE_*` ne sont pas levés : le point d'accès d'images les 
 - `PrismNativeRequiredError` devient `errors.E_PRISM_NATIVE_REQUIRED`.
 - `ValidationError` (`@c9up/prism/swissqrbill/errors`) n'étend plus `PrismError` ; son `code` ne change pas.
 - Un refus de l'entrée par le moteur a désormais le `status` 422 (voir [Erreurs](#erreurs)).
+- Un pipeline garde désormais au plus `limits.maxMemory` octets (512 Mio par défaut) : une grande image redimensionnée près de sa propre taille peut être refusée avec `E_PRISM_MEMORY_LIMIT` alors qu'elle passait. Augmentez `maxMemory` si votre machine a la place ; [Mémoire](#memoire) donne le calcul.
+- `inspect()` refuse désormais avec `E_PRISM_MEMORY_LIMIT` une image dont le tampon décodé dépasse à lui seul `maxMemory`, et avec `E_PRISM_TOO_MANY_PIXELS` un GIF dont une trame dépasse `maxPixels`, même si son écran ne le dépasse pas.
+- Un WebP dont le flux n'a pas la taille de sa trame, et un AVIF dont un item est placé dans plus d'octets que le fichier, sont aussi refusés par `inspect()` avec `E_PRISM_UNREADABLE`, et plus seulement au décodage.
+- Un PNG dont les blocs de métadonnées (texte, EXIF) dépassent environ trois fois le fichier plus 4 Mio est refusé avec `E_PRISM_UNREADABLE`. Un profil ICC plus grand est ignoré, comme avant : aucune sortie n'en porte.
+- Une source en 16 bits est écrite en 8 bits par canal, sauf si `toBuffer` demande `depth: 16`. Passez `depth: 16` pour garder 16 bits dans un PNG ou un TIFF.
+- `edit().toBuffer()` exécute désormais au plus `concurrency` pipelines à la fois par `Prism` (2 par défaut) ; les autres attendent. Réglez `concurrency` dans `config/images.ts` pour en avoir plus.
+- Avec `serve.cacheDir`, le cache est désormais borné par `serve.maxCacheBytes` (1 Gio par défaut) : les variantes des sources supprimées, puis les plus anciennes, sont effacées. Mettez `maxCacheBytes: 0` pour tout garder.
+- Le point d'accès d'images répond de mémoire à un rendu refusé pour la même version de la source et la même largeur, au lieu de décoder le fichier de nouveau.
 
 ## Voir aussi
 

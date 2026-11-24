@@ -213,17 +213,18 @@ L'en-tête CSRF (`X-XSRF-TOKEN`, tiré du cookie `XSRF-TOKEN`) part sur les requ
 | `liveStore` | fonction | `liveStore(factory: () => LiveComponentDefinition, relay: RelayBroadcaster, channel: string): LiveStore` : une session partagée, diffusée à tous les abonnés d'un canal. |
 | `connectPatches` | fonction | `connectPatches(session: LiveSession, relay: RelayBroadcaster, channel: string): () => void`. |
 | `liveClient` | fonction | `liveClient(opts: LiveClientOptions): () => void` : le côté navigateur ; applique les patchs et poste les événements. |
-| `buildLiveTransport` | fonction | `buildLiveTransport(relayClient: RelaySubscribeClient, http: LiveHttpPoster, options?: { path?: string }): LiveClientTransport`. |
+| `buildLiveTransport` | fonction | `buildLiveTransport(relayClient: RelaySubscribeClient, http: LiveHttpPoster, options?: { path?: string }): LiveClientTransport`. Son `keepAlive(id)` poste `{ id, keepAlive: true }` sur la route des événements. |
+| `DEFAULT_LIVE_KEEP_ALIVE_MS` | constante | `120000` : la fréquence à laquelle `liveClient` garde sa session en vie (`LiveClientOptions.keepAliveMs`). |
 | `DEFAULT_LIVE_EVENT_PATH` | const | `'/__live/event'`. |
 | `LiveComponentDefinition` | interface | `{ view: TemplateResult; handlers?: Record<string, (payload?: unknown) => void> }`. |
 | `LiveSession` | interface | `renderToString()`, `dispatch(event, payload?)`, `drainPatches()`, `onPatch(listener)`, `dispose()`. |
 | `SlotPatch` | interface | `{ slot: number; value: string }`. |
-| `LiveRegistryOptions` | interface | `{ claimTimeoutMs?; idleTimeoutMs?; maxPerOwner?: number; maxSessions?: number }`. `maxPerOwner` 32, `maxSessions` 10 000, `idleTimeoutMs` désactivé par défaut. |
+| `LiveRegistryOptions` | interface | `{ claimTimeoutMs?; idleTimeoutMs?; maxPerOwner?: number; maxSessions?: number }`. `maxPerOwner` 32, `maxSessions` 10 000, `idleTimeoutMs` dix minutes. |
 | `LiveRegistry` | interface | `define(name, factory)`, `has`, `mount(name, ownerId)`, `claim`, `get`, `ownerOf`, `dispose`, `disposeOwner`, `disposeAll`, `size`. |
-| `LiveRouter` | interface | `mount(name, ownerId): LiveMount`, `event(id, event, payload, callerId): LiveEventOutcome`, `authorizeChannel`, `ownerOf`, `disconnect`, `channelFor`. |
+| `LiveRouter` | interface | `mount(name, ownerId): LiveMount`, `event(id, event, payload, callerId): LiveEventOutcome`, `keepAlive(id, callerId): LiveEventOutcome`, `authorizeChannel`, `ownerOf`, `disconnect`, `channelFor`. |
 | `LiveMount` | interface | `{ id: string; channel: string; html: string }`. |
 | `LiveEventOutcome` | type | `'handled' \| 'unknown-session' \| 'forbidden' \| 'unknown-event'`. |
-| `LiveStore`, `LiveSessionHandle`, `LiveClientOptions`, `LiveClientTransport`, `LiveHttpPoster`, `LiveHttpContext`, `LiveHttpRouter`, `LiveEventBody`, `WireLiveEventsOptions`, `RelayBroadcaster`, `RelaySubscribeClient`, `IdentifyLiveCaller` | type | |
+| `LiveStore`, `LiveSessionHandle`, `LiveClientOptions`, `LiveClientTransport`, `LiveHttpPoster`, `LiveHttpContext`, `LiveHttpRouter`, `LiveEventBody`, `LiveKeepAliveBody`, `WireLiveEventsOptions`, `RelayBroadcaster`, `RelaySubscribeClient`, `IdentifyLiveCaller` | type | |
 
 #### Diagnostic, erreurs et types
 
@@ -408,7 +409,7 @@ Le sous-ensemble sans hôte de `@c9up/aurora` : `html`, `isTemplateResult`, `com
 | [`E_AURORA_UNKNOWN_ROUTE`](/fr/reference/errors#e-aurora-unknown-route) | `urlFor` a reçu un nom absent de la table des routes. |
 | [`E_AURORA_MISSING_ROUTE_PARAMS`](/fr/reference/errors#e-aurora-missing-route-params) | `urlFor` n'a pas reçu tous les paramètres requis. |
 | [`E_AURORA_UNKNOWN_LIVE_COMPONENT`](/fr/reference/errors#e-aurora-unknown-live-component) | Un composant live a été monté avant que `registry.define()` le nomme. |
-| [`E_AURORA_LIVE_SESSION_LIMIT`](/fr/reference/errors#e-aurora-live-session-limit) | Le registre tient déjà `maxSessions` sessions. Statut 503. |
+| [`E_AURORA_LIVE_SESSION_LIMIT`](/fr/reference/errors#e-aurora-live-session-limit) | Le registre tient déjà `maxSessions` sessions, toutes en usage. Statut 503. |
 | [`E_AURORA_RELAY_REQUEST_FAILED`](/fr/reference/errors#e-aurora-relay-request-failed) | Une requête relay a reçu un statut hors 2xx. |
 | [`E_AURORA_UNSAFE_URL`](/fr/reference/errors#e-aurora-unsafe-url) | Une URL de navigation a échoué au contrôle de même origine ou de schéma. |
 | [`E_AURORA_SLOT_IN_TAG_NAME`](/fr/reference/errors#e-aurora-slot-in-tag-name) | Un `${}` à la place d'un nom de balise. |
@@ -428,7 +429,8 @@ Le sous-ensemble sans hôte de `@c9up/aurora` : `html`, `isTemplateResult`, `com
 | [`E_AURORA_VISIT_PROPS`](/fr/reference/errors#e-aurora-visit-props) | Avec `visits` activé, les props d'une page n'étaient pas un objet. |
 | [`E_AURORA_INVALID_MOTION`](/fr/reference/errors#e-aurora-invalid-motion) | `motion=${…}` n'était pas un objet de valeurs de mouvement, ou nommait une propriété que le mouvement ne pilote pas. |
 | [`E_AURORA_REACTIVE_CYCLE`](/fr/reference/errors#e-aurora-reactive-cycle) | Des effets se sont relancés sans fin dans une même mise à jour. |
-| [`E_AURORA_VISIT_NO_PAGE_DATA`](/fr/reference/errors#e-aurora-visit-no-page-data) | Avec `visits` actif, la page ne porte aucun `aurora-page-data` exploitable pour démarrer. |
+| [`E_AURORA_VISIT_NO_PAGE_DATA`](/fr/reference/errors#e-aurora-visit-no-page-data) | Avec `visits` actif, la page ne porte aucun script de données exploitable (`script[data-aurora-page]`) pour démarrer. |
+| [`E_AURORA_VISIT_CROSS_ORIGIN_MODULE`](/fr/reference/errors#e-aurora-visit-cross-origin-module) | Avec `visits` actif, l'URL d'un module de page n'est pas sur l'origine de la page. |
 | [`E_AURORA_VISIT_ASYNC_FIRST_PAGE`](/fr/reference/errors#e-aurora-visit-async-first-page) | Avec `visits` actif, la fabrique de la première page est asynchrone : une page hydratée se rend de façon synchrone. |
 | [`E_AURORA_INVALID_LIVE_LIMIT`](/fr/reference/errors#e-aurora-invalid-live-limit) | Une limite du registre live (`maxSessions`, `maxPerOwner`, `claimTimeoutMs`, `idleTimeoutMs`) n'est pas un nombre positif. |
 | [`E_AURORA_BROWSER_ENTRY_OUTSIDE_DIST`](/fr/reference/errors#e-aurora-browser-entry-outside-dist) | Un paquet navigateur déclare son point d'entrée hors du `dist/` qu'aurora sert pour lui. |
@@ -443,6 +445,13 @@ Le sous-ensemble sans hôte de `@c9up/aurora` : `html`, `isTemplateResult`, `com
 - `AuroraRangeError` disparaît : `E_AURORA_INVALID_LIVE_LIMIT` n'est plus une `RangeError` ; attrapez-la par son code.
 - `HttpError` devient `errors.E_AURORA_HTTP_REQUEST_FAILED`, avec les mêmes `status`, `response` et `data` ; `isHttpError` la reconnaît toujours.
 - Le type `AuroraErrorCode` disparaît : `error.code` est une `string`.
+- Les templates sont lus comme le navigateur les lit. Un slot dans `onclick ="${v}"`, `srcdoc ="${v}"`, `<script src ="${v}">` ou `<base href ="${v}">` (espace avant le `=`), dans `x/onclick="${v}"`, dans `<img ='${v}'>`, ou dans `<script/x>` ou `<style/x>` lève maintenant l'erreur de l'écriture habituelle. `href = "${url}"` (espaces des deux côtés) ne lève plus `E_AURORA_SLOT_IN_ATTRIBUTE_NAME` : c'est un `href`, protégé comme `href="${url}"`. Utilisez l'écriture habituelle.
+- `renderToString` écrit entre guillemets une valeur sans guillemets qui contient un slot : `title=${x}` donne `title="…"`, et `title=""` quand `x` est vide. Un test qui comparait le markup octet par octet doit attendre les guillemets.
+- Le script des données de page est maintenant `<script type="application/json" data-aurora-page>`, écrit en premier dans le `<body>`, avant la racine ; il n'a plus `id="aurora-page-data"`. Le code qui le lisait avec `getElementById('aurora-page-data')` doit utiliser `document.querySelector('script[data-aurora-page][type="application/json"]')`.
+- Avec `visits` actif, un module de page n'est importé que depuis l'origine de la page : un motif `modules` sur une autre origine (ou `data:`, ou `//hôte/…`) lève `E_AURORA_VISIT_CROSS_ORIGIN_MODULE`. Servez les modules de page depuis votre propre origine.
+- Un registre live termine une session réclamée après dix minutes sans événement ni keep-alive (`idleTimeoutMs`, désactivé avant). `liveClient` envoie le keep-alive par `buildLiveTransport` ; un transport à vous doit avoir un `keepAlive(id)` qui poste `{ id, keepAlive: true }`, sinon réglez `idleTimeoutMs` vous-même.
+- Un registre live plein évince maintenant la plus ancienne session non réclamée, ou la moins récemment utilisée silencieuse depuis la moitié de `idleTimeoutMs`, avant que `mount` lève `E_AURORA_LIVE_SESSION_LIMIT`. Un événement que le composant ne traite pas ne réclame plus la session.
+- `@click ="${h}"`, `@click= "${h}"` et `x="1"@click="${h}"` sont aussi des écouteurs côté serveur : `renderToString` n'appelle plus `h` et n'écrit rien pour eux.
 
 ## Voir aussi
 

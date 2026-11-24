@@ -8,7 +8,9 @@
 pnpm add @c9up/rune
 ```
 
-The package ships its native engine. A schema the engine can run is run by it or not at all (`E_RUNE_NAPI_REQUIRED`); custom rules, a translator and a messages provider run in TypeScript.
+The native engine comes as one small package per platform, `@c9up/rune-<platform>`, for linux x64 and arm64 (glibc), macOS x64 and arm64, and Windows x64. `@c9up/rune` lists them as optional dependencies, and your package manager installs only the one that matches your machine. No Rust toolchain is needed. Do not install with optional dependencies turned off (`--no-optional`, `--omit=optional`): the engine would be left out.
+
+A schema the engine can run is run by it or not at all: without the engine, it throws `E_RUNE_NAPI_REQUIRED`, and its message names the package to install, for example `@c9up/rune-linux-x64-gnu`. Custom rules, a translator and a messages provider run in TypeScript.
 
 ## Entry points
 
@@ -96,18 +98,18 @@ Types (also in `@c9up/rune/types`):
 | `array` | `array(item?: RuleChain): RuleChain<T[]>` | An array |
 | `record` | `record(valueChain: RuleChain): RuleChain<Record<string, T>>` | An object with any keys |
 | `tuple` | `tuple(items: readonly RuleChain[]): RuleChain` | A fixed-length array |
-| `union` | `union(branches: readonly UnionBranch[]): RuleChain`; `union.if(predicate, chain)`, `union.else(chain)` | The first matching branch |
+| `union` | `union(branches: readonly UnionBranch[]): RuleChain`; `union.if(predicate, chain)`, `union.else(chain)` | The first branch whose predicate is true, else the `union.else` branch, else the value is refused (`union`) |
 | `unionOfTypes` | `unionOfTypes(chains: readonly RuleChain[]): RuleChain` | The branch whose type matches |
 | `optional` | `optional(): RuleChain<undefined>` | Absent only |
 | `null` | `null(): RuleChain<null>` | `null` only |
 | `file` | `file(options?: { size?; extnames?; verifyContent? }): RuleChain<FileLike>` | An uploaded file |
 | `nativeFile` | `nativeFile(options?: { minSize?; maxSize?; mimeTypes? }): RuleChain<FileLike>` | A `File` / `Blob` |
 
-`rune.group(branches)` with `group.if(predicate, shape)` and `group.else(shape)` adds fields to an object depending on the data.
+`rune.group(branches)` with `group.if(predicate, shape)` and `group.else(shape)` adds fields to an object depending on the data. When no branch applies, the object is refused (`unionGroup`). `group(...).otherwise(callback)` and `union(...).otherwise(callback)` take a `UnionNoMatchCallback` that decides instead.
 
 ### `RuleChain`
 
-Every method returns the chain. The [Rules](/en/guides/basics/validation/rules) guide describes each one.
+Every method returns the chain it is called on, except `optional`, `nullable`, `nullish`, `transform` and `clone`, which return a new chain and leave theirs unchanged. A validator keeps its own copy of its chains when it is built. The [Rules](/en/guides/basics/validation/rules) guide describes each method.
 
 | Group | Methods |
 |---|---|
@@ -118,7 +120,8 @@ Every method returns the chain. The [Rules](/en/guides/basics/validation/rules) 
 | Arrays, records, objects | `minLength`, `maxLength`, `fixedLength`, `notEmpty`, `distinct`, `compact`, `validateKeys`, `allowUnknownProperties`, `denyUnknownProperties`, `merge`, `partial`, `pick`, `omit`, `toCamelCaseKeys`, `getProperties`, `getChoices`, `otherwise` |
 | Files | `minSize`, `maxSize`, `mimeTypes`, `verifyContent` |
 | Database | `unique(options: DatabaseRuleOptions \| callback)`, `exists(options \| callback)` |
-| Transforms | `trim`, `escape`, `toLowerCase`, `toUpperCase`, `toCamelCase`, `normalizeEmail`, `normalizeUrl`, `parse`, `transform` |
+| Before the rules | `parse` (first, on the raw input), then `trim`, `escape`, `toLowerCase`, `toUpperCase`, `toCamelCase`, `normalizeEmail`, `normalizeUrl` (after the type rule) |
+| After the rules | `transform(fn)`: runs last, on the validated value of a valid payload |
 | Custom rules | `use(rule: CompiledRule)`, `useAsync(rule: AsyncCompiledRule)`, `custom(name: string, validate: (value: unknown) => boolean, message?: string)` |
 | Messages and schema | `message(text)`, `meta(object)`, `clone` |
 
@@ -133,8 +136,8 @@ Every method returns the chain. The [Rules](/en/guides/basics/validation/rules) 
 | `validateResultAsync` | `validateResultAsync(data: unknown, options?): Promise<ValidationResult<T>>` | |
 | `validateOrThrow` | `validateOrThrow(data: unknown, options?): T` | Synchronous, throws `errors.E_VALIDATION_ERROR` |
 | `validateOrThrowAsync` | `validateOrThrowAsync(data: unknown, options?): Promise<T>` | |
-| `fields` | `fields: Record<string, RuleChain>` | The shape |
-| `schema` | `schema: RuleChain` | The object chain, for `partial()`, `pick()`, `omit()` |
+| `fields` | `fields: Record<string, RuleChain>` | The shape the validator was built from |
+| `schema` | `schema: RuleChain` | The chain the validator was built from, for `partial()`, `pick()`, `omit()`; changing it does not change the validator |
 | `errorReporter` | `errorReporter: ErrorReporterFactory \| ((error) => void) \| null` | This validator's reporter |
 | `messagesProvider` | `messagesProvider: MessagesProviderContract \| null` | This validator's messages; a per-call option wins |
 | `toJSON` | `toJSON(): { schema: SchemaIntrospection; refs: string[] }` | Introspection |
@@ -200,9 +203,9 @@ result.errors[0]?.rule   // 'isEven'
 | [`E_RUNE_CONFLICTING_URL_OPTIONS`](/en/reference/errors#e-rune-conflicting-url-options) | `normalizeUrl()` was given both `forceHttp` and `forceHttps` |
 | [`E_RUNE_UNSUPPORTED_JSON_SCHEMA_TARGET`](/en/reference/errors#e-rune-unsupported-json-schema-target) | A JSON Schema target rune does not emit |
 | [`E_RUNE_NO_OUTPUT_SCHEMA`](/en/reference/errors#e-rune-no-output-schema) | The output shape cannot be described: a transform may produce anything |
-| [`E_RUNE_NAPI_REQUIRED`](/en/reference/errors#e-rune-napi-required) | The native engine is not loaded |
-| [`E_RUNE_NAPI_NOT_FOUND`](/en/reference/errors#e-rune-napi-not-found) | The native engine binary is not found |
-| [`E_RUNE_NAPI_REQUEST_REFUSED`](/en/reference/errors#e-rune-napi-request-refused) | The native engine refused the request |
+| [`E_RUNE_NAPI_REQUIRED`](/en/reference/errors#e-rune-napi-required) | The native engine is not loaded. The message names the package to install |
+| [`E_RUNE_NAPI_NOT_FOUND`](/en/reference/errors#e-rune-napi-not-found) | The native engine binary is not found. The message names the package to install |
+| [`E_RUNE_NAPI_REQUEST_REFUSED`](/en/reference/errors#e-rune-napi-request-refused) | The native engine refused the request. A validator does not raise it: it validates that payload in TypeScript |
 | [`E_RUNE_NAPI_INVALID_RESPONSE`](/en/reference/errors#e-rune-napi-invalid-response) | The native engine answered an unexpected shape |
 
 Each one is a class of `errors`, a flare `Exception`: read `error.code`, or test `error instanceof errors.E_VALIDATION_ERROR`.
@@ -215,6 +218,15 @@ Each one is a class of `errors`, a flare `Exception`: read `error.code`, or test
 - The advice an error carried as `hint` is on `help`.
 - The `ValidationError` interface (`{ field, rule, message, index?, meta? }`) is now `ValidationErrorNode`: `ValidationError` is the exception class, the same as `errors.E_VALIDATION_ERROR`. Replace `import type { ValidationError }` with `ValidationErrorNode` where it typed a failure node.
 - `SimpleErrorReporter` is new.
+- `url()` and `helpers.isURL()` now refuse a value whose scheme is not in `protocols` even when no `//` follows it: `javascript:…@host`, `myapp:host`. The host is checked as validator.js checks it: its TLD must be two letters or more (`http://example.c1` is now refused), and `http://[::1]` is now accepted. To accept another scheme, list it: `url({ protocols: ['https', 'myapp'] })`.
+- `transform()` now runs after the rules, on a valid payload, instead of before them. A rule no longer judges what the callback returns: `number().max(100).transform((n) => n / 100)` now refuses `5000`. If you used `transform()` to prepare a value for the rules, use `parse()` instead: it runs before them.
+- `optional()`, `nullable()` and `nullish()` now return a new chain instead of changing the one they are called on. Use what they return: write `const nickname = name.optional()`, not `name.optional()` on a line of its own.
+- A validator now keeps its own copy of its chains when it is built. A rule added to a chain after `create()` or `schema()` no longer reaches that validator: build the validator after the chain is complete.
+- A `union` built with `union.if()` now refuses a value when no predicate is true and there is no `union.else` branch; it no longer tries the branches whose predicate was false. A `group` with no matching branch now refuses the object with `unionGroup`. Add a `union.else(chain)` or `group.else(shape)` branch, or an `.otherwise(callback)`, to accept the other cases.
+- The items of an array, the values of a record, the positions of a tuple and the properties of an object are no longer validated when the container fails one of its own rules: the errors then list the container's rule only. Call `.bail(false)` on the container to validate them anyway.
+- `requiredWhen(field, '<' | '>' | '<=' | '>=', n)` now compares a numeric string as a number: the field becomes required for `"17" < 18`, as it already was for `17`.
+- `decimal()` now refuses a number that JavaScript prints with an exponent (`1e-7`, `1e21`).
+- On a `number()` or `boolean()` chain, `sameAs()`, `notSameAs()` and `confirmed()` now coerce the other field before comparing: `"7"` and `7` are the same value. `distinct()` does the same for the items of `array(number())`, and `distinct('id')` holds `"7"` and `7` as one value.
 
 ## See also
 

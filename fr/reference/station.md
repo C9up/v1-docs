@@ -95,7 +95,6 @@ Ajoutez `() => import('@c9up/station/provider')` aux providers de `reamrc.ts`, e
 |---|---|---|
 | `StationProvider` | provider (par défaut) | `register()` lie le `ResourceRegistry` ; `boot()` le publie ; `start()` lit la configuration `station`, charge les dépendances pairs, monte la surface de connexion et chaque ressource à mesure qu'elle est enregistrée, et s'arrête sans bruit quand une dépendance nécessaire n'est pas installée. |
 | `StationConfig`, `StationAppContext` | interface | |
-| `resourcesNeedValidation`, `deriveWritableSchema`, `validateWritableBody`, `isModuleNotFound`, `isPackageMissing`, `resetStationProviderFlags` | fonction | Exportées pour les tests du paquet ; elles ne font pas partie de l'API applicative. |
 
 Les routes, sous les middlewares configurés :
 
@@ -186,7 +185,9 @@ Un refus levé au boot ou par le registre est une classe du namespace `errors` e
 
 ## Migration
 
+- `@c9up/station/provider` n'exporte plus que le provider et ses deux types de configuration. `resourcesNeedValidation`, `deriveWritableSchema`, `validateWritableBody`, `isModuleNotFound`, `isPackageMissing` et `resetStationProviderFlags` disparaissent : c'étaient des points d'accès pour les tests du paquet, pas une API applicative. Retirez tout import de l'une d'elles.
 - Un refus n'est plus une simple `Error` ou `TypeError` : testez `error.code`, ou `error instanceof errors.E_STATION_*`. Ceux qui étaient une `TypeError` (une option de `defineResource()` ou `station.audit` du mauvais type) ne le sont plus : remplacez `instanceof TypeError` par `error.code === 'E_STATION_INVALID_RESOURCE'` ou `'E_STATION_INVALID_CONFIG'`.
+- Une connexion admin réussie ne remet plus à zéro que la clé de l'identifiant (`id:<empreinte>`), plus celle de l'IP (`ip:<adresse>`). Un limiteur passé en `loginRateLimit.limiter` reçoit désormais `clear()` avec cette seule clé ; une adresse qui continue d'échouer reste limitée jusqu'à la fin de sa fenêtre.
 
 ## Voir aussi
 

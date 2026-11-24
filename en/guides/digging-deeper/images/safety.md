@@ -27,6 +27,28 @@ header is the AV1 sequence header, read without decoding — `inspect` stays a
 header read — and the AV1 decoder is given the same ceiling as a frame-size
 limit, because a frame may declare a size of its own.
 
+**Every frame, not only the canvas.** A GIF states a screen size and then a
+size per frame; an extended WebP states a canvas and then a size in each
+bitstream. The decoder allocates from the frame, so the ceiling is checked
+against every GIF frame, and a WebP bitstream whose size is not its frame's is
+refused with `E_PRISM_UNREADABLE` before it is decoded.
+
+**Headers that expand are bounded.** A PNG's ICC profile is compressed; the
+header read inflates at most 4 MiB of it, plus a few times the file for the
+text chunks, and drops a profile larger than that — no output carries one. An
+AVIF item spread over more bytes than the file holds (its index listing the
+same data thousands of times) is refused before it is assembled.
+
+**A memory ceiling, in bytes.** Pixels do not say what a pipeline costs: a
+16-bit RGBA pixel is 8 bytes decoded, and a resize holds a 16-byte float
+intermediate of source width x target height beside the source and the
+output. `limits.maxMemory` (512 MiB) bounds one pipeline: each step adds what
+it keeps to what it allocates and is refused with `E_PRISM_MEMORY_LIMIT` before
+allocating when the sum is over. A 16-bit source is narrowed to 8 bits right
+after decoding when the output is 8-bit. `concurrency` (2) pipelines run at
+once per `Prism`, so one instance holds at most 1 GiB. The
+[reference](/en/reference/prism#memory) gives what each step counts.
+
 **The same ceiling on what an operation builds.** A resize target, the side a
 resize derives from the aspect ratio, the scaled intermediate of a `cover`, a
 watermark layer: each is refused with `E_PRISM_TOO_MANY_PIXELS` before it is
@@ -52,7 +74,8 @@ than something to opt into.
 |---|---|
 | `E_PRISM_EMPTY_INPUT` | nothing was passed |
 | `E_PRISM_INPUT_TOO_LARGE` | over the byte ceiling |
-| `E_PRISM_TOO_MANY_PIXELS` | the header declares, or an operation would build, more pixels than allowed |
+| `E_PRISM_TOO_MANY_PIXELS` | the header or a frame declares, or an operation would build, more pixels than allowed |
+| `E_PRISM_MEMORY_LIMIT` | a step of the pipeline would hold more bytes than `maxMemory` |
 | `E_PRISM_UNKNOWN_FORMAT` | the bytes are not an image |
 | `E_PRISM_FORMAT_NOT_ALLOWED` | a real image, in a format not on `allowedFormats` |
 | `E_PRISM_UNSUPPORTED_FORMAT` | an output format the engine does not write (`dds`) |

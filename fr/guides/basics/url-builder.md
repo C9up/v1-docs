@@ -96,6 +96,14 @@ traitait silencieusement `0` comme « pas d'expiration », ce qui était
 un bug de sécurité ; le comportement actuel respecte l'intention de
 l'appelant.
 
+Donnez à `verify()` la cible de la requête telle qu'elle est arrivée : le
+`req.url` de Node, ou `request.url(true)`. La signature couvre ces octets, et ils
+ne sont jamais analysés comme une URL. Un chemin qui diffère du chemin signé d'un
+seul caractère est refusé, même quand un navigateur le lirait comme le même
+chemin : `/users/7\..\5/verify`, des segments `%2e%2e`, un `//hote` en tête, une
+query réencodée ou réordonnée. Renvoyez l'URL que `make()` a rendue, sans la
+modifier. `request.hasValidSignature()` le fait pour vous.
+
 `purpose` lie l'URL à un flow nommé :
 
 ```ts

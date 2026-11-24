@@ -8,7 +8,11 @@
 pnpm add @c9up/warden
 ```
 
-`ream configure @c9up/warden` enregistre le provider, ajoute `JWT_SECRET` (une valeur aléatoire) et `JWT_EXPIRY=3600` aux fichiers d'environnement, et écrit `config/auth.ts` avec une garde JWT dont `findUser` et `verifyCredentials` lèvent une erreur tant que vous ne les avez pas écrites. Les tags de template `@can` / `@cannot` demandent `@c9up/inker` ; les stockages Redis demandent `@c9up/quasar` ou votre propre client. La signature JWT tourne dans le moteur natif du paquet.
+`ream configure @c9up/warden` enregistre le provider, ajoute `JWT_SECRET` (une valeur aléatoire) et `JWT_EXPIRY=3600` aux fichiers d'environnement, et écrit `config/auth.ts` avec une garde JWT dont `findUser` et `verifyCredentials` lèvent une erreur tant que vous ne les avez pas écrites. Les tags de template `@can` / `@cannot` demandent `@c9up/inker` ; les stockages Redis demandent `@c9up/quasar` ou votre propre client. La signature JWT tourne dans un moteur Rust natif.
+
+Le moteur natif est livré dans un petit paquet par plateforme, `@c9up/warden-<plateforme>`, pour linux x64 et arm64 (glibc), macOS x64 et arm64, et Windows x64. `@c9up/warden` les déclare en dépendances optionnelles, et votre gestionnaire de paquets installe seulement celui de votre machine. Vous n'avez pas besoin de toolchain Rust. N'installez pas avec les dépendances optionnelles désactivées (`--no-optional`, `--omit=optional`) : le moteur serait absent.
+
+Il n'existe pas de repli JavaScript. Sans le moteur, signer ou vérifier un JWT lève `E_WARDEN_NAPI_REQUIRED`, et son message nomme le paquet à installer, par exemple `@c9up/warden-linux-x64-gnu`.
 
 ## Points d'entrée
 
@@ -56,7 +60,7 @@ Authentification :
 | `AuthManager` | classe | Les gardes configurées ; authentifie, vérifie, émet des jetons, résout les droits |
 | `Authenticator` | classe | `ctx.auth`, l'état d'authentification d'une requête |
 | `GuardAccessor` | classe | `ctx.auth.use(name)`, une garde d'une requête |
-| `authFinder` | fonction | `authFinder<User>(options: AuthFinderOptions<User>): AuthFinder<User>` : `verifyCredentials(uid, password)` lève `E_INVALID_CREDENTIALS` pour un compte inconnu comme pour un mauvais mot de passe, après le même travail de hachage |
+| `authFinder` | fonction | `authFinder<User>(options: AuthFinderOptions<User>): AuthFinder<User>` : `verifyCredentials(uid, password)` lève `E_INVALID_CREDENTIALS` pour un compte inconnu, un mauvais mot de passe et un mot de passe que le hasher refuse, après le même travail de hachage |
 | `AuthFinder`, `AuthFinderOptions`, `AuthFinderHasher` | interface | `{ hash: { make, verify }, findForAuth(uid), passwordColumnName? }` (colonne `password` par défaut) |
 | `extractCredentials` | fonction | Le jeton bearer, la clé d'API, l'en-tête Basic et la session d'une requête |
 | `API_KEY_GUARD_NAMES` | const | Les noms de garde lus comme gardes par jetons d'accès : `access_tokens`, `api-key` |
@@ -76,8 +80,8 @@ Décorateurs de route :
 | Export | Nature | Description |
 |---|---|---|
 | `Guard` | décorateur | `@Guard(first: string, ...rest: string[])` : les gardes qui peuvent authentifier la route ; la première qui réussit l'emporte |
-| `Permission` | décorateur | `@Permission(...permissions: string[])` : toutes requises |
-| `Role` | décorateur | `@Role(...roles: string[])` : tous requis |
+| `Permission` | décorateur | `@Permission(...permissions: string[])` : toutes requises ; au moins un nom |
+| `Role` | décorateur | `@Role(...roles: string[])` : tous requis ; au moins un nom |
 | `RequireMfa` | décorateur | `@RequireMfa()` : l'utilisateur doit avoir passé l'étape MFA |
 | `getGuardMetadata`, `getPermissionMetadata`, `getRoleMetadata`, `getRequireMfaMetadata` | fonction | Lisent les décorateurs d'un handler |
 
@@ -122,9 +126,9 @@ Jetons JWT, de rafraîchissement et remember-me :
 | `TokenBlacklist` | classe | `new TokenBlacklist(driver: BlacklistDriver)` : `revoke(jti, expiresAt)`, `isRevoked(jti)`, `cleanup()` |
 | `MemoryBlacklistDriver`, `RedisBlacklistDriver`, `ResilientBlacklistDriver` | classe | Drivers de liste de révocation ; le résilient enveloppe un driver principal d'un repli en mémoire |
 | `BlacklistDriver`, `RedisBlacklistConfig`, `RedisLikeClient`, `ResilientBlacklistConfig`, `BlacklistDegradeEvent` | interface | Leurs contrats et options |
-| `mintRefreshToken`, `generateRefreshToken`, `hashRefreshToken` | fonction | Création et hachage des jetons de rafraîchissement |
+| `mintRefreshToken`, `rotateRefreshToken`, `decodeRefreshToken` | fonction | Ouvre une famille de jetons à la connexion ; échange un jeton de rafraîchissement contre son successeur ; découpe une valeur présentée en sa famille et le hachage de son secret. Voir [Jetons de rafraîchissement](#jetons-de-rafraichissement) |
 | `MemoryRefreshTokenDriver` | classe | `RefreshTokenDriver` en mémoire |
-| `RefreshTokenDriver`, `MintedRefreshToken`, `StoredRefreshToken` | interface | Stockage des jetons de rafraîchissement |
+| `RefreshTokenDriver`, `MintedRefreshToken`, `StoredRefreshToken`, `RefreshTokenSuccessor`, `RefreshTokenRotation` | interface / type | Stockage des jetons de rafraîchissement, une ligne par famille, et la réponse d'une rotation |
 | `RememberMeToken` | classe | Un jeton remember-me |
 | `mintRememberMeToken`, `verifyAndRecycleRememberMeToken` | fonction | Émet un jeton remember-me ; en vérifie un et le remplace |
 | `MemoryRememberMeTokenDriver` | classe | `RememberMeTokenDriver` en mémoire |
@@ -138,8 +142,9 @@ Authentification multifacteur :
 
 | Export | Nature | Description |
 |---|---|---|
-| `MfaManager` | classe | `new MfaManager(config: MfaManagerConfig)` : `enrollTotp`, `confirmTotp`, `verifyTotp`, `createBackupCodes`, `verifyBackupCode`, `verify(userId, code)`, `isLocked`, `listFactors`, `isEnabled`, `disableFactor` |
+| `MfaManager` | classe | `new MfaManager(config: MfaManagerConfig)` : `enrollTotp`, `confirmTotp`, `verifyTotp`, `createBackupCodes`, `verifyBackupCode`, `verify(userId, code)`, `isLocked`, `listFactors`, `isEnabled`, `disableFactor` ; `enrollTotp`, `confirmTotp`, `createBackupCodes` et `disableFactor` prennent `{ stepUp }` et l'exigent dès que le compte a la MFA |
 | `MfaManagerConfig` | interface | `{ issuer: string; totp?; backupCodes?; store?; rateLimit? }` |
+| `MfaChangeOptions`, `MfaEnrollOptions` | interface | `{ stepUp? }`, `{ stepUp?, label? }` : les options d'une modification de facteur |
 | `MfaRateLimitConfig` | interface | `{ maxAttempts?, windowSeconds?, store? }` |
 | `MfaFactor`, `MfaFactorKind`, `MfaFactorStore`, `MfaFactorSummary` | interface / type | Facteurs enrôlés (`'totp' \| 'backup_codes'`) et leur stockage |
 | `MemoryMfaFactorStore` | classe | `MfaFactorStore` en mémoire |
@@ -148,7 +153,7 @@ Authentification multifacteur :
 | `TotpConfig`, `TotpEnrollment`, `TotpAlgorithm`, `TotpReplayGuard`, `ReplayRedisClient` | interface / type | Options et contrats TOTP |
 | `BackupCodesProvider` | classe | `new BackupCodesProvider(config?: BackupCodesConfig)` : `generate()`, `verify(hashes, code)` |
 | `BackupCodesConfig`, `BackupCodesResult`, `BackupCodeVerification` | interface | |
-| `OtpProvider` | classe | `new OtpProvider(config: OtpConfig)` : `start(...)` envoie un code via un canal de livraison, `verify(...)` |
+| `OtpProvider` | classe | `new OtpProvider(config: OtpConfig)` : `start(recipient)` envoie un code via un canal de livraison, `verify(challengeId, recipient, code)` le vérifie pour ce destinataire seulement |
 | `MemoryOtpChallengeStore` | classe | `OtpChallengeStore` en mémoire (10 000 défis en attente au plus) |
 | `OtpConfig`, `OtpChallenge`, `OtpChallengeStore`, `OtpDeliveryChannel`, `OtpStartResult`, `OtpVerification`, `OtpFailureReason` | interface / type | Options et contrats des codes à usage unique |
 | `WebauthnProvider` | classe | `new WebauthnProvider(config: WebauthnConfig)` : `startRegistration`, `finishRegistration`, `startAuthentication`, `finishAuthentication` |
@@ -159,7 +164,7 @@ Limitation et stockages :
 
 | Export | Nature | Description |
 |---|---|---|
-| `AuthRateLimiter` | classe | `new AuthRateLimiter(config?: AuthRateLimiterConfig)` : `attempt(...keys)`, `isBlocked(...keys)`, `clear(...keys)`, `AuthRateLimiter.loginKeys(ip, identifier)` |
+| `AuthRateLimiter` | classe | `new AuthRateLimiter(config?: AuthRateLimiterConfig)` : `attempt(...keys)`, `isBlocked(...keys)`, `clear(...keys)`, `AuthRateLimiter.loginKeys(ip, identifier)`, `AuthRateLimiter.ipKey(ip)`, `AuthRateLimiter.identifierKey(identifier)`. En cas de succès : `clear(AuthRateLimiter.identifierKey(email))` seulement |
 | `AuthRateLimiterConfig` | interface | `{ maxAttempts?, windowSeconds?, store? }` |
 | `AttemptDecision` | interface | `{ allowed, remaining, retryAfterSeconds }` |
 | `MemoryAttemptStore`, `RedisAttemptStore` | classe | Compteurs de tentatives |
@@ -322,6 +327,65 @@ Avec un émetteur (`auth.setEmitter(emitter)`), chaque décision d'authentificat
 
 Événements : `login_attempted`, `login_succeeded` et `logged_out` (gardes de session), `authentication_attempted`, `authentication_succeeded` et `authentication_failed` (toutes les gardes). Un écouteur qui lève une erreur ne casse jamais une connexion.
 
+## Jetons de rafraîchissement
+
+Une connexion ouvre une famille de jetons : une ligne qui contient le hachage du seul jeton de rafraîchissement valide à cet instant. Un rafraîchissement consomme ce jeton et met son successeur dans la même ligne. La valeur du jeton est `base64url(familyId).base64url(secret)` ; seul `sha256(secret)` est stocké.
+
+```ts
+import { MemoryRefreshTokenDriver, mintRefreshToken, rotateRefreshToken } from '@c9up/warden'
+
+const refreshTokens = new MemoryRefreshTokenDriver() // votre propre driver en production
+
+// Connexion : ouvrez une famille.
+const minted = mintRefreshToken(user.id, 30 * 24 * 3600)
+await refreshTokens.store(minted.stored)
+// Envoyez minted.value au client, avec un jeton d'accès.
+
+// POST /auth/refresh
+const rotation = await rotateRefreshToken(refreshTokens, body.refreshToken, 30 * 24 * 3600)
+if (!rotation.rotated) {
+  // 'invalid' et 'reused' reçoivent le même 401. Sur 'reused', la famille est
+  // déjà révoquée ; vous pouvez aussi prévenir l'utilisateur ou fermer toutes
+  // ses sessions :
+  // if (rotation.reason === 'reused') await refreshTokens.revokeAllForUser(rotation.userId)
+  return response.status(401).json({ error: 'invalid_grant' })
+}
+// Envoyez rotation.value au client, avec un nouveau jeton d'accès pour rotation.userId.
+```
+
+`rotateRefreshToken` répond :
+
+| Réponse | Quand |
+|---|---|
+| `{ rotated: true, userId, familyId, value, expiresAt }` | Le jeton était le jeton courant. `value` est son successeur ; le jeton présenté ne fonctionne plus. |
+| `{ rotated: false, reason: 'invalid' }` | Ce n'est pas un jeton de rafraîchissement, ou sa famille est inconnue, révoquée ou expirée (sa ligne est supprimée). |
+| `{ rotated: false, reason: 'reused', userId, familyId }` | Un jeton d'une famille vivante qui n'est pas le jeton courant : un jeton déjà consommé, ou le perdant de deux requêtes qui présentent le même jeton au même moment. La famille est révoquée : le successeur reçu par l'autre requête ne fonctionne plus non plus. |
+
+Le second cas attrape un jeton volé : le voleur et le propriétaire tiennent des jetons de la même connexion, et le premier jeton consommé qui revient ferme la famille pour les deux.
+
+### Écrire un driver
+
+Un driver stocke une ligne par famille, indexée par `familyId` : `{ familyId, hash, userId, expiresAt, createdAt }`.
+
+| Méthode | Ce qu'elle doit faire |
+|---|---|
+| `store(row)` | Insérer la ligne d'une nouvelle famille |
+| `find(familyId)` | La ligne, ou `null` |
+| `consume(familyId, presentedHash, successor)` | Remplacer `hash` et `expiresAt` par `successor` SEULEMENT si le hachage de la ligne est encore `presentedHash`, en une seule opération indivisible, et répondre si CET appel l'a fait |
+| `revokeFamily(familyId)` | Supprimer la ligne |
+| `revokeAllForUser(userId)` | Supprimer toutes les lignes de l'utilisateur ; comparer les identifiants comme des chaînes |
+| `cleanup()` | Supprimer les lignes expirées |
+
+`consume` est un compare-and-set. En SQL, une seule requête et son nombre de lignes modifiées :
+
+```sql
+UPDATE refresh_tokens SET hash = :next_hash, expires_at = :next_expires_at
+WHERE family_id = :family_id AND hash = :presented_hash
+-- consume() répond : lignes modifiées === 1
+```
+
+Sur Redis, un script Lua qui compare le hachage et écrit dans le même appel. Un `find` suivi d'une écriture séparée n'est pas une consommation : deux requêtes avec le même jeton lisent le même hachage et écrivent toutes les deux. Un driver sans `consume()` ou sans `revokeFamily()` est refusé avec `E_WARDEN_REFRESH_STORE_CONTRACT`.
+
 ## Configuration
 
 `config/auth.ts`, lu sous la clé `auth`. Le provider lève `E_WARDEN_NO_AUTH_CONFIG` sans aucune garde.
@@ -400,13 +464,14 @@ export default defineConfig({
 | Code | Levée quand |
 |---|---|
 | [`E_UNAUTHORIZED_ACCESS`](/fr/reference/errors#e-unauthorized-access-warden) | Aucune garde n'a authentifié la requête (401), ou un jeton n'a pas la capacité que demande `currentAccessToken.authorize()` (403) |
-| [`E_INVALID_CREDENTIALS`](/fr/reference/errors#e-invalid-credentials) | `authFinder().verifyCredentials()` n'a trouvé aucun compte ou un mauvais mot de passe (400) |
+| [`E_INVALID_CREDENTIALS`](/fr/reference/errors#e-invalid-credentials) | `authFinder().verifyCredentials()` n'a trouvé aucun compte, un mauvais mot de passe, ou un mot de passe que le hasher refuse (400) |
 | [`E_AUTHORIZATION_FAILURE`](/fr/reference/errors#e-authorization-failure) | Une capacité ou une policy du bouncer a refusé l'action, ou l'utilisateur n'a pas un rôle ou une permission que déclare la route (403) |
-| [`E_WARDEN_MFA_REQUIRED`](/fr/reference/errors#e-warden-mfa-required) | La route déclare `@RequireMfa` et l'étape MFA n'a pas été passée (403) |
+| [`E_WARDEN_MFA_REQUIRED`](/fr/reference/errors#e-warden-mfa-required) | La route déclare `@RequireMfa` et l'étape MFA n'a pas été passée, ou un appel à `MfaManager` modifie les facteurs d'un compte qui a la MFA sans `{ stepUp: true }` (403) |
 | [`E_WARDEN_AUTH_STRATEGY_ERROR`](/fr/reference/errors#e-warden-auth-strategy-error) | Chaque garde tentée a planté (500) |
 | [`E_WARDEN_UNAUTHORIZED`](/fr/reference/errors#e-warden-unauthorized) | L'`expressMiddleware()` autonome n'a trouvé aucun jeton ou l'a refusé (401) |
 | [`E_WARDEN_AUTH_ERROR`](/fr/reference/errors#e-warden-auth-error) | L'`expressMiddleware()` autonome a échoué (500) |
 | [`E_WARDEN_NO_AUTH_CONFIG`](/fr/reference/errors#e-warden-no-auth-config) | Le provider n'a trouvé aucune garde dans `config/auth.ts` |
+| [`E_WARDEN_EMPTY_GATE_REQUIREMENT`](/fr/reference/errors#e-warden-empty-gate-requirement) | `@Guard()`, `@Role()` ou `@Permission()` ne nomme rien à exiger ; levée quand le décorateur est appliqué, et par le middleware pour des métadonnées qui ne nomment rien |
 | [`E_WARDEN_INVALID_CONFIG`](/fr/reference/errors#e-warden-invalid-config) | Un réglage de garde, de jeton, de MFA ou de limitation est invalide |
 | [`E_WARDEN_NAPI_REQUIRED`](/fr/reference/errors#e-warden-napi-required) | La signature ou la vérification JWT a tourné sans le moteur natif |
 | [`E_WARDEN_NOT_BOOTED`](/fr/reference/errors#e-warden-not-booted) | `@c9up/warden/services/main` a été lu avant le boot du provider |
@@ -421,6 +486,7 @@ export default defineConfig({
 | [`E_WARDEN_TOKEN_TTL_INVALID`](/fr/reference/errors#e-warden-token-ttl-invalid) | Le TTL d'un jeton de rafraîchissement, ou la durée de vie d'un jeton, n'est pas un nombre fini positif (une durée de vie de jeton doit aussi tomber en secondes entières) |
 | [`E_WARDEN_OTP_STORE_FULL`](/fr/reference/errors#e-warden-otp-store-full) | Le stockage OTP en mémoire contient son maximum de défis en attente |
 | [`E_WARDEN_OTP_STORE_CONTRACT`](/fr/reference/errors#e-warden-otp-store-contract) | Le stockage des défis OTP n'a pas de `take()` |
+| [`E_WARDEN_REFRESH_STORE_CONTRACT`](/fr/reference/errors#e-warden-refresh-store-contract) | Le driver de jetons de rafraîchissement passé à `rotateRefreshToken` n'a pas de `consume()` ou pas de `revokeFamily()` |
 | [`E_WARDEN_WEBAUTHN_STORE_FULL`](/fr/reference/errors#e-warden-webauthn-store-full) | Le stockage WebAuthn en mémoire contient son maximum de cérémonies en attente |
 | [`E_WARDEN_STORE_TTL_INVALID`](/fr/reference/errors#e-warden-store-ttl-invalid) | Le `ttlMs` d'un stockage de défis n'est pas un entier positif |
 | [`E_WARDEN_STORE_LIMIT_INVALID`](/fr/reference/errors#e-warden-store-limit-invalid) | Le `maxEntries` d'un stockage de défis n'est pas un entier positif |
@@ -457,6 +523,13 @@ Chacune est une classe du namespace `errors` et une `Exception` de `@c9up/flare`
 - `E_WARDEN_FORBIDDEN` disparaît : un utilisateur à qui manque un rôle ou une permission que déclare la route (`@Role`, `@Permission`) reçoit `E_AUTHORIZATION_FAILURE`, le code d'un `authorize()` refusé et du `.role()` / `.permission()` du gate de route. Le message est traduit sous `errors.E_AUTHORIZATION_FAILURE` quand le contexte a un `i18n` ; les rôles et permissions manquants ne sont pas envoyés.
 - Le middleware n'écrit plus lui-même un refus : une requête sans identifiants valides et un utilisateur à qui manque un rôle ou une permission déclarés sont LEVÉS (`errors.E_UNAUTHORIZED_ACCESS`, `errors.E_AUTHORIZATION_FAILURE`), et le `handle` de l'erreur écrit la réponse. Un `@Role` / `@Permission` refusé répond donc comme un `authorize()` refusé : `403 { "errors": [{ "message": "Access denied" }] }` en JSON, un objet d'erreur JSON:API, le message en texte pour du HTML, et une soumission de formulaire d'un navigateur avec une session redirigée vers la page précédente avec le message en flash. Le 401 ne change pas. Un `try { await next() } catch` autour du middleware de warden voit désormais ces erreurs.
 - warden demande `@c9up/ream` 0.2.32 ou plus récent, dont le gestionnaire d'exceptions rend une erreur à l'intérieur de la chaîne de middlewares (ce qu'un refus met en flash est donc enregistré avec la session).
+- `authFinder().verifyCredentials()` lève désormais `E_INVALID_CREDENTIALS` (400) pour un mot de passe que le hasher refuse (plus de 1024 octets avec sigil, 72 avec bcrypt), là où un compte inconnu laissait passer l'erreur du hasher en 500 ; `verifyPassword()` répond `false` dans ce cas. Vérifiez la longueur d'un mot de passe quand il est défini, pas à la connexion. Un `hash` personnalisé est désormais appelé autrement pour un compte inconnu ou une ligne sans hachage : `make()` une fois, sur une valeur aléatoire, puis `verify()` à chaque connexion, à la place de `make(password)`.
+- Les jetons de rafraîchissement vont désormais par familles, une ligne par connexion. `RefreshTokenDriver` est indexé par `familyId` et demande `consume(familyId, presentedHash, successor)` (un compare-and-set atomique) et `revokeFamily(familyId)` à la place de `revoke(hash)` ; `StoredRefreshToken` gagne `familyId`. `generateRefreshToken` et `hashRefreshToken` disparaissent : ouvrez une famille avec `mintRefreshToken`, et écrivez la route de rafraîchissement avec `rotateRefreshToken` (voir [Jetons de rafraîchissement](#jetons-de-rafraichissement)) au lieu de `find` puis `revoke`. Ajoutez une clé `family_id` à votre table. Les jetons émis avant ce changement ne rafraîchissent plus : ces clients se reconnectent.
+- Après une connexion réussie, effacez seulement la clé de l'identifiant : remplacez `limiter.clear(...keys)` par `limiter.clear(AuthRateLimiter.identifierKey(email))`. Effacer aussi la clé de l'adresse permettait à un client qui possède un compte de remettre à zéro, à volonté, la limite de son adresse.
+- Sur un compte qui a un facteur confirmé, `MfaManager.enrollTotp()`, `confirmTotp()`, `createBackupCodes()` et `disableFactor()` lèvent désormais `E_WARDEN_MFA_REQUIRED` (403), sauf si vous passez `{ stepUp: ctx.auth.user.mfa === true }` et qu'il vaut `true`. Le libellé passe dans les mêmes options : `enrollTotp(user, { label })`, `createBackupCodes(userId, { label })` à la place d'un second argument chaîne.
+- Une aptitude, une action de politique ou un hook `before` / `after` qui rend autre chose qu'un booléen ou une `AuthorizationResponse` n'accorde plus l'accès quand la valeur est vraie : une aptitude ou une action refuse, et un hook est ignoré. Rendez un vrai booléen (`return user.isAdmin === true`).
+- `@Guard()`, `@Role()` et `@Permission()` sans nom (ou avec seulement des noms vides, comme une liste lue dans la configuration et qui est vide) lèvent désormais `E_WARDEN_EMPTY_GATE_REQUIREMENT` au chargement de la classe ; avant, ils n'ajoutaient aucune exigence et laissaient l'action publique sous le middleware de Warden. Nommez-en au moins un, ou retirez le décorateur.
+- `OtpProvider.verify()` prend désormais le destinataire : `verify(challengeId, recipient, code)`, avec l'adresse passée à `start()` pour cette connexion. Un challenge ouvert pour un autre destinataire répond `not_found`. Un appel avec seulement l'identifiant et le code lève `E_WARDEN_INVALID_CONFIG`.
 
 ## Voir aussi
 

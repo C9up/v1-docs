@@ -126,13 +126,19 @@ vérification.
 Les hooks optionnels `before` et `after` s'exécutent autour de chaque action
 dans cet ordre — **before → refus-invité → action → after** :
 
-- `before(user, action, ...args)` s'exécute en premier. Un retour
-  non-`undefined` court-circuite l'action (c'est ainsi que fonctionnent un
-  bypass de modérateur, ou un `deny("introuvable", 404)` précoce — y compris
-  pour un invité).
+- `before(user, action, ...args)` s'exécute en premier. Un booléen ou une
+  `AuthorizationResponse` court-circuite l'action (c'est ainsi que fonctionnent
+  un bypass de modérateur, ou un `deny("introuvable", 404)` précoce — y compris
+  pour un invité). Toute autre valeur (`undefined`, une chaîne, un nombre)
+  laisse l'action décider.
 - la règle de refus-invité ne s'applique que si `before` n'a rien renvoyé.
-- `after(user, action, response)` s'exécute en dernier. Un retour non-`undefined`
-  remplace la réponse ; `undefined` la conserve.
+- `after(user, action, response)` s'exécute en dernier. Un booléen ou une
+  `AuthorizationResponse` remplace la réponse ; toute autre valeur la conserve.
+
+Seul `true` ou une `AuthorizationResponse` qui autorise accorde l'accès. Une
+aptitude ou une action qui rend autre chose — une colonne qui vaut `"false"`,
+le résultat d'une recherche, `1` — est un refus. Rendez un vrai booléen :
+`return user.isAdmin === true`.
 
 ```ts
 class PostPolicy extends BasePolicy {

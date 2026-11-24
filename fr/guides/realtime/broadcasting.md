@@ -216,9 +216,13 @@ les pose, depuis un preload :
 import relay from '@c9up/relay/services/main'
 
 relay.registerRoutes()
-// ou, pour mettre les endpoints derrière l'auth :
-relay.registerRoutes((route) => route.middleware('auth'))
+// ou, pour exiger une requête authentifiée sur les endpoints :
+relay.registerRoutes((route) => route.guard('web'))
 ```
+
+`.guard()`, `.role()` et `.permission()` sur la route refusent une requête qui
+ne les satisfait pas. Le middleware `auth` de Warden ne refuserait rien ici : il
+applique les décorateurs d'une action de contrôleur, et ces routes n'en ont pas.
 
 Poser la route là où la déclaration est écrite est ce qui la garde en avance sur
 la socket. Les construire dans une phase ultérieure laissait une fenêtre, après

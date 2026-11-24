@@ -8,7 +8,11 @@
 pnpm add @c9up/goldstone
 ```
 
-Add `() => import('@c9up/goldstone/provider')` to the providers in `reamrc.ts` and create `config/inbox.ts`. Parsing and the sender checks run on a Rust engine shipped as a prebuilt binary; `@c9up/ream` is an optional peer.
+Add `() => import('@c9up/goldstone/provider')` to the providers in `reamrc.ts` and create `config/inbox.ts`. Parsing and the sender checks run on a Rust engine. `@c9up/ream` is an optional peer.
+
+The native engine comes as one small package per platform, `@c9up/goldstone-<platform>`, for linux x64 and arm64 (glibc), macOS x64 and arm64, and Windows x64. `@c9up/goldstone` lists them as optional dependencies, and your package manager installs only the one that matches your machine. No Rust toolchain is needed. Do not install with optional dependencies turned off (`--no-optional`, `--omit=optional`): the engine would be left out.
+
+There is no JavaScript fallback. Without the engine, the first parse throws `E_GOLDSTONE_NATIVE_REQUIRED`, and its message names the package to install, for example `@c9up/goldstone-linux-x64-gnu`.
 
 ## Entry points
 
@@ -106,7 +110,7 @@ Every method that takes a `folder` defaults to `'INBOX'`. Messages are read with
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `ParseOptions.limits` | `Limits` | see below | Bounds applied while parsing. |
-| `ParseOptions.remoteContent` | `'block' \| 'allow'` | `'block'` | Whether the sanitized `html` may load remote images, backgrounds and posters. `cid:` references and links stay either way. |
+| `ParseOptions.remoteContent` | `'block' \| 'allow'` | `'block'` | Whether the sanitized `html` may load remote images, backgrounds and posters. `cid:` references and links with a scheme stay either way. |
 | `ReadOptions.authenticate` | `boolean \| AuthenticateOptions` | `true` | Check DKIM, SPF and DMARC. |
 | `AuthenticateOptions.ip`, `helo`, `mailFrom` | `string` | | The delivering server's IP, HELO and MAIL FROM: what SPF checks. Without them SPF is `none`. |
 | `AuthenticateOptions.maxDkimSignatures` | `number` | `5` | DKIM signatures checked, at most. |
@@ -120,6 +124,8 @@ Every method that takes a `folder` defaults to `'INBOX'`. Messages are read with
 | `maxDepth` | 32 | Nesting depth of multiparts and carried messages. |
 | `maxHeaders` | 1000 | Header fields in one header block. |
 | `maxHeaderBytes` | 1 MiB | Size of one header block. |
+| `maxPartHeaderBytes` | 1 MiB | Size of the header blocks of the parts and carried messages, all together. The message's own block is bounded by `maxHeaderBytes` alone. |
+| `maxAddresses` | 5000 | Addresses in the address headers (`From`, `To`, `Cc`, `Bcc`, `Reply-To`, `Sender`, `Resent-*`, `List-*`) of every header block, the parts' included; a group counts as one more. Checked before the message is parsed. |
 | `maxAttachments` | 100 | Number of attachments. |
 | `maxAttachmentBytes` | 25 MiB | Size of one decoded attachment. |
 | `maxHtmlBytes` | 512 KiB | Size of the HTML body that is sanitized; over it, the message is read without `html`. |
@@ -136,8 +142,8 @@ Every limit is a positive integer under 2^32.
 | `inReplyTo`, `references` | `readonly string[]` | |
 | `headers` | `readonly Header[]` | Every header, as received. |
 | `text` | `string \| undefined` | The text body. |
-| `html` | `string \| undefined` | Sanitized for display: no script, no event handler, no `javascript:` URL, no remote content unless allowed. |
-| `htmlError` | `Exception \| undefined` | Why `html` is absent although the message has an HTML body (`E_GOLDSTONE_HTML_TOO_LARGE`, `…_TOO_DEEP`, `…_TOO_COMPLEX`). |
+| `html` | `string \| undefined` | Sanitized for display: no script, no event handler, no `javascript:` URL, no remote content unless allowed, and no URL without a scheme (`/path`, `../x`, `//host`, `?q`, `#id`): a mail has no base URL in the page that shows it, so such a URL would point into your application. The element stays, without the attribute. To resolve these URLs against a base of your own, start from `unsanitizedHtml()`. |
+| `htmlError` | `Exception \| undefined` | Why `html` is absent although the message has an HTML body (`E_GOLDSTONE_HTML_TOO_LARGE`, `…_TOO_DEEP`, `…_TOO_COMPLEX`). The depth and the complexity are measured on the tree the HTML parser builds. |
 | `attachments` | `readonly Attachment[]` | |
 | `authenticity` | `Authenticity \| undefined` | Present when read with `readMessage`. |
 | `header(name)` | `header(name: string): string \| undefined` | The first header of that name, any case. |
@@ -251,14 +257,15 @@ Each code is a class of the `errors` namespace (`import { errors } from '@c9up/g
 | [`E_GOLDSTONE_TOO_MANY_PARTS`](/en/reference/errors#e-goldstone-too-many-parts) | A message has more MIME parts than allowed. |
 | [`E_GOLDSTONE_TOO_DEEP`](/en/reference/errors#e-goldstone-too-deep) | MIME parts are nested deeper than allowed. |
 | [`E_GOLDSTONE_TOO_MANY_HEADERS`](/en/reference/errors#e-goldstone-too-many-headers) | A header block has more fields than allowed. |
-| [`E_GOLDSTONE_HEADERS_TOO_LARGE`](/en/reference/errors#e-goldstone-headers-too-large) | A header block is over the size limit. |
+| [`E_GOLDSTONE_HEADERS_TOO_LARGE`](/en/reference/errors#e-goldstone-headers-too-large) | A header block is over `maxHeaderBytes`, or the header blocks of the parts are over `maxPartHeaderBytes` together. |
+| [`E_GOLDSTONE_TOO_MANY_ADDRESSES`](/en/reference/errors#e-goldstone-too-many-addresses) | The address headers hold more addresses than `maxAddresses`. |
 | [`E_GOLDSTONE_MISSING_BOUNDARIES`](/en/reference/errors#e-goldstone-missing-boundaries) | A multipart message declares boundaries that never appear. |
 | [`E_GOLDSTONE_BOUNDARY_TOO_LONG`](/en/reference/errors#e-goldstone-boundary-too-long) | A multipart boundary is too long. |
 | [`E_GOLDSTONE_TOO_MANY_ATTACHMENTS`](/en/reference/errors#e-goldstone-too-many-attachments) | A message has more attachments than allowed. |
 | [`E_GOLDSTONE_ATTACHMENT_TOO_LARGE`](/en/reference/errors#e-goldstone-attachment-too-large) | An attachment is over the size limit. |
 | [`E_GOLDSTONE_HTML_TOO_LARGE`](/en/reference/errors#e-goldstone-html-too-large) | The HTML body is over `maxHtmlBytes` (on `htmlError`). |
-| [`E_GOLDSTONE_HTML_TOO_DEEP`](/en/reference/errors#e-goldstone-html-too-deep) | The HTML body is nested too deep (on `htmlError`). |
-| [`E_GOLDSTONE_HTML_TOO_COMPLEX`](/en/reference/errors#e-goldstone-html-too-complex) | The HTML body has too many elements (on `htmlError`). |
+| [`E_GOLDSTONE_HTML_TOO_DEEP`](/en/reference/errors#e-goldstone-html-too-deep) | The HTML body nests more than 1000 elements deep (on `htmlError`). |
+| [`E_GOLDSTONE_HTML_TOO_COMPLEX`](/en/reference/errors#e-goldstone-html-too-complex) | The HTML body builds a tree out of proportion to its markup: too many nodes, or too much work to place them, such as stray tags in a table (on `htmlError`). |
 | [`E_GOLDSTONE_DNS_UNAVAILABLE`](/en/reference/errors#e-goldstone-dns-unavailable) | A sender check needed DNS and DNS failed. |
 | [`E_GOLDSTONE_INVALID_ENVELOPE`](/en/reference/errors#e-goldstone-invalid-envelope) | The envelope given to a sender check is invalid. |
 | [`E_GOLDSTONE_ENGINE`](/en/reference/errors#e-goldstone-engine) | The engine failed without one of the codes above. |
@@ -278,6 +285,10 @@ Each code is a class of the `errors` namespace (`import { errors } from '@c9up/g
 - `GoldstoneNativeRequiredError` becomes `errors.E_GOLDSTONE_NATIVE_REQUIRED`.
 - `fromEngine()` and `htmlError` return a flare `Exception`, the class of the code.
 - A refusal of a message's content now has `status` 422 (see [Errors](#errors)).
+- The sanitized `html` no longer keeps URLs without a scheme (`href="/account"`, `src="/logo.png"`, `href="#top"`, `href="//host/x"`): the attribute is removed, the element kept. If you need them, resolve them yourself from `unsanitizedHtml()` against the base you choose.
+- A message whose address headers hold more than 5000 addresses in all is now refused with `E_GOLDSTONE_TOO_MANY_ADDRESSES`. Raise `limits.maxAddresses` if you receive mail sent to more recipients.
+- A message whose parts' header blocks are over 1 MiB together is now refused with `E_GOLDSTONE_HEADERS_TOO_LARGE`. Raise `limits.maxPartHeaderBytes` if you import messages that carry many forwarded messages.
+- HTML that places many stray tags in a table, or that nests deeper than 1000 elements behind a comment or a misnested tag, now has no `html` and an `htmlError` (`E_GOLDSTONE_HTML_TOO_COMPLEX` or `E_GOLDSTONE_HTML_TOO_DEEP`). HTML padded with many character references (`&nbsp;`) is no longer refused.
 
 ## See also
 

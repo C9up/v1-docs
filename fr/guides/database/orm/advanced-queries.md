@@ -24,18 +24,32 @@ const q = repo.query()
   .whereExpr('total', '+ tax', '>=', 100)
 ```
 
-L'`extraExpression` optionnelle (2e arg de la forme à 4 args) est un fragment
-**arithmétique** uniquement — colonnes, nombres, `+ - * / ,`, parenthèses et un
-ensemble fixe de fonctions scalaires : `abs`, `ceil`, `floor`, `round`,
-`coalesce`, `nullif`, `length`, `lower`, `upper`, `trim`, `replace`,
-`substring`, `now`. Tout autre appel (`pg_sleep()`, `version()`,
-`current_setting()`, une fonction définie par l'utilisateur) est refusé, de même
-que les fonctions d'identité sans parenthèses (`current_user`, `session_user`,
-…). Les mots-clés SQL bruts (`OR`, `AND`, `IS`, `NOT`, `SELECT`, …) sont rejetés
-pour que le fragment ne puisse pas altérer la logique du prédicat ; la valeur
-comparée est toujours bindée. La forme à 4 args reste disponible en mode strict,
-c'est pourquoi elle repose sur une liste blanche. Utiliser `whereRaw` (avec
-bindings) pour tout ce qui la dépasse.
+L'`extraExpression` optionnelle (2e argument de la forme à 4 arguments) est une
+suite **arithmétique**, ajoutée après la colonne entre guillemets. C'est une ou
+plusieurs paires `opérateur opérande` :
+
+- les opérateurs sont `+ - * /` ;
+- un opérande est un nombre, une colonne, un opérande entre parenthèses, ou un
+  appel à `abs`, `ceil`, `floor`, `round`, `coalesce`, `nullif`, `length`,
+  `lower`, `upper`, `trim`, `replace`, `substring` ou `now`.
+
+Le compilateur découpe tout le fragment en jetons et refuse ce qu'il ne sait
+pas placer. Sont donc refusés :
+
+- tout autre appel (`pg_sleep()`, `version()`, `current_setting()`, une
+  fonction définie par l'utilisateur), quelle que soit son écriture ;
+- un commentaire (`--`, `/*`, `*/`) : `pg_sleep/**/(2)` est un appel pour le
+  serveur ;
+- une apostrophe, un littéral de chaîne, un nom qualifié (`orders.tax`), tout
+  autre opérateur ;
+- un mot-clé SQL (`OR`, `AND`, `IS`, `NOT`, `SELECT`, …) et les mots qu'un
+  serveur évalue sans parenthèses (`current_user`, `session_user`,
+  `current_date`, …) ;
+- un fragment qui ne commence pas par un opérateur, comme `(tax)`.
+
+La valeur comparée est toujours liée. La forme à 4 arguments reste disponible
+en mode strict : c'est pourquoi elle repose sur une liste d'autorisation.
+Utilisez `whereRaw` (avec bindings) pour tout le reste.
 
 Garder `whereRaw` seulement pour des fragments SQL réellement spécifiques au dialecte, toujours avec bindings.
 
@@ -202,7 +216,10 @@ const rows = await repo.query()
 - `havingNull(col)` / `havingNotNull(col)`
 - `havingExists(sub)` / `havingNotExists(sub)` : `sub` est une autre requête de
   modèle ou un callback qui en construit une sur ce modèle
-- `havingRaw(sql, bindings?)`, `groupByRaw(sql)`, `orderByRaw(sql)`
+- `havingRaw(sql, bindings?)`, `groupByRaw(sql, bindings?)`, `orderByRaw(sql, bindings?)`
+- `groupBy(...columns)` : des noms de colonnes seulement. Sur `db.from()`, un
+  fragment `db.raw()` est accepté aussi ; toute autre valeur (un objet venu du
+  corps d'une requête) est refusée avec `E_UNSAFE_IDENTIFIER`
 
 Chaque méthode `having*` a une forme `or*` (`orHavingIn`, `orHavingNull`,
 `orHavingBetween`, `orHavingExists`, `orHavingRaw`, …) et un alias `and*`

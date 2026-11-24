@@ -32,12 +32,16 @@ const mfa = new MfaManager({
   rateLimit: { maxAttempts: 5, windowSeconds: 900 }, // + store: new RedisAttemptStore(redis) en cluster
 })
 
+// Cette requête a-t-elle passé le step-up ? Nécessaire pour modifier les
+// facteurs d'un compte qui a déjà la MFA ; le premier enrôlement s'en passe.
+const stepUp = ctx.auth.user?.mfa === true
+
 // 1. Enrôlement — affichez `uri` sous forme de QR code (avec @c9up/prism : `await qrcode.toString(uri)`)
-const { factorId, uri } = await mfa.enrollTotp({ id: user.id, name: user.email })
+const { factorId, uri } = await mfa.enrollTotp({ id: user.id, name: user.email }, { stepUp })
 // 2. Confirmation avec un premier code de l'application d'authentification
-await mfa.confirmTotp(user.id, factorId, code)     // → true une fois confirmé
+await mfa.confirmTotp(user.id, factorId, code, { stepUp }) // → true une fois confirmé
 // 3. Codes de secours — à afficher UNE SEULE fois
-const codes = await mfa.createBackupCodes(user.id)
+const codes = await mfa.createBackupCodes(user.id, { stepUp })
 
 // Step-up à la connexion — un code TOTP OU un code de secours, rate-limité par utilisateur
 if (await mfa.verify(user.id, submitted)) {
@@ -48,7 +52,18 @@ if (await mfa.verify(user.id, submitted)) {
 }
 ```
 
-Helpers de statut : `isEnabled(userId)`, `listFactors(userId)` (ne divulgue jamais de secret), `disableFactor(userId, factorId)`, `await isLocked(userId)`.
+Helpers de statut : `isEnabled(userId)`, `listFactors(userId)` (ne divulgue jamais de secret), `disableFactor(userId, factorId, { stepUp })`, `await isLocked(userId)`.
+
+Dès qu'un compte a un facteur confirmé, `enrollTotp`, `confirmTotp`,
+`createBackupCodes` et `disableFactor` demandent `{ stepUp: true }`, et lèvent
+**403 `E_WARDEN_MFA_REQUIRED`** sans lui. Passez `ctx.auth.user.mfa === true` :
+la garde le fixe d'après l'identifiant présenté, donc seule une requête qui a
+passé le second facteur peut en ajouter, en remplacer ou en supprimer un. Sans
+cela, quelqu'un qui connaît seulement le mot de passe pourrait se connecter,
+générer de nouveaux codes de secours ou supprimer l'authentificateur, et le
+second facteur ne protégerait plus rien. Avant que le premier facteur soit
+confirmé, il n'y a rien à passer : le premier enrôlement fonctionne sans. Un
+appel refusé ne change rien et ne consomme aucune tentative.
 
 Les opérations sur un facteur nomment son propriétaire à côté de l'id du facteur
 et refusent un facteur qui appartient à quelqu'un d'autre : un id de facteur
@@ -73,7 +88,7 @@ sont vérifiés à la construction : TOTP `digits` 6–8, `period` 1–3600 s, `
 
 ### @RequireMfa — protéger des routes
 
-Une route décorée par `@RequireMfa()` n'est accessible que si le credential de la requête a passé un step-up MFA : un JWT signé avec `{ mfa: true }`, ou une session sur laquelle `markMfaVerified()` a tourné. Sinon le middleware d'auth renvoie **403 `E_WARDEN_MFA_REQUIRED`**. `user.mfa` est posé par le garde d'après ce credential, jamais d'après ce que renvoie `findUser` — un compte où la MFA est *activée* n'a pas pour autant passé le step-up. Un credential sans notion de step-up — un jeton d'accès, un identifiant Basic, une session ranimée par un cookie remember-me — porte toujours `mfa: false`, quoi que contienne la ligne de l'utilisateur. Une nouvelle connexion et une déconnexion effacent le step-up de la session.
+Une route décorée par `@RequireMfa()` n'est accessible que si le credential de la requête a passé un step-up MFA : un JWT signé avec `{ mfa: true }`, ou une session sur laquelle `markMfaVerified()` a tourné. Sinon la requête est refusée avec **403 `E_WARDEN_MFA_REQUIRED`**. Deux gates l'appliquent, et un seul suffit : le gate de route de Ream, sur toute route dont le handler est une action de contrôleur, et le middleware d'auth de Warden (`router.use([() => import('@c9up/warden/middleware')])`), qui authentifie aussi la requête. Avec le gate de route seul, quelque chose doit d'abord remplir `ctx.auth` : le middleware de Warden, `@c9up/warden/silent-auth`, ou votre propre middleware d'auth. `@RequireMfa()` sans `@Guard` exige quand même une requête authentifiée : une requête anonyme reçoit un 401. `user.mfa` est posé par le garde d'après ce credential, jamais d'après ce que renvoie `findUser` — un compte où la MFA est *activée* n'a pas pour autant passé le step-up. Un credential sans notion de step-up — un jeton d'accès, un identifiant Basic, une session ranimée par un cookie remember-me — porte toujours `mfa: false`, quoi que contienne la ligne de l'utilisateur. Une nouvelle connexion et une déconnexion effacent le step-up de la session.
 
 ```typescript
 import { Guard, RequireMfa } from '@c9up/warden'
@@ -103,7 +118,7 @@ import { OtpProvider, WebauthnProvider } from '@c9up/warden'
 // OTP livré — vous fournissez le canal email/SMS
 const otp = new OtpProvider({ channel: { send: (to, code) => mailer.send(to, code) } })
 const { challengeId } = await otp.start(user.email)
-await otp.verify(challengeId, submitted)           // usage unique, TTL + budget d'essais
+await otp.verify(challengeId, user.email, submitted) // usage unique, TTL + budget d'essais
 
 // Passkeys — l'attestation est en trust-on-registration (demandez attestation: 'none')
 const webauthn = new WebauthnProvider({ rpName: 'Fluveo', rpID: 'fluveo.ch', origin: 'https://fluveo.ch' })
@@ -111,6 +126,15 @@ const reg = await webauthn.startRegistration({ id: user.id, name: user.email })
 // … cérémonie navigateur … puis :
 await webauthn.finishRegistration(reg.state, user.id, browserResponse)
 ```
+
+Un code est lié au destinataire à qui il a été envoyé. `verify()` prend ce
+destinataire tel que l'application le connaît pour la connexion en cours —
+l'email de l'utilisateur en attente, jamais une valeur lue dans la requête. Un
+challenge ouvert pour un autre destinataire répond
+`{ ok: false, reason: 'not_found' }` et reste intact pour son propriétaire.
+Gardez le `challengeId` côté serveur entre les deux requêtes (dans la session,
+ou dans un jeton de connexion en attente signé), à côté de l'utilisateur en
+attente.
 
 #### Écrire son propre store de challenges
 

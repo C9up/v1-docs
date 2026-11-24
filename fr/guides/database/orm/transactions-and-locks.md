@@ -200,7 +200,10 @@ supprimées (scope par défaut), et `delete()` **soft-delete** (pose `deleted_at
 au lieu d'un `DELETE` dur — cohérent avec le `delete()` d'instance. Pour un vrai
 `DELETE`, utiliser `forceDelete()` ; `restore()` efface `deleted_at` en masse.
 `withTrashed()` / `onlyTrashed()` élargissent / restreignent le scope avant la
-mutation.
+mutation. Le filtre est combiné par `AND` à vos clauses prises en un groupe :
+`where(a).orWhere(b).update(…)` n'atteint jamais une ligne supprimée. `restore()`
+garde les autres contraintes de la requête (le scope du repository, la clé d'un
+`related().query()`) et n'atteint que les lignes supprimées.
 
 ## Écritures et upserts au niveau connexion
 

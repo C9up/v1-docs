@@ -285,7 +285,6 @@ environment before anything boots, loads the rc file and starts the HTTP server.
 
 ```typescript
 // bin/server.ts
-import 'reflect-metadata'
 import { Ignitor, prettyPrintError } from '@c9up/ream'
 import { createHyperServerFactory } from '@c9up/ream/bootstrap'
 

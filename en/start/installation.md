@@ -48,9 +48,11 @@ pnpm init
 Install the core framework and runtime:
 
 ```bash
-pnpm add @c9up/ream reflect-metadata
+pnpm add @c9up/ream
 pnpm add -D @swc/core @swc-node/register typescript @c9up/ream-cli @c9up/helix
 ```
+
+You do not install or import `reflect-metadata`: `@c9up/ream` depends on it and loads it itself. See [reflect-metadata](/en/guides/concepts/lifecycle#reflect-metadata).
 
 ## Adding Modules
 
@@ -135,7 +137,6 @@ Create the server entry point:
 
 ```typescript
 // bin/server.ts
-import 'reflect-metadata'
 import { Ignitor, prettyPrintError } from '@c9up/ream'
 
 const APP_ROOT = new URL('../', import.meta.url)

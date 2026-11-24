@@ -36,21 +36,21 @@ pnpm add @c9up/archive
 | `GcsDriver` | class | Google Cloud Storage with a service account. `new GcsDriver(config: GcsConfig)`. |
 | `DriveFile` | class | A handle on one file, read only when a method asks. |
 | `DriveDirectory` | class | A directory entry of `listAll()`: `{ isFile: false; isDirectory: true; name; prefix }`. |
-| `StaticMiddleware` | class | Serves a directory under a URL prefix, with ETag and Last-Modified. `new StaticMiddleware(config: StaticConfig)`. |
+| `StaticMiddleware` | class | Serves a directory under a URL prefix, with ETag and Last-Modified. Dot-files are not served by default. `new StaticMiddleware(config: StaticConfig)`. |
 | `createSignedRouteHandler` | function | `createSignedRouteHandler(options: SignedRouteOptions)`: middleware that verifies the local disk's signed URLs and serves the file. |
 | `errors` | namespace | The package's errors, one class per code, see [Errors](#errors) |
-| `DriveConfig` | interface | `{ default: string; services: Record<string, DriveServiceFactory>; fakes?: { location?: string } }`. |
-| `ArchiveConfig` | interface | The single-disk shape: `{ driver: 'local' \| 's3' \| 'gcs'; local?: { root; signingSecret?; routeBasePath? }; s3?: S3Config; gcs?: GcsConfig }`. Run as one disk named `default`. |
+| `DriveConfig` | interface | `{ default: string; services: Record<string, DriveServiceFactory> }`. |
+| `ArchiveConfig` | interface | The single-disk shape: `{ driver: 'local' \| 's3' \| 'gcs'; local?: { root; signingSecret?; routeBasePath?; visibility? }; s3?: S3Config; gcs?: GcsConfig }`. Run as one disk named `default`. |
 | `DriveServiceFactory` | type | `() => StorageDriver`. |
-| `FsServiceOptions` | interface | `{ location?: string; root?: string; signingSecret?: string \| ReleasableSecret; routeBasePath?: string }`. |
-| `LocalDriverOptions` | interface | `{ signingSecret?: string \| ReleasableSecret; routeBasePath?: string }`. |
+| `FsServiceOptions` | interface | `{ location?: string; root?: string; signingSecret?: string \| ReleasableSecret; routeBasePath?: string; visibility: Visibility }`. |
+| `LocalDriverOptions` | interface | `{ signingSecret?: string \| ReleasableSecret; routeBasePath?: string; visibility?: Visibility }`. `visibility` defaults to `'public'` here. |
 | `S3Config` | interface | `{ bucket; region?; endpoint?; accessKeyId; secretAccessKey; publicUrl?; requestTimeoutMs? }`. |
 | `GcsConfig` | interface | `{ bucket; serviceAccount: GcsServiceAccount; publicUrl?; requestTimeoutMs? }`. |
 | `GcsServiceAccount` | interface | `{ client_email: string; private_key: string; project_id?: string }`. |
 | `StorageDriver` | interface | The driver contract: every method of the table below. |
 | `Visibility` | type | `'public' \| 'private'`. |
 | `WriteOptions` | interface | `{ visibility?; contentType?; cacheControl?; contentDisposition?; contentLength? }`. |
-| `PutStreamOptions` | interface | `{ contentType?: string; contentLength?: number }`. |
+| `PutStreamOptions` | interface | `{ visibility?: Visibility; contentType?: string; contentLength?: number }`. |
 | `SignedUrlOptions` | interface | `{ expiresIn?: number \| string; contentType?: string; contentDisposition?: string }`. `expiresIn` in seconds or as `'30mins'`; default 300, at most 604800. |
 | `Metadata` | interface | `{ size; contentLength; mimeType; contentType; lastModified: Date; etag; visibility }`. |
 | `StorageEntry` | interface | `{ path: string; size: number; lastModified: Date }`. |
@@ -59,7 +59,8 @@ pnpm add @c9up/archive
 | `FileSnapshot` | interface | `{ key; name; contentLength; contentType?; lastModified: string; etag }`. |
 | `MoveToDiskOptions` | interface | `WriteOptions & { moveAs?: 'stream' \| 'buffer' }`; `'stream'` by default. |
 | `ReleasableSecret` | interface | `{ release(): string }`. |
-| `StaticConfig` | interface | `{ root: string; prefix?: string; maxAge?: number; extensions?: string[] }`. |
+| `StaticConfig` | interface | `{ root: string; prefix?: string; maxAge?: number; extensions?: string[]; dotFiles?: DotFilesPolicy }`. |
+| `DotFilesPolicy` | type | `'allow' \| 'deny' \| 'ignore'`. |
 | `StaticMiddlewareHttpContext` / `StaticMiddlewareResponse` | interface | The slice of the HTTP context the static middleware uses. |
 | `SignedRouteOptions` | interface | `{ storage: StorageManager; driver: LocalDriver; prefix?: string }`. |
 | `SignedRouteHttpContext` / `SignedRouteResponse` | interface | The slice of the HTTP context the signed route uses. |
@@ -127,21 +128,21 @@ moveToDisk(key: string, options?: MoveToDiskOptions): Promise<void>
 |---|---|---|
 | `put` | `put(filePath: string, content: Buffer \| string, options?: WriteOptions): Promise<void>` | Write a file. |
 | `putStream` | `putStream(filePath: string, readable: NodeJS.ReadableStream, options?: PutStreamOptions): Promise<void>` | Write from a stream. |
-| `copyFromFs` / `moveFromFs` | `copyFromFs(source: string \| URL, destination: string, options?: WriteOptions): Promise<void>` | Copy (or move) a file of the local filesystem onto the disk. |
+| `copyFromFs` / `moveFromFs` | `copyFromFs(source: string \| URL, destination: string, options?: WriteOptions): Promise<void>` | Copy (or move) a file of the local filesystem onto the disk. `options.visibility` applies, as on `put`. |
 | `get` | `get(filePath: string): Promise<Buffer \| null>` | Contents, `null` when absent. |
 | `getBytes` / `getArrayBuffer` | `getBytes(filePath: string): Promise<Uint8Array>` | Contents; an absent file throws `E_CANNOT_READ_FILE`, `E_ARCHIVE_NOT_FOUND` as its `cause`. |
 | `getStream` | `getStream(filePath: string): Promise<NodeJS.ReadableStream>` | An absent file throws `E_CANNOT_READ_FILE`, `E_ARCHIVE_NOT_FOUND` as its `cause`. |
 | `exists` | `exists(filePath: string): Promise<boolean>` | |
 | `delete` | `delete(filePath: string): Promise<boolean>` | |
-| `deleteAll` | `deleteAll(prefix: string): Promise<void>` | Every file under a prefix. |
-| `copy` / `move` | `copy(from: string, to: string, options?: WriteOptions): Promise<void>` | Within the disk. `move` keeps the visibility. |
+| `deleteAll` | `deleteAll(prefix: string): Promise<void>` | Every file under the directory `prefix` names: `'users/1'` and `'users/1/'` delete `users/1/…`, never `users/10/…`. `''` is the whole disk. |
+| `copy` / `move` | `copy(from: string, to: string, options?: WriteOptions): Promise<void>` | Within the disk. Both keep the source's visibility unless `options.visibility` is given. |
 | `url` / `getUrl` | `url(filePath: string): Promise<string>` | Public URL for a public file, signed URL for a private one. |
 | `publicUrl` | `publicUrl(filePath: string): string` | Unsigned URL, visibility ignored. |
 | `getSignedUrl` | `getSignedUrl(filePath: string, options?: SignedUrlOptions): string \| Promise<string>` | Time-boxed read URL. |
 | `getSignedUploadUrl` | `getSignedUploadUrl(filePath: string, options?: SignedUrlOptions): string \| Promise<string>` | Time-boxed upload URL; cloud disks only. |
 | `getMetadata` / `getMetaData` | `getMetadata(filePath: string): Promise<Metadata>` | An absent file throws `E_CANNOT_GET_METADATA`, `E_ARCHIVE_NOT_FOUND` as its `cause`. |
 | `getVisibility` / `setVisibility` | `setVisibility(filePath: string, visibility: Visibility): Promise<void>` | |
-| `list` | `list(prefix: string): AsyncIterable<StorageEntry>` | Every file under a prefix, paged lazily. |
+| `list` | `list(prefix: string): AsyncIterable<StorageEntry>` | Every file under the directory `prefix` names (same rule as `deleteAll`), paged lazily. |
 | `listAll` | `listAll(prefix: string, options?: ListAllOptions): Promise<ListAllResult>` | One page of files and directories. |
 | `file` | `file(key: string): DriveFile` | A handle, nothing fetched. |
 | `fromSnapshot` | `fromSnapshot(snapshot: FileSnapshot): DriveFile` | A handle rebuilt from a stored snapshot. |
@@ -166,13 +167,14 @@ moveToDisk(key: string, options?: MoveToDiskOptions): Promise<void>
 |---|---|---|---|
 | `default` | `string` | — | The disk `use()` returns without a name. The generated config reads `DRIVE_DISK` (`fs` when unset). |
 | `services` | `Record<string, DriveServiceFactory>` | — | Named disks, built on first use. |
-| `fakes.location` | `string` | — | Accepted and not read: fakes live in memory. |
 | `services.fs({ location })` | `string` | `'./storage'` | Root directory (`root` is accepted too). |
 | `services.fs({ signingSecret })` | `string \| ReleasableSecret` | none | Enables `getSignedUrl` on the local disk; at least 16 characters. |
 | `services.fs({ routeBasePath })` | `string` | `'/storage'` | URL path the local disk's URLs are built on. |
+| `services.fs({ visibility })` | `'public' \| 'private'` | required | `'private'`: every file of the disk is private, whatever a write asks; `getUrl()` signs, and the signed route refuses every unsigned request. `'public'`: a file written without a visibility is public, and `put(…, { visibility: 'private' })` or `setVisibility()` makes one private. |
 | `S3Config.requestTimeoutMs` / `GcsConfig.requestTimeoutMs` | `number` | `30000` | Longest silence from the provider during a request; `0` disables it. |
 | `StaticConfig.prefix` | `string` | `'/static'` | URL prefix of the static middleware. |
 | `StaticConfig.maxAge` | `number` | `0` | `max-age` in seconds. |
+| `StaticConfig.dotFiles` | `'ignore' \| 'deny' \| 'allow'` | `'ignore'` | A path with a segment starting with `.` (`.vite/manifest.json`, `%2Eenv` once decoded): `'ignore'` passes it to the next middleware, `'deny'` answers 403, `'allow'` serves it. |
 
 ## Container bindings
 
@@ -193,7 +195,7 @@ The string tokens are typed on `ContainerBindings` once `@c9up/archive` is impor
 |---|---|
 | [`E_ARCHIVE_INVALID_SIGNATURE`](/en/reference/errors#e-archive-invalid-signature) | A signed URL's signature is missing a part, malformed or does not match (403). |
 | [`E_ARCHIVE_EXPIRED_SIGNATURE`](/en/reference/errors#e-archive-expired-signature) | A signed URL has expired (403). |
-| [`E_ARCHIVE_ACCESS_DENIED`](/en/reference/errors#e-archive-access-denied) | An unsigned request asked for a private file (403). |
+| [`E_ARCHIVE_ACCESS_DENIED`](/en/reference/errors#e-archive-access-denied) | An unsigned request asked for anything but a stored public file: a private file, a name that is not stored, any file of a private disk (403). |
 | [`E_ARCHIVE_INVALID_KEY`](/en/reference/errors#e-archive-invalid-key) | The signed route refused the path (403); also thrown for a key naming a visibility marker, or a `moveToDisk()` key that is not a string. |
 | [`E_ARCHIVE_NOT_FOUND`](/en/reference/errors#e-archive-not-found) | No file under the key (status 404). A disk operation hands it on as the `cause` of its `E_CANNOT_*` error. |
 | [`E_CANNOT_WRITE_FILE`](/en/reference/errors#e-cannot-write-file) | `put`, `putStream`, `copyFromFs` or `moveFromFs` could not write the file; the driver's error is the `cause`. |
@@ -230,7 +232,7 @@ The string tokens are typed on `ContainerBindings` once `@c9up/archive` is impor
 | [`E_ARCHIVE_PROVIDER_NOT_REGISTERED`](/en/reference/errors#e-archive-provider-not-registered) | `boot()` ran before `register()`. |
 | [`E_ARCHIVE_TEMPLATE_ENGINE`](/en/reference/errors#e-archive-template-engine) | The template helpers cannot be published on inker. |
 | [`E_ARCHIVE_REMOTE_FAILED`](/en/reference/errors#e-archive-remote-failed) | S3 or GCS refused a request or reported a failure; the provider's HTTP status is in `providerStatus`, while `status` stays 500. |
-| [`E_ARCHIVE_INVALID_DRIVER_CONFIG`](/en/reference/errors#e-archive-invalid-driver-config) | `S3Driver` got neither `region` nor `endpoint`, or `GcsDriver` lacks `bucket` or the service account's `client_email` / `private_key`. |
+| [`E_ARCHIVE_INVALID_DRIVER_CONFIG`](/en/reference/errors#e-archive-invalid-driver-config) | `S3Driver` got neither `region` nor `endpoint`, `GcsDriver` lacks `bucket` or the service account's `client_email` / `private_key`, or a local disk's `visibility` is neither `'public'` nor `'private'`. |
 | [`E_ARCHIVE_CONTENT_LENGTH_EXCEEDED`](/en/reference/errors#e-archive-content-length-exceeded) | `putStream()` read more bytes than its declared `contentLength`. |
 | [`E_ARCHIVE_INVALID_STATIC_PREFIX`](/en/reference/errors#e-archive-invalid-static-prefix) | `StaticMiddleware` was given an empty `prefix`. |
 | [`E_ARCHIVE_NOT_BOOTED`](/en/reference/errors#e-archive-not-booted) | The `storage` service was read before `ArchiveProvider` booted. |
@@ -241,6 +243,16 @@ Each code is a class of the `errors` namespace and a `@c9up/flare` `Exception`, 
 
 ## Migration
 
+- `services.fs()` now requires `visibility`. Add `visibility: 'public'` to keep the old behaviour, or `visibility: 'private'` to sign every file of the disk.
+- `copyFromFs()`, `moveFromFs()` and `putStream()` now apply `options.visibility`. A file written with `visibility: 'private'` used to land public on the local disk: check those files with `getVisibility()` and call `setVisibility(key, 'private')` where needed.
+- `copy()` now gives the copy the source's visibility. The copy of a private file is private; pass `{ visibility: 'public' }` to make it public.
+- `deleteAll(prefix)`, `list(prefix)` and `listAll(prefix, { recursive: true })` now read `prefix` as a directory: `'users/1'` no longer reaches `users/10/…`. To match a part of a name, list the parent directory and filter the keys.
+- A local signed URL now signs the disk's `routeBasePath` with the key. URLs signed before the update stop working (they expire within 7 days anyway): sign them again.
+- The signed route answers an unsigned request for a name that is not stored with 403 `E_ARCHIVE_ACCESS_DENIED`, as it answers a private file. It no longer passes it to the next middleware.
+- `copy()`, and `move()` across two devices, now refuse a link at the target or the source, as `put()` and `get()` do.
+- `StaticMiddleware` no longer serves dot-files: set `dotFiles: 'allow'` to serve them again.
+- The signed route and `StaticMiddleware` now send `charset=utf-8` with a text type (`text/html; charset=utf-8`).
+- `DriveConfig` has no `fakes` key any more. `fakes.location` was accepted and never read: `drive.fake()` keeps its files in memory. Remove `fakes` from `config/archive.ts`; TypeScript now refuses it.
 - `ArchiveError` is gone: test `error.code`, or `error instanceof errors.E_ARCHIVE_*` with `import { errors } from '@c9up/archive'`.
 - `ArchiveRemoteError` becomes `errors.E_ARCHIVE_REMOTE_FAILED`; `providerStatus` is unchanged.
 - `error.hint` becomes `error.help`.

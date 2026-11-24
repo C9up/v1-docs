@@ -14,15 +14,22 @@ This guide covers troubleshooting:
 
 ## `E_ATLAS_NAPI_NOT_FOUND`
 
-Cause: native package not available for current platform/arch. The error is
+Cause: the platform package that carries atlas's binaries is not installed. The error is
 `errors.E_ATLAS_NAPI_NOT_FOUND` (`code: 'E_ATLAS_NAPI_NOT_FOUND'`), thrown by the first query
-compiled without the binary.
+compiled without the binary. The database driver comes from the same package; without it, the
+first connection throws `E_ATLAS_DB_DRIVER_NOT_FOUND`.
+
+The message names the package for your machine, for example `@c9up/atlas-linux-x64-gnu`. The
+load error is the exception's `cause`.
 
 Actions:
 
-- reinstall dependencies (`pnpm install`)
-- verify platform-specific optional dependency resolution
-- check Node version and build environment
+- reinstall dependencies with optional dependencies turned on (no `--no-optional`, no
+  `--omit=optional`)
+- if you install the package by hand, use the exact version of `@c9up/atlas`
+- on Alpine (musl), the Linux packages target glibc and will not load
+- if the message says there is no prebuilt binary, your platform is not built: atlas ships
+  linux x64 and arm64, macOS x64 and arm64, and Windows x64
 
 ## `E_INVALID_COLUMN`
 

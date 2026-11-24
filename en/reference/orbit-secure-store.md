@@ -39,7 +39,7 @@ iOS is not supported yet.
 
 ### Functions
 
-A key is 1 to 128 characters of `A-Z a-z 0-9 . _ -` (not `.` or `..`); any other key is refused with `E_ORBIT_SECURE_STORE_INVALID_KEY` before anything reaches the platform.
+A key is 1 to 128 characters of `A-Z a-z 0-9 . _ -` (not `.` or `..`); any other key is refused with `E_ORBIT_SECURE_STORE_INVALID_KEY` before anything reaches the platform. Every key has a value of its own: `token`, `token.bak` and `token.new` never read, overwrite or delete one another, and each value is sealed with its key, so it opens under no other name. Values stored by version 0.1.0 still read: each moves to the new layout the first time it is read, after which 0.1.0 no longer sees it.
 
 | Function | Signature | Description |
 |---|---|---|

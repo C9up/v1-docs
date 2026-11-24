@@ -142,6 +142,22 @@ Les 50 dernières requêtes sont gardées, en mémoire, et la barre n'est inject
 qu'en développement. Une réponse de production est octet pour octet ce que le
 handler a produit.
 
+Le profiler contient des corps de requêtes, des sessions et l'utilisateur
+connecté. Ses pages et le flux de rechargement (tout ce qui est sous `/__ream/`)
+ne répondent donc qu'à un `Host` par lequel le serveur doit être joint : une
+adresse IP, `localhost`, un nom en `.localhost`, ou l'hôte d'écoute. Tout autre
+hôte reçoit `403 Blocked request. This host ("<nom>") is not allowed.` : c'est
+ce qui empêche une page web de les lire par DNS rebinding. Une requête que le
+navigateur marque comme intersite est refusée aussi. Pour les ouvrir sous un
+autre nom (un tunnel, un domaine `.test`), listez-le :
+
+```ts
+new Ignitor({ allowedHosts: ['myapp.test', '.tunnel.example'] }) // `.` = et ses sous-domaines
+```
+
+`allowedHosts: true` accepte n'importe quel hôte et laisse les pages exposées au
+DNS rebinding.
+
 #### Le panneau des requêtes SQL
 
 Les requêtes arrivent au profiler sous forme d'événements `db:query` sur

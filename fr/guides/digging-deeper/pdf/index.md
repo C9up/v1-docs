@@ -123,7 +123,7 @@ d'envois utilisateurs :
 | --- | --- | --- |
 | `maxPixels` | 50 millions | Les pixels qu'une page peut produire au rendu. |
 | `maxTotalPixels` | 500 millions | Les pixels que `renderAll` peut produire sur toutes les pages, vérifiés avant de dessiner la première. |
-| `maxDecodedBytes` | 256 Mio | Les données de flux décodées dont une page peut avoir besoin : contenu, images, polices. |
+| `maxDecodedBytes` | 256 Mio | Les données de flux décodées dont une page peut avoir besoin : contenu, images, polices. Le rendu y impute aussi les tampons que garde le dessin jusqu'à la fin de la page : un octet par pixel par masque doux, quatre par pixel par image dessinée, les tuiles de motif et les glyphes en cache. |
 | `maxOperations` | 10 millions | Les opérateurs de contenu et glyphes que le dessin d'une page peut demander, formulaires imbriqués compris. |
 | `maxTotalDecodedBytes` | 1 Gio | Les données de flux décodées dont `renderAll` et `extractTextAll` peuvent avoir besoin sur toutes les pages. |
 | `maxTotalOperations` | 10 millions | Les opérateurs et glyphes que `renderAll` et `extractTextAll` peuvent demander sur toutes les pages — et donc le texte que rend `extractTextAll`. |

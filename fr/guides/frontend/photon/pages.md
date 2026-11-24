@@ -78,7 +78,7 @@ export default defineConfig({
 })
 ```
 
-Le template reçoit `page` (l'objet page, plus `ssrHead` / `ssrBody` quand la page est rendue côté serveur), `photon.head` et `photon.body` (le balisage de Photon, prêt à placer sans échappement : balises meta, feuilles de style, le point de montage `<div id="app">`, les données de page et les scripts d'entrée, chacun avec le nonce CSP de la requête) et les props de vue passées en quatrième argument de `render()` :
+Le template reçoit `page` (l'objet page, plus `ssrHead` / `ssrBody` quand la page est rendue côté serveur), `photon.head` et `photon.body` (le balisage de Photon, prêt à placer sans échappement : balises meta, feuilles de style, les données de page, le point de montage `<div id="app">` et les scripts d'entrée, chacun avec le nonce CSP de la requête) et les props de vue passées en quatrième argument de `render()` :
 
 ```typescript
 await ctx.photon.render('Dashboard', { user }, undefined, { lang: 'fr', theme: 'dark' })
@@ -160,6 +160,12 @@ une requête par groupe, pour qu'un groupe lent ne retienne pas les autres — e
 fusionne le résultat dans la page sans la remonter (React et Vue gardent l'état
 du composant ; Svelte remonte encore). Les `errors` d'un formulaire restent
 telles quelles.
+
+Chaque prop différée est demandée une seule fois par visite. Si la réponse ne
+la contient pas (et que le serveur ne l'a pas rattrapée), le routeur ne la
+redemande pas : il signale `E_PHOTON_DEFERRED_PROPS_MISSING` par
+`router.on('exception', cb)` et par `photon:exception` sur `document`, et le
+`<Deferred>` garde son fallback.
 
 Lors d'un rechargement partiel — un groupe différé, `router.reload({ only })` —
 les props étiquetés `merge`, `merge().prepend()` ou `deepMerge` sont combinés

@@ -77,13 +77,18 @@ Le paquet n'a pas de condition d'export `react-native` : l'entrée du téléphon
 |---|---|---|
 | `viewport` | `{ width: number; height: number }` | La taille de la racine en dp (React Native : `Dimensions.get("window")`). |
 | `host` | `OrbitHost` | Par défaut, l'hôte donné à `useHost`. |
+| `onError` | `(error: Error) => void` | Reçoit ce dont orbit s'est remis au lieu de lever : un commit que l'hôte a refusé sans que personne ne l'attende (un commit planifié), une adresse d'image venue des données qu'orbit ne charge pas, une valeur de dessin que l'hôte a laissée de côté. Sans lui, un build de développement (`__DEV__`) les affiche avec `console.warn` et un build de production ne dit rien. |
 
 | Membre de `Root` | Signature | Description |
 |---|---|---|
 | `flush` | `flush(): OrbitReport` | Commite les changements maintenant, au lieu de la fin du tour. |
 | `reports` | `readonly reports: OrbitReport[]` | Le rapport de chaque commit, le plus récent en dernier (développement et benchmarks). |
 
-`OrbitReport` vaut `{ deleted: number[]; parseUs: number; layoutUs: number; diffUs: number; measures: number; nodes: number; opsBytes: number }`.
+`OrbitReport` vaut `{ deleted: number[]; parseUs: number; layoutUs: number; diffUs: number; measures: number; nodes: number; opsBytes: number; warnings?: string[] }`. `warnings` liste les valeurs de dessin que l'hôte a laissées de côté, chacune précédée de son code (`E_ORBIT_SVG_VALUE: …`) ; orbit passe aussi chacune à `onError`.
+
+Un commit refusé par l'hôte n'est pas perdu : orbit renvoie ce qu'il portait avec le commit suivant. `mount` et `flush()` lèvent le refus ; un commit planifié le passe à `onError`. Le texte arrive bien formé à l'hôte : une moitié d'emoji (`"Ana😀".slice(0, 4)`) s'affiche U+FFFD, comme dans un navigateur.
+
+Les vues s'imbriquent sur 100 niveaux au plus sous la racine. L'hôte calcule la mise en page sur le fil JS, un niveau de sa pile à la fois, et refuse un arbre plus profond avec `E_ORBIT_TREE_TOO_DEEP` avant de le mettre en page. Si vos données s'imbriquent sans limite (des réponses à des réponses), limitez la profondeur dans le template.
 
 `OrbitHost` est structurel : un test peut passer un faux. Ses méthodes : `setViewport(width, height)`, `commit(ops: string): string`, `imageBytes(tag, bytes: Uint8Array)`, `layout(tags: string): string`, `scroll(tag, by, toEnd)`, `setEventHandler(handler)`, et les méthodes de mouvement `motionValue`, `motionInterpolate`, `motionSet`, `motionStop`, `motionFrames`, `motionSpring`, `motionDispose`, `motionBind`, `motionBindScroll`.
 
@@ -177,12 +182,12 @@ Une connexion coupée émet `error` et se reconnecte après le `retry:` du serve
 |---|---|---|
 | `run` | fonction | Enregistre le composant racine comme app et le monte au démarrage de l'activité. |
 | `RunOptions` | interface | Options de `run`. |
-| `LaunchProps` | type | `{ [key: string]: unknown }` : les props de lancement (extras de l'intent). |
+| `LaunchProps` | type | `{ [key: string]: unknown }` : les props avec lesquelles l'app démarre. L'activité que génère `ream android:*` n'en passe aucune : `root` reçoit `{}`. Les extras de l'intent de lancement ne sont pas lus (une autre app peut y mettre n'importe quoi). |
 | `APP_NAME` | const | `"main"`, le nom sous lequel l'activité générée démarre l'app. |
 
 | Fonction | Signature | Description |
 |---|---|---|
-| `run` | `run(root: (props: LaunchProps) => TemplateResult, options?: RunOptions): void` | Donne à orbit l'hôte `NativeOrbit` (lève `E_ORBIT_NO_HOST` si le module n'est pas celui d'orbit) et la table de styles, règle le schéma de couleurs, envoie le bouton retour à `goBack`, et monte `root` avec les props de lancement à la taille de la fenêtre. |
+| `run` | `run(root: (props: LaunchProps) => TemplateResult, options?: RunOptions): void` | Donne à orbit l'hôte `NativeOrbit` (lève `E_ORBIT_NO_HOST` si le module n'est pas celui d'orbit) et la table de styles, règle le schéma de couleurs, envoie le bouton retour à `goBack`, et monte `root` à la taille de la fenêtre avec les props de lancement (`{}` depuis l'activité générée). |
 
 | Champ de `RunOptions` | Type | Défaut | Description |
 |---|---|---|---|
@@ -214,14 +219,16 @@ Une connexion coupée émet `error` et se reconnecte après le `retry:` du serve
 | Code | Levée quand |
 |---|---|
 | [`E_ORBIT_NO_HOST`](/fr/reference/errors#e-orbit-no-host) | `mount` s'exécute avant `useHost`, ou le module `NativeOrbit` n'est pas l'hôte d'orbit. |
-| [`E_ORBIT_COMMIT_FAILED`](/fr/reference/errors#e-orbit-commit-failed) | L'hôte natif a refusé un commit ; le message porte son rapport. |
+| [`E_ORBIT_COMMIT_FAILED`](/fr/reference/errors#e-orbit-commit-failed) | L'hôte natif a refusé un commit ; le message porte son rapport. Ce que portait le commit est renvoyé avec le suivant. |
+| [`E_ORBIT_TREE_TOO_DEEP`](/fr/reference/errors#e-orbit-tree-too-deep) | Les vues s'imbriquent sur plus de 100 niveaux : l'hôte refuse le commit avant la mise en page. |
+| [`E_ORBIT_SVG_VALUE`](/fr/reference/errors#e-orbit-svg-value) | Une valeur d'un `<svg>` que l'hôte ne sait pas lire (une longueur `NaN`, des données de chemin, `points` ou `transform` illisibles). Cette forme est laissée de côté (un chemin et `points` sont dessinés jusqu'à l'erreur) et le reste est dessiné. Passée à `onError`, jamais levée. |
 | [`E_ORBIT_UNSUPPORTED_ELEMENT`](/fr/reference/errors#e-orbit-unsupported-element) | Un élément n'a pas d'équivalent natif (`select`, `canvas`, ou `text` ou un dégradé dans un `svg`). |
 | [`E_ORBIT_BLOCK_IN_TEXT`](/fr/reference/errors#e-orbit-block-in-text) | Un élément bloc se trouve dans du texte. |
 | [`E_ORBIT_INVALID_MOTION`](/fr/reference/errors#e-orbit-invalid-motion) | `motion=${…}` n'est pas un objet de valeurs de mouvement. |
 | [`E_ORBIT_INVALID_SCROLL_BINDING`](/fr/reference/errors#e-orbit-invalid-scroll-binding) | `scroll-y=${…}` n'est pas une valeur de mouvement. |
 | [`E_ORBIT_INVALID_COLOR`](/fr/reference/errors#e-orbit-invalid-color) | Une couleur qu'orbit ne sait pas lire. |
-| [`E_ORBIT_INSECURE_IMAGE_URL`](/fr/reference/errors#e-orbit-insecure-image-url) | `<img src>` utilise http en clair. |
-| [`E_ORBIT_IMAGE_SOURCE`](/fr/reference/errors#e-orbit-image-source) | `<img src>` utilise un schéma qui n'est pas une source d'image (`data:`, `javascript:`…). |
+| [`E_ORBIT_INSECURE_IMAGE_URL`](/fr/reference/errors#e-orbit-insecure-image-url) | `<img src>` utilise http en clair. Levée pour une adresse écrite dans le template ; pour une adresse venue des données (`src=${…}`), l'image n'affiche rien et l'erreur va à `onError`. |
+| [`E_ORBIT_IMAGE_SOURCE`](/fr/reference/errors#e-orbit-image-source) | `<img src>` utilise un schéma qui n'est pas une source d'image (`data:`, `javascript:`…), une adresse sans schéma (`//hote/a.png`) ou une URL `file:` qui ne se décode pas. Levée ou signalée comme `E_ORBIT_INSECURE_IMAGE_URL`. |
 | [`E_ORBIT_DUPLICATE_KEY`](/fr/reference/errors#e-orbit-duplicate-key) | Deux éléments d'une liste `each` partagent une clé. |
 | [`E_ORBIT_NO_SCREEN`](/fr/reference/errors#e-orbit-no-screen) | `useScreen()` s'exécute dans un composant qu'aucun écran n'a construit. |
 | [`E_ORBIT_STACK_SHOWN`](/fr/reference/errors#e-orbit-stack-shown) | Une même pile est placée à deux endroits. |
@@ -245,6 +252,12 @@ Chaque erreur est une classe de l'export `errors`, nommée par son code. Les cin
 - `OrbitError` disparaît : testez `error.code`, ou `error instanceof errors.E_ORBIT_*` avec `import { errors } from '@c9up/orbit'`.
 - `OrbitTypeError` et `OrbitRangeError` disparaissent : les refus de `URL` et de `TextDecoder` restent une `TypeError` / `RangeError`, désormais `errors.E_ORBIT_INVALID_URL` et consorts. `E_ORBIT_FOREIGN_ORIGIN` et `E_ORBIT_NO_XHR` ne sont plus une `TypeError` : attrapez-les par leur code.
 - Le type `OrbitErrorCode` disparaît : `error.code` est une `string`.
+- Un `<img src=${…}>` dont l'adresse vient des données ne lève plus `E_ORBIT_INSECURE_IMAGE_URL` ni `E_ORBIT_IMAGE_SOURCE` : cette image n'affiche rien et l'erreur va à `onError` de `mount`. Pour y réagir, passez `onError`. Une adresse écrite dans le template lève toujours.
+- `<img src="//hote/a.png">` est désormais refusée avec `E_ORBIT_IMAGE_SOURCE` ; elle ne chargeait rien depuis un chemin local. Écrivez `https://`.
+- Un commit planifié que l'hôte refuse ne rejette plus une microtâche sans que personne le voie : il va à `onError`, et ce qu'il portait part avec le commit suivant.
+- Un arbre de vues de plus de 100 niveaux est refusé avec `E_ORBIT_TREE_TOO_DEEP` (il faisait planter l'app au-delà d'environ 170). Limitez la profondeur des données imbriquées dans le template (des réponses à des réponses).
+- Une valeur d'un `<svg>` que l'hôte ne sait pas lire ne fait plus échouer le commit : cette forme est laissée de côté et signalée par `E_ORBIT_SVG_VALUE`.
+- `<input maxlength>` qui reçoit une valeur plus longue la garde entière, comme en HTML ; `maxlength` ne limite que la saisie. Cela faisait planter l'app sous Android.
 
 ## Voir aussi
 

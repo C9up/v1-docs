@@ -8,7 +8,9 @@
 pnpm add @c9up/inker
 ```
 
-Register the provider in `reamrc.ts` (`providers: [() => import('@c9up/inker/provider')]`); the package has no configure hook. `@c9up/rosetta`, an optional peer dependency, supplies the `t()` helper. The parser is a native binary: a platform without one raises `E_INKER_NAPI_REQUIRED`.
+Register the provider in `reamrc.ts` (`providers: [() => import('@c9up/inker/provider')]`); the package has no configure hook. `@c9up/rosetta`, an optional peer dependency, supplies the `t()` helper. The parser is a native engine. It comes as one small package per platform, `@c9up/inker-<platform>`, for linux x64 and arm64 (glibc), macOS x64 and arm64, and Windows x64. `@c9up/inker` lists them as optional dependencies, and your package manager installs only the one that matches your machine. No Rust toolchain is needed. Do not install with optional dependencies turned off (`--no-optional`, `--omit=optional`): the engine would be left out.
+
+There is no JavaScript fallback. Without the engine, rendering throws `E_INKER_NAPI_REQUIRED`, and its message names the package to install, for example `@c9up/inker-linux-x64-gnu`.
 
 ## Entry points
 
@@ -214,7 +216,7 @@ The cache belongs to one `Templates`: two engines with different roots share not
 | [`E_INKER_INVALID_JSON_LD`](/en/reference/errors#e-inker-invalid-json-ld) | `errors` | `html.jsonLd` was given a value JSON-LD cannot hold. |
 | [`E_INKER_TEMPLATE_ERROR`](/en/reference/errors#e-inker-template-error) | `InkerError` | A template raised an error itself. |
 | [`E_INKER_ENGINE_MISSING`](/en/reference/errors#e-inker-engine-missing) | `errors` | The `plugins` singleton rendered before the provider built an engine. |
-| [`E_INKER_NAPI_REQUIRED`](/en/reference/errors#e-inker-napi-required) | both | There is no native inker binary for this platform. |
+| [`E_INKER_NAPI_REQUIRED`](/en/reference/errors#e-inker-napi-required) | both | The native inker engine is missing or failed to load. The message names the package to install. |
 | [`E_INKER_NOT_BOOTED`](/en/reference/errors#e-inker-not-booted) | `errors` | The renderer (`@c9up/inker/services/main`, or the container's `InkerRenderer`) was used before `InkerProvider.start()` ran or `setInker()` seated one. |
 | [`E_INKER_INVALID_CONFIG`](/en/reference/errors#e-inker-invalid-config) | `errors` | `config.inker` holds a value the provider cannot use: a `cacheMode` other than `mtime`, `never` or `auto`, or an `additionalHelpers` entry that is not a function. |
 | [`E_INKER_INVALID_HELPER_ARGUMENT`](/en/reference/errors#e-inker-invalid-helper-argument) | `errors` | A view helper (`t`, `url`, `route`, `signedRoute`, `config`, `formAttributes`, `asset`) got an argument it cannot use: a name or key that is not a string, or route params that are not a plain object of finite, non-null primitives. |

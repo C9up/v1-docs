@@ -76,7 +76,9 @@ héritées ou un catalogue, et chaque partie d'un `split`, chaque page tamponné
 ou aplatie, en emporte sa propre copie. Un appel copie au plus 4 millions de
 valeurs (éléments de tableau et entrées de dictionnaire) et 256 Mio de chaînes,
 de noms et de données de flux, 1 Gio sur les parties d'un `split`, et il est
-refusé au-delà. Pour un `split`, sélectionner plutôt les pages utiles.
+refusé au-delà. Pour un `split`, sélectionner plutôt les pages utiles. Écrire
+le résultat prend un temps proportionnel à ce qui est écrit, et un document
+écrit par une modification ou une signature pèse au plus 1 Gio.
 
 ## Tamponnage
 

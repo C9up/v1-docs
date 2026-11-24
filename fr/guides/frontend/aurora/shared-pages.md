@@ -96,7 +96,7 @@ export default component((props) => {
 
   return html`<main>
     <h1>${props.title}</h1>
-    <aside data-status=${() => status()}>${() => status()}</aside>
+    <aside data-status="${() => status()}">${() => status()}</aside>
   </main>`
 })
 ```
@@ -137,8 +137,10 @@ C'est tout. `aurora.render(ctx, name, props)` :
 2. Appelle la factory avec `props` tels que le navigateur les recevra — passés par JSON, donc une `Date` y est sa chaîne ISO et un modèle ce que renvoie son `toJSON()` (les colonnes qu'il masque en sont donc absentes) — et fait le SSR via `renderToString`. Le serveur et le navigateur rendent à partir des mêmes données : une page n'hydrate jamais contre des valeurs qu'elle n'avait pas côté serveur.
 3. Enveloppe le markup dans un document HTML complet avec :
    - l'importmap qui alias `@c9up/aurora` → `/__assets/aurora/index.js`
-   - un blob `<script id="aurora-page-data" type="application/json">` qui transporte `{ name, props, url, rootId }`
+   - un blob `<script type="application/json" data-aurora-page>` qui transporte `{ name, props, url, rootId }`, placé en premier dans le `<body>`, avant la racine
    - un `<script type="module">` inline qui importe aurora + le même module de page et appelle `hydrate(root, () => Page(data.props))`
+
+   Le bootstrap lit les données avec `document.querySelector('script[data-aurora-page][type="application/json"]')`. Seul ce script correspond : un élément de votre page ne peut pas prendre sa place, même si son `id` et son texte viennent des données. Lisez-les de la même façon si votre propre code a besoin des données de la page.
 
 Côté navigateur, aurora adopte le DOM SSR en place, attache signaux + écouteurs d'événements + hooks de cycle de vie. Le `onMount` que vous avez écrit s'exécute une fois l'arbre vivant.
 

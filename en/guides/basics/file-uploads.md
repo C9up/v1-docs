@@ -115,6 +115,8 @@ const avatar = request.file('avatar', { size: '2mb', extnames: ['jpg', 'png'] })
 
 `extnames` is validated against the magic-byte-DETECTED type, not the client filename. A binary renamed `evil.png` is therefore caught. Ream reads the signature itself, with no dependency: it recognises the same formats, under the same extensions and MIME types, as the [`file-type`](https://github.com/sindresorhus/file-type) library — images, audio and video containers, PDF, Office and OpenDocument files, archives, fonts and executables.
 
+Detection reads the first 64 KiB of each file only. The files of one request also share one bound on the ZIP work (4096 entries and 4 MiB scanned): a ZIP-based file past it is not recognised, and keeps the extension the client sent (`file.typeSource === 'claimed'`). The body parser hands the event loop back between two files, so a request with many files does not hold the others.
+
 The canonical controller guard checks all three failure modes:
 
 ```typescript

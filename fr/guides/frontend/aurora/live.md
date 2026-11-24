@@ -66,18 +66,35 @@ session indéfiniment :
 
 ```typescript
 const registry = createLiveRegistry({
-  claimTimeoutMs: 60_000,   // non réclamée (ni abonnement ni événement) → libérée
-  idleTimeoutMs: undefined, // réclamée et silencieuse → gardée (défaut) ; à régler
-                            // si la déconnexion relay n'appelle pas live.disconnect
-  maxPerOwner: 32,          // au-delà, la plus ancienne session du propriétaire part
-  maxSessions: 10_000,      // au-delà, mount lève E_AURORA_LIVE_SESSION_LIMIT
+  claimTimeoutMs: 60_000,      // non réclamée (ni abonnement ni événement traité) → libérée
+  idleTimeoutMs: 10 * 60_000,  // réclamée, puis ni événement ni keep-alive → libérée
+  maxPerOwner: 32,             // au-delà, la plus ancienne session du propriétaire part
+  maxSessions: 10_000,         // au-delà, mount fait de la place ou lève E_AURORA_LIVE_SESSION_LIMIT
 })
 ```
 
-Les valeurs montrées sont les valeurs par défaut. Une session est réclamée quand
-son propriétaire s'abonne à son canal ou lui envoie un événement. Répondez à
-`E_AURORA_LIVE_SESSION_LIMIT` par un 503 : évincer la session d'un autre
-visiteur pour faire de la place donnerait la limite à qui monte le plus vite.
+Les valeurs montrées sont les valeurs par défaut, et ce sont les réglages de
+production : vous n'avez rien à régler. Une session est réclamée quand son
+propriétaire s'abonne à son canal ou lui envoie un événement que le composant
+traite. Un POST qui nomme un événement absent du composant (réponse 400) ne
+réclame rien.
+
+Une session réclamée reste tant que son client est là. Chaque événement traité
+relance son délai d'inactivité, comme le keep-alive que `liveClient` envoie
+toutes les deux minutes (`keepAliveMs`) par `buildLiveTransport`. Un client qui
+ne fait que regarder garde sa session ; un onglet fermé n'envoie plus rien, et sa
+session se termine dix minutes plus tard. Si vous écrivez votre propre transport,
+donnez-lui un `keepAlive(id)` qui poste `{ id, keepAlive: true }` sur la route des
+événements, ou réglez `idleTimeoutMs` sur la plus longue durée pendant laquelle
+vos utilisateurs regardent sans cliquer. Gardez `idleTimeoutMs` nettement
+au-dessus du `keepAliveMs` du client.
+
+Quand le registre est plein, `mount` fait de la place avant de refuser : la plus
+ancienne session que personne n'a réclamée part d'abord, puis la moins récemment
+utilisée parmi celles silencieuses depuis la moitié de `idleTimeoutMs`. Une
+session en cours d'usage n'est jamais évincée. `mount` ne lève
+`E_AURORA_LIVE_SESSION_LIMIT` que quand toutes les sessions sont en usage ;
+répondez-y par un 503.
 
 ### Côté client
 
@@ -96,7 +113,7 @@ liveClient({
 })
 ```
 
-`liveClient` **hydrate** le HTML SSR, applique les patchs entrants en posant le signal mirror (aurora patche le bon nœud), et forwarde les `data-live-click` via le transport.
+`liveClient` **hydrate** le HTML SSR, applique les patchs entrants en posant le signal mirror (aurora patche le bon nœud), forwarde les `data-live-click` via le transport, et garde la session en vie toutes les `keepAliveMs` (deux minutes par défaut) tant qu'il est monté.
 
 ### État partagé / multiplayer
 

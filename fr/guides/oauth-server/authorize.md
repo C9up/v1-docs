@@ -99,6 +99,34 @@ entre-temps, ou enregistrer plus de scopes que la page n'en listait. Elle ne
 frappe rien : le code n'existe qu'une fois `grant` exécuté. Un ticket dure dix
 minutes ; `consentTicketTtlSeconds` dans la config change cette durée.
 
+### Quand l'écran de consentement est évité
+
+`authorize()` répond `redirect` sans écran de consentement dans deux cas : le
+client est `trusted`, ou l'utilisateur a déjà accepté tous les scopes demandés
+(et la requête ne porte pas `prompt=consent`).
+
+Aucun des deux ne vaut pour un client public dont l'URI de redirection est une
+adresse de loopback, `localhost` ou un schéma privé
+(`com.example.app:/callback`). Ce client voit l'écran à chaque fois. N'importe
+quel autre programme de la machine de l'utilisateur peut envoyer le même
+`client_id`, avec sa propre paire PKCE et son propre port : rien ne prouve que
+la requête vient de l'application que l'utilisateur a acceptée (RFC 8252 §8.6).
+Sans l'écran, ce programme recevrait les jetons de l'utilisateur, et
+l'utilisateur ne verrait rien. Un client confidentiel prouve son identité avec
+son secret, et un client public sur une URI de redirection `https` reçoit le
+code sur un hôte qui lui appartient : les deux gardent le chemin sans écran.
+
+### L'émetteur dans la redirection
+
+Chaque redirection construite par `grant()`, `deny()` et `authorize()` porte
+`iss`, l'émetteur (RFC 9207), à côté de `code` ou `error` et de `state`. Un
+client qui parle à plusieurs serveurs d'autorisation le compare au serveur vers
+lequel il a envoyé l'utilisateur. Il détecte ainsi un code venu d'un autre
+serveur (l'attaque mix-up). Le document de métadonnées l'annonce avec
+`authorization_response_iss_parameter_supported: true`. Si vous construisez une
+redirection vous-même avec `successRedirect()` ou `errorRedirect()`, passez
+`visa.issuer`.
+
 `authorize()` prend la query telle que le parser la livre. Un paramètre envoyé
 deux fois (`scope=a&scope=b`) ou entre crochets (`scope[]=a`, `scope[x]=1`)
 arrive sous forme de tableau ou d'objet, et la RFC 6749 §3.1 interdit qu'un
@@ -123,7 +151,10 @@ const { client, secret } = await visa.registerClient({
 perd en reçoit un nouveau. Un client public — une SPA, une application native
 — s'enregistre avec `tokenEndpointAuthMethod: 'none'`, n'a pas de secret, et ne
 peut pas utiliser `client_credentials` : « le client lui-même » ne veut rien
-dire quand n'importe qui peut lire son id dans un navigateur.
+dire quand n'importe qui peut lire son id dans un navigateur. Un client public
+sur une URI de redirection en loopback, sur `localhost` ou sur un schéma privé
+voit aussi l'écran de consentement à chaque fois — voir
+[Quand l'écran de consentement est évité](#quand-l-ecran-de-consentement-est-evite).
 
 Le `tokenEndpointAuthMethod` qu'un client enregistre est le **seul** accepté :
 un client déclaré `client_secret_basic` qui envoie son secret dans le body est

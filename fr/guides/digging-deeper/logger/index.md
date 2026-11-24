@@ -26,6 +26,15 @@ logger.error('Connexion échouée', { host: 'db.example.com' })
 
 La signature est **message-first** : la string de message vient en premier, l'objet de données structuré en second — `logger.info('user logged in', { userId })`. Un appel se lit de gauche à droite.
 
+L'objet de données est toujours écrit comme champs, et le message est écrit tel quel. Un `%` dans le message n'est pas un jeton ici. Des données de la requête placées dans le message ne peuvent donc pas changer l'endroit où vont les champs :
+
+```typescript
+logger.warn(`login failed for ${email}`, { ip })
+// même avec email = 'x%j@example.com' : msg est le texte ci-dessus, ip est un champ
+```
+
+Les jetons printf (`%s`, `%d`, `%i`, `%f`, `%j`, `%o`, `%O`, `%%`) s'appliquent quand vous passez deux valeurs ou plus, ou quand l'objet vient en premier : `logger.info({ ip }, 'user %s from %s', name, city)`. Un objet que `%j`, `%o` ou `%O` écrit dans le message est d'abord sérialisé et censuré, comme un champ. Une valeur qu'aucun jeton ne prend est ignorée.
+
 ### Sérialisation des erreurs
 
 Une `Error` passée en premier argument, ou placée sous `err` (ou `error`) dans

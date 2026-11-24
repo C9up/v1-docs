@@ -29,6 +29,30 @@ Pour l'AVIF, l'en-tête est l'en-tête de séquence AV1, lu sans décoder —
 plafond comme limite de taille de trame, parce qu'une trame peut déclarer sa
 propre taille.
 
+**Chaque trame, pas seulement le canevas.** Un GIF donne une taille d'écran,
+puis une taille par trame ; un WebP étendu donne un canevas, puis une taille
+dans chaque flux. Le décodeur alloue d'après la trame. Le plafond est donc
+vérifié sur chaque trame d'un GIF, et un flux WebP qui n'a pas la taille de sa
+trame est refusé avec `E_PRISM_UNREADABLE` avant d'être décodé.
+
+**Les en-têtes qui grossissent sont bornés.** Le profil ICC d'un PNG est
+compressé. La lecture de l'en-tête en décompresse au plus 4 Mio, plus quelques
+fois la taille du fichier pour les blocs de texte, et ignore un profil plus
+grand : aucune sortie n'en porte. Un item AVIF placé dans plus d'octets que le
+fichier n'en contient (son index liste les mêmes données des milliers de fois)
+est refusé avant d'être assemblé.
+
+**Un plafond de mémoire, en octets.** Les pixels ne disent pas ce que coûte un
+pipeline : un pixel RGBA 16 bits fait 8 octets décodé, et un redimensionnement
+garde un intermédiaire flottant de 16 octets par pixel (largeur source x
+hauteur cible) à côté de la source et de la sortie. `limits.maxMemory`
+(512 Mio) borne un pipeline : chaque étape additionne ce qu'elle garde et ce
+qu'elle alloue, et elle est refusée avec `E_PRISM_MEMORY_LIMIT` avant d'allouer
+quand la somme dépasse. Une source en 16 bits est réduite à 8 bits dès le
+décodage quand la sortie est en 8 bits. `concurrency` (2) pipelines tournent à
+la fois par `Prism` : une instance garde donc au plus 1 Gio. La
+[référence](/fr/reference/prism#memoire) donne ce que compte chaque étape.
+
 **Le même plafond sur ce qu'une opération construit.** Une cible de
 redimensionnement, le côté qu'un redimensionnement déduit des proportions,
 l'intermédiaire agrandi d'un `cover`, un calque de filigrane : chacun est
@@ -55,7 +79,8 @@ les supprimer est le bon défaut, pas une option à activer.
 |---|---|
 | `E_PRISM_EMPTY_INPUT` | rien n'a été passé |
 | `E_PRISM_INPUT_TOO_LARGE` | au-delà du plafond d'octets |
-| `E_PRISM_TOO_MANY_PIXELS` | l'en-tête déclare, ou une opération construirait, plus de pixels qu'autorisé |
+| `E_PRISM_TOO_MANY_PIXELS` | l'en-tête ou une trame déclare, ou une opération construirait, plus de pixels qu'autorisé |
+| `E_PRISM_MEMORY_LIMIT` | une étape du pipeline garderait plus d'octets que `maxMemory` |
 | `E_PRISM_UNKNOWN_FORMAT` | les octets ne sont pas une image |
 | `E_PRISM_FORMAT_NOT_ALLOWED` | une vraie image, dans un format absent de `allowedFormats` |
 | `E_PRISM_UNSUPPORTED_FORMAT` | un format de sortie que le moteur n'écrit pas (`dds`) |

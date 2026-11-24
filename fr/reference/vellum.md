@@ -9,7 +9,11 @@ pnpm add @c9up/vellum
 ream configure @c9up/vellum
 ```
 
-`ream configure @c9up/vellum` ajoute le provider, la variable `VELLUM_FORMAT`, et écrit `config/vellum.ts`. Le moteur est livré en binaire précompilé par plateforme ; `@c9up/ream` est une dépendance pair facultative.
+`ream configure @c9up/vellum` ajoute le provider, la variable `VELLUM_FORMAT`, et écrit `config/vellum.ts`. `@c9up/ream` est une dépendance pair facultative.
+
+Le moteur natif est livré dans un petit paquet par plateforme, `@c9up/vellum-<plateforme>`, pour linux x64 et arm64 (glibc), macOS x64 et arm64, et Windows x64. `@c9up/vellum` les déclare en dépendances optionnelles, et votre gestionnaire de paquets installe seulement celui de votre machine. Vous n'avez pas besoin de toolchain Rust. N'installez pas avec les dépendances optionnelles désactivées (`--no-optional`, `--omit=optional`) : le moteur serait absent.
+
+Il n'existe pas de repli JavaScript. Sans le moteur, le premier appel lève `E_VELLUM_NAPI_REQUIRED`, et son message nomme le paquet à installer, par exemple `@c9up/vellum-linux-x64-gnu`. Les polices fournies restent dans `@c9up/vellum` lui-même.
 
 ## Points d'entrée
 
@@ -99,7 +103,7 @@ Chaque méthode prend le PDF en `Buffer` et s'exécute sur le pool de threads. L
 |---|---|---|---|
 | `anchors` | `ReadonlyArray<Buffer>` | `trustedAnchors` de la configuration | Les certificats racines de confiance, DER ou PEM. |
 | `allowedResponders` | `ResponderPolicy` | configuration | Les répondeurs qui peuvent être contactés. |
-| `checkRevocation` | `boolean` | | Interroger l'émetteur de chaque certificat de signature ; la réponse est `good`, `revoked` ou inconnue. |
+| `checkRevocation` | `boolean` | | Interroger l'émetteur de chaque certificat de signature ; la réponse est `good`, `revoked` ou inconnue. Une signature qui n'est pas `trusted` répond inconnue, sans que rien ne soit demandé. |
 | `revocationTimeoutMs` | `number` | `10000` | |
 
 `SignatureReport` porte `field`, `coversWholeDocument`, `digestMatches`, `signatureVerifies`, `signer`, `signedAt`, `timestamped`, `trusted`, `chain`, `moment`, `momentAt`, `signerCertificate`, `issuerCertificate` et `problems` ; `CheckedSignature` ajoute `revocation?: RevocationAnswer` (`{ status: string; detail?: string }`). `FormField` vaut `{ name, kind, value?, options, readOnly, required, multiline, password, maxLength? }`.
@@ -194,7 +198,7 @@ const preview = await vellum.render(pdf, { page: 1, width: 1200 })
 | `background` | `string` | | `#rgb`, `#rrggbb`, `#rrggbbaa` ou `'transparent'`. |
 | `maxPixels` | `number` | 50 millions | Les pixels que peut produire le rendu d'une page. |
 | `maxTotalPixels` | `number` | 500 millions | Les pixels que `renderAll` peut produire sur toutes les pages. |
-| `maxDecodedBytes` | `number` | 256 Mio | Les octets de flux décodés dont la lecture d'une page peut avoir besoin. |
+| `maxDecodedBytes` | `number` | 256 Mio | Les octets de flux décodés dont la lecture d'une page peut avoir besoin, plus, au rendu, les tampons que garde son dessin : un octet par pixel par masque doux, quatre par pixel par image dessinée. |
 | `maxOperations` | `number` | 10 millions | Les opérateurs de contenu et glyphes que peut coûter une page. |
 | `maxTotalDecodedBytes` | `number` | 1 Gio | Les octets décodés sur toutes les pages de `renderAll` et `extractTextAll`. |
 | `maxTotalOperations` | `number` | 10 millions | Les opérateurs et glyphes sur toutes les pages de `renderAll` et `extractTextAll`. |
@@ -274,6 +278,11 @@ Chaque code est une classe de l'espace de noms `errors` (`import { errors } from
 - `VellumNativeRequiredError` devient `errors.E_VELLUM_NAPI_REQUIRED`.
 - Le `name` d'une erreur ne vaut plus `"VellumError"`.
 - `E_VELLUM_INVALID_PDF` a désormais le `status` 422.
+- `verifySignatures()` ne fait plus confiance à un chemin qui passe par un certificat qui n'est pas une autorité (`basicConstraints` sans `cA`), même s'il porte le nom du signataire, ni par une autorité dont l'usage de clé exclut `keyCertSign`. Une telle signature indique désormais `trusted: false` ; faites-la signer avec un certificat émis directement par l'autorité.
+- Avec `checkRevocation: true`, une signature dont `trusted` vaut `false` répond désormais `revocation: { status: 'unknown' }` sans interroger aucun répondeur : rien ne dit que son émetteur en soit un.
+- `render()` et `renderAll()` imputent désormais à `maxDecodedBytes` les tampons que garde le dessin d'une page : un octet par pixel par masque doux, quatre octets par pixel par image dessinée, les tuiles de motif et les glyphes en cache. Une grande page avec beaucoup de masques doux ou d'images peut maintenant être refusée avec `E_VELLUM_RENDER_FAILED` ; augmentez `maxDecodedBytes` pour un document de confiance.
+- Une modification ou une signature dont le document écrit pèserait plus de 1 Gio est désormais refusée, avec l'erreur de l'opération (`E_VELLUM_ROTATE_FAILED`, `E_VELLUM_SIGN_FAILED`…).
+- `PdfDocument.svg()` refuse désormais, avec `E_VELLUM_INVALID_SVG`, un SVG qui dessine plus de 1 000 000 d'éléments et de segments de tracé une fois ses éléments `<use>`, ses tracés de découpe, ses masques et ses motifs développés, ainsi qu'un SVG gzip qui dépasse 16 Mio une fois décompressé. Simplifiez le dessin, ou dessinez-le comme une image.
 
 ## Voir aussi
 

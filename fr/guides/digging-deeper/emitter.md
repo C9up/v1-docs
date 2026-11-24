@@ -140,6 +140,28 @@ un `() => void` est attendu — attendez-la quand l'assertion suivante
 dépend de la souscription réellement disparue.
 :::
 
+### Requête et réponse
+
+`onRequest()` enregistre le handler unique qui répond à un nom de requête. Il
+reçoit l'enveloppe de la requête en JSON et une fonction `reply` ; `request()`
+se résout avec ce qu'il répond, lu comme du JSON quand c'en est.
+
+```ts
+emitter.onRequest('query:user.find', (eventJson, reply) => {
+  const { data } = JSON.parse(eventJson)
+  reply(JSON.stringify(users.find(JSON.parse(data).id)))
+})
+
+const user = await emitter.request('query:user.find', { id: 1 }, 1000)
+```
+
+Un handler qui lève ou rejette termine cette requête tout de suite :
+`request()` rejette avec `E_EVENTS_HANDLER_FAILED`, dont le message reprend
+celui du handler, et l'échec est rapporté via `onError`. Le process continue
+de tourner. Une requête à laquelle aucun handler ne répond rejette avec
+`E_EVENTS_NO_REQUEST_HANDLER`, une requête sans réponse à temps avec
+`E_EVENTS_TIMEOUT`.
+
 ## Câblage
 
 `EventsProvider` binde le bus dans le container. Enregistrez-le (il fait partie du

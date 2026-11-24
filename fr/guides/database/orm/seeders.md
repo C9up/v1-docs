@@ -63,6 +63,13 @@ environnements. Quand on fournit l'environnement courant au runner, il ignore
 tout seeder dont la liste l'exclut. Laisser `environment` non défini exécute le
 seeder partout.
 
+Les noms sont comparés selon la table d'alias : `prod` vaut `production`, `dev`
+vaut `development`, `test` vaut `testing`. `db:seed` a toujours un environnement
+courant. Sans `--environment`, il lit l'environnement de l'application, sinon
+`REAM_ENV` / `NODE_ENV` (production dès que l'une des deux le dit). Si aucune
+n'est définie, l'environnement est `unknown`, et un seeder doté d'une liste
+`environment` ne s'exécute pas.
+
 ```ts
 export default class DemoUsersSeeder extends BaseSeeder {
   static environment = ['development', 'testing']
@@ -191,7 +198,8 @@ Flags :
   celle par défaut.
 - `--environment=name` — surcharge l'environnement utilisé pour le filtrage
   `static environment` ; retombe sur l'`environment` de la factory, puis sur
-  `NODE_ENV`.
+  l'environnement de l'application, puis sur `REAM_ENV` / `NODE_ENV` (`unknown`
+  si aucune n'est définie).
 - `--compact-output` — affiche une seule ligne de résumé (`Seeded N seeder(s)`)
   au lieu de lister chaque seeder.
 - `--interactive` — accepté, mais sans effet. Le kernel

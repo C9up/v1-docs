@@ -88,7 +88,10 @@ tant que le lecteur y est — une conversation.
 `<img src>` accepte des URL `https://`, des chemins `file:` et `content://`, des
 fichiers `asset:` embarqués dans l'app et des octets transmis par le JS ;
 l'image est décodée hors du fil d'affichage à la taille affichée, et `object-*`
-règle son ajustement.
+règle son ajustement. Une adresse écrite dans le template qu'orbit ne charge
+pas (`http:`, `data:`, `//hote/…`) lève une erreur. Une adresse venue des
+données, comme l'avatar d'un utilisateur, n'affiche rien pour cette image et va
+à `onError` de `mount` ; le reste de l'écran s'affiche.
 
 `<svg>` devient une vue vectorielle. orbit-host lit le dessin — données de
 chemin avec toutes leurs commandes, `rect` (arrondi), `circle`, `ellipse`,
@@ -96,4 +99,8 @@ chemin avec toutes leurs commandes, `rect` (arrondi), `circle`, `ellipse`,
 opacités — et la plateforme rejoue de simples chemins à l'échelle de la boîte.
 `currentColor` peint avec la couleur du texte autour : une icône prend la
 couleur du texte où elle se trouve ; `shape-rendering="crispEdges"` garde les
-modules d'un QR code purement noirs et blancs.
+modules d'un QR code purement noirs et blancs. Une valeur que l'hôte ne sait
+pas lire n'arrête pas l'écran. Un nombre non fini (`NaN` venu de `0 / 0`) compte
+comme absent. Un chemin et `points` sont dessinés jusqu'à leur première erreur.
+Une forme dont le `transform` ou la peinture est illisible est laissée de côté.
+Chaque cas va à `onError` sous le code `E_ORBIT_SVG_VALUE`.

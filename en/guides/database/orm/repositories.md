@@ -194,7 +194,11 @@ const invoices = new BaseRepository(Invoice, db, {
 ```
 
 The scope applies to the repository's finders, `query()`, and its writes by id or
-by column — `updateById`, `updateWhere`, `increment`, `decrement`. It is carried
+by column — `updateById`, `updateWhere`, `increment`, `decrement`, `upsert`. On
+PostgreSQL and SQLite, `upsert` leaves a conflicting row outside the scope as it
+is (`DO UPDATE … WHERE <scope>`). MySQL's `ON DUPLICATE KEY UPDATE` takes no
+condition, so an `upsert` that updates columns is refused there with
+`E_UNSUPPORTED`; one with no `updateColumns` (`INSERT IGNORE`) still runs. It is carried
 to every query its relations run:
 
 - preloads, nested ones included;
@@ -228,3 +232,8 @@ Atlas supports soft-delete scopes depending on entity configuration:
 - default: excludes soft-deleted rows
 - `withTrashed()` includes all
 - `onlyTrashed()` returns only soft-deleted rows
+
+The filter is ANDed with the query's clauses taken as one group, like the scope:
+`where('email', login).orWhere('username', login)` does not find a deleted
+account. It reaches reads, `paginate()` (count and page), bulk writes, preloads
+and the sub-queries of `whereHas` / `withCount`.

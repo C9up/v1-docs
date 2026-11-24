@@ -54,7 +54,11 @@ ream configure @c9up/relay
 | `SubscribeSuccess` | interface | `{ ok: true }`. |
 | `SubscribeFailure` | interface | `{ ok: false; status: number; code: string }`. |
 | `HubContext` | interface | Ce que reçoit un handler de hub. |
+| `HubAuth` | interface | L'authentification de la requête telle qu'un hub la lit : `{ isAuthenticated: boolean; strategy?: string; user?: Record<string, unknown>; roles?: string[]; permissions?: string[]; hasAllPermissions?(permissions: readonly string[]): Promise<boolean> }`. |
+| `HubDenial` | interface | Un refus des guards d'un hub : `{ status: 401 \| 403; code: 'E_RELAY_UNAUTHORIZED' \| 'E_RELAY_FORBIDDEN'; message: string }`. |
 | `HubGuardOptions` | interface | `{ guard?: string; guards?: string[]; roles?: string[]; permissions?: string[] }`. |
+| `ConnectedHubClient` | interface | Une connexion telle qu'un transport l'enregistre : `{ id: string; groups: Set<string>; auth: HubAuth; send(event: string, data: unknown): void; close?(): void }`. `close` ferme le flux ou le socket ; `disconnect()` l'appelle. |
+| `DispatchResult` | type | `{ ok: true; result: unknown } \| { ok: false; denial?: HubDenial }` : ce que renvoient `dispatch()` et `dispatchAs()`. `denial` est présent quand les guards ont refusé. |
 | `NegotiateResponse` | interface | `{ connectionId; connectionToken; negotiateVersion; availableTransports }`. |
 | `SignalRMessageType` | type | `1 \| 2 \| 3 \| 4 \| 5 \| 6 \| 7`. |
 | `MountedHub` | interface | `{ path: string; hub: Hub; adapter: SignalRAdapter }`. |
@@ -70,8 +74,8 @@ ream configure @c9up/relay
 |---|---|---|
 | constructeur | `new Relay(config?: RelayConfig)` | |
 | `authorize` | `authorize<TParams extends Record<string, string> = Record<string, string>>(pattern: string, callback: ChannelAuthorizer<TParams>): void` | Qui peut s'abonner aux canaux qui correspondent à `pattern` : segments statiques, `:param`, `:param.suffix`, un `:param?` optionnel final, un `*` final. Un enregistrement exact l'emporte ; les motifs sont essayés dans l'ordre. |
-| `registerRoutes` | `registerRoutes(customizer?: RelayRouteCustomizer): void` | Monte `GET /__relay/events`, `POST /__relay/subscribe` et `POST /__relay/unsubscribe`, en appliquant `customizer` à chacune (pour ajouter le middleware `auth`). Ces routes n'existent pas avant l'appel ; appelez-la depuis un preload. |
-| `hub` | `hub(path: string, hub: HubLike, adapter?: SignalRAdapterLike): void` | Prend un `Hub` et, en option, un `SignalRAdapter` construit sur lui. Monte un hub : `POST <path>/negotiate`, `GET <path>` (SSE), `POST <path>` et, quand le serveur le permet, une route WebSocket sur `<path>`. Monter deux fois un chemin lève une erreur. |
+| `registerRoutes` | `registerRoutes(customizer?: RelayRouteCustomizer): void` | Monte `GET /__relay/events`, `POST /__relay/subscribe` et `POST /__relay/unsubscribe`, en appliquant `customizer` à chacune, ainsi qu'aux routes de chaque hub monté ensuite (`route.guard('web')` pour exiger une requête authentifiée, ou `route.middleware(...)`). Il ne remplace pas le `useGuards()` d'un hub. Ces routes n'existent pas avant l'appel ; appelez-la depuis un preload. |
+| `hub` | `hub(path: string, hub: Hub, adapter?: SignalRAdapter): void` | Prend un `Hub` et, en option, un `SignalRAdapter` construit sur lui. Un appelant JavaScript qui passe autre chose reçoit `E_RELAY_INVALID_HUB` ou `E_RELAY_INVALID_ADAPTER` au montage du hub. Monte un hub : `POST <path>/negotiate`, `GET <path>` (SSE), `POST <path>` et, quand le serveur le permet, une route WebSocket sur `<path>`. Monter deux fois un chemin lève une erreur. |
 | `broadcast` | `broadcast(channel: string, payload: unknown): number` | Envoie à chaque abonné de `channel` ; recopié sur le bus s'il y en a un. Renvoie le nombre de clients locaux atteints. |
 | `broadcastExcept` | `broadcastExcept(channel: string, payload: unknown, senderUid: string \| string[]): number` | Pareil, en sautant les identifiants de connexion donnés, sur toutes les instances. |
 | `on` | `on<E extends keyof RelayLifecycleEvents>(event: E, listener: (evt: RelayLifecycleEvents[E]) => void): () => void` | Écouteur de cycle de vie ; renvoie sa fonction de retrait. |
@@ -103,12 +107,15 @@ interface RelayLifecycleEvents {
 
 | Membre | Signature | Description |
 |---|---|---|
-| `useGuards` | `useGuards(options: HubGuardOptions): void` | Exigences pour chaque invocation. `roles` est satisfait par l'un des noms, `permissions` par tous. |
+| `useGuards` | `useGuards(options: HubGuardOptions): void` | Ce qu'il faut pour se connecter au hub. Interrogé à la négociation, au flux, à la poignée de main WebSocket et à chaque invocation. `roles` est satisfait par l'un des noms, `permissions` par tous. |
+| `authorize` | `authorize(auth: HubAuth): Promise<HubDenial \| null>` | Dit si `auth` satisfait les guards : `null` si oui, toujours sur un hub sans guards. Les routes du hub l'appellent. Un guard `permissions` interroge `auth.hasAllPermissions` quand il existe, sinon lit `auth.permissions` ou `auth.user.permissions` ; un jeton d'accès dans `auth.user.currentAccessToken` doit aussi autoriser chaque permission. Une erreur de la couche d'authentification remonte. |
+| `disconnect` | `disconnect(clientId: string): boolean` | Ferme une connexion tenue par cette instance : retirée du hub tout de suite, puis son flux ou son socket est fermé. `false` s'il n'y a pas de tel client. |
+| `disconnectUser` | `disconnectUser(userId: string \| number \| bigint): number` | Ferme toutes les connexions que cette instance tient pour cet utilisateur ; renvoie leur nombre. |
 | `onConnect` | `onConnect(ctx: HubContext): Promise<void>` | À redéfinir pour réagir à une connexion. |
 | `onDisconnect` | `onDisconnect(clientId: string): Promise<void>` | À redéfinir pour réagir à une déconnexion. |
-| `dispatch` | `dispatch(clientId: string, event: string, ...args: unknown[]): Promise<DispatchResult>` | Exécute un handler avec l'authentification de la connexion. `{ ok: true, result }` ou `{ ok: false }`. |
+| `dispatch` | `dispatch(clientId: string, event: string, ...args: unknown[]): Promise<DispatchResult>` | Exécute un handler avec l'authentification de la connexion. `{ ok: true, result }` ou `{ ok: false }`. Quand les guards refusent, le résultat porte `denial` et le client est retiré du hub : le transport ferme la connexion. |
 | `dispatchAs` | `dispatchAs(clientId: string, auth: HubContext['auth'], event: string, args: readonly unknown[]): Promise<DispatchResult>` | Exécute un handler avec l'authentification de la requête qui porte l'invocation. |
-| `registerClient` | `registerClient(client): HubContext` | Enregistre une connexion ; le transport l'appelle. |
+| `registerClient` | `registerClient(client: ConnectedHubClient): HubContext` | Enregistre une connexion ; le transport l'appelle, après `authorize()`. Elle n'interroge pas les guards elle-même. |
 | `removeClient` | `removeClient(clientId: string): void` | |
 | `authFor` | `authFor(clientId: string): HubContext['auth'] \| undefined` | L'authentification enregistrée à la connexion. |
 | `stats` | `stats(): { clients: number; groups: number }` | Clients et groupes de cette instance. |
@@ -116,11 +123,14 @@ interface RelayLifecycleEvents {
 | Membre de `HubContext` | Signature | Description |
 |---|---|---|
 | `clientId` | `readonly clientId: string` | |
-| `auth` | `readonly auth: { isAuthenticated: boolean; strategy?: string; user?: Record<string, unknown>; roles?: string[]; permissions?: string[] }` | |
+| `auth` | `readonly auth: HubAuth` | L'authentification de la requête qui invoque ; celle de la connexion dans `onConnect`. |
 | `joinGroup` / `leaveGroup` | `joinGroup(group: string): void` | |
 | `send` | `send(event: string, data: unknown): void` | À ce client. |
 | `group` | `group(name: string): { send(event: string, data: unknown): void }` | À un groupe, sur toutes les instances. |
 | `broadcast` | `broadcast(event: string, data: unknown): void` | À tous les clients du hub, sur toutes les instances. |
+| `disconnect` | `disconnect(): void` | Ferme cette connexion. |
+
+Les guards d'un hub sont interrogés quand un client se connecte et à chacune de ses invocations, pas tant qu'il ne fait qu'écouter : fermez la connexion d'un utilisateur qui se déconnecte ou perd un rôle avec `disconnectUser()`. Une connexion ouverte avec un jeton d'accès est fermée quand `user.currentAccessToken.expiresAt` est passé.
 
 Une connexion de hub vit sur l'instance qui l'a négociée : envoyez les requêtes de hub d'un client vers une seule instance (sessions persistantes sur les chemins du hub).
 
@@ -131,8 +141,9 @@ Une connexion de hub vit sur l'instance qui l'a négociée : envoyez les requêt
 | constructeur | `new SignalRAdapter(hub: Hub, options?)` | Options ci-dessous. |
 | `negotiate` | `negotiate(connectionId: string, transports?: readonly string[], owner?: string, negotiator?: string): NegotiateResponse` | Émet un jeton de connexion ; `transports` vaut `['ServerSentEvents']` par défaut. Lève une erreur quand la table d'attente, ou la part du propriétaire, est pleine : vérifiez d'abord `admits(owner)`. |
 | `admits` | `admits(owner?: string): boolean` | Si un negotiate de `owner` serait accepté. |
-| `handleFrame` | `handleFrame(clientId: string, frame: string, auth?: HubContext['auth']): Promise<string[]>` | Traite une trame entrante ; renvoie les trames à renvoyer. La première trame doit être la poignée de main. |
+| `handleFrame` | `handleFrame(clientId: string, frame: string, auth?: HubContext['auth']): Promise<string[]>` | Traite une trame entrante ; renvoie les trames à renvoyer. La première trame doit être la poignée de main, d'un client que le hub tient. Les trames sont lues sans clé `__proto__`. Une invocation que les guards refusent reçoit une trame Close. |
 | `encodeInvocation` | `encodeInvocation(target: string, args: unknown[]): string` | Une trame d'invocation du serveur vers le client. |
+| `encodeClose` | `encodeClose(error?: string): string` | Une trame Close, envoyée avant que le serveur ferme une connexion. |
 | `resolveToken` | `resolveToken(connectionToken: string): string \| undefined` | |
 | `forget` | `forget(clientId: string): void` | |
 
@@ -145,6 +156,7 @@ Une connexion de hub vit sur l'instance qui l'a négociée : envoyez les requêt
 | `handshakeTimeoutMs` | `number` | `15000` | Temps laissé à un flux ouvert pour finir la poignée de main. |
 | `maxConnections` | `number` | `10000` | Flux ouverts ; un nouveau au-delà reçoit 503. |
 | `maxConnectionsPerOwner` | `number \| false` | `20` | Flux ouverts par propriétaire. |
+| `maxQueuedMessages` | `number` | `256` | Messages qu'une connexion peut avoir envoyés et que le hub n'a pas commencés. Au-delà, un socket est fermé avec `1013` et un POST montant reçoit 429. Chaque message compte, quel que soit le nombre regroupé dans un message WebSocket ou un POST. |
 
 ### `transports` et `RedisRelayTransport`
 
@@ -201,7 +213,7 @@ new RedisRelayTransport(client: RelayPubSubResolver, ownsConnection?: boolean)
 |---|---|
 | [`E_RELAY_BAD_REQUEST`](/fr/reference/errors#e-relay-bad-request) | `subscribe` sans `uid` ni `channel` utilisables, ou avec un nom de canal refusé. |
 | [`E_RELAY_CHANNEL_TOO_LONG`](/fr/reference/errors#e-relay-channel-too-long) | Le nom du canal dépasse 256 caractères. |
-| [`E_RELAY_NOT_CONNECTED`](/fr/reference/errors#e-relay-not-connected) | Aucune connexion n'a cet uid ici et aucun bus n'atteint celle qui le tient. |
+| [`E_RELAY_NOT_CONNECTED`](/fr/reference/errors#e-relay-not-connected) | Aucune connexion n'a cet uid ici et aucun bus n'atteint celle qui le tient. Aussi un POST de hub pour une connexion sans flux ouvert. |
 | [`E_RELAY_BUS_UNAVAILABLE`](/fr/reference/errors#e-relay-bus-unavailable) | L'abonnement devait passer par le bus, et le bus l'a refusé. |
 | [`E_RELAY_NOT_OWNER`](/fr/reference/errors#e-relay-not-owner) | La connexion a été ouverte par un autre utilisateur. |
 | [`E_RELAY_CHANNEL_NO_AUTHORIZER`](/fr/reference/errors#e-relay-channel-no-authorizer) | Aucun `authorize()` ne couvre le canal. |
@@ -213,9 +225,10 @@ new RedisRelayTransport(client: RelayPubSubResolver, ownsConnection?: boolean)
 | [`E_RELAY_MAX_CONNECTIONS`](/fr/reference/errors#e-relay-max-connections) | Un hub a `maxConnections` flux ouverts. |
 | [`E_RELAY_MAX_CONNECTIONS_PER_OWNER`](/fr/reference/errors#e-relay-max-connections-per-owner) | Ce client a `maxConnectionsPerOwner` flux de hub ouverts. |
 | [`E_RELAY_MAX_PENDING`](/fr/reference/errors#e-relay-max-pending) | Trop de connexions de hub négociées et pas encore ouvertes ; `SignalRAdapter.negotiate()` la lève. |
+| [`E_RELAY_MAX_QUEUED`](/fr/reference/errors#e-relay-max-queued) | Une connexion de hub a déjà `maxQueuedMessages` messages en attente. |
 | [`E_RELAY_SHUT_DOWN`](/fr/reference/errors#e-relay-shut-down) | relay est en cours d'arrêt. |
-| [`E_RELAY_UNAUTHORIZED`](/fr/reference/errors#e-relay-unauthorized) | Une invocation de hub demande un utilisateur authentifié, ou par un autre guard. |
-| [`E_RELAY_FORBIDDEN`](/fr/reference/errors#e-relay-forbidden) | Il manque à une invocation de hub le rôle ou la permission requis. |
+| [`E_RELAY_UNAUTHORIZED`](/fr/reference/errors#e-relay-unauthorized) | Un hub gardé demande un utilisateur authentifié, ou par un autre guard : 401 à la négociation, au flux et à la poignée de main WebSocket, un événement `error` sur une invocation. |
+| [`E_RELAY_FORBIDDEN`](/fr/reference/errors#e-relay-forbidden) | Il manque à l'utilisateur le rôle ou les permissions qu'exigent les guards d'un hub : 403 à la connexion, un événement `error` sur une invocation. |
 | [`E_RELAY_UNKNOWN_EVENT`](/fr/reference/errors#e-relay-unknown-event) | Une invocation de hub ne nomme aucun handler. |
 | [`E_RELAY_HANDLER_ERROR`](/fr/reference/errors#e-relay-handler-error) | Un handler de hub a levé une erreur. |
 | [`E_RELAY_INVALID_CHANNEL_PATTERN`](/fr/reference/errors#e-relay-invalid-channel-pattern) | `authorize()` a reçu un motif de canal qui ne pourrait jamais correspondre. |
@@ -236,6 +249,18 @@ new RedisRelayTransport(client: RelayPubSubResolver, ownsConnection?: boolean)
 
 ## Migration
 
+- `useGuards()` sur un hub est maintenant une exigence pour se connecter, et plus seulement pour invoquer. Un client que les guards refusent reçoit `401` ou `403` sur `<path>/negotiate`, sur le flux et à la poignée de main WebSocket ; avant, il se connectait, déclenchait `onConnect` et recevait tous les broadcasts. Pour un hub que tout le monde peut écouter et que seuls certains peuvent appeler : retirez `useGuards()` et vérifiez `ctx.auth` dans les méthodes à protéger.
+- Une invocation que les guards refusent ferme maintenant la connexion, après l'événement `error` et la Completion d'erreur. Un rôle accordé après l'ouverture de la connexion ne prend plus effet en cours de connexion : le client se reconnecte.
+- Le guard `permissions` d'un hub interroge maintenant `ctx.auth.hasAllPermissions()` quand la couche d'authentification l'expose (le résolveur de droits de Warden) au lieu de lire la liste de permissions de l'utilisateur, et un jeton d'accès doit aussi autoriser chaque permission. Accordez la permission dans le magasin de droits, et donnez la capacité au jeton.
+- Le message de `E_RELAY_UNAUTHORIZED` pour un mauvais guard ne cite plus les guards acceptés. Testez `code`, pas le message.
+- Une connexion de hub ouverte avec un jeton d'accès est fermée à l'expiration du jeton. Faites reconnecter le client avec un jeton neuf (`withAutomaticReconnect()`).
+- Une connexion de hub dont `onConnect` lève une erreur est fermée. En Server-Sent Events, elle restait ouverte et recevait les broadcasts.
+- Une connexion de hub qui a plus de `maxQueuedMessages` messages en attente (256) est fermée avec `1013`, ou son POST refusé en 429. Augmentez l'option du `SignalRAdapter` pour un client qui envoie beaucoup d'invocations sans les attendre.
+- Un POST de hub envoyé avant l'ouverture de son flux répond maintenant `400 E_RELAY_NOT_CONNECTED` ; avant, il répondait 200 et les réponses étaient perdues. Ouvrez d'abord le flux, comme le fait le client SignalR.
+- Les invocations d'une même connexion de hub s'exécutent l'une après l'autre en Server-Sent Events aussi, dans leur ordre d'arrivée. Des POST simultanés sur une même connexion s'exécutaient en parallèle.
+- Les arguments d'invocation d'un hub ne portent plus de clé `__proto__`, ni d'objet `constructor` qui a `prototype`.
+- `Hub` a trois nouvelles méthodes, `authorize`, `disconnect` et `disconnectUser`, et `HubContext` a `disconnect`. Une sous-classe de hub qui déclare une méthode de l'un de ces noms doit la renommer.
+- `relay.hub()` prend un `Hub` et un `SignalRAdapter`, et plus n'importe quel `object`. TypeScript refuse désormais, à l'appel, un objet qui n'est pas un `Hub` ; jusqu'ici il compilait et échouait avec `E_RELAY_INVALID_HUB` au montage. Passez une instance d'une classe qui étend `Hub`.
 - `RelayError` et `RelayTypeError` disparaissent : testez `error.code`, ou `error instanceof errors.E_RELAY_*` avec `import { errors } from '@c9up/relay'`. `E_RELAY_INVALID_HUB` et `E_RELAY_INVALID_ADAPTER` ne sont plus des `TypeError`.
 
 ## Voir aussi

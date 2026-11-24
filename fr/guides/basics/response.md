@@ -17,12 +17,36 @@ ctx.response.cookie('prefs', { theme: 'dark' }, { maxAge: '2h' })
 - **`maxAge`** accepte des secondes ou une durée. `'2h'` arrivait auparavant dans
   l'en-tête sous la forme invalide `Max-Age=2h`, et le cookie était jeté sans un
   mot.
+- **Valeurs par défaut des cookies.** Chaque cookie reçoit `Max-Age=7200; Path=/;
+  HttpOnly; Secure; SameSite=lax`, sauf si l'appel passe sa propre valeur pour un
+  attribut. Changez ces valeurs pour toute l'application dans `config/app.ts` :
+
+  ```ts
+  export const http = {
+    cookie: { maxAge: '2h', path: '/', httpOnly: true, secure: true, sameSite: 'lax' },
+  }
+  ```
+
+  Les clés sont `maxAge`, `path`, `domain`, `httpOnly`, `secure`, `sameSite`,
+  `partitioned` et `priority` ; toute autre clé, ou une valeur du mauvais type,
+  arrête l'application au démarrage avec `E_RESPONSE_INVALID_COOKIE`. Passez
+  `maxAge: undefined` à un appel pour un cookie qui finit avec la session du
+  navigateur. Chrome et Firefox acceptent un cookie `Secure` venu de
+  `http://localhost` ; pour un autre navigateur ou un autre hôte en HTTP simple
+  en développement, mettez-y `secure: false`.
+- **`path` et `domain`** doivent suivre la grammaire des cookies : un chemin en
+  ASCII imprimable sans `;`, un domaine qui est un nom d'hôte (`.app.test`
+  compris). Le reste lève `E_RESPONSE_INVALID_COOKIE`.
+- **`jsonp()`** envoie `X-Content-Type-Options: nosniff` avec le script qu'il écrit.
 - **`plainCookie`** emballe sa valeur en JSON base64url, donc un objet revient un
   objet et un nombre un nombre. Passez `encode: false` pour une valeur qu'un
-  script du navigateur doit lire telle quelle, ou déjà protégée. Noms et valeurs
-  sont encodés en pourcentage à l'écriture et décodés à la lecture :
+  script du navigateur doit lire telle quelle, ou déjà protégée. Les valeurs
+  sont encodées en pourcentage à l'écriture et décodées à la lecture :
   `request.plainCookie(nom, undefined, { encoded: false })` relit exactement ce
-  qui a été écrit, espaces, accents et `;` compris.
+  qui a été écrit, espaces, accents et `;` compris. Un nom n'est jamais encodé
+  ni décodé : il doit être en ASCII visible, sans `;` ni `=`, sinon l'appel
+  lève `E_RESPONSE_INVALID_COOKIE`. Un cookie envoyé sous le nom `%73ession`
+  s'appelle `%73ession`, jamais `session`.
 - **`attachment`** échappe le nom de fichier et ajoute la forme étendue RFC 6266,
   pour qu'un nom non-ASCII survive à un en-tête Latin-1 au lieu d'arriver illisible.
 

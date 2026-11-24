@@ -60,6 +60,8 @@ await codemods.addProvider('@community/your-plugin/provider')
 
 Appends `KEY=value` pairs to `.env` (creating the file if missing) and to `.env.example` when the project has one, so a fresh clone learns the variables exist. Idempotent — a key already present at the start of a line is left untouched in either file, so values written by the user or a prior configure run are preserved; `overwrite: true` (or a codemods instance created with `force`) replaces that line in place instead.
 
+A `.env` it creates is readable by its owner only (mode `0600`); an existing file keeps its mode. A `.env` that is a symbolic link leading outside the project, or to a path that does not exist, is refused with `E_CODEMODS_UNSAFE_PATH`.
+
 Keys listed in `omitFromExample` are written empty (`KEY=`) to `.env.example`, so a secret's development value never reaches the committed file. A value or key holding a line break is refused before anything is written.
 
 ```typescript
@@ -73,7 +75,7 @@ Use placeholder values that signal "fill me in" (an empty string, a `<placeholde
 
 ### `writeFile(filePath, content, options?)`
 
-Writes a file under the project root. The path is resolved relative to the project root and rejected if it escapes the root via `..` or symlinks. Idempotent — existing files are left untouched unless `options.force` is set (forwarded by `ream add --force` / `ream configure --force`).
+Writes a file under the project root. The path is resolved relative to the project root and rejected if it escapes the root via `..` or symlinks — a symbolic link to a path that does not exist yet is refused too, since writing through it would create that path. Idempotent — existing files are left untouched unless `options.force` is set (forwarded by `ream add --force` / `ream configure --force`).
 
 ```typescript
 await codemods.writeFile('config/your-plugin.ts', `import { defineConfig } from '@community/your-plugin'

@@ -8,6 +8,7 @@ Ce guide couvre les health checks.
 import {
   HealthChecks, DiskSpaceCheck, MemoryHeapCheck, MemoryRSSCheck,
 } from '@c9up/ream/health'
+import { safeEqual } from '@c9up/ream/helpers'
 
 const healthChecks = new HealthChecks().register([
   new DiskSpaceCheck().warnWhenExceeds(70).failWhenExceeds(85).cacheFor('1 minute'),
@@ -15,11 +16,26 @@ const healthChecks = new HealthChecks().register([
   new MemoryRSSCheck().failWhenExceeds('512 mb'),
 ])
 
-router.get('/health', async ({ response }) => {
+// Liveness : le process répond. Publique, et ne dit rien d'autre.
+router.get('/health/live', ({ response }) => response.status(200).send(''))
+
+// Readiness : le rapport complet, pour votre supervision seulement.
+router.get('/health/ready', async ({ request, response }) => {
+  if (!safeEqual(request.header('x-monitoring-secret') ?? '', env.get('MONITORING_SECRET'))) {
+    return response.status(401).send('')
+  }
   const report = await healthChecks.run()
   return response.status(report.isHealthy ? 200 : 503).json(report)
 })
 ```
+
+Le rapport n'est pas destiné au public. Il contient les détails du process
+(`pid`, `ppid`, plateforme, uptime, version de Node.js) et, pour chaque sonde
+en échec, l'erreur qui l'a fait échouer : pour une base de données arrêtée, son
+adresse privée et son port. Servez-le derrière un en-tête secret, comme
+ci-dessus, ou derrière un guard ; donnez la route liveness au répartiteur de
+charge. Déclarez `MONITORING_SECRET` dans votre schéma d'env pour que
+l'application ne démarre pas sans lui.
 
 Un **avertissement ne rend pas l'application malade** : `isHealthy` ne passe à
 faux que sur `error`. Un disque à 72 % prévient l'exploitant sans qu'une sonde
@@ -57,4 +73,8 @@ pas de sous-processus.
 avec une forme maison — `register(name, fn)`, un délai par sonde et un
 `handler()` tout prêt. Il fonctionne toujours et rien n'a été supprimé, mais le
 code neuf doit utiliser `HealthChecks` depuis `@c9up/ream/health`.
+
+Une sonde qui lève est rapportée comme `Health check failed`, jamais avec ce
+qu'elle a levé ; l'erreur part dans l'option `onError` (stderr par défaut). Une
+sonde qui renvoie `{ status: 'error', message }` garde son propre message.
 :::

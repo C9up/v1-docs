@@ -11,6 +11,7 @@ Controllers are classes decorated with `@inject()`, which registers them for tra
 import { inject } from '@c9up/ream'
 import type { HttpContext } from '@c9up/ream'
 import { UserService } from '../services/UserService.js'
+import { createUser, updateUser } from '../validators/user.js'
 
 @inject()
 export default class UsersController {
@@ -22,7 +23,7 @@ export default class UsersController {
   }
 
   async store({ request, response }: HttpContext) {
-    const data = request.all()
+    const data = await request.validateUsing(createUser)
     const user = await this.userService.create(data)
     response.status(201).json({ data: user })
   }
@@ -37,7 +38,8 @@ export default class UsersController {
   async update({ request, response }: HttpContext) {
     const id = request.param('id')
     if (!id) return response.status(404).json({ error: 'Not found' })
-    const user = await this.userService.update(id, request.all())
+    const data = await request.validateUsing(updateUser)
+    const user = await this.userService.update(id, data)
     response.json({ data: user })
   }
 
@@ -49,6 +51,30 @@ export default class UsersController {
   }
 }
 ```
+
+The validators declare the fields a write accepts:
+
+```typescript
+// app/modules/user/validators/user.ts
+import { rules, schema } from '@c9up/rune'
+
+export const createUser = schema({
+  name: rules.string().min(1).max(100).trim(),
+  email: rules.string().email(),
+})
+
+export const updateUser = schema({
+  name: rules.string().min(1).max(100).trim().optional(),
+  email: rules.string().email().optional(),
+})
+```
+
+Never pass `request.all()` to a write. It holds every key of the body and of the
+query string, so `?role=admin` or `{"is_admin": true}` would reach the model.
+`validateUsing()` returns only the declared fields, and refuses the request with
+`E_VALIDATION_ERROR` (422) when they are wrong. See
+[Validation](/en/guides/basics/validation/); `request.only(['name', 'email'])`
+is the allow-list for a field you do not validate.
 
 ### Binding Controllers to Routes
 

@@ -40,6 +40,8 @@ rpc.group({ guard: 'jwt' }, (r) => {
 })
 ```
 
+A group's guards, a nested group's and each `.guard()` call on a method are levels: the call must be authenticated by a guard every level names, and `.guard('jwt', 'api')` accepts either guard. Each `.role()` call is a requirement of its own, and every permission is required. `.guard()`, `.role()` and `.permission()` must name at least one; an empty call, `rpc.group({ guards: [] })` and `guards: []` in `config/rpc.ts` throw `E_EMPTY_GATE_REQUIREMENT`. See [Protecting routes](/en/guides/auth/protecting-routes#guards-on-routes).
+
 Clients `POST /rpc` with a JSON-RPC 2.0 body (single or batch, max 50):
 
 ```json

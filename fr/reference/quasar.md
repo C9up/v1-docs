@@ -108,7 +108,7 @@ Chaque commande ioredis de la liste relayée est une méthode de la connexion (`
 | `name` / `connectionName` | `readonly name: string` | Le nom déclaré de la connexion. |
 | `status` | `get status(): RedisClient['status']` | Le statut ioredis de la socket de commandes. |
 | `subscriberStatus` | `get subscriberStatus(): RedisClient['status'] \| undefined` | Le statut de la socket pub/sub, `undefined` avant le premier abonnement. |
-| `lastError` / `lastSubscriberError` | `get lastError(): unknown` | Dernière erreur de chaque socket. |
+| `lastError` / `lastSubscriberError` | `get lastError(): unknown` | Dernière erreur de chaque socket ; son `command` garde le nom, pas les arguments. |
 | `isConnecting` / `isReady` / `isClosed` | `isReady(): boolean` | État de la socket de commandes. |
 | `autoPipelineQueueSize` | `get autoPipelineQueueSize(): number` | Commandes en attente dans l'auto-pipeline. |
 | `ioConnection` | `get ioConnection(): RedisClient` | Le client ioredis brut. |
@@ -184,6 +184,8 @@ Chacune est une classe du namespace `errors` et une `Exception` de `@c9up/flare`
 
 - `QuasarError` disparaît : testez `error.code`, ou `error instanceof errors.E_QUASAR_*` avec `import { errors } from '@c9up/quasar'`.
 - `InvalidBytesValueError` n'est plus exportée : utilisez `errors.E_INVALID_BYTES_VALUE`, qui en était déjà l'alias.
+- Une erreur d'une connexion ou d'une commande rejetée ne porte plus `error.command.args` ; `error.command.name` reste. Journalisez vous-même les arguments là où vous en avez besoin et où vous les savez sans danger.
+- Une vérification de santé qui échoue rapporte maintenant un `message` fixe et `meta.error: { name, code }` au lieu du message de l'erreur et de l'objet erreur. Lisez le journal de la connexion pour l'erreur complète.
 
 ## Voir aussi
 

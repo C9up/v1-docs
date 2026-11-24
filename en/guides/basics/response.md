@@ -16,12 +16,35 @@ ctx.response.cookie('prefs', { theme: 'dark' }, { maxAge: '2h' })
   others: by then the client already has its answer.
 - **`maxAge`** takes seconds or a duration string. `'2h'` previously reached the
   header as the invalid `Max-Age=2h`, and the cookie was dropped without a word.
+- **Cookie defaults.** Every cookie gets `Max-Age=7200; Path=/; HttpOnly; Secure;
+  SameSite=lax` unless the call passes its own value for an attribute. Change the
+  defaults for the whole application in `config/app.ts`:
+
+  ```ts
+  export const http = {
+    cookie: { maxAge: '2h', path: '/', httpOnly: true, secure: true, sameSite: 'lax' },
+  }
+  ```
+
+  The keys are `maxAge`, `path`, `domain`, `httpOnly`, `secure`, `sameSite`,
+  `partitioned` and `priority`; any other key, or a value of the wrong type, stops
+  the application at boot with `E_RESPONSE_INVALID_COOKIE`. Pass `maxAge: undefined`
+  to a call for a cookie that ends with the browser session. Chrome and Firefox
+  accept a `Secure` cookie from `http://localhost`; for another browser or
+  another plain-HTTP host in development, set `secure: false` there.
+- **`path` and `domain`** must follow the cookie grammar: a path of printable ASCII
+  without `;`, a domain that is a host name (`.app.test` included). Anything else
+  throws `E_RESPONSE_INVALID_COOKIE`.
+- **`jsonp()`** sends `X-Content-Type-Options: nosniff` with the script it writes.
 - **`plainCookie`** packs its value as base64url JSON, so an object comes back an
   object and a number a number. Pass `encode: false` for a value a browser script
-  must read verbatim, or one that is already protected. Names and values are
+  must read verbatim, or one that is already protected. Values are
   percent-encoded on the way out and decoded on the way in, so
   `request.plainCookie(name, undefined, { encoded: false })` reads back exactly
-  what was written, spaces, accents and `;` included.
+  what was written, spaces, accents and `;` included. Names are never encoded
+  or decoded: a name must be visible ASCII without `;` or `=`, or the call
+  throws `E_RESPONSE_INVALID_COOKIE`. A cookie sent as `%73ession` is a cookie
+  named `%73ession`, never `session`.
 - **`attachment`** escapes the filename and adds the RFC 6266 extended form, so a
   non-ASCII name survives a Latin-1 header instead of arriving mangled.
 

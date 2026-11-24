@@ -155,6 +155,8 @@ withAtomContext({ precision: 2 }, () => decimal('1').div('8').toString()) // "0.
 | `roundMode` | `'half-up'` | les mêmes, plus `toFixed`, `round` et `toScale` |
 | `quantizeMode` | `'half-up'` | `quantize` et `Money` |
 | `maxDigits` | `20000` | toute valeur lue ou produite |
+| `maxExponent` | `100` | tout littéral scientifique (`1e-18`) et tout `number` lus |
+| `maxScale` | `10000` | toute valeur, précision et échelle |
 
 Un quotient, une racine et une puissance négative sont arrondis une seule fois,
 depuis la valeur exacte, selon `roundMode` ; chacun prend aussi `{ mode }` par
@@ -179,6 +181,15 @@ mégaoctet de chiffres venu d'une requête coûterait sinon des secondes de CPU 
 appel. Baissez-le là où les montants viennent des utilisateurs ; montez-le
 (jusqu'à un million) pour de très longs calculs exacts. Plus de `10000`
 décimales sont refusées quelle que soit la borne.
+
+`maxExponent` borne le déplacement de la virgule par un littéral scientifique.
+`'1e-9990'` tient en sept octets, mais il s'écrit en dix mille chiffres, et
+chaque opération suivante les paie. Le défaut de `100` couvre la monnaie et les
+mesures réelles ; un exposant plus large est refusé avec
+`E_ATOM_DECIMAL_TOO_LARGE`. `maxScale` borne les décimales de toute valeur,
+précision et échelle ; baissez-la (avec `precision`) si vous ne traitez que des
+montants. Une liste de valeurs prise dans une requête coûte du travail pour
+chaque valeur : bornez aussi sa longueur.
 
 ## Locale
 
@@ -294,6 +305,11 @@ Toutes les colonnes d'un même plan ont la même longueur. Un programme sur des
 colonnes de longueurs différentes est un bug de l'appelant, et valoriser les
 premières lignes rendrait un chiffre plausible pour des données que personne ne
 détient.
+
+Une colonne appartient aussi au plan qui l'a chargée. `run` refuse une valeur
+qui lit une colonne d'un autre plan avec `E_ATOM_BULK_FOREIGN_COLUMN`, même
+quand les longueurs sont égales : chargez chaque colonne sur le plan qui
+l'exécute. Une valeur seule venue de `of` peut servir dans n'importe quel plan.
 
 Les colonnes portent les agrégats : `sum`, `avg`, `min`, `max`, `median`,
 `percentile`, `stddev`, `dot`, `at`, `sorted`, et les opérations élément par

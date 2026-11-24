@@ -120,6 +120,7 @@ Une erreur HTTP répond `{ "error": { "code": "…", "message": "…" } }` avec 
 | <span id="e-controller-method-not-found"></span>`E_CONTROLLER_METHOD_NOT_FOUND` | 500 | Le contrôleur que nomme une route n'a pas cette méthode. Répond 500. |
 | <span id="e-missing-route-params"></span>`E_MISSING_ROUTE_PARAMS` | 500 | Une URL a été construite pour une route sans l'un de ses paramètres requis. |
 | <span id="e-cannot-lookup-route"></span>`E_CANNOT_LOOKUP_ROUTE` | 500 | `urlFor()`, `findOrFail()` ou le `visit()` du client de test a nommé une route qui n'existe pas. |
+| <span id="e-empty-gate-requirement"></span>`E_EMPTY_GATE_REQUIREMENT` | 500 | `.guard()`, `.role()` ou `.permission()` a été appelé sans argument, ou un groupe de routes, un groupe RPC, `config/rpc.ts`, `config/openapi.ts` ou un resolver GraphQL a reçu une liste `guards`, `roles` ou `permissions` vide. Une exigence vide ne protégerait rien. Levée là où la route, la méthode ou le resolver est déclaré ; pour une action de contrôleur dont le `@Role()`, le `@Permission()` ou le `@Guard()` ne nomme rien, à chaque requête vers elle. |
 
 ## Erreurs WebSocket
 
@@ -135,9 +136,9 @@ Une erreur HTTP répond `{ "error": { "code": "…", "message": "…" } }` avec 
 | <span id="e-websocket-not-upgrade"></span>`E_WEBSOCKET_NOT_UPGRADE` | 500 | Un `101` en réponse à une requête qui n'était pas une poignée de main WebSocket. |
 | <span id="e-websocket-register"></span>`E_WEBSOCKET_REGISTER` | 500 | Le serveur natif a refusé un nouvel identifiant de socket. |
 | <span id="e-websocket-context"></span>`E_WEBSOCKET_CONTEXT` | 500 | Le handler d'une route WebSocket a tourné sans son socket (appelé hors du kernel). |
-| <span id="e-websocket-close-code"></span>`E_WEBSOCKET_CLOSE_CODE` | — | `socket.close()` avec un code qu'une trame de fermeture ne peut pas porter (RFC 6455 §7.4). |
-| <span id="e-websocket-close-reason"></span>`E_WEBSOCKET_CLOSE_REASON` | — | Une raison de fermeture de plus de 123 octets. |
-| <span id="e-invalid-websocket-config"></span>`E_INVALID_WEBSOCKET_CONFIG` | — | Une limite WebSocket native de 0 octet. |
+| <span id="e-websocket-close-code"></span>`E_WEBSOCKET_CLOSE_CODE` | 500 | `socket.close()` avec un code qu'une trame de fermeture ne peut pas porter (RFC 6455 §7.4). |
+| <span id="e-websocket-close-reason"></span>`E_WEBSOCKET_CLOSE_REASON` | 500 | Une raison de fermeture de plus de 123 octets. |
+| <span id="e-invalid-websocket-config"></span>`E_INVALID_WEBSOCKET_CONFIG` | 500 | Une limite WebSocket native de 0 octet. |
 | <span id="e-test-client-websocket-refused"></span>`E_TEST_CLIENT_WEBSOCKET_REFUSED` | 500 | La poignée de main WebSocket du client de test a été refusée (`WebSocketRefused` porte le `status`) ou a échoué. |
 
 ## Erreurs Pipeline
@@ -145,7 +146,7 @@ Une erreur HTTP répond `{ "error": { "code": "…", "message": "…" } }` avec 
 | Code | HTTP | Description |
 |------|------|-------------|
 | <span id="e-pipeline-unknown-middleware"></span>`E_PIPELINE_UNKNOWN_MIDDLEWARE` | 500 | Une route référence un middleware nommé non enregistré. Enregistrez-le avec `middleware.register()`. |
-| <span id="e-middleware-not-found"></span>`E_MIDDLEWARE_NOT_FOUND` | 500 | Un middleware nommé n'a pas pu être résolu à la construction du pipeline. Enregistrez-le avec `middleware.register()`. |
+| <span id="e-middleware-not-found"></span>`E_MIDDLEWARE_NOT_FOUND` | 500 | Une route, une méthode RPC ou un résolveur GraphQL nomme un middleware que rien ne déclare. Déclarez-le avec `router.named()` (ou `middleware.register()`). Les noms d'une route HTTP sont vérifiés à la construction du kernel : l'application s'arrête au démarrage, et le message nomme la route. |
 | <span id="e-middleware-entry"></span>`E_MIDDLEWARE_ENTRY` | 500 | Une entrée de middleware sans paramètre déclaré a été lue comme un import différé, et elle ne mène pas à un module avec un export par défaut. |
 | <span id="e-pipeline-double-next"></span>`E_PIPELINE_DOUBLE_NEXT` | 500 | Un middleware a appelé `next()` plus d'une fois. Chaque middleware doit appeler `next()` au plus une fois. |
 | <span id="e-pipeline-error"></span>`E_PIPELINE_ERROR` | 500 | Un handler a levé une erreur qui ne porte aucun code du framework. L'erreur garde la position de l'étape dans son contexte. |
@@ -175,7 +176,7 @@ Levées par les exceptions de `@c9up/ream` et par son serveur HTTP natif. Les re
 | <span id="e-too-many-requests"></span>`E_TOO_MANY_REQUESTS` | 429 | La limite de débit du serveur natif a refusé la requête ; le corps porte `retryAfter`, avec les headers `Retry-After` et `X-RateLimit-*`. |
 | <span id="e-stream-unknown"></span>`E_STREAM_UNKNOWN` | 500 | Un identifiant de flux server-sent events est inconnu du serveur. |
 | <span id="e-response-invalid-header"></span>`E_RESPONSE_INVALID_HEADER` | 500 | Un nom ou une valeur d'en-tête contient CR, LF ou NUL, ce qui scinderait la réponse. |
-| <span id="e-response-invalid-cookie"></span>`E_RESPONSE_INVALID_COOKIE` | 500 | Des options de cookie qu'un navigateur rejette : `sameSite: true`, `SameSite=None` ou `partitioned` sans `secure`, ou une date `expires` invalide. |
+| <span id="e-response-invalid-cookie"></span>`E_RESPONSE_INVALID_COOKIE` | 500 | Un cookie qu'un navigateur rejetterait ou lirait mal : un nom hors de la grammaire des noms de cookie, un `path` ou un `domain` hors de la grammaire des attributs, `sameSite: true`, `SameSite=None` ou `partitioned` sans `secure`, une date `expires` invalide, ou un bloc `http.cookie` avec une clé inconnue ou une valeur du mauvais type. |
 | <span id="e-response-no-context"></span>`E_RESPONSE_NO_CONTEXT` | 500 | `response.redirect()` sur une réponse construite hors d'une requête. |
 | <span id="e-response-sse-unsupported"></span>`E_RESPONSE_SSE_UNSUPPORTED` | 500 | `response.sse()` sur un serveur qui n'a pas de backend de flux. |
 | <span id="e-redirect-no-router"></span>`E_REDIRECT_NO_ROUTER` | 500 | `redirect().toRoute()` sans résolveur d'URL de route branché. |
@@ -189,10 +190,20 @@ Levées par les exceptions de `@c9up/ream` et par son serveur HTTP natif. Les re
 | <span id="e-test-client-no-session-seeder"></span>`E_TEST_CLIENT_NO_SESSION_SEEDER` | 500 | `loginAs()` avec un guard de session, et aucun `sessionSeeder` dans les options du client. |
 | <span id="e-test-client-unknown-serializer"></span>`E_TEST_CLIENT_UNKNOWN_SERIALIZER` | 500 | `serialize()` a nommé un sérialiseur qui n'est pas enregistré. |
 | <span id="e-test-client-assertion-failed"></span>`E_TEST_CLIENT_ASSERTION_FAILED` | 500 | Une assertion sur la réponse du client de test a échoué. |
-| <span id="e-unauthorized-access-ream"></span>`E_UNAUTHORIZED_ACCESS` | 401 | Le garde `.auth()` d'une route a refusé la requête, ou `.role()` / `.permission()` n'a trouvé aucun utilisateur authentifié. Mêmes code, statut, message (`Unauthorized access`) et rendu (`handle`) que celle de `@c9up/warden`. |
+| <span id="e-unauthorized-access-ream"></span>`E_UNAUTHORIZED_ACCESS` | 403 | Le garde `.auth()` d'une route a refusé la requête, ou `.role()` / `.permission()` n'a trouvé aucun utilisateur authentifié. Mêmes code, statut, message (`Unauthorized access`) et rendu (`handle`) que celle de `@c9up/warden`. |
 | <span id="e-authorization-failure-ream"></span>`E_AUTHORIZATION_FAILURE` | 403 | Le `.role()` ou le `.permission()` d'une route a refusé un utilisateur authentifié. Mêmes code, statut, message (`Access denied`) et rendu (`handle`) que celle de `@c9up/warden` ; les rôles et permissions demandés ne sont pas envoyés. |
 | <span id="e-encoding-unsupported"></span>`E_ENCODING_UNSUPPORTED` | 415 | Un corps JSON, formulaire ou texte arrive avec un `Content-Encoding` autre que `identity`. Le parseur de corps ne décompresse pas les corps, gzip et deflate compris. |
 | <span id="e-invalid-multipart-request"></span>`E_INVALID_MULTIPART_REQUEST` | 400 | Un corps `multipart/form-data` est mal formé, ou son paramètre `boundary` manque. |
+| <span id="e-server-invalid-port"></span>`E_SERVER_INVALID_PORT` | 500 | Le serveur natif a reçu un port au-dessus de 65535. |
+| <span id="e-server-invalid-host"></span>`E_SERVER_INVALID_HOST` | 500 | L'adresse d'écoute du serveur natif n'est ni une adresse IPv4 ou IPv6, ni `localhost`. |
+| <span id="e-server-invalid-trusted-proxy"></span>`E_SERVER_INVALID_TRUSTED_PROXY` | 500 | Une entrée de `trustedProxies()` n'est ni une adresse, ni une plage CIDR, ni une plage avec masque, ni une plage nommée, ni `*`. Le serveur refuse de démarrer. |
+| <span id="e-server-invalid-body-limit"></span>`E_SERVER_INVALID_BODY_LIMIT` | 500 | Une limite de corps passée au serveur natif n'est pas un nombre d'octets ou de parties positif ou nul. |
+| <span id="e-server-bind-failed"></span>`E_SERVER_BIND_FAILED` | 500 | Le serveur natif n'a pas pu écouter sur son adresse : le port est pris, ou l'adresse n'est pas sur cette machine. |
+| <span id="e-server-no-handler"></span>`E_SERVER_NO_HANDLER` | 500 | Le serveur natif a démarré avant qu'un handler de requêtes soit enregistré. |
+| <span id="e-server-not-started"></span>`E_SERVER_NOT_STARTED` | 500 | Le port du serveur natif a été lu avant le démarrage du serveur. |
+| <span id="e-server-lock-poisoned"></span>`E_SERVER_LOCK_POISONED` | 500 | Un verrou du serveur natif est resté empoisonné après une panique. C'est un bogue de Ream. |
+| <span id="e-crypto-failed"></span>`E_CRYPTO_FAILED` | 500 | Un appel crypto natif (`hmacSign()`, `randomHex()`…) a échoué dans le moteur. |
+| <span id="e-warden-mfa-required-ream"></span>`E_WARDEN_MFA_REQUIRED` | 403 | Le gate de route a atteint une action de contrôleur portant `@RequireMfa()` avec un credential qui n'a pas passé le step-up MFA (`ctx.auth.user.mfa` ne vaut pas `true`). Mêmes code, statut, message et corps que le middleware de `@c9up/warden` : `403 { error: { code, message } }`. |
 
 ## Erreurs Session
 
@@ -238,7 +249,7 @@ Levées pendant l'assemblage, la configuration et le démarrage de l'application
 | <span id="e-dump-die-exception"></span>`E_DUMP_DIE_EXCEPTION` | 500 | `dd()` a arrêté la requête (réponse avec un dump HTML) ou la commande (dump affiché). Jamais rapporté. |
 | <span id="e-app-already-booted"></span>`E_APP_ALREADY_BOOTED` | 500 | `app.setMode()` ou `app.setEnvironment()` a été appelé après le boot de l'application. |
 | <span id="e-app-root-not-set"></span>`E_APP_ROOT_NOT_SET` | 500 | `app.makePath()` (ou un autre helper de chemin) sur une application sans racine. |
-| <span id="e-app-missing-default-export"></span>`E_APP_MISSING_DEFAULT_EXPORT` | 500 | Un module importé paresseusement (`app.importDefault()`, un listener paresseux) n'a pas d'export par défaut. |
+| <span id="e-app-missing-default-export"></span>`E_APP_MISSING_DEFAULT_EXPORT` | 500 | Un module importé paresseusement (`app.importDefault()`, un listener paresseux, le contrôleur paresseux d'une route) n'a pas d'export par défaut. |
 | <span id="e-app-shutdown-failed"></span>`E_APP_SHUTDOWN_FAILED` | 500 | Plusieurs hooks d'arrêt ont échoué ; l'erreur porte chaque échec dans `errors`. |
 | <span id="e-service-not-booted"></span>`E_SERVICE_NOT_BOOTED` | 500 | Un accesseur `@c9up/ream/services/*`, `urlFor()` ou `signedUrlFor()` a servi avant que l'application ne le démarre. |
 | <span id="e-env-path-no-file"></span>`E_ENV_PATH_NO_FILE` | 500 | `ENV_PATH` désigne un dossier qui ne contient aucun des fichiers `.env`. |
@@ -247,7 +258,7 @@ Levées pendant l'assemblage, la configuration et le démarrage de l'application
 | <span id="e-base64-malformed"></span>`E_BASE64_MALFORMED` | 500 | `base64.decode()` ou `base64.urlDecode()` en mode strict a rencontré une valeur malformée. |
 | <span id="e-health-invalid-threshold"></span>`E_HEALTH_INVALID_THRESHOLD` | 500 | Un seuil de vérification de santé mémoire n'est pas une taille en octets, ou pas un pourcentage entre 0 et 100. |
 | <span id="e-ream-stub-not-found"></span>`E_REAM_STUB_NOT_FOUND` | 500 | Aucun stub au chemin donné. |
-| <span id="e-ream-stub-unsafe-path"></span>`E_REAM_STUB_UNSAFE_PATH` | 500 | Le chemin d'un stub, ou la destination qu'il déclare, est absolu ou sort de sa racine. |
+| <span id="e-ream-stub-unsafe-path"></span>`E_REAM_STUB_UNSAFE_PATH` | 500 | Le chemin d'un stub, ou la destination qu'il déclare, est absolu ou sort de sa racine, ou la destination d'un générateur est un lien symbolique menant hors du projet ou vers rien. |
 | <span id="e-ream-stub-no-destination"></span>`E_REAM_STUB_NO_DESTINATION` | 500 | Un stub ne déclare aucune destination (pas de ligne `to:` en front matter), ou une destination vide. |
 | <span id="e-ream-stub-forbidden-key"></span>`E_REAM_STUB_FORBIDDEN_KEY` | 500 | Un template de stub lit ou écrit une clé qui lui est interdite (`constructor`, `__proto__`…). |
 | <span id="e-ream-stub-evaluation"></span>`E_REAM_STUB_EVALUATION` | 500 | Un template de stub a échoué au rendu : un nom inconnu, une propriété de rien, un appel à ce qui n'est pas une fonction, `{{#each}}` sur ce qui n'est pas une liste. |
@@ -268,6 +279,8 @@ Levées pendant l'assemblage, la configuration et le démarrage de l'application
 | <span id="e-invalid-provider"></span>`E_INVALID_PROVIDER` | 500 | Une entrée `providers` de `reamrc.ts` a un `file` qui n'est pas une fonction. Un module de provider sans export par défaut, ou dont l'export par défaut n'est pas une classe, lève `E_RUNTIME_EXCEPTION`. |
 | <span id="e-missing-preload-file"></span>`E_MISSING_PRELOAD_FILE` | 500 | Une entrée `preloads` de `reamrc.ts` n'a pas de `file`. |
 | <span id="e-invalid-preload-file"></span>`E_INVALID_PRELOAD_FILE` | 500 | Une entrée `preloads` de `reamrc.ts` a un `file` qui n'est pas une fonction. |
+| <span id="e-native-callback-failed"></span>`E_NATIVE_CALLBACK_FAILED` | 500 | Un callback JavaScript que le binding natif n'a pas pu garder : napi a refusé de l'envelopper. Le statut de napi est dans le message. |
+| <span id="e-native-panic"></span>`E_NATIVE_PANIC` | 500 | Une panique Rust dans un binding natif, rattrapée avant d'arrêter le processus. C'est un bogue de Ream. Le scheduler la signale comme `E_SCHEDULER_NATIVE_ERROR`. |
 
 ## Erreurs Console
 
@@ -337,7 +350,9 @@ Levées pendant l'assemblage, la configuration et le démarrage de l'application
 | <span id="e-events-assertion-failed"></span>`E_EVENTS_ASSERTION_FAILED` | 500 | Une assertion sur les événements a échoué (`assertEmitted()`, `assertNotEmitted()`, sur les helpers ou le `FakeBus`). |
 | <span id="e-events-timeout"></span>`E_EVENTS_TIMEOUT` | 500 | Un événement, une chaîne d'événements ou la réponse à une requête factice attendus ne sont pas arrivés dans leur délai. |
 | <span id="e-events-duplicate-request-handler"></span>`E_EVENTS_DUPLICATE_REQUEST_HANDLER` | 500 | `FakeBus.onRequest()` a reçu un second handler pour le même nom. |
-| <span id="e-events-no-request-handler"></span>`E_EVENTS_NO_REQUEST_HANDLER` | 500 | `FakeBus.request()` a nommé une requête à laquelle aucun handler ne répond. |
+| <span id="e-events-no-request-handler"></span>`E_EVENTS_NO_REQUEST_HANDLER` | 500 | `emitter.request()` ou `FakeBus.request()` a nommé une requête à laquelle aucun handler ne répond. |
+| <span id="e-events-handler-failed"></span>`E_EVENTS_HANDLER_FAILED` | 500 | Un handler de requête a paniqué, ou a refusé la requête avec sa propre erreur. |
+| <span id="e-events-bus-failed"></span>`E_EVENTS_BUS_FAILED` | 500 | Le bus d'événements natif a échoué : sa tâche a paniqué ou a été annulée, ou un événement n'a pas pu être sérialisé. |
 
 ## Erreurs RPC et GraphQL
 
@@ -349,6 +364,9 @@ Levées pendant l'assemblage, la configuration et le démarrage de l'application
 | <span id="e-rpc-provider-already-registered"></span>`E_RPC_PROVIDER_ALREADY_REGISTERED` | 500 | Le provider RPC a été enregistré deux fois sur le même conteneur. |
 | <span id="e-graphql-provider-already-registered"></span>`E_GRAPHQL_PROVIDER_ALREADY_REGISTERED` | 500 | Le provider GraphQL a été enregistré deux fois sur le même conteneur. |
 | <span id="e-graphql-schema-not-found"></span>`E_GRAPHQL_SCHEMA_NOT_FOUND` | 500 | Le `schemaPath` GraphQL désigne un fichier qui n'existe pas. |
+| <span id="e-graphql-invalid-schema"></span>`E_GRAPHQL_INVALID_SCHEMA` | 500 | Le schéma GraphQL ne se lit pas, déclare deux fois un type, ou nomme un type qu'il ne déclare pas. Chaque requête est alors refusée avec `GraphQL schema could not be read`, et la raison est journalisée. |
+| <span id="e-graphql-serialize-failed"></span>`E_GRAPHQL_SERIALIZE_FAILED` | 500 | Le parseur GraphQL natif n'a pas pu sérialiser son résultat. |
+| <span id="e-graphql-invalid-result"></span>`E_GRAPHQL_INVALID_RESULT` | 500 | Un resolver GraphQL a renvoyé une valeur que le type déclaré de son champ ne peut pas porter : un objet sous un `String`, autre chose qu'une liste sous `[Task]`, une valeur d'interface ou d'union dont le type objet n'est pas connu. Le champ échoue ; hors debug, le client lit `Internal server error`. |
 
 ## Erreurs Client HTTP
 
@@ -371,7 +389,7 @@ Levées par `@c9up/archive`. La route de fichiers signés répond ses refus en J
 |------|------|-------------|
 | <span id="e-archive-invalid-signature"></span>`E_ARCHIVE_INVALID_SIGNATURE` | 403 | La signature de l'URL signée est incomplète, mal formée ou ne correspond pas. |
 | <span id="e-archive-expired-signature"></span>`E_ARCHIVE_EXPIRED_SIGNATURE` | 403 | L'URL signée a expiré. |
-| <span id="e-archive-access-denied"></span>`E_ARCHIVE_ACCESS_DENIED` | 403 | Une requête non signée a demandé un fichier privé. |
+| <span id="e-archive-access-denied"></span>`E_ARCHIVE_ACCESS_DENIED` | 403 | Une requête non signée a demandé autre chose qu'un fichier public stocké : un fichier privé, un nom absent, n'importe quel fichier d'un disque privé. |
 | <span id="e-archive-invalid-key"></span>`E_ARCHIVE_INVALID_KEY` | 500 | La route signée a refusé le chemin : une clé avec une remontée de répertoire ou des caractères interdits. |
 | <span id="e-archive-not-found"></span>`E_ARCHIVE_NOT_FOUND` | 404 | Aucun fichier n'est stocké sous cette clé. La route signée répond 404 ; un appel au driver la lève. |
 | <span id="e-archive-path-traversal-detected"></span>`E_ARCHIVE_PATH_TRAVERSAL_DETECTED` | 500 | Une clé se résout hors de la racine du disque. |
@@ -394,7 +412,7 @@ Levées par `@c9up/archive`. La route de fichiers signés répond ses refus en J
 | <span id="e-archive-provider-not-registered"></span>`E_ARCHIVE_PROVIDER_NOT_REGISTERED` | 500 | `ArchiveProvider.boot()` a tourné avant `register()`. |
 | <span id="e-archive-template-engine"></span>`E_ARCHIVE_TEMPLATE_ENGINE` | 500 | L'application rend avec inker, mais les helpers de template ne peuvent pas y être publiés. |
 | <span id="e-archive-remote-failed"></span>`E_ARCHIVE_REMOTE_FAILED` | 500 | S3 ou GCS a refusé une requête ou signalé un échec. Le statut HTTP du fournisseur est dans `providerStatus`. |
-| <span id="e-archive-invalid-driver-config"></span>`E_ARCHIVE_INVALID_DRIVER_CONFIG` | 500 | `S3Driver` n'a reçu ni `region` ni `endpoint`, ou `GcsDriver` n'a pas de `bucket` ou pas de `client_email` / `private_key` de compte de service. |
+| <span id="e-archive-invalid-driver-config"></span>`E_ARCHIVE_INVALID_DRIVER_CONFIG` | 500 | `S3Driver` n'a reçu ni `region` ni `endpoint`, `GcsDriver` n'a pas de `bucket` ou pas de `client_email` / `private_key` de compte de service, ou la `visibility` d'un disque local n'est ni `'public'` ni `'private'`. |
 | <span id="e-archive-content-length-exceeded"></span>`E_ARCHIVE_CONTENT_LENGTH_EXCEEDED` | 500 | `putStream()` a lu plus d'octets que le `contentLength` que vous avez déclaré. |
 | <span id="e-archive-invalid-static-prefix"></span>`E_ARCHIVE_INVALID_STATIC_PREFIX` | 500 | Vous avez passé un `prefix` vide à `StaticMiddleware`. |
 | <span id="e-archive-not-booted"></span>`E_ARCHIVE_NOT_BOOTED` | 500 | Le service `storage` a été lu avant le boot d'`ArchiveProvider`. |
@@ -451,8 +469,8 @@ native en `cause`.
 | <span id="e-atlas-invalid-increment"></span>`E_ATLAS_INVALID_INCREMENT` | 500 | `increment()` / `decrement()` a reçu une quantité qui n'est pas un nombre fini. |
 | <span id="e-atlas-undefined-binding"></span>`E_ATLAS_UNDEFINED_BINDING` | 500 | Une valeur de requête vaut `undefined`. Validez l'entrée avant ; utilisez `whereNull()` pour chercher NULL. |
 | <span id="e-atlas-dialect-mismatch"></span>`E_ATLAS_DIALECT_MISMATCH` | 500 | `useTransaction(trx)` a reçu une transaction d'un autre dialecte que celui pour lequel la requête a été construite. Ouvrez la transaction sur la connexion de la requête, ou construisez la requête depuis la transaction. |
-| <span id="e-atlas-raw-bindings"></span>`E_ATLAS_RAW_BINDINGS` | 500 | Une requête brute a des paramètres sans valeur liée. |
-| <span id="e-atlas-raw-value"></span>`E_ATLAS_RAW_VALUE` | 500 | `defaultTo(db.raw())` a reçu des valeurs liées, qu'un défaut de colonne ne peut pas porter. |
+| <span id="e-atlas-raw-bindings"></span>`E_ATLAS_RAW_BINDINGS` | 500 | Les paramètres et les valeurs liées d'un fragment brut ne correspondent pas : un paramètre sans valeur, une valeur qu'aucun paramètre n'utilise, `?` mêlé à `$N` ou à des valeurs nommées, ou une valeur `??` qui n'est pas une chaîne. |
+| <span id="e-atlas-raw-value"></span>`E_ATLAS_RAW_VALUE` | 500 | Un `db.raw()` placé là où il ne peut pas aller : `defaultTo(db.raw())` avec des valeurs liées, ou une valeur brute comparée avec un opérateur qui n'en prend pas (`IS NULL`, `BETWEEN`). |
 | <span id="e-atlas-non-finite-number"></span>`E_ATLAS_NON_FINITE_NUMBER` | 500 | `defaultTo()` a reçu un nombre qui n'est pas un nombre SQL (`NaN`, `Infinity`). |
 | <span id="e-atlas-factory-faker-missing"></span>`E_ATLAS_FACTORY_FAKER_MISSING` | 500 | Une factory utilise faker, dépendance pair optionnelle d'atlas, non installée. |
 | <span id="e-atlas-factory-invalid"></span>`E_ATLAS_FACTORY_INVALID` | 500 | `make:factory` a reçu un nom de modèle qui sortirait du dossier des factories (séparateur de chemin, guillemet, backtick ou `..`). |
@@ -490,7 +508,7 @@ native en `cause`.
 | <span id="e-sqlite-decimal-precision"></span>`E_SQLITE_DECIMAL_PRECISION` | 500 | Une précision décimale que SQLite ne peut pas stocker exactement. |
 | <span id="e-unsupported"></span>`E_UNSUPPORTED` | 500 | Une fonctionnalité SQL que le dialecte de la connexion n'a pas (`DISTINCT ON` hors Postgres, variantes `ALL` sur SQLite, verrous consultatifs sur SQLite…). |
 | <span id="e-unsafe-identifier"></span>`E_UNSAFE_IDENTIFIER` | 500 | Un identifiant (table, colonne, alias) n'est pas un nom SQL simple. Atlas le vérifie avant la compilation, et le compilateur Rust le vérifie à nouveau. |
-| <span id="e-unsafe-sql"></span>`E_UNSAFE_SQL` | 500 | Le compilateur Rust a refusé un fragment SQL. |
+| <span id="e-unsafe-sql"></span>`E_UNSAFE_SQL` | 500 | Le compilateur Rust a refusé un fragment SQL, ou un mot-clé hors de sa liste autorisée (opération ensembliste, sens d'un ORDER BY, mode de verrou, action référentielle…). |
 | <span id="e-unsafe-expression"></span>`E_UNSAFE_EXPRESSION` | 500 | Le compilateur Rust a refusé une expression. |
 | <span id="e-unsafe-literal"></span>`E_UNSAFE_LITERAL` | 500 | Le compilateur Rust a refusé une valeur littérale. |
 | <span id="e-injection-pattern"></span>`E_INJECTION_PATTERN` | 500 | Le compilateur Rust a refusé une entrée qui ressemble à une tentative d'injection. |
@@ -527,7 +545,7 @@ native en `cause`.
 | <span id="e-atlas-unknown-scope"></span>`E_ATLAS_UNKNOWN_SCOPE` | 500 | `apply()` a atteint un scope que le modèle ne déclare pas, ou un modèle sans `static scopes`. |
 | <span id="e-atlas-cursor-order-required"></span>`E_ATLAS_CURSOR_ORDER_REQUIRED` | 500 | `cursorPaginate()` a été appelé sans colonne de tri. |
 | <span id="e-atlas-invalid-cursor"></span>`E_ATLAS_INVALID_CURSOR` | 500 | Un curseur de `cursorPaginate()` ne se décode pas, ou la longueur de son tuple ne correspond pas aux colonnes de tri. |
-| <span id="e-atlas-empty-update"></span>`E_ATLAS_EMPTY_UPDATE` | 500 | Le `update()` d'une requête de modèle a reçu un contenu vide. |
+| <span id="e-atlas-empty-update"></span>`E_ATLAS_EMPTY_UPDATE` | 500 | Une mise à jour a reçu un contenu vide : le `update()` d'une requête de modèle, ou un UPDATE sans affectation SET arrivé au compilateur. |
 | <span id="e-atlas-query-timeout"></span>`E_ATLAS_QUERY_TIMEOUT` | 500 | Une requête a duré plus longtemps que son `timeout(ms)`. |
 | <span id="e-atlas-compile-empty"></span>`E_ATLAS_COMPILE_EMPTY` | 500 | Le compilateur de requêtes n'a rendu aucune instruction. |
 | <span id="e-atlas-schema-mismatch"></span>`E_ATLAS_SCHEMA_MISMATCH` | 500 | `verifySchema()` en mode `throw` a trouvé un écart entre les modèles et la base ; le message liste les constats. |
@@ -542,13 +560,17 @@ native en `cause`.
 | <span id="e-atlas-factory-pivot-length"></span>`E_ATLAS_FACTORY_PIVOT_LENGTH` | 500 | La longueur du tableau `pivotAttributes` d'une factory diffère du nombre de lignes liées. |
 | <span id="e-atlas-factory-unsupported-relation"></span>`E_ATLAS_FACTORY_UNSUPPORTED_RELATION` | 500 | Le `with()` d'une factory nomme un type de relation qu'elle ne sait pas construire (une relation through). |
 | <span id="e-atlas-seeder-dir-required"></span>`E_ATLAS_SEEDER_DIR_REQUIRED` | 500 | `testUtils().db().seed()` a tourné sans `seedersDir`. |
-| <span id="e-atlas-internal"></span>`E_ATLAS_INTERNAL` | 500 | Un invariant interne d'atlas a cassé : toujours un bug d'atlas. |
+| <span id="e-atlas-internal"></span>`E_ATLAS_INTERNAL` | 500 | Un invariant interne d'atlas a cassé, ou le compilateur Rust a paniqué ou n'a pas pu sérialiser son résultat : toujours un bug d'atlas. |
 | <span id="e-invalid-date-column-value"></span>`E_INVALID_DATE_COLUMN_VALUE` | 500 | Une colonne de date a reçu une valeur qui n'est pas une date valide : une `Date` JavaScript, qui ne porte pas de fuseau, ou une date-heure sans décalage. |
 | <span id="e-undefined-relationship"></span>`E_UNDEFINED_RELATIONSHIP` | 500 | Un nom de relation que le modèle ne déclare pas (`load()`, `withCount()`, `whereHas()`…). |
 | <span id="e-unable-acquire-lock"></span>`E_UNABLE_ACQUIRE_LOCK` | 500 | Une autre exécution tient le verrou de migration. Attendez-la, ou libérez un verrou resté bloqué avec `migration:unlock`. |
 | <span id="e-unable-release-lock"></span>`E_UNABLE_RELEASE_LOCK` | 500 | Une migration a réussi, mais son verrou a été libéré pendant qu'elle le tenait (`migration:unlock` en cours d'exécution) : une autre exécution a pu migrer en même temps. |
 | <span id="e-missing-schema-files"></span>`E_MISSING_SCHEMA_FILES` | 500 | Une migration enregistrée comme appliquée n'a pas de fichier dans le répertoire de migrations : elle ne peut pas être annulée. |
 | <span id="e-unmanaged-db-connection"></span>`E_UNMANAGED_DB_CONNECTION` | 500 | Un nom de connexion non enregistré : le `static connection` d'un modèle, `db.connection(name)`, le `connection(name)` d'une factory, `manager.connect(name)`. |
+| <span id="e-atlas-invalid-spec"></span>`E_ATLAS_INVALID_SPEC` | 500 | L'instruction reçue par le compilateur Rust est mal formée : une clause n'a pas un champ requis, un champ n'a pas la bonne forme, ou la spec ne se lit pas. Atlas construit toutes les specs lui-même : c'est donc un bug d'atlas ou une spec écrite à la main. |
+| <span id="e-atlas-empty-insert"></span>`E_ATLAS_EMPTY_INSERT` | 500 | Un INSERT ou un upsert n'a aucune ligne (`insert([])`, `multiInsert([])`), ou a plusieurs lignes sans colonne : une seule ligne peut prendre toutes les valeurs par défaut. |
+| <span id="e-atlas-empty-table"></span>`E_ATLAS_EMPTY_TABLE` | 500 | `schema.createTable()` n'a déclaré aucune colonne. |
+| <span id="e-unsupported-client"></span>`E_UNSUPPORTED_CLIENT` | 500 | La connexion nomme un dialecte qu'atlas ne connaît pas. Atlas compile pour `sqlite`, `postgres` (ou `postgresql`) et `mysql` (ou `mariadb`). |
 
 ## Erreurs Atom
 
@@ -558,8 +580,8 @@ native en `cause`.
 | <span id="e-atom-invalid-decimal"></span>`E_ATOM_INVALID_DECIMAL` | 500 | Une chaîne ou un nombre ne se lit pas comme un décimal (`parseLocale` compris). |
 | <span id="e-atom-unsafe-integer"></span>`E_ATOM_UNSAFE_INTEGER` | 500 | Un nombre JavaScript est un entier au-delà de `Number.MAX_SAFE_INTEGER` ; passez une chaîne ou un bigint. |
 | <span id="e-atom-invalid-integer"></span>`E_ATOM_INVALID_INTEGER` | 500 | Des unités mineures ne sont pas un nombre entier. |
-| <span id="e-atom-decimal-too-large"></span>`E_ATOM_DECIMAL_TOO_LARGE` | 500 | Une valeur ou un résultat dépasse la borne `maxDigits` de chiffres significatifs. |
-| <span id="e-atom-invalid-scale"></span>`E_ATOM_INVALID_SCALE` | 500 | Une échelle ou une précision n'est pas un entier de 0 à 10 000. |
+| <span id="e-atom-decimal-too-large"></span>`E_ATOM_DECIMAL_TOO_LARGE` | 500 | Une valeur ou un résultat dépasse la borne `maxDigits` de chiffres significatifs, ou l'exposant d'un littéral scientifique dépasse `maxExponent`. |
+| <span id="e-atom-invalid-scale"></span>`E_ATOM_INVALID_SCALE` | 500 | Une échelle ou une précision n'est pas un entier de 0 à `maxScale` (10 000 par défaut). |
 | <span id="e-atom-invalid-exponent"></span>`E_ATOM_INVALID_EXPONENT` | 500 | Un exposant de `pow` n'est pas un entier dans les bornes. |
 | <span id="e-atom-invalid-rounding-mode"></span>`E_ATOM_INVALID_ROUNDING_MODE` | 500 | Un mode d'arrondi n'est pas un de ceux que connaît atom. |
 | <span id="e-atom-invalid-range"></span>`E_ATOM_INVALID_RANGE` | 500 | `clamp` / `between` a reçu un minimum plus grand que le maximum. |
@@ -587,13 +609,15 @@ native en `cause`.
 | <span id="e-atom-bulk-bad-index"></span>`E_ATOM_BULK_BAD_INDEX` | 500 | `at()` tombe hors de la colonne. |
 | <span id="e-atom-bulk-bad-percentile"></span>`E_ATOM_BULK_BAD_PERCENTILE` | 500 | Un percentile n'est pas une fraction entre 0 et 1. |
 | <span id="e-atom-bulk-bad-exponent"></span>`E_ATOM_BULK_BAD_EXPONENT` | 500 | L'exposant d'un `pow` planifié n'est pas un entier dans les bornes. |
-| <span id="e-atom-bulk-bad-precision"></span>`E_ATOM_BULK_BAD_PRECISION` | 500 | Une précision planifiée n'est pas un entier de 0 à 10 000. |
+| <span id="e-atom-bulk-bad-precision"></span>`E_ATOM_BULK_BAD_PRECISION` | 500 | Une précision planifiée n'est pas un entier de 0 à `maxScale` (10 000 par défaut). |
 | <span id="e-atom-bulk-bad-scale"></span>`E_ATOM_BULK_BAD_SCALE` | 500 | `minorUnits()` a reçu une échelle invalide. |
 | <span id="e-atom-bulk-not-minor-units"></span>`E_ATOM_BULK_NOT_MINOR_UNITS` | 500 | `minorUnits()` a reçu une valeur qui n'est pas un nombre entier d'unités mineures. |
 | <span id="e-atom-bulk-too-short"></span>`E_ATOM_BULK_TOO_SHORT` | 500 | Un écart type d'échantillon planifié a moins de deux valeurs. |
 | <span id="e-atom-bulk-no-length"></span>`E_ATOM_BULK_NO_LENGTH` | 500 | Une colonne a été construite sans source (un bug d'atom). |
 | <span id="e-atom-bulk-bad-program"></span>`E_ATOM_BULK_BAD_PROGRAM` | 500 | L'évaluateur TypeScript a rencontré un plan malformé (un bug d'atom). |
 | <span id="e-atom-bulk-lost-output"></span>`E_ATOM_BULK_LOST_OUTPUT` | 500 | Un calcul a rendu moins de valeurs que demandé (un bug d'atom). |
+| <span id="e-atom-bulk-overflow"></span>`E_ATOM_BULK_OVERFLOW` | — | Interne : le moteur de calcul en masse Rust a dépassé 128 bits ; atom l'intercepte et relance le calcul en BigInt exact, vous ne le recevez donc jamais. |
+| <span id="e-atom-bulk-foreign-column"></span>`E_ATOM_BULK_FOREIGN_COLUMN` | 500 | `run()` / `runAsync()` a reçu une valeur planifiée qui lit une colonne chargée sur un autre `Bulk`. |
 
 ## Erreurs Aurora
 
@@ -611,7 +635,7 @@ native en `cause`.
 | <span id="e-aurora-unknown-route"></span>`E_AURORA_UNKNOWN_ROUTE` | 500 | `urlFor` a reçu un nom absent du manifeste de routes. |
 | <span id="e-aurora-missing-route-params"></span>`E_AURORA_MISSING_ROUTE_PARAMS` | 500 | `urlFor` a reçu une route dont les paramètres obligatoires ne sont pas tous fournis. |
 | <span id="e-aurora-unknown-live-component"></span>`E_AURORA_UNKNOWN_LIVE_COMPONENT` | 500 | Un composant live a été monté avant que `registry.define()` ne le nomme. |
-| <span id="e-aurora-live-session-limit"></span>`E_AURORA_LIVE_SESSION_LIMIT` | 503 | Une session live a été refusée : le registre tient déjà `maxSessions`. |
+| <span id="e-aurora-live-session-limit"></span>`E_AURORA_LIVE_SESSION_LIMIT` | 503 | Une session live a été refusée : le registre tient déjà `maxSessions` sessions, toutes en usage (réclamées et vues depuis moins de la moitié de `idleTimeoutMs`). |
 | <span id="e-aurora-relay-request-failed"></span>`E_AURORA_RELAY_REQUEST_FAILED` | 500 | Une requête relay est revenue avec un statut hors 2xx. |
 | <span id="e-aurora-unsafe-url"></span>`E_AURORA_UNSAFE_URL` | 500 | Une URL de navigation a échoué au contrôle de même origine / de schéma. |
 | <span id="e-aurora-slot-in-tag-name"></span>`E_AURORA_SLOT_IN_TAG_NAME` | 500 | Un `${}` est tombé à la place d'un nom de balise. |
@@ -632,13 +656,14 @@ native en `cause`.
 | <span id="e-aurora-invalid-motion"></span>`E_AURORA_INVALID_MOTION` | 500 | `motion=${…}` n'était pas un objet de valeurs animées, ou nommait une propriété que l'animation ne pilote pas (rotation, couleur). |
 | <span id="e-aurora-reactive-cycle"></span>`E_AURORA_REACTIVE_CYCLE` | 500 | Des effets se sont relancés sans fin au cours d'une même mise à jour : l'un écrit ce que lui-même, ou un effet qu'il déclenche, lit. |
 | <span id="e-aurora-internal"></span>`E_AURORA_INTERNAL` | 500 | Un invariant interne d'aurora a cassé : toujours un bug d'aurora. |
-| <span id="e-aurora-visit-no-page-data"></span>`E_AURORA_VISIT_NO_PAGE_DATA` | 500 | Avec `visits` actif, la page ne porte aucun `aurora-page-data` exploitable pour démarrer. |
+| <span id="e-aurora-visit-no-page-data"></span>`E_AURORA_VISIT_NO_PAGE_DATA` | 500 | Avec `visits` actif, la page ne porte aucun script de données exploitable (`script[data-aurora-page][type="application/json"]`) pour démarrer. |
 | <span id="e-aurora-visit-async-first-page"></span>`E_AURORA_VISIT_ASYNC_FIRST_PAGE` | 500 | Avec `visits` actif, la fabrique de la première page est asynchrone : une page hydratée se rend de façon synchrone. |
 | <span id="e-aurora-invalid-live-limit"></span>`E_AURORA_INVALID_LIVE_LIMIT` | 500 | Une limite du registre live (`maxSessions`, `maxPerOwner`, `claimTimeoutMs`, `idleTimeoutMs`) n'est pas un nombre positif. |
 | <span id="e-aurora-browser-entry-outside-dist"></span>`E_AURORA_BROWSER_ENTRY_OUTSIDE_DIST` | 500 | Un paquet navigateur déclare son point d'entrée hors du `dist/` qu'aurora sert pour lui. |
 | <span id="e-aurora-browser-entry-at-root"></span>`E_AURORA_BROWSER_ENTRY_AT_ROOT` | 500 | Un paquet navigateur a son point d'entrée à la racine du paquet : le servir publierait tout le paquet. |
 | <span id="e-aurora-browser-package-clash"></span>`E_AURORA_BROWSER_PACKAGE_CLASH` | 500 | Deux paquets navigateur se monteraient sur le même chemin d'assets. |
 | <span id="e-aurora-http-request-failed"></span>`E_AURORA_HTTP_REQUEST_FAILED` | 500 | Une requête `HttpClient` a reçu un statut hors 2xx (l'erreur porte ce `status`). |
+| <span id="e-aurora-visit-cross-origin-module"></span>`E_AURORA_VISIT_CROSS_ORIGIN_MODULE` | 500 | Avec `visits` actif, l'URL d'un module de page (le motif `modules` des données de page, `{name}` rempli) n'est pas sur l'origine et le schéma de la page, ou son chemin commence par `//`. Rien n'est importé. Servez les modules de page depuis votre propre origine. |
 
 ## Erreurs Bay
 
@@ -717,6 +742,14 @@ native en `cause`.
 | <span id="e-blackhole-invalid-table-name"></span>`E_BLACKHOLE_INVALID_TABLE_NAME` | 500 | Le `tableName` du store de limiteur en base n'est pas un nom de table. |
 | <span id="e-blackhole-quasar-missing"></span>`E_BLACKHOLE_QUASAR_MISSING` | 500 | Un store Redis nomme une connexion et `@c9up/quasar` n'est pas installé. |
 | <span id="e-blackhole-incomplete-connection"></span>`E_BLACKHOLE_INCOMPLETE_CONNECTION` | 500 | La connexion quasar nommée n'a pas les commandes que le compteur envoie. |
+| <span id="e-blackhole-invalid-xss-attribute"></span>`E_BLACKHOLE_INVALID_XSS_ATTRIBUTE` | 500 | `xss.allowAttributes` nomme un attribut hors de la liste autorisée (`id`, `is`, `slot`, `part`, `data-*`, `class`) ; le moteur natif le refuse. |
+| <span id="e-blackhole-unknown-check"></span>`E_BLACKHOLE_UNKNOWN_CHECK` | 500 | `check()` a demandé une vérification que le moteur n'a pas (seules `rateLimit`, `shield` et `csrf` existent). |
+| <span id="e-blackhole-invalid-headers"></span>`E_BLACKHOLE_INVALID_HEADERS` | 500 | `check()` a reçu des en-têtes de requête qui ne sont pas un objet de chaînes. |
+| <span id="e-blackhole-internal-panic"></span>`E_BLACKHOLE_INTERNAL_PANIC` | 500 | Le moteur natif a paniqué pendant la vérification d'une requête ; `cause` porte l'erreur native. |
+| <span id="e-blackhole-invalid-xss-limit"></span>`E_BLACKHOLE_INVALID_XSS_LIMIT` | 500 | `xss.maxInputBytes` ou `xss.maxDepth` n'est pas un entier positif. |
+| <span id="e-blackhole-html-too-large"></span>`E_BLACKHOLE_HTML_TOO_LARGE` | 500 | `sanitizeResponse()` (ou la passe `xss`) a reçu un corps `text/html` plus long que `xss.maxInputBytes` (1 Mio par défaut). |
+| <span id="e-blackhole-html-too-deep"></span>`E_BLACKHOLE_HTML_TOO_DEEP` | 500 | Le HTML à assainir imbrique des éléments plus profond que `xss.maxDepth` (512 par défaut), mesuré sur l'arbre que construit le parser. |
+| <span id="e-blackhole-html-too-complex"></span>`E_BLACKHOLE_HTML_TOO_COMPLEX` | 500 | Le HTML à assainir construit plus de quatre fois sa taille plus 64 Kio (balises de mise en forme mal imbriquées recréées dans chaque bloc). |
 
 ## Erreurs Chronos
 
@@ -776,11 +809,11 @@ Levées par le transport WebSocket (`createWebSocketTransport()`), avec l'un des
 | <span id="e-echo-lock-timeout"></span>`E_ECHO_LOCK_TIMEOUT` | 500 | Un appelant a attendu trop longtemps la factory d'un autre appelant pour la même clé. |
 | <span id="e-echo-invalid-argument"></span>`E_ECHO_INVALID_ARGUMENT` | 500 | Une méthode a reçu un argument inutilisable. |
 | <span id="e-echo-invalid-duration"></span>`E_ECHO_INVALID_DURATION` | 500 | Une durée n'est ni un nombre de millisecondes ni une chaîne lisible. |
-| <span id="e-echo-invalid-config"></span>`E_ECHO_INVALID_CONFIG` | 500 | Une valeur de configuration est illisible, comme une taille qui n'est ni des octets ni `'10mb'`. |
+| <span id="e-echo-invalid-config"></span>`E_ECHO_INVALID_CONFIG` | 500 | Une valeur de configuration est illisible, comme une taille qui n'est ni des octets ni `'10mb'`, ou le `keyPrefix` d'une connexion Redis n'est pas une chaîne quand `clear()` en a besoin. |
 | <span id="e-echo-unknown-store"></span>`E_ECHO_UNKNOWN_STORE` | 500 | Un nom de store, ou le store par défaut, n'est pas déclaré dans `stores`. |
 | <span id="e-echo-unsupported-driver"></span>`E_ECHO_UNSUPPORTED_DRIVER` | — | Le provider par défaut a reçu un driver qu'il ne construit pas. |
 | <span id="e-echo-not-taggable"></span>`E_ECHO_NOT_TAGGABLE` | 500 | Invalidation par tag sur un driver (ou un étage) sans tags. |
-| <span id="e-echo-scan-unsupported"></span>`E_ECHO_SCAN_UNSUPPORTED` | — | `flush()` sur un client Redis sans `scan()` ; `KEYS` n'est pas utilisé. |
+| <span id="e-echo-scan-unsupported"></span>`E_ECHO_SCAN_UNSUPPORTED` | — | `flush()` sur un client Redis, ou sur un maître de cluster, sans `scan()` ; `KEYS` n'est pas utilisé. |
 | <span id="e-echo-unserializable-value"></span>`E_ECHO_UNSERIALIZABLE_VALUE` | — | Le driver mémoire stocke du JSON et la valeur n'a pas de forme JSON. Passez `serialize: false` pour la garder telle quelle. |
 | <span id="e-echo-quasar-missing"></span>`E_ECHO_QUASAR_MISSING` | 500 | Un store Redis est configuré et `@c9up/quasar` n'est pas installé. |
 | <span id="e-echo-incomplete-connection"></span>`E_ECHO_INCOMPLETE_CONNECTION` | 500 | La connexion quasar n'a pas ce dont echo a besoin (`publish()` / `subscribe()`). |
@@ -850,7 +883,7 @@ Chaque refus, y compris ceux du compilateur de requêtes, porte son code dans `e
 | <span id="e-eon-invalid-offset"></span>`E_EON_INVALID_OFFSET` | 500 | `offset()` a reçu une valeur qui n'est pas un entier positif ou nul. |
 | <span id="e-eon-compile-empty"></span>`E_EON_COMPILE_EMPTY` | 500 | Le compilateur n'a rendu aucune instruction SQL. |
 | <span id="e-eon-unexpected-params"></span>`E_EON_UNEXPECTED_PARAMS` | 500 | Une requête temporelle s'est compilée avec des paramètres liés là où du SQL littéral est attendu. |
-| <span id="e-eon-internal"></span>`E_EON_INTERNAL` | 500 | Un invariant interne d'eon a cassé : toujours un bug d'eon. |
+| <span id="e-eon-internal"></span>`E_EON_INTERNAL` | 500 | Un invariant interne d'eon a cassé, ou le compilateur Rust a paniqué ou n'a pas pu sérialiser son résultat : toujours un bug d'eon. |
 | <span id="e-eon-alter-db-one-option"></span>`E_EON_ALTER_DB_ONE_OPTION` | 500 | `alterDatabase()` prend exactement une option. |
 | <span id="e-eon-migration-invalid"></span>`E_EON_MIGRATION_INVALID` | 500 | La table de suivi des migrations contient un `executed_at` illisible. |
 | <span id="e-eon-migration-locked"></span>`E_EON_MIGRATION_LOCKED` | 500 | Une autre exécution tient le verrou de migration. |
@@ -877,14 +910,14 @@ Chaque refus, y compris ceux du compilateur de requêtes, porte son code dans `e
 | <span id="e-eon-invalid-precision"></span>`E_EON_INVALID_PRECISION` | 500 | Une précision de base n'est ni `ms`, ni `us`, ni `ns`. |
 | <span id="e-eon-keep-too-small"></span>`E_EON_KEEP_TOO_SMALL` | 500 | `KEEP` est inférieur à trois fois `DURATION`. |
 | <span id="e-ts-required"></span>`E_TS_REQUIRED` | 500 | La première colonne d'une super-table n'est pas un TIMESTAMP. |
-| <span id="e-tags-required"></span>`E_TAGS_REQUIRED` | 500 | Une super-table ne déclare aucun tag. |
+| <span id="e-tags-required"></span>`E_TAGS_REQUIRED` | 500 | Une super-table ne déclare aucun tag, ou un INSERT qui crée une table enfant (`using`), ou son modèle STMT, n'a aucun tag. |
 | <span id="e-json-tag-rule"></span>`E_JSON_TAG_RULE` | 500 | JSON est réservé aux tags et doit être le seul tag. |
 | <span id="e-type-not-taggable"></span>`E_TYPE_NOT_TAGGABLE` | 500 | Un type qui ne peut pas être un tag (DECIMAL) est utilisé comme tag. |
 | <span id="e-length-required"></span>`E_LENGTH_REQUIRED` | 500 | Un type qui exige une longueur (`BINARY(n)`, `NCHAR(n)`…) n'en a pas reçu. |
 | <span id="e-name-collision"></span>`E_NAME_COLLISION` | 500 | Un nom figure plusieurs fois parmi les colonnes de tags et de valeurs du template STMT. |
 | <span id="e-invalid-clause-type"></span>`E_INVALID_CLAUSE_TYPE` | 500 | Un connecteur WHERE n'est ni `and` ni `or`. |
 | <span id="e-invalid-where-group"></span>`E_INVALID_WHERE_GROUP` | 500 | Un groupe WHERE est vide, ou nomme aussi une colonne. |
-| <span id="e-invalid-where-value"></span>`E_INVALID_WHERE_VALUE` | 500 | Une valeur WHERE (ou un élément de liste) n'est pas un scalaire. |
+| <span id="e-invalid-where-value"></span>`E_INVALID_WHERE_VALUE` | 500 | Une valeur WHERE (ou un élément de liste) n'est pas un scalaire, ou la valeur d'un `IN` n'est pas une liste. |
 | <span id="e-unsafe-identifier-eon"></span>`E_UNSAFE_IDENTIFIER` | 500 | Le compilateur a refusé un identifiant. |
 | <span id="e-unsafe-literal-eon"></span>`E_UNSAFE_LITERAL` | 500 | Le compilateur a refusé une valeur littérale. |
 | <span id="e-unsafe-operator"></span>`E_UNSAFE_OPERATOR` | 500 | Le compilateur a refusé un opérateur. |
@@ -897,6 +930,10 @@ Chaque refus, y compris ceux du compilateur de requêtes, porte son code dans `e
 | <span id="e-eon-server-error"></span>`E_EON_SERVER_ERROR` | 500 | Le serveur TDengine a refusé une requête (instruction invalide, table absente, identifiants refusés) ; `taosCode` porte le code d'erreur numérique de TDengine. |
 | <span id="e-eon-no-topic"></span>`E_EON_NO_TOPIC` | 500 | `subscribe()` n'a reçu aucun topic ; le serveur l'accepterait et ne livrerait rien. |
 | <span id="e-eon-seek-no-offset"></span>`E_EON_SEEK_NO_OFFSET` | 500 | `seek()` a reçu une partition sans `offset`. |
+| <span id="e-eon-invalid-insert"></span>`E_EON_INVALID_INSERT` | 500 | Un INSERT est arrivé au compilateur sans colonne, sans ligne, avec une ligne dont la largeur diffère de la liste de colonnes, ou avec des `tags` sans `using`. |
+| <span id="e-eon-alter-empty"></span>`E_EON_ALTER_EMPTY` | 500 | Un ALTER STABLE est arrivé au compilateur sans aucun changement. |
+| <span id="e-unsupported-client-eon"></span>`E_UNSUPPORTED_CLIENT` | 500 | Le compilateur a reçu un autre dialecte que `tdengine`. |
+| <span id="e-eon-invalid-spec"></span>`E_EON_INVALID_SPEC` | 500 | L'instruction reçue par le compilateur ne se lit pas. Eon construit toutes les specs lui-même : c'est donc un bug d'eon ou une spec écrite à la main. |
 
 ## Erreurs Ephemeris
 
@@ -935,18 +972,18 @@ Les limites du moteur de mail sont refusées avant que le message soit analysé 
 | <span id="e-goldstone-too-many-parts"></span>`E_GOLDSTONE_TOO_MANY_PARTS` | 422 | Un message a plus de parties MIME que permis. |
 | <span id="e-goldstone-too-deep"></span>`E_GOLDSTONE_TOO_DEEP` | 422 | Les parties MIME sont imbriquées plus profond que permis. |
 | <span id="e-goldstone-too-many-headers"></span>`E_GOLDSTONE_TOO_MANY_HEADERS` | 422 | Un message a plus de headers que permis. |
-| <span id="e-goldstone-headers-too-large"></span>`E_GOLDSTONE_HEADERS_TOO_LARGE` | 422 | Les headers d'un message dépassent la limite de taille. |
+| <span id="e-goldstone-headers-too-large"></span>`E_GOLDSTONE_HEADERS_TOO_LARGE` | 422 | Un bloc d'en-têtes dépasse `maxHeaderBytes`, ou les blocs d'en-têtes des parties d'un message dépassent ensemble `maxPartHeaderBytes`. |
 | <span id="e-goldstone-missing-boundaries"></span>`E_GOLDSTONE_MISSING_BOUNDARIES` | 422 | Un message multipart déclare des délimiteurs qui n'apparaissent jamais. |
 | <span id="e-goldstone-boundary-too-long"></span>`E_GOLDSTONE_BOUNDARY_TOO_LONG` | 422 | Un délimiteur multipart est plus long que permis. |
 | <span id="e-goldstone-too-many-attachments"></span>`E_GOLDSTONE_TOO_MANY_ATTACHMENTS` | 422 | Un message a plus de pièces jointes que permis. |
 | <span id="e-goldstone-attachment-too-large"></span>`E_GOLDSTONE_ATTACHMENT_TOO_LARGE` | 422 | Une pièce jointe dépasse la limite de taille. |
 | <span id="e-goldstone-html-too-large"></span>`E_GOLDSTONE_HTML_TOO_LARGE` | 422 | Un corps HTML dépasse la limite de taille. |
-| <span id="e-goldstone-html-too-deep"></span>`E_GOLDSTONE_HTML_TOO_DEEP` | 422 | Un corps HTML est imbriqué plus profond que permis. |
-| <span id="e-goldstone-html-too-complex"></span>`E_GOLDSTONE_HTML_TOO_COMPLEX` | 422 | Un corps HTML a plus d'éléments que permis. |
+| <span id="e-goldstone-html-too-deep"></span>`E_GOLDSTONE_HTML_TOO_DEEP` | 422 | Un corps HTML imbrique plus de 1000 éléments, mesurés sur l'arbre que construit l'analyseur HTML. |
+| <span id="e-goldstone-html-too-complex"></span>`E_GOLDSTONE_HTML_TOO_COMPLEX` | 422 | Un corps HTML construit un arbre hors de proportion avec son balisage : trop de nœuds, ou trop de travail pour les placer. |
 | <span id="e-goldstone-dns-unavailable"></span>`E_GOLDSTONE_DNS_UNAVAILABLE` | 500 | Une vérification d'authenticité avait besoin du DNS et le DNS a échoué. |
 | <span id="e-goldstone-invalid-envelope"></span>`E_GOLDSTONE_INVALID_ENVELOPE` | 500 | L'enveloppe donnée à une vérification d'authenticité est invalide (une adresse qui n'est pas une IP…). |
 | <span id="e-goldstone-engine"></span>`E_GOLDSTONE_ENGINE` | 500 | Le moteur a échoué sans l'un des codes ci-dessus. |
-| <span id="e-goldstone-native-required"></span>`E_GOLDSTONE_NATIVE_REQUIRED` | — | Le moteur mail Rust n'est pas chargé. |
+| <span id="e-goldstone-native-required"></span>`E_GOLDSTONE_NATIVE_REQUIRED` | 500 | Le moteur mail Rust n'est pas chargé. |
 | <span id="e-goldstone-invalid-limits"></span>`E_GOLDSTONE_INVALID_LIMITS` | 500 | Une limite d'analyse n'est pas un entier positif inférieur à 2^32. |
 | <span id="e-goldstone-invalid-options"></span>`E_GOLDSTONE_INVALID_OPTIONS` | 500 | Une option de vérification d'authenticité n'est pas un entier positif inférieur à 2^32. |
 | <span id="e-goldstone-invalid-config"></span>`E_GOLDSTONE_INVALID_CONFIG` | 500 | La configuration de la boîte de réception est invalide (aucune boîte déclarée…). |
@@ -955,6 +992,7 @@ Les limites du moteur de mail sont refusées avant que le message soit analysé 
 | <span id="e-goldstone-uidvalidity-changed"></span>`E_GOLDSTONE_UIDVALIDITY_CHANGED` | 500 | Un dossier surveillé a renuméroté ses messages ; la surveillance reprend depuis le plus récent. |
 | <span id="e-goldstone-missing-config"></span>`E_GOLDSTONE_MISSING_CONFIG` | 500 | `GoldstoneProvider` s'est enregistré sans `config/inbox.ts`. |
 | <span id="e-goldstone-not-booted"></span>`E_GOLDSTONE_NOT_BOOTED` | 500 | La boîte de `services/main` a servi avant l'enregistrement de `GoldstoneProvider` ou l'appel de `setInbox()`. |
+| <span id="e-goldstone-too-many-addresses"></span>`E_GOLDSTONE_TOO_MANY_ADDRESSES` | 422 | Les en-têtes d'adresses d'un message comptent plus d'adresses que `maxAddresses`, comptées avant l'analyse du message. |
 
 ## Erreurs du plugin Helix
 
@@ -973,7 +1011,7 @@ Levées par `@c9up/helix-plugin-ream`.
 | Code | HTTP | Description |
 |------|------|-------------|
 | <span id="e-helix-assertion-failed"></span>`E_HELIX_ASSERTION_FAILED` | 500 | Une vérification `expect()` ou `assert` a échoué (`AssertionError`). |
-| <span id="e-helix-timeout"></span>`E_HELIX_TIMEOUT` | 500 | Un test ou un hook ne s'est pas terminé dans son délai. |
+| <span id="e-helix-timeout"></span>`E_HELIX_TIMEOUT` | 500 | Un test ou un hook ne s'est pas terminé dans son délai. C'est aussi le code d'une erreur de fichier quand le fichier dépasse `--file-timeout`. |
 | <span id="e-helix-test-aborted"></span>`E_HELIX_TEST_ABORTED` | 500 | Le test en cours a appelé `meta.abort(message)`. |
 | <span id="e-helix-no-active-test"></span>`E_HELIX_NO_ACTIVE_TEST` | 500 | Une aide réservée aux tests (`getActiveTestOrFail()`, `time.freeze`/`travel`, `override()`, une fonction de `test.macro`) a été appelée hors d'un test en cours. |
 | <span id="e-helix-no-active-container"></span>`E_HELIX_NO_ACTIVE_CONTAINER` | 500 | `override()` a été appelé avant `useContainer()`. |
@@ -995,7 +1033,10 @@ Levées par `@c9up/helix-plugin-ream`.
 | <span id="e-helix-invalid-watch-options"></span>`E_HELIX_INVALID_WATCH_OPTIONS` | 500 | Le mode watch a reçu un `include` vide ou un `debounceMs` hors plage. |
 | <span id="e-helix-watch-failed"></span>`E_HELIX_WATCH_FAILED` | 500 | Le mode watch n'a pas pu surveiller son dossier racine ; `cause` contient l'erreur de `fs.watch`. |
 | <span id="e-helix-native-required"></span>`E_HELIX_NATIVE_REQUIRED` | 500 | Le binaire natif de helix manque, n'a pas pu se charger ou est périmé, ou la plateforme n'en a pas. |
-| <span id="e-helix-internal"></span>`E_HELIX_INTERNAL` | 500 | Un invariant interne de helix est rompu : un bug de helix, à signaler. |
+| <span id="e-helix-internal"></span>`E_HELIX_INTERNAL` | 500 | Un invariant interne de helix est rompu : un bug de helix, à signaler. Les refus du moteur natif arrivent sous ce code. |
+| <span id="e-helix-worker-failed"></span>`E_HELIX_WORKER_FAILED` | 500 | Jamais levée : le `code` d'une erreur de fichier quand le worker n'a pas pu démarrer, a envoyé une trame illisible, est sorti sans résultat, ou est sorti d'une façon que son résultat n'explique pas. |
+| <span id="e-helix-unexpected-only"></span>`E_HELIX_UNEXPECTED_ONLY` | 500 | Jamais levée : le `code` de l'erreur d'un test qu'un `.only` ou un `.pin()` sélectionne dans un run qui ne les permet pas (en CI, ou avec `--allow-only=false`). |
+| <span id="e-helix-no-test-suite"></span>`E_HELIX_NO_TEST_SUITE` | 500 | Le `code` de l'erreur de fichier pour un fichier qui ne déclare aucun test, sauf avec `--pass-with-no-tests`. |
 
 ## Erreurs Inker
 
@@ -1031,7 +1072,7 @@ Levées par `@c9up/helix-plugin-ream`.
 | <span id="e-inker-invalid-json-ld"></span>`E_INKER_INVALID_JSON_LD` | 500 | Une valeur donnée au helper JSON-LD ne peut pas tenir en JSON-LD. |
 | <span id="e-inker-template-error"></span>`E_INKER_TEMPLATE_ERROR` | — | Un template a levé une erreur lui-même. |
 | <span id="e-inker-engine-missing"></span>`E_INKER_ENGINE_MISSING` | 500 | Un template a été rendu par le singleton inker avant que `InkerProvider` ne construise le moteur. |
-| <span id="e-inker-napi-required"></span>`E_INKER_NAPI_REQUIRED` | 500 | Il n'existe pas de binaire natif inker pour cette plateforme. |
+| <span id="e-inker-napi-required"></span>`E_INKER_NAPI_REQUIRED` | 500 | Le moteur natif d'inker est absent ou ne se charge pas ; le message nomme le paquet de plateforme à installer. |
 | <span id="e-inker-not-booted"></span>`E_INKER_NOT_BOOTED` | 500 | Le moteur de rendu (`@c9up/inker/services/main`, ou l'`InkerRenderer` du conteneur) a servi avant l'exécution de `InkerProvider.start()` ou avant que `setInker()` en installe un. |
 | <span id="e-inker-invalid-config"></span>`E_INKER_INVALID_CONFIG` | 500 | `config.inker` contient une valeur que le provider ne peut pas utiliser : un `cacheMode` autre que `mtime`, `never` ou `auto`, ou une entrée d'`additionalHelpers` qui n'est pas une fonction. |
 | <span id="e-inker-invalid-helper-argument"></span>`E_INKER_INVALID_HELPER_ARGUMENT` | 500 | Un helper de vue (`t`, `url`, `route`, `signedRoute`, `config`, `formAttributes`, `asset`) a reçu un argument inutilisable : un nom ou une clé qui n'est pas une chaîne, ou des paramètres de route qui ne sont pas un objet simple de primitives finies et non nulles. |
@@ -1112,14 +1153,14 @@ Levées par `@c9up/helix-plugin-ream`.
 | Code | HTTP | Description |
 |------|------|-------------|
 | <span id="e-orbit-no-host"></span>`E_ORBIT_NO_HOST` | 500 | `mount` a tourné avant que `useHost` donne à orbit un hôte natif, ou le module n'est pas celui d'orbit. |
-| <span id="e-orbit-commit-failed"></span>`E_ORBIT_COMMIT_FAILED` | 500 | L'hôte natif a refusé une transmission ; le message porte son rapport. |
+| <span id="e-orbit-commit-failed"></span>`E_ORBIT_COMMIT_FAILED` | 500 | L'hôte natif a refusé une transmission ; le message porte son rapport. Ce qu'elle portait est renvoyé avec la suivante ; le refus d'une transmission planifiée va à `onError` de `mount`. |
 | <span id="e-orbit-unsupported-element"></span>`E_ORBIT_UNSUPPORTED_ELEMENT` | 500 | Un élément sans correspondance native (`select`, `canvas`, ou `text` / un dégradé dans un `svg`). |
 | <span id="e-orbit-block-in-text"></span>`E_ORBIT_BLOCK_IN_TEXT` | 500 | Un élément bloc dans du texte : un texte natif ne contient que des passages en ligne. |
 | <span id="e-orbit-invalid-motion"></span>`E_ORBIT_INVALID_MOTION` | 500 | `motion=${…}` n'était pas un objet de valeurs animées. |
 | <span id="e-orbit-invalid-scroll-binding"></span>`E_ORBIT_INVALID_SCROLL_BINDING` | 500 | `scroll-y=${…}` n'était pas une valeur animée. |
 | <span id="e-orbit-invalid-color"></span>`E_ORBIT_INVALID_COLOR` | 500 | Une couleur qu'orbit ne sait pas lire. |
-| <span id="e-orbit-insecure-image-url"></span>`E_ORBIT_INSECURE_IMAGE_URL` | 500 | `<img src>` en http simple : les images ne se chargent qu'en https. |
-| <span id="e-orbit-image-source"></span>`E_ORBIT_IMAGE_SOURCE` | 500 | `<img src>` avec un schéma qui n'est pas une source d'image (`data:`, `javascript:`…). |
+| <span id="e-orbit-insecure-image-url"></span>`E_ORBIT_INSECURE_IMAGE_URL` | 500 | `<img src>` en http simple : les images ne se chargent qu'en https. Levée pour une adresse écrite dans le template ; pour une adresse venue des données, l'image n'affiche rien et l'erreur va à `onError` de `mount`. |
+| <span id="e-orbit-image-source"></span>`E_ORBIT_IMAGE_SOURCE` | 500 | `<img src>` avec un schéma qui n'est pas une source d'image (`data:`, `javascript:`…), sans schéma (`//hote/a.png`) ou une URL `file:` qui ne se décode pas. Levée ou signalée comme `E_ORBIT_INSECURE_IMAGE_URL`. |
 | <span id="e-orbit-duplicate-key"></span>`E_ORBIT_DUPLICATE_KEY` | 500 | Deux éléments d'une liste `each` partagent une clé. |
 | <span id="e-orbit-no-screen"></span>`E_ORBIT_NO_SCREEN` | 500 | `useScreen()` dans un composant qu'aucun écran d'une pile n'a construit. |
 | <span id="e-orbit-stack-shown"></span>`E_ORBIT_STACK_SHOWN` | 500 | Une même pile placée à deux endroits : une pile s'affiche une fois. |
@@ -1135,6 +1176,8 @@ Levées par `@c9up/helix-plugin-ream`.
 | <span id="e-orbit-invalid-decoder-input"></span>`E_ORBIT_INVALID_DECODER_INPUT` | 500 | `TextDecoder.decode` a reçu autre chose qu'un `ArrayBuffer` ou une vue sur l'un d'eux. Une `TypeError`, comme l'API native. |
 | <span id="e-orbit-invalid-encoded-data"></span>`E_ORBIT_INVALID_ENCODED_DATA` | 500 | Un `TextDecoder` `fatal` a rencontré des octets qui ne sont pas de l'UTF-8 valide. Une `TypeError`, comme l'API native. |
 | <span id="e-orbit-internal"></span>`E_ORBIT_INTERNAL` | 500 | Un invariant interne d'orbit a cédé : un bug d'orbit. |
+| <span id="e-orbit-tree-too-deep"></span>`E_ORBIT_TREE_TOO_DEEP` | 500 | Les vues s'imbriquent sur plus de 100 niveaux : l'hôte calcule la mise en page sur la pile du fil JS et refuse donc la transmission avant la mise en page. Ce qu'elle portait est renvoyé avec la suivante. |
+| <span id="e-orbit-svg-value"></span>`E_ORBIT_SVG_VALUE` | 500 | Une valeur d'un `<svg>` que l'hôte ne sait pas lire (une longueur `NaN`, des données de chemin, `points` ou `transform` illisibles). Cette forme est laissée de côté et le reste est dessiné ; passée à `onError` de `mount`, jamais levée. |
 
 ## Erreurs Orbit Clipboard
 
@@ -1342,6 +1385,7 @@ Si vous en voyez un, la cause est presque toujours un **render non déterministe
 | <span id="e-photon-form-defaults-unsupported"></span>`E_PHOTON_FORM_DEFAULTS_UNSUPPORTED` | — | `setDefaults()` a été appelé sur un formulaire dont les données sont une fonction. |
 | <span id="e-photon-invalid-svelte-root"></span>`E_PHOTON_INVALID_SVELTE_ROOT` | — | Le `svelteRoot` passé à l'adaptateur Svelte n'exporte pas `setPage()` ; passez la racine de `@c9up/photon/svelte`. |
 | <span id="e-photon-invalid-ssr-setup"></span>`E_PHOTON_INVALID_SSR_SETUP` | — | Le `createPhotonApp` de Svelte a rendu côté serveur sans `setup`, ou son `setup` n'a pas renvoyé `render(App, { props })` de `svelte/server`. |
+| <span id="e-photon-deferred-props-missing"></span>`E_PHOTON_DEFERRED_PROPS_MISSING` | — | La réponse à un groupe différé ne contient pas les props demandées ; signalée par l'événement `exception` du routeur (`photon:exception`), pas levée, et pas redemandée pendant cette visite. |
 
 ## Erreurs Prism
 
@@ -1358,12 +1402,12 @@ Le moteur d'images rapporte un code stable à chaque échec ; `/__image` répond
 | <span id="e-prism-image-busy"></span>`E_PRISM_IMAGE_BUSY` | 503 | Trop d'images sont en cours de rendu ; réessayez sous peu. |
 | <span id="e-prism-empty-input"></span>`E_PRISM_EMPTY_INPUT` | 422 | L'entrée est vide. |
 | <span id="e-prism-input-too-large"></span>`E_PRISM_INPUT_TOO_LARGE` | 422 | L'entrée dépasse la limite d'octets. |
-| <span id="e-prism-too-many-pixels"></span>`E_PRISM_TOO_MANY_PIXELS` | 422 | L'image, ou celle qu'une opération construirait, dépasse le plafond de pixels ; refusée avant l'allocation. |
+| <span id="e-prism-too-many-pixels"></span>`E_PRISM_TOO_MANY_PIXELS` | 422 | L'image (son en-tête, ou une trame d'un GIF), ou celle qu'une opération construirait, dépasse le plafond de pixels ; refusée avant l'allocation. |
 | <span id="e-prism-zero-dimension"></span>`E_PRISM_ZERO_DIMENSION` | 422 | L'image a une largeur ou une hauteur nulle. |
 | <span id="e-prism-unknown-format"></span>`E_PRISM_UNKNOWN_FORMAT` | 422 | Les octets ne sont pas un format d'image que prism reconnaît. |
 | <span id="e-prism-unsupported-format"></span>`E_PRISM_UNSUPPORTED_FORMAT` | 422 | Le format est reconnu mais pas pris en charge. |
 | <span id="e-prism-format-not-allowed"></span>`E_PRISM_FORMAT_NOT_ALLOWED` | 422 | Une vraie image, dans un format que l'application a choisi de ne pas décoder. |
-| <span id="e-prism-unreadable"></span>`E_PRISM_UNREADABLE` | 422 | L'image ne peut pas être lue. |
+| <span id="e-prism-unreadable"></span>`E_PRISM_UNREADABLE` | 422 | L'image ne peut pas être lue : corrompue, un flux WebP qui n'a pas la taille de sa trame, un item AVIF placé dans plus d'octets que le fichier n'en contient. |
 | <span id="e-prism-decode-failed"></span>`E_PRISM_DECODE_FAILED` | 422 | Le décodage de l'image a échoué. |
 | <span id="e-prism-encode-failed"></span>`E_PRISM_ENCODE_FAILED` | 500 | L'encodage de la sortie a échoué. |
 | <span id="e-prism-invalid-geometry"></span>`E_PRISM_INVALID_GEOMETRY` | 500 | Une géométrie que l'image ne peut pas satisfaire : un recadrage hors de ses bords, une taille cible nulle. |
@@ -1374,11 +1418,12 @@ Le moteur d'images rapporte un code stable à chaque échec ; `/__image` répond
 | <span id="e-prism-invalid-qr-option"></span>`E_PRISM_INVALID_QR_OPTION` | 500 | Une option de QR code hors bornes, ou une couleur qui n'est pas en hexadécimal strict. |
 | <span id="e-prism-internal-panic"></span>`E_PRISM_INTERNAL_PANIC` | 500 | Le moteur a paniqué ; toujours un bug de prism. |
 | <span id="e-prism-engine"></span>`E_PRISM_ENGINE` | 500 | Le moteur a échoué sans code connu. |
-| <span id="e-prism-native-required"></span>`E_PRISM_NATIVE_REQUIRED` | — | Le moteur d'images Rust n'est pas chargé. |
+| <span id="e-prism-native-required"></span>`E_PRISM_NATIVE_REQUIRED` | 500 | Le moteur d'images Rust n'est pas chargé. |
 | <span id="e-prism-not-booted"></span>`E_PRISM_NOT_BOOTED` | — | Le moteur de `services/main` a servi avant le boot de `PrismProvider` ou l'appel de `setPrism()`. |
 | <span id="e-prism-invalid-config"></span>`E_PRISM_INVALID_CONFIG` | 500 | `config/images.ts` n'exporte pas une configuration `defineConfig({ ... })`. |
-| <span id="e-prism-invalid-serve-config"></span>`E_PRISM_INVALID_SERVE_CONFIG` | 500 | `images.serve` ne déclare aucune racine, ou l'un de ses compteurs (`concurrency`, `queueLimit`, `effort`, `memoryCacheBytes`…) sort de sa plage. |
+| <span id="e-prism-invalid-serve-config"></span>`E_PRISM_INVALID_SERVE_CONFIG` | 500 | `images.serve` ne déclare aucune racine, l'un de ses compteurs (`concurrency`, `queueLimit`, `effort`, `memoryCacheBytes`, `maxCacheBytes`…) sort de sa plage, ou `cacheControl` n'est ni `'public'`, ni `'private'`, ni `false`. |
 | <span id="e-prism-invalid-binding"></span>`E_PRISM_INVALID_BINDING` | 500 | Le conteneur a résolu autre chose qu'un `Prism` pour le token `Prism`, ou autre chose qu'un routeur pour `router`. |
+| <span id="e-prism-memory-limit"></span>`E_PRISM_MEMORY_LIMIT` | 422 | Une étape du pipeline (l'image décodée, l'intermédiaire flottant d'un redimensionnement, la copie d'un encodeur) garderait plus de `limits.maxMemory` octets ; refusée avant l'allocation. |
 
 ## Erreurs Quasar
 
@@ -1403,7 +1448,7 @@ Renvoyées dans le résultat de l'outil de templates du serveur MCP.
 | <span id="e-inker-render-timeout"></span>`E_INKER_RENDER_TIMEOUT` | — | Un rendu de template a pris plus de temps que l'outil ne le permet. |
 | <span id="e-inker-unknown"></span>`E_INKER_UNKNOWN` | — | Un rendu de template a échoué sans code inker. |
 | <span id="e-ream-mcp-invalid-argument"></span>`E_REAM_MCP_INVALID_ARGUMENT` | 500 | Un outil ou une fonction a été appelé sans un argument requis (`docs.get`, `docs.explain`, une chaîne vide) ou avec un seuil de détection de doublons hors limites. |
-| <span id="e-ream-mcp-project-root-not-found"></span>`E_REAM_MCP_PROJECT_ROOT_NOT_FOUND` | — | Aucune racine de projet Ream n'a été trouvée en remontant depuis le répertoire courant ; définissez `REAM_PROJECT_ROOT`. |
+| <span id="e-ream-mcp-project-root-not-found"></span>`E_REAM_MCP_PROJECT_ROOT_NOT_FOUND` | — | Aucune racine de projet Ream n'a été trouvée en remontant depuis le répertoire courant, ou celle trouvée au-dessus appartient à un autre utilisateur ou est accessible en écriture au groupe ou aux autres ; définissez `REAM_PROJECT_ROOT`. |
 | <span id="e-ream-mcp-native-unavailable"></span>`E_REAM_MCP_NATIVE_UNAVAILABLE` | 500 | Le cœur natif n'a pas donné de version au démarrage : le binaire est absent ou incompatible. |
 | <span id="e-ream-mcp-native-mismatch"></span>`E_REAM_MCP_NATIVE_MISMATCH` | 500 | Le cœur natif a répondu quelque chose que le serveur n'attend pas (trace, statistiques d'index, manifeste du modèle) : le binaire est périmé ou d'une autre version. |
 | <span id="e-ream-mcp-path-escape"></span>`E_REAM_MCP_PATH_ESCAPE` | 500 | Un nom de fichier de migration ou un chemin de fichier du modèle sort de son répertoire. |
@@ -1417,6 +1462,8 @@ Renvoyées dans le résultat de l'outil de templates du serveur MCP.
 | <span id="e-ream-mcp-internal"></span>`E_REAM_MCP_INTERNAL` | 500 | Un invariant interne a été rompu (un type d'outil inconnu a atteint un aiguilleur) ; signalez-le comme un bug. |
 | <span id="e-ream-mcp-index-failed"></span>`E_REAM_MCP_INDEX_FAILED` | 500 | L'index natif du corpus n'a pas pu être construit, ouvert ou lu (outils `docs.*`, réindexation au démarrage, `ream-mcp-reindex`) ; `cause` est l'erreur native. |
 | <span id="e-ream-mcp-invalid-json"></span>`E_REAM_MCP_INVALID_JSON` | 500 | Le cœur natif n'a pas pu lire le JSON qu'il a reçu (options de recherche) ou écrire sa réponse en JSON ; `cause` est l'erreur native. |
+| <span id="e-ream-mcp-unsupported-platform"></span>`E_REAM_MCP_UNSUPPORTED_PLATFORM` | 500 | Import de `@c9up/ream-mcp/napi` sur une plateforme sans binaire natif (prises en charge : linux-x64, linux-arm64 sous glibc, darwin-x64, darwin-arm64, win32-x64). |
+| <span id="e-ream-mcp-native-load-failed"></span>`E_REAM_MCP_NATIVE_LOAD_FAILED` | 500 | Le binaire natif de `@c9up/ream-mcp/napi` est absent ou ne se charge pas ; le message nomme le paquet de plateforme à installer, `cause` est l'erreur de Node. |
 
 ## Erreurs Relay
 
@@ -1426,7 +1473,7 @@ Renvoyées dans le corps JSON des routes relay, ou en événement `error` sur un
 |------|------|-------------|
 | <span id="e-relay-bad-request"></span>`E_RELAY_BAD_REQUEST` | 400 | `subscribe` sans `uid` ni `channel` exploitables (deux chaînes non vides). |
 | <span id="e-relay-channel-too-long"></span>`E_RELAY_CHANNEL_TOO_LONG` | 400 | Le nom du canal dépasse 256 caractères. |
-| <span id="e-relay-not-connected"></span>`E_RELAY_NOT_CONNECTED` | 400 | Aucune connexion n'a cet uid sur cette instance et aucun bus n'est configuré pour relayer la requête à l'instance qui la tient — ou la connexion s'est fermée. |
+| <span id="e-relay-not-connected"></span>`E_RELAY_NOT_CONNECTED` | 400 | Aucune connexion n'a cet uid sur cette instance et aucun bus n'est configuré pour relayer la requête vers l'instance qui la tient — ou la connexion s'est fermée. Aussi un POST de hub pour une connexion qui n'a pas de flux ouvert. |
 | <span id="e-relay-bus-unavailable"></span>`E_RELAY_BUS_UNAVAILABLE` | 503 | La souscription devait être relayée à l'instance qui tient le flux, et le bus a refusé le message. |
 | <span id="e-relay-not-owner"></span>`E_RELAY_NOT_OWNER` | 403 | La connexion a été ouverte par un autre utilisateur ; subscribe, unsubscribe et trames de hub doivent venir du même. |
 | <span id="e-relay-channel-no-authorizer"></span>`E_RELAY_CHANNEL_NO_AUTHORIZER` | 403 | Aucun `relay.authorize()` ne couvre le canal, et `allowUnauthorizedChannels` est désactivé. |
@@ -1439,8 +1486,8 @@ Renvoyées dans le corps JSON des routes relay, ou en événement `error` sur un
 | <span id="e-relay-max-connections-per-owner"></span>`E_RELAY_MAX_CONNECTIONS_PER_OWNER` | 503 | Ce client a déjà le nombre maximal de flux de hub ouverts. |
 | <span id="e-relay-max-pending"></span>`E_RELAY_MAX_PENDING` | 503 | Trop de connexions de hub sont négociées et pas encore ouvertes. |
 | <span id="e-relay-shut-down"></span>`E_RELAY_SHUT_DOWN` | 503 | Le service temps réel est en cours d'arrêt. |
-| <span id="e-relay-unauthorized"></span>`E_RELAY_UNAUTHORIZED` | — | Une invocation de hub exige un utilisateur authentifié, ou authentifié par un autre garde. |
-| <span id="e-relay-forbidden"></span>`E_RELAY_FORBIDDEN` | — | Une invocation de hub n'a pas le rôle ou la permission exigés. |
+| <span id="e-relay-unauthorized"></span>`E_RELAY_UNAUTHORIZED` | 401 | Un hub gardé exige un utilisateur authentifié, ou authentifié par un autre garde. Répondu à la négociation, au flux et à la poignée de main WebSocket ; envoyé comme événement `error`, avant la fermeture de la connexion, quand une invocation est refusée. |
+| <span id="e-relay-forbidden"></span>`E_RELAY_FORBIDDEN` | 403 | L'utilisateur n'a pas le rôle ou les permissions qu'exigent les gardes d'un hub. Répondu à la négociation, au flux et à la poignée de main WebSocket ; envoyé comme événement `error`, avant la fermeture de la connexion, quand une invocation est refusée. |
 | <span id="e-relay-unknown-event"></span>`E_RELAY_UNKNOWN_EVENT` | — | Une invocation de hub ne nomme aucun handler. |
 | <span id="e-relay-handler-error"></span>`E_RELAY_HANDLER_ERROR` | — | Un handler de hub a levé une erreur. |
 | <span id="e-relay-invalid-channel-pattern"></span>`E_RELAY_INVALID_CHANNEL_PATTERN` | 500 | `authorize()` a reçu un motif de canal qui ne pourrait jamais correspondre. |
@@ -1458,6 +1505,7 @@ Renvoyées dans le corps JSON des routes relay, ou en événement `error` sur un
 | <span id="e-relay-assertion-failed"></span>`E_RELAY_ASSERTION_FAILED` | 500 | `FakeRelay.assertSent()` ou `assertNotSent()` n'est pas vérifiée. |
 | <span id="e-relay-internal"></span>`E_RELAY_INTERNAL` | 500 | Un invariant de relay a cédé. Un bug : signalez-le. |
 | <span id="e-relay-subscribe-failed"></span>`E_RELAY_SUBSCRIBE_FAILED` | 500 | Le `subscribe` du client du bus a échoué avec autre chose qu'une `Error` ; `cause` porte ce qu'il a levé. |
+| <span id="e-relay-max-queued"></span>`E_RELAY_MAX_QUEUED` | 429 | Une connexion de hub a déjà `maxQueuedMessages` messages en attente du hub ; le POST est refusé et rien de son contenu ne s'exécute. Un WebSocket dans le même état est fermé avec le code `1013`. |
 
 ## Erreurs Robledo
 
@@ -1468,8 +1516,9 @@ Levées par `@c9up/robledo`.
 | <span id="e-robledo-invalid-prefix"></span>`E_ROBLEDO_INVALID_PREFIX` | 500 | Le préfixe des routes ne commence pas par `/`, ou se termine par un `/`. |
 | <span id="e-robledo-not-booted"></span>`E_ROBLEDO_NOT_BOOTED` | 500 | `services/main` utilisé avant le démarrage du provider. |
 | <span id="e-robledo-no-native-module"></span>`E_ROBLEDO_NO_NATIVE_MODULE` | 500 | L'app n'a pas le module natif de robledo : elle n'a pas été construite avec robledo installé. |
-| <span id="e-robledo-bad-response"></span>`E_ROBLEDO_BAD_RESPONSE` | 500 | Le serveur a répondu à une vérification de mise à jour par autre chose qu'une mise à jour. |
-| <span id="e-robledo-refused"></span>`E_ROBLEDO_REFUSED` | 500 | Le téléphone a refusé une mise à jour : signature invalide, fichier altéré, mauvais runtime… |
+| <span id="e-robledo-bad-response"></span>`E_ROBLEDO_BAD_RESPONSE` | 500 | Le serveur a répondu à une vérification de mise à jour, ou à un téléchargement de fichier, par autre chose qu'une mise à jour : un statut d'erreur, pas de manifeste, une réponse `latest` de plus de 1 Mio, ou un fichier plus grand que sa taille signée. |
+| <span id="e-robledo-refused"></span>`E_ROBLEDO_REFUSED` | 500 | Le téléphone a refusé une mise à jour : signature invalide (vérifiée avant tout téléchargement), fichier altéré, mauvais runtime, mise à jour d'une autre app… |
+| <span id="e-robledo-not-newer"></span>`E_ROBLEDO_NOT_NEWER` | 500 | Le téléphone a refusé une mise à jour qui n'est pas plus récente (selon son `createdAt` signé) que la plus récente qu'il a acceptée, ni que le bundle inclus dans l'app : une ancienne mise à jour, validement signée, servie à nouveau. Un retour en arrière volontaire se publie comme une nouvelle mise à jour. |
 
 ## Erreurs Rosetta
 
@@ -1513,7 +1562,7 @@ Levées par `@c9up/robledo`.
 | <span id="e-mail-template-read-error"></span>`E_MAIL_TEMPLATE_READ_ERROR` | 500 | Un template mail ne peut pas être lu. |
 | <span id="e-mail-template-syntax"></span>`E_MAIL_TEMPLATE_SYNTAX` | 500 | Un template mail a une erreur de syntaxe. |
 | <span id="e-mail-template-recursion"></span>`E_MAIL_TEMPLATE_RECURSION` | 500 | Des templates mail s'incluent trop profondément. |
-| <span id="e-mail-template-napi-required"></span>`E_MAIL_TEMPLATE_NAPI_REQUIRED` | 500 | Il n'existe pas de binaire natif rover pour cette plateforme. |
+| <span id="e-mail-template-napi-required"></span>`E_MAIL_TEMPLATE_NAPI_REQUIRED` | 500 | Le moteur natif de rover est absent ou ne se charge pas ; le message nomme le paquet de plateforme à installer. |
 | <span id="e-rover-unknown"></span>`E_ROVER_UNKNOWN` | — | Un envoi a échoué avec une erreur sans code propre. |
 | <span id="e-rover-not-booted"></span>`E_ROVER_NOT_BOOTED` | 500 | Le singleton mail de `services/main` a servi avant le boot de `RoverProvider`. |
 | <span id="e-rover-fake-active"></span>`E_ROVER_FAKE_ACTIVE` | 500 | `mail.fake()` a été appelé alors qu'un faux est déjà actif ; appelez d'abord `restore()`. |
@@ -1525,6 +1574,7 @@ Levées par `@c9up/robledo`.
 | <span id="e-mail-transport-error"></span>`E_MAIL_TRANSPORT_ERROR` | 500 | Le transport de mail n'a pas pu envoyer. Son `context` porte le statut du fournisseur ou le code réseau ; elle se construit avec `new E_MAIL_TRANSPORT_ERROR(message, { context, cause, help })`. |
 | <span id="e-invalid-config"></span>`E_INVALID_CONFIG` | 500 | Il manque une propriété à la configuration d'un transport de mail, ou l'une d'elles est invalide (`Invalid config for "resend" transport. The "apiKey" property is missing`). Un message sans destinataire lève plutôt `E_MAIL_INVALID_MESSAGE`. |
 | <span id="e-rover-ical-unavailable"></span>`E_ROVER_ICAL_UNAVAILABLE` | 500 | `icalEvent(callback)` a besoin d'`ical-generator`, qui n'est pas installé ou ne construit pas de calendrier. |
+| <span id="e-rover-webhook-invalid-key"></span>`E_ROVER_WEBHOOK_INVALID_KEY` | 500 | La `publicKey` du webhook SendGrid n'est pas une clé publique, ou pas la clé ECDSA P-256 avec laquelle SendGrid signe son webhook d'événements. |
 
 ## Erreurs Rune
 
@@ -1550,8 +1600,8 @@ Rune normalise ses codes : un code qui commence déjà par `E_` est gardé, tout
 | <span id="e-rune-unsupported-country"></span>`E_RUNE_UNSUPPORTED_COUNTRY` | 500 | Une règle propre à un pays (`postalCode()`…) n'a pas de motif pour ce pays. |
 | <span id="e-rune-unsupported-json-schema-target"></span>`E_RUNE_UNSUPPORTED_JSON_SCHEMA_TARGET` | 500 | Une cible JSON Schema que rune n'émet pas. |
 | <span id="e-rune-no-output-schema"></span>`E_RUNE_NO_OUTPUT_SCHEMA` | 500 | La sortie d'un validateur ne peut pas être décrite en JSON Schema : une transformation peut produire n'importe quoi. |
-| <span id="e-rune-napi-required"></span>`E_RUNE_NAPI_REQUIRED` | — | Le moteur de validation Rust n'est pas chargé. |
-| <span id="e-rune-napi-not-found"></span>`E_RUNE_NAPI_NOT_FOUND` | 500 | Le binaire du moteur de validation Rust est introuvable. |
+| <span id="e-rune-napi-required"></span>`E_RUNE_NAPI_REQUIRED` | 500 | Le moteur de validation Rust est absent ou ne se charge pas ; le message nomme le paquet de plateforme à installer. |
+| <span id="e-rune-napi-not-found"></span>`E_RUNE_NAPI_NOT_FOUND` | 500 | Le binaire du moteur de validation Rust est introuvable ; le message nomme le paquet de plateforme à installer. |
 | <span id="e-rune-napi-request-refused"></span>`E_RUNE_NAPI_REQUEST_REFUSED` | 500 | Le moteur de validation Rust a refusé la demande. |
 | <span id="e-rune-napi-invalid-response"></span>`E_RUNE_NAPI_INVALID_RESPONSE` | 500 | Le moteur de validation Rust a rendu une forme inattendue. |
 | <span id="e-rune-conflicting-url-options"></span>`E_RUNE_CONFLICTING_URL_OPTIONS` | 500 | `normalizeUrl()` a reçu à la fois `forceHttp` et `forceHttps`. |
@@ -1640,8 +1690,8 @@ Rune normalise ses codes : un code qui commence déjà par `E_` est gardé, tout
 | <span id="e-transit-callback-not-confirmed"></span>`E_TRANSIT_CALLBACK_NOT_CONFIRMED` | 500 | Un fournisseur OAuth1 n'a pas confirmé l'URL de callback. |
 | <span id="e-transit-no-request-token"></span>`E_TRANSIT_NO_REQUEST_TOKEN` | 500 | Un fournisseur OAuth1 a répondu sans jeton de requête. |
 | <span id="e-transit-discovery-failed"></span>`E_TRANSIT_DISCOVERY_FAILED` | 500 | La découverte OpenID Connect a répondu une erreur HTTP. |
-| <span id="e-transit-invalid-discovery"></span>`E_TRANSIT_INVALID_DISCOVERY` | 500 | Le document de découverte n'a pas un champ requis, ou nomme un autre émetteur. |
-| <span id="e-transit-jwks-failed"></span>`E_TRANSIT_JWKS_FAILED` | 500 | La récupération du JWKS du fournisseur a échoué, ou il n'a pas de tableau `keys`. |
+| <span id="e-transit-invalid-discovery"></span>`E_TRANSIT_INVALID_DISCOVERY` | 500 | Le document de découverte n'a pas un champ requis, nomme un autre émetteur, ou donne un endpoint qui n'est pas en `https`. |
+| <span id="e-transit-jwks-failed"></span>`E_TRANSIT_JWKS_FAILED` | 500 | La récupération du JWKS du fournisseur a échoué, ou il n'a pas de tableau `keys`. Des clés plus anciennes que `cache.ttlMs` ne sont pas utilisées à sa place. |
 | <span id="e-transit-unknown-signing-key"></span>`E_TRANSIT_UNKNOWN_SIGNING_KEY` | 500 | L'id_token nomme une clé de signature que le fournisseur n'a pas publiée. |
 | <span id="e-transit-unsupported-algorithm"></span>`E_TRANSIT_UNSUPPORTED_ALGORITHM` | 500 | Le fournisseur ne déclare que des algorithmes d'id_token que transit refuse (les signatures asymétriques sont exigées). |
 | <span id="e-transit-no-id-token"></span>`E_TRANSIT_NO_ID_TOKEN` | 500 | La réponse de jetons ne porte aucun id_token ; vérifiez que le scope `openid` est accordé. |
@@ -1650,14 +1700,15 @@ Rune normalise ses codes : un code qui commence déjà par `E_` est gardé, tout
 | <span id="e-transit-userinfo-mismatch"></span>`E_TRANSIT_USERINFO_MISMATCH` | 500 | La réponse userinfo décrit un autre sujet que l'id_token. |
 | <span id="e-transit-saml-rejected"></span>`E_TRANSIT_SAML_REJECTED` | 500 | Une réponse ou une assertion SAML est refusée. |
 | <span id="e-transit-invalid-signature"></span>`E_TRANSIT_INVALID_SIGNATURE` | 500 | Une signature XML ne se vérifie pas, ou n'est pas une que transit accepte. |
-| <span id="e-transit-invalid-ber"></span>`E_TRANSIT_INVALID_BER` | 500 | Un message LDAP ne s'encode pas ou ne se décode pas en BER. |
+| <span id="e-transit-invalid-ber"></span>`E_TRANSIT_INVALID_BER` | 500 | Un message LDAP ne s'encode pas ou ne se décode pas en BER, ou un DN, un attribut ou une valeur de filtre passé à `LdapConnection` n'est pas une chaîne. |
 | <span id="e-transit-quasar-missing"></span>`E_TRANSIT_QUASAR_MISSING` | 500 | Un stockage anti-rejeu Redis nomme une connexion quasar et `@c9up/quasar` n'est pas installé, ou son provider n'a pas démarré. |
 | <span id="e-transit-incomplete-connection"></span>`E_TRANSIT_INCOMPLETE_CONNECTION` | 500 | La connexion quasar n'a pas une commande qu'émet le stockage anti-rejeu. |
 | <span id="e-transit-fake-not-declared"></span>`E_TRANSIT_FAKE_NOT_DECLARED` | 500 | `FakeTransit` a été sollicité pour un fournisseur qu'aucun `willReturn()` n'a déclaré. |
 | <span id="e-transit-fake-assertion"></span>`E_TRANSIT_FAKE_ASSERTION` | 500 | Une assertion de `FakeTransit` (`assertBegan`, `assertSignedIn`, `assertNobodySignedIn`) a échoué. |
-| <span id="e-transit-ldap-error"></span>`E_TRANSIT_LDAP_ERROR` | 500 | Un annuaire a refusé ou n'a pas pu être joint. `resultCode` porte le code de résultat LDAP quand l'annuaire en a rendu un ; 400 pour des identifiants invalides (49) et pour un identifiant ou un mot de passe vide. |
+| <span id="e-transit-ldap-error"></span>`E_TRANSIT_LDAP_ERROR` | 500 | Un annuaire a refusé ou n'a pas pu être joint. `resultCode` porte le code de résultat LDAP quand l'annuaire en a rendu un ; 400 pour des identifiants invalides (49), pour un identifiant ou un mot de passe vide, et pour un identifiant ou un mot de passe qui n'est pas une chaîne (signalé comme 49). |
 | <span id="e-oauth-state-mismatch"></span>`E_OAUTH_STATE_MISMATCH` | 400 | Le state du callback OAuth manque ou diffère de celui stocké à la redirection (CSRF possible). Recommencez la connexion. |
 | <span id="e-oauth-missing-code"></span>`E_OAUTH_MISSING_CODE` | 500 | Le callback OAuth est revenu sans son autorisation (`code`, `oauth_verifier` en OAuth1, `SAMLResponse` en SAML), comme quand l'utilisateur a refusé l'accès. Rien n'a été envoyé au fournisseur. |
+| <span id="e-transit-insecure-issuer"></span>`E_TRANSIT_INSECURE_ISSUER` | 500 | L'`issuer` OpenID Connect n'est pas une URL `https` (`http://localhost` excepté). Levée à la construction du driver. |
 
 ## Erreurs Vellum
 
@@ -1700,7 +1751,7 @@ Vellum normalise ses codes : un code qui commence déjà par `E_` est gardé, to
 | <span id="e-vellum-no-page"></span>`E_VELLUM_NO_PAGE` | 500 | Il n'y a pas de page courante ; appelez d'abord `addPage()`. |
 | <span id="e-vellum-no-form"></span>`E_VELLUM_NO_FORM` | 500 | Des champs de formulaire ont été ajoutés avant `initForm()`. |
 | <span id="e-vellum-document-ended"></span>`E_VELLUM_DOCUMENT_ENDED` | 500 | Le document est terminé ; on ne peut plus rien y ajouter. |
-| <span id="e-vellum-napi-required"></span>`E_VELLUM_NAPI_REQUIRED` | — | Le moteur PDF Rust n'est pas chargé. |
+| <span id="e-vellum-napi-required"></span>`E_VELLUM_NAPI_REQUIRED` | 500 | Le moteur PDF Rust n'est pas chargé. |
 | <span id="e-vellum-not-booted"></span>`E_VELLUM_NOT_BOOTED` | — | Le service de `services/main` a servi avant le boot de `VellumProvider`. |
 | <span id="e-vellum-table-ended"></span>`E_VELLUM_TABLE_ENDED` | 500 | Une ligne a été ajoutée à un tableau après que `lastRow` l'a terminé. |
 | <span id="e-vellum-invalid-link"></span>`E_VELLUM_INVALID_LINK` | 500 | Un lien ou une destination nommée est inutilisable. |
@@ -1738,6 +1789,7 @@ Vellum normalise ses codes : un code qui commence déjà par `E_` est gardé, to
 | <span id="e-visa-internal"></span>`E_VISA_INTERNAL` | 500 | Un invariant interne a été rompu : un bug de visa, à signaler. |
 | <span id="e-visa-oauth-error"></span>`E_VISA_OAUTH_ERROR` | 400 | Une erreur du client, renvoyée sur le fil : `oauthCode` porte la chaîne du protocole (`invalid_grant`, `invalid_client`…). 401 pour `invalid_client` et `invalid_token`, sinon 400. |
 | <span id="e-visa-unredirectable"></span>`E_VISA_UNREDIRECTABLE` | 400 | Un échec d'autorisation qui ne peut pas être redirigé (client ou URI de redirection inconnus) : montrez `error` à l'utilisateur. |
+| <span id="e-visa-invalid-ttl"></span>`E_VISA_INVALID_TTL` | 500 | Une durée de vie n'est pas un nombre entier de secondes positif : `accessTokenTtlSeconds`, `refreshTokenTtlSeconds`, `codeTtlSeconds` ou `consentTicketTtlSeconds` (vérifié à la construction du `VisaManager`, et par `token()` et `issueAuthorizationCode()` appelées directement), ou l'`expiresInSeconds` de la garde (vérifié par `visaGuard()` et à chaque `createToken()`). |
 
 ## Erreurs Warden
 
@@ -1745,7 +1797,7 @@ Warden normalise ses codes : un code qui commence déjà par `E_` est gardé, to
 
 | Code | HTTP | Description |
 |------|------|-------------|
-| <span id="e-unauthorized-access-warden"></span>`E_UNAUTHORIZED_ACCESS` | 401 | Aucun garde n'a authentifié la requête. Une route gardée répond avec ce code. |
+| <span id="e-unauthorized-access-warden"></span>`E_UNAUTHORIZED_ACCESS` | 403 | Aucun garde n'a authentifié la requête. Une route gardée répond avec ce code. |
 | <span id="e-invalid-credentials"></span>`E_INVALID_CREDENTIALS` | 400 | Les identifiants ne correspondent pas. `authFinder().verifyCredentials` la lève pour un compte inconnu comme pour un mauvais mot de passe, après le même travail de hachage. |
 | <span id="e-warden-auth-strategy-error"></span>`E_WARDEN_AUTH_STRATEGY_ERROR` | 500 | Tous les gardes tentés ont planté (base de données indisponible, bug) : un incident serveur, distinct d'un refus d'identifiants. |
 | <span id="e-warden-mfa-required"></span>`E_WARDEN_MFA_REQUIRED` | 403 | La route déclare `@RequireMfa` et l'utilisateur n'a pas passé l'étape renforcée. |
@@ -1784,3 +1836,5 @@ Warden normalise ses codes : un code qui commence déjà par `E_` est gardé, to
 | <span id="e-warden-strategy-cannot-authenticate"></span>`E_WARDEN_STRATEGY_CANNOT_AUTHENTICATE` | 500 | `authenticate()` avec des identifiants sur une garde de clé d'API ; le jeton va à `verify()`. |
 | <span id="e-warden-quasar-missing"></span>`E_WARDEN_QUASAR_MISSING` | 500 | Une liste noire Redis des jetons nomme une connexion quasar et `@c9up/quasar` n'est pas installé, ou son provider n'a pas démarré. |
 | <span id="e-warden-incomplete-connection"></span>`E_WARDEN_INCOMPLETE_CONNECTION` | 500 | La connexion quasar n'a pas une commande qu'émet la liste noire des jetons (`set`, `exists`). |
+| <span id="e-warden-refresh-store-contract"></span>`E_WARDEN_REFRESH_STORE_CONTRACT` | 500 | Le driver de jetons de rafraîchissement passé à `rotateRefreshToken` n'a pas de `consume()` ou pas de `revokeFamily()`. `consume(familyId, presentedHash, successor)` doit remplacer le hachage de la famille seulement s'il est encore celui présenté, en une seule opération indivisible (un `UPDATE … WHERE family_id = ? AND hash = ?` et son nombre de lignes modifiées, ou un script Lua sur Redis). |
+| <span id="e-warden-empty-gate-requirement"></span>`E_WARDEN_EMPTY_GATE_REQUIREMENT` | 500 | `@Guard()`, `@Role()` ou `@Permission()` ne nomme rien à exiger (aucun argument, ou seulement des noms vides, comme une liste vide lue dans la configuration). Levée quand le décorateur est appliqué, au chargement de la classe, et par le middleware de warden pour une action dont les métadonnées ne nomment rien : l'action n'est jamais lue comme publique. Nommez au moins un guard, un rôle ou une permission, ou retirez le décorateur. |

@@ -48,7 +48,9 @@ wherever each application remembers to check.
 
 `createToken(user, abilities, { name, expiresInSeconds })` mints one directly
 for a first-party client — name it with `tokenClientId` — and
-`invalidateToken(token)` revokes one.
+`invalidateToken(token)` revokes one. `expiresInSeconds`, in the guard config or
+per call, is a positive whole number of seconds; any other value throws
+`E_VISA_INVALID_TTL`.
 
 The lower-level form is still there for a resource server with no guard:
 

@@ -27,6 +27,15 @@ logger.fatal('Out of memory')
 
 The signature is **message-first**: the message string comes first, the structured data object second — `logger.info('user logged in', { userId })`. A call reads left to right.
 
+The data object is always written as fields, and the message is written as given. A `%` in the message is not a token here. So request data placed in the message cannot change where the fields go:
+
+```typescript
+logger.warn(`login failed for ${email}`, { ip })
+// even with email = 'x%j@example.com': msg is the text above, ip is a field
+```
+
+printf tokens (`%s`, `%d`, `%i`, `%f`, `%j`, `%o`, `%O`, `%%`) apply when you pass two values or more, or when the object comes first: `logger.info({ ip }, 'user %s from %s', name, city)`. An object that `%j`, `%o` or `%O` writes into the message is serialized and redacted first, like a field. A value that no token takes is dropped.
+
 ### Error Serialization
 
 An `Error` passed as the first argument, or placed under `err` (or `error`) in

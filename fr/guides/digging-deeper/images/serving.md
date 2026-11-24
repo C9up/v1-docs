@@ -6,6 +6,7 @@ Ce guide couvre le service des images à une page :
 - Chaque axe est sur liste blanche
 - Ce qui revient
 - Ce que coûte une variante
+- Des images derrière une authentification
 
 ## Servir des images à une page
 
@@ -80,7 +81,8 @@ Le type de contenu est le format écrit par le moteur, jamais l'extension du fic
 Les listes blanches bornent le nombre de réponses, pas le coût d'en produire une ni la fréquence à laquelle on la produit. Un encodage AVIF, ce sont des secondes de CPU sur le pool de threads de libuv — les quatre threads qui servent aussi les appels fichier, DNS et crypto de l'application. Donc :
 
 - **Une variante n'est rendue qu'une fois.** Sa clé est la largeur qu'elle aura vraiment : 3200, 3840 et 5120 d'une source de 3000 px sont la même image et un seul rendu. La même variante demandée plusieurs fois en même temps n'est décodée qu'une fois.
-- **Il y a toujours un cache.** Avec `cacheDir`, les variantes sont gardées sur le disque, un dossier par source ; remplacer une source supprime les variantes de sa version précédente quand les nouvelles sont écrites, si bien qu'un avatar renvoyé au même chemin ne s'accumule pas. Sans `cacheDir`, elles sont gardées en mémoire jusqu'à `memoryCacheBytes` (32 Mio), les moins récemment utilisées partant les premières.
+- **Il y a toujours un cache.** Avec `cacheDir`, les variantes sont gardées sur le disque, un dossier par source ; remplacer une source supprime les variantes de sa version précédente quand les nouvelles sont écrites, si bien qu'un avatar renvoyé au même chemin ne s'accumule pas. Une source supprimée ou renommée perd ses variantes dès qu'une requête la trouve absente, et le dossier est borné par `maxCacheBytes` (1 Gio) : au-delà, les variantes des sources qui n'existent plus partent d'abord, puis les plus anciennes. Sans `cacheDir`, elles sont gardées en mémoire jusqu'à `memoryCacheBytes` (32 Mio), les moins récemment utilisées partant les premières.
+- **Un refus est retenu.** Une variante dont le moteur a refusé le rendu — au-delà du plafond de mémoire, corrompue — reçoit la même réponse de mémoire pour la même version de la source, au lieu d'être décodée de nouveau à chaque requête.
 - **Les rendus passent quelques-uns à la fois.** `concurrency` (2) rendus tournent en même temps, `queueLimit` (64) attendent ; au-delà, la réponse est un 503 `E_PRISM_IMAGE_BUSY` avec `Retry-After`, plutôt qu'une attente plus longue pour tout le monde.
 - **Identifier une source est borné aussi.** Ses 64 premiers Kio sont lus pour distinguer une image de tout le reste ; une vidéo ou une archive posée dans une racine coûte cette lecture, une fois par version du fichier — la réponse, refus compris, est retenue. Une image plus grande n'est lue en entier qu'à l'intérieur de la porte de rendu ci-dessus, si bien que `concurrency` x `limits.maxBytes` est le maximum que les lectures de sources tiennent à la fois, et la même source demandée plusieurs fois en même temps n'est lue qu'une fois.
 - **L'AVIF est encodé à l'`effort` 1** (0 le plus rapide, 9 le plus lent) : l'image est encodée pendant qu'un visiteur attend, et l'effort 4 prend environ quatre fois plus de temps pour des octets à un pour cent près.
@@ -89,6 +91,20 @@ Les listes blanches bornent le nombre de réponses, pas le coût d'en produire u
 |---|---|---|
 | `cacheDir` | — | variantes sur le disque |
 | `memoryCacheBytes` | 32 Mio | cache en mémoire quand il n'y a pas de `cacheDir` ; 0 le coupe |
+| `maxCacheBytes` | 1 Gio | taille maximale de `cacheDir` ; 0 la coupe |
 | `concurrency` | 2 | rendus simultanés ; à garder sous `UV_THREADPOOL_SIZE` |
 | `queueLimit` | 64 | rendus en attente avant un 503 |
 | `effort` | 1 | effort d'encodage AVIF, 0–9 |
+
+### Des images derrière une authentification
+
+`registerImageRoute` renvoie ce que renvoie le routeur, pour qu'un middleware puisse protéger la route. Une telle route ne doit pas répondre `Cache-Control: public`, la valeur par défaut : un CDN ou un proxy inverse devant l'application peut garder une réponse publique et la servir à quiconque demande la même URL, sans redemander à l'application. Dites qui peut la garder :
+
+```ts
+serve: {
+  roots: [app.makePath('storage/members')],
+  cacheControl: 'private',
+}
+```
+
+`'private'` garde la réponse dans le navigateur de l'utilisateur qui l'a demandée. `false` n'envoie pas de `Cache-Control`, pour un middleware qui pose le sien. Les refus restent `no-store` quel que soit le réglage.

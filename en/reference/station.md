@@ -95,7 +95,6 @@ Add `() => import('@c9up/station/provider')` to the providers in `reamrc.ts`, an
 |---|---|---|
 | `StationProvider` | provider (default) | `register()` binds the `ResourceRegistry`; `boot()` publishes it; `start()` reads the `station` config, loads the peers, mounts the sign-in surface and every resource as it is registered, and stops silently when a peer it needs is not installed. |
 | `StationConfig`, `StationAppContext` | interface | |
-| `resourcesNeedValidation`, `deriveWritableSchema`, `validateWritableBody`, `isModuleNotFound`, `isPackageMissing`, `resetStationProviderFlags` | function | Exported for the package's tests; not part of the application API. |
 
 The routes, under the configured middleware:
 
@@ -186,7 +185,9 @@ A refusal raised at boot or by the registry is a class of the `errors` namespace
 
 ## Migration
 
+- `@c9up/station/provider` exports the provider and its two config types only. `resourcesNeedValidation`, `deriveWritableSchema`, `validateWritableBody`, `isModuleNotFound`, `isPackageMissing` and `resetStationProviderFlags` are gone: they were the package's test seams, not an application API. An import of one of them must go.
 - A refusal is no longer a plain `Error` or `TypeError`: test `error.code`, or `error instanceof errors.E_STATION_*`. The ones that were a `TypeError` (a `defineResource()` option or `station.audit` of the wrong type) no longer are: replace `instanceof TypeError` with `error.code === 'E_STATION_INVALID_RESOURCE'` or `'E_STATION_INVALID_CONFIG'`.
+- A successful admin sign-in now clears the identifier's throttle key only (`id:<digest>`), not the IP's (`ip:<address>`). A limiter you pass as `loginRateLimit.limiter` now receives `clear()` with that one key; an address that keeps failing stays throttled until its window ends.
 
 ## See also
 

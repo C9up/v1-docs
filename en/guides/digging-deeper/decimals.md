@@ -154,6 +154,8 @@ withAtomContext({ precision: 2 }, () => decimal('1').div('8').toString()) // "0.
 | `roundMode` | `'half-up'` | the same, plus `toFixed`, `round` and `toScale` |
 | `quantizeMode` | `'half-up'` | `quantize` and `Money` |
 | `maxDigits` | `20000` | every value read or produced |
+| `maxExponent` | `100` | every scientific literal (`1e-18`) and `number` read |
+| `maxScale` | `10000` | every value, precision and scale |
 
 A quotient, a root and a negative power are rounded once, from the exact value,
 in `roundMode`; each also takes `{ mode }` per call. `toFixed(2)` rounds the
@@ -177,6 +179,14 @@ it. Every operation re-reads its operands, so a megabyte of digits from a
 request would otherwise cost seconds of CPU per call. Lower it where amounts
 come from users; raise it (up to a million) for very long exact computations.
 More than `10000` fractional digits are refused whatever the bound.
+
+`maxExponent` bounds how far a scientific literal moves the decimal point.
+`'1e-9990'` is seven bytes, but it is written out as ten thousand digits, and
+every later operation pays for them. The default of `100` covers money and real
+measurements; a wider exponent is refused with `E_ATOM_DECIMAL_TOO_LARGE`.
+`maxScale` bounds the fractional digits of any value, precision or scale; lower
+it (with `precision`) where you only handle amounts. A list of values taken from
+a request costs work for each value, so bound its length too.
 
 ## Locale
 
@@ -288,6 +298,11 @@ A plan takes values in through `column` (decimal values), `minorUnits`
 Every column in one plan has to be the same length. A program over columns of
 different lengths is a caller's bug, and valuing the first few rows would return
 a plausible figure for data nobody has.
+
+A column also belongs to the plan that loaded it. `run` refuses a value that
+reads a column of another plan with `E_ATOM_BULK_FOREIGN_COLUMN`, even when the
+lengths match: load each column on the plan that runs it. A single value from
+`of` may be used in any plan.
 
 Columns carry the aggregates: `sum`, `avg`, `min`, `max`, `median`,
 `percentile`, `stddev`, `dot`, `at`, `sorted`, and the elementwise `plus`,

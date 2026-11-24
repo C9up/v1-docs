@@ -78,7 +78,7 @@ export default defineConfig({
 })
 ```
 
-The template receives `page` (the page object, plus `ssrHead` / `ssrBody` when the page is server-rendered), `photon.head` and `photon.body` (Photon's markup, ready to place unescaped: meta tags, stylesheets, the `<div id="app">` mount, the page data and the entry scripts, each with the request's CSP nonce) and the view props given as `render()`'s fourth argument:
+The template receives `page` (the page object, plus `ssrHead` / `ssrBody` when the page is server-rendered), `photon.head` and `photon.body` (Photon's markup, ready to place unescaped: meta tags, stylesheets, the page data, the `<div id="app">` mount and the entry scripts, each with the request's CSP nonce) and the view props given as `render()`'s fourth argument:
 
 ```typescript
 await ctx.photon.render('Dashboard', { user }, undefined, { lang: 'fr', theme: 'dark' })
@@ -159,6 +159,11 @@ The browser router asks for every `defer` group once the page is up — one
 request per group, so a slow one does not hold the others back — and merges the
 result into the page without remounting it (React and Vue keep the component's
 state; Svelte still remounts). A form's `errors` stay as they were.
+
+Each deferred prop is asked for once per visit. When the answer does not carry
+it (and the server did not rescue it), the router does not ask again: it
+reports `E_PHOTON_DEFERRED_PROPS_MISSING` on `router.on('exception', cb)` and
+as `photon:exception` on `document`, and the `<Deferred>` keeps its fallback.
 
 On a partial reload — a deferred group, `router.reload({ only })` — the props
 labelled `merge`, `merge().prepend()` or `deepMerge` are combined with what the

@@ -24,17 +24,31 @@ const q = repo.query()
   .whereExpr('total', '+ tax', '>=', 100)
 ```
 
-The optional `extraExpression` (2nd arg of the 4-arg form) is an **arithmetic**
-fragment only — columns, numbers, `+ - * / ,`, parentheses and a fixed set of
-scalar functions: `abs`, `ceil`, `floor`, `round`, `coalesce`, `nullif`,
-`length`, `lower`, `upper`, `trim`, `replace`, `substring`, `now`. Any other
-call (`pg_sleep()`, `version()`, `current_setting()`, a user-defined function)
-is refused, and so are the parenthesis-free identity functions (`current_user`,
-`session_user`, …). Bare SQL keywords (`OR`, `AND`, `IS`, `NOT`, `SELECT`, …)
-are rejected so the fragment can't alter the predicate's logic; the compared
-value is always bound. The 4-arg form stays available in strict mode, which is
-why it is an allow-list. Reach for `whereRaw` (with bindings) for anything
-beyond it.
+The optional `extraExpression` (2nd arg of the 4-arg form) is a tail of
+**arithmetic**, appended to the quoted column. It is one or more
+`operator operand` pairs:
+
+- the operators are `+ - * /`;
+- an operand is a number, a column, a parenthesised operand, or a call to one
+  of `abs`, `ceil`, `floor`, `round`, `coalesce`, `nullif`, `length`, `lower`,
+  `upper`, `trim`, `replace`, `substring`, `now`.
+
+The compiler splits the whole fragment into tokens and refuses whatever it
+cannot place. So these are refused:
+
+- any other call (`pg_sleep()`, `version()`, `current_setting()`, a
+  user-defined function), however it is spelled;
+- a comment (`--`, `/*`, `*/`): `pg_sleep/**/(2)` is a call for the server;
+- a quote, a string literal, a qualified name (`orders.tax`), any other
+  operator;
+- a SQL keyword (`OR`, `AND`, `IS`, `NOT`, `SELECT`, …) and the words a server
+  evaluates without parentheses (`current_user`, `session_user`,
+  `current_date`, …);
+- a fragment that does not start with an operator, such as `(tax)`.
+
+The compared value is always bound. The 4-arg form stays available in strict
+mode, which is why it is an allow-list. Reach for `whereRaw` (with bindings)
+for anything beyond it.
 
 Use `whereRaw` only for truly dialect-specific SQL fragments and always with bindings.
 
@@ -202,7 +216,10 @@ const rows = await repo.query()
 - `havingNull(col)` / `havingNotNull(col)`
 - `havingExists(sub)` / `havingNotExists(sub)`: `sub` is another model query or a
   callback building one on this model
-- `havingRaw(sql, bindings?)`, `groupByRaw(sql)`, `orderByRaw(sql)`
+- `havingRaw(sql, bindings?)`, `groupByRaw(sql, bindings?)`, `orderByRaw(sql, bindings?)`
+- `groupBy(...columns)`: column names only. On `db.from()`, a `db.raw()` fragment
+  is accepted too; any other value (an object from a request body) is refused
+  with `E_UNSAFE_IDENTIFIER`
 
 Every `having*` method has an `or*` form (`orHavingIn`, `orHavingNull`,
 `orHavingBetween`, `orHavingExists`, `orHavingRaw`, …) and an `and*` alias

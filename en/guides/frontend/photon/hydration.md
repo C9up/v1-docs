@@ -31,7 +31,7 @@ The same shape works for Vue (`./pages/*.vue`) and Svelte (`./pages/*.svelte`) â
 
 ### What `hydrate()` does
 
-1. Reads the `<script id="photon-data" type="application/json">` block emitted by the server.
+1. Reads the `<script id="photon-data" type="application/json">` block emitted by the server. Only that script is read, never another element with the same `id`. The server writes it before the `<div id="app">` mount, so markup your page prints cannot stand in for it.
 2. Validates the payload shape (`component`, `props`, `url`, `framework`).
 3. Calls `resolveComponent(name)` to load the page module.
 4. Dispatches to the matching adapter, which hydrates the target when the
@@ -123,6 +123,14 @@ on screen without remounting it; the props it did not ask for keep their value,
 and it takes the server's `errors`. `reload()` sends `Cache-Control: no-cache`.
 A URL on another origin is a full navigation. Both methods return a promise that
 settles once the page is applied, so they can be awaited; ignoring it works too.
+
+The router requests the absolute URL it checked, never its path alone.
+`/.//other.example/x` is on your origin, with the path `//other.example/x`; the
+router requests `https://your.app//other.example/x`, not `//other.example/x`,
+which a browser reads as another host. Each request is checked again just before
+it is sent: a visit or a partial reload whose URL leaves the origin is refused.
+The `url` passed to `onBefore`, `onStart`, `onFinish` and the `start` / `finish`
+events is that absolute URL.
 
 ### Server-side contract
 

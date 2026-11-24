@@ -26,6 +26,16 @@ The server finds the project root by walking up from the working directory, chec
 
 `REAM_PROJECT_ROOT=/path/to/project` overrides it.
 
+A root found above the working directory must belong to you: the server
+refuses a directory that another user owns, or that group or others can write
+to, and stops with `E_REAM_MCP_PROJECT_ROOT_NOT_FOUND`. This is git's
+`safe.directory` rule. Without it, a `reamrc.ts` that someone else drops into
+a shared directory such as `/tmp` would become your project root, and the
+generators would run that directory's `node_modules/.bin/ream`. The working
+directory itself and `REAM_PROJECT_ROOT` are not checked: you chose them.
+A server registered for your user and started through `npx` has the same
+exposure at the `npx` level, so register it per project, as below.
+
 `ream mcp install` registers it in the project's `.mcp.json`, a file meant to be
 committed, so the entry is the same on every machine: `npx --no @c9up/ream-mcp`,
 with no absolute path. `--no` runs the version the project's lockfile pins and
@@ -70,7 +80,7 @@ arguments, so no argument can:
 
 | Launch env | Allows |
 |---|---|
-| `REAM_MCP_ALLOW_MIGRATIONS=1` | writes to a local database: a sqlite file inside the project, or a loopback / unix-socket server |
+| `REAM_MCP_ALLOW_MIGRATIONS=1` | writes to a local database: a sqlite file inside the project, or a loopback / unix-socket server, judged on the address the driver dials (the URL's `host` and `hostaddr`, `PGHOST`, `PGHOSTADDR`) |
 | `REAM_MCP_ALLOW_PRODUCTION_MIGRATIONS=1`, with the above | writes to production: `REAM_ENV` / `NODE_ENV` is `production`, or the database URL is anything not provably local |
 
 Set them in the `env` block of the server's `.mcp.json` entry:
@@ -105,7 +115,10 @@ path; the full detail goes to the server's `stderr`.
 
 Each tool also declares MCP annotations (`readOnlyHint`, `destructiveHint`),
 so a client can ask before the calls that write and let the read-only ones
-through.
+through. The two `inker` tools are not read-only: they import the project's own
+`@c9up/inker` and run it inside the server (and a render runs the template's
+expressions), so they carry `destructiveHint: true`. Use them on a project you
+trust.
 
 ## Architecture
 

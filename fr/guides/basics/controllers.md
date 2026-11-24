@@ -11,6 +11,7 @@ Les contrôleurs sont des classes décorées avec `@inject()`, ce qui les enregi
 import { inject } from '@c9up/ream'
 import type { HttpContext } from '@c9up/ream'
 import { UserService } from '../services/UserService.js'
+import { createUser, updateUser } from '../validators/user.js'
 
 @inject()
 export default class UsersController {
@@ -22,7 +23,7 @@ export default class UsersController {
   }
 
   async store({ request, response }: HttpContext) {
-    const data = request.all()
+    const data = await request.validateUsing(createUser)
     const user = await this.userService.create(data)
     response.status(201).json({ data: user })
   }
@@ -37,7 +38,8 @@ export default class UsersController {
   async update({ request, response }: HttpContext) {
     const id = request.param('id')
     if (!id) return response.status(404).json({ error: 'Not found' })
-    const user = await this.userService.update(id, request.all())
+    const data = await request.validateUsing(updateUser)
+    const user = await this.userService.update(id, data)
     response.json({ data: user })
   }
 
@@ -49,6 +51,30 @@ export default class UsersController {
   }
 }
 ```
+
+Les validateurs déclarent les champs qu'une écriture accepte :
+
+```typescript
+// app/modules/user/validators/user.ts
+import { rules, schema } from '@c9up/rune'
+
+export const createUser = schema({
+  name: rules.string().min(1).max(100).trim(),
+  email: rules.string().email(),
+})
+
+export const updateUser = schema({
+  name: rules.string().min(1).max(100).trim().optional(),
+  email: rules.string().email().optional(),
+})
+```
+
+Ne passez jamais `request.all()` à une écriture. Il contient toutes les clés du
+corps et de la query string : `?role=admin` ou `{"is_admin": true}` atteindrait
+le modèle. `validateUsing()` ne rend que les champs déclarés, et refuse la
+requête avec `E_VALIDATION_ERROR` (422) quand ils sont faux. Voir
+[Validation](/fr/guides/basics/validation/) ; `request.only(['name', 'email'])`
+est la liste blanche pour un champ que vous ne validez pas.
 
 ### Associer les contrôleurs aux routes
 

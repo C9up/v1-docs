@@ -78,6 +78,20 @@ await User.create({ role: 'admin' })   // E_MASS_ASSIGNMENT
 await User.create({ is_admin: true })  // E_MASS_ASSIGNMENT — résout vers isAdmin
 ```
 
+Quand `updateOrCreate`, `updateOrCreateMany` ou `related().updateOrCreate`
+trouvent la ligne, ils appliquent la charge utile avec `merge()`. Une clé qui
+n'est ni une propriété déclarée ni son nom de colonne lève `E_EXTRA_PROPERTIES` :
+`{ IsAdmin: 1 }` ou `{ Id: 42 }` n'atteint jamais l'UPDATE. Passez
+`{ allowExtraProperties: true }` en dernier argument pour garder ces clés dans
+`$extras` :
+
+```typescript
+await User.updateOrCreate({ email }, body, { allowExtraProperties: true })
+```
+
+`save()` n'écrit que les colonnes déclarées : une propriété posée sur l'instance
+sans être déclarée n'est jamais écrite.
+
 ### `fill()` / `merge()` et `$extras`
 
 Une clé de charge utile est résolue dans cet ordre : propriété déclarée,

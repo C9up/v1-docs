@@ -60,7 +60,11 @@ L'argument est fixe pour chaque type de hook (à ne jamais inventer) :
   `beforeSave` peut normaliser ou hacher des champs, et c'est cette mutation qui
   est persistée.
 - **`beforeFind`** et **`beforeFetch`** reçoivent le `ModelQuery` vivant, ce qui
-  vous permet d'ajouter des scopes ou des contraintes avant son exécution.
+  vous permet d'ajouter des scopes ou des contraintes avant son exécution. Les
+  clauses de l'appelant y sont déjà fermées en un groupe (`wrapExisting()`) : un
+  filtre ajouté par le hook est combiné par `AND` à toutes. `where(a).orWhere(b)`
+  plus un `where('tenant_id', id)` du hook donne `(a OR b) AND tenant_id = ?`.
+  `beforePaginate` reçoit les deux requêtes fermées de la même façon.
 - **`afterFind`** reçoit l'entité hydratée **ou `null`** (aucune correspondance) ;
   **`afterFetch`** reçoit le tableau `BaseEntity[]` hydraté.
 - **`beforePaginate`** reçoit le tuple `[countQuery, query]` — mutez les **deux**
@@ -97,6 +101,21 @@ la page construite, `afterPaginate` se déclenche avec le paginateur, puis
 Un preload est un fetch du modèle lié : son `beforeFetch` reçoit la requête du
 preload et son `afterFetch` les lignes liées, pour tous les types de relation et
 pour `load()` (voir [Relations](/fr/guides/database/orm/relations#hooks-de-fetch-sur-les-lignes-prechargees)).
+
+Les hooks de lecture que déclenche chaque terminal d'une requête de modèle :
+
+| Terminal | Hooks |
+|---|---|
+| `first()`, `firstOrFail()` | `beforeFind`, `afterFind` |
+| `exec()`, `await query`, `sole()` | `beforeFetch`, `afterFetch` |
+| `paginate()` | `beforePaginate`, `beforeFetch`, `afterPaginate`, `afterFetch` |
+| `cursorPaginate()` | `beforeFetch`, `afterFetch` (sur les éléments de la page) |
+| `exists()`, `doesntExist()` | `beforeFind` (rien n'est hydraté, donc pas de hook after) |
+| `pojo()`, `pluck()` | aucun |
+
+Un filtre écrit dans un hook n'atteint pas `pojo()` ni `pluck()`. Mettez un
+filtre que ces lectures doivent respecter dans un [scope de repository](/fr/guides/database/orm/repositories) :
+il atteint toutes les requêtes.
 
 ### Héritage
 

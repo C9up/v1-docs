@@ -87,7 +87,7 @@ ream configure @c9up/echo
 | `clear` | `clear(): Promise<void>` | Clears the store, or only this namespace. |
 | `setWithTags` | `setWithTags(key: string, value: unknown, tags: string[], ttlSeconds?: number): Promise<void>` | |
 | `deleteByTag` | `deleteByTag(tags: string[]): Promise<void>` | Also `deleteByTag(options: DeleteByTagOptions)`. `flushTags(tags)` is a deprecated alias. |
-| `namespace` | `namespace(ns: string): CacheManager` | A view under an extra key prefix; shares the driver, the defaults and the single-flight state. |
+| `namespace` | `namespace(ns: string): CacheManager` | A view under an extra key prefix; shares the driver, the defaults and the single-flight state. Throws `E_ECHO_INVALID_ARGUMENT` when `ns` is not a non-empty string, so a missing tenant id never gives back the whole store. |
 | `use` | `use(name?: string): CacheManager` | A named store of the config. Throws when the manager owns a single store and a name is given. |
 | `on` / `once` | `on<E extends keyof CacheEventMap>(event: E, listener: (payload: CacheEventMap[E]) => void): this` | A listener that throws is ignored. |
 | `off` | `off<E extends keyof CacheEventMap>(event: E, listener?: (payload: CacheEventMap[E]) => void): this` | Without a listener, drops them all. |
@@ -137,7 +137,7 @@ ream configure @c9up/echo
 | Factory | Signature | Description |
 |---|---|---|
 | `drivers.memory` | `memory(options?: MemoryDriverOptions): DriverFactory` | |
-| `drivers.redis` | `redis(options: { client: RedisClient; prefix?: string } \| { connection?: string; prefix?: string }): DriverFactory` | A client, or a quasar connection name, loaded on the first command. |
+| `drivers.redis` | `redis(options: { client: RedisClient; prefix?: string } \| { connection?: string; prefix?: string }): DriverFactory` | A client, or a quasar connection name, loaded on the first command. `clear()` honours the connection's `keyPrefix` and scans every master of a cluster. |
 | `drivers.redisBus` | `redisBus(options?: { connection?: string; channel?: string }): CacheBus` | Redis pub/sub as the bus. |
 | `drivers.tiered` | `tiered(options: { l1: DriverFactory; l2: DriverFactory } & Omit<TieredDriverOptions, 'l1' \| 'l2'>): DriverFactory` | What `Store` builds from two layers. |
 
@@ -177,7 +177,7 @@ ream configure @c9up/echo
 
 | Command | Arguments and flags | Description |
 |---|---|---|
-| `cache:clear` | `[store]`, `--namespace` (`-n`), `--tags` (`-t`), `--force` | Clears a store, a namespace or tags. Asks for confirmation in production unless `--force`. |
+| `cache:clear` | `[store]`, `--namespace` (`-n`), `--tags` (`-t`), `--force` | Clears a store, a namespace or tags. Asks for confirmation in production unless `--force`. Fails on an empty `--namespace`. |
 | `cache:delete` | `<key> [store]` | Deletes one entry. Asks for confirmation in production. |
 | `cache:prune` | `[store]` | Removes expired entries, for stores without native TTL. |
 
@@ -227,11 +227,11 @@ The string tokens are declared on `ContainerBindings`. The provider publishes th
 | [`E_ECHO_LOCK_TIMEOUT`](/en/reference/errors#e-echo-lock-timeout) | A caller waited too long for another caller's factory of the same key, with no stale value. |
 | [`E_ECHO_INVALID_ARGUMENT`](/en/reference/errors#e-echo-invalid-argument) | A method was given an argument it cannot work with. |
 | [`E_ECHO_INVALID_DURATION`](/en/reference/errors#e-echo-invalid-duration) | A duration is neither a number nor a readable string. |
-| [`E_ECHO_INVALID_CONFIG`](/en/reference/errors#e-echo-invalid-config) | A config value cannot be read, or a store has no layer. |
+| [`E_ECHO_INVALID_CONFIG`](/en/reference/errors#e-echo-invalid-config) | A config value cannot be read, or a store has no layer, or a Redis connection's `keyPrefix` is not a string when `clear()` needs it. |
 | [`E_ECHO_UNKNOWN_STORE`](/en/reference/errors#e-echo-unknown-store) | A store name, or the default store, is not declared in `stores`. |
 | [`E_ECHO_UNSUPPORTED_DRIVER`](/en/reference/errors#e-echo-unsupported-driver) | The single-store config names a driver other than `memory`. |
 | [`E_ECHO_NOT_TAGGABLE`](/en/reference/errors#e-echo-not-taggable) | Tag invalidation on a driver without tags. |
-| [`E_ECHO_SCAN_UNSUPPORTED`](/en/reference/errors#e-echo-scan-unsupported) | `flush()` on a Redis client without `scan()`. |
+| [`E_ECHO_SCAN_UNSUPPORTED`](/en/reference/errors#e-echo-scan-unsupported) | `flush()` on a Redis client, or on a cluster master, without `scan()`. |
 | [`E_ECHO_UNSERIALIZABLE_VALUE`](/en/reference/errors#e-echo-unserializable-value) | The memory driver stores JSON and the value has none; pass `serialize: false`. |
 | [`E_ECHO_QUASAR_MISSING`](/en/reference/errors#e-echo-quasar-missing) | A Redis store was configured and `@c9up/quasar` is not installed. |
 | [`E_ECHO_INCOMPLETE_CONNECTION`](/en/reference/errors#e-echo-incomplete-connection) | The quasar connection lacks `publish()` or `subscribe()`. |
@@ -247,6 +247,8 @@ Each one is a class of `errors`, a flare `Exception`: read `error.code`, or test
 - None of them extends `TypeError` any more: replace `instanceof TypeError` with the code.
 - `E_FACTORY_ERROR`, `E_FACTORY_HARD_TIMEOUT`, `E_UNDEFINED_VALUE` and `E_L2_CACHE_ERROR` now carry the cache module's messages ("Factory has thrown an error", "Factory has timed out after waiting for hard timeout", "Cannot set undefined value in the cache, key: `<key>`", "An error occurred while interacting with the L2 cache"): read `cause`, `key` and `operation` instead of parsing the message. Their constructors are `(key, cause, isBackground?)`, `(key)`, `(key)` and `(cause, { operation }?)`.
 - `errors.E_FACTORY_SOFT_TIMEOUT` is new.
+- `namespace('')` now throws `E_ECHO_INVALID_ARGUMENT`; so do `undefined` and `null`. It used to return the root view, whose `clear()` emptied the whole store. Check the name before you call it, and use the root cache to work on the whole store.
+- `cache:clear --namespace=` with an empty value now fails. Leave `--namespace` out to clear the whole store.
 
 ## See also
 

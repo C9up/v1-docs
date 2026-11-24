@@ -58,8 +58,10 @@ export const App = component(() => {
 
 `run` registers the app under the name the generated activity starts, gives
 orbit its native host and the app's style table, wires the Android back
-button, and mounts the root component with the launch props (the intent's
-extras). Outside an app built by ream, `useHost(host)` and
+button, and mounts the root component. The generated activity passes it no
+launch props: the activity is the launcher, so any app on the phone can start
+it with extras of its choosing, and they never reach your component. Outside
+an app built by ream, `useHost(host)` and
 `mount(App(), { viewport })` do the same by hand.
 
 ## What maps to what
@@ -104,14 +106,16 @@ the display cutout and, when it is open, the keyboard.
 | Code | Cause |
 |---|---|
 | `E_ORBIT_NO_HOST` | `mount` ran before `useHost` gave orbit a native host, or the module is not orbit's. |
-| `E_ORBIT_COMMIT_FAILED` | The native host refused a commit; the message carries its report. |
+| `E_ORBIT_COMMIT_FAILED` | The native host refused a commit; the message carries its report. What it carried is sent again with the next commit. |
+| `E_ORBIT_TREE_TOO_DEEP` | The views nest more than 100 levels deep: the host refuses the commit before it lays it out. |
+| `E_ORBIT_SVG_VALUE` | A value of an `<svg>` the host cannot read: that shape is left out, the rest drawn. Reported to `mount`'s `onError`, never thrown. |
 | `E_ORBIT_UNSUPPORTED_ELEMENT` | An element with no native mapping (`select`, `canvas`, or `text` / a gradient inside an `svg`). |
 | `E_ORBIT_BLOCK_IN_TEXT` | A block element inside text: native text holds only inline runs. |
 | `E_ORBIT_INVALID_MOTION` | `motion=${…}` was not an object of motion values. |
 | `E_ORBIT_INVALID_SCROLL_BINDING` | `scroll-y=${…}` was not a motion value. |
 | `E_ORBIT_INVALID_COLOR` | A colour orbit cannot read. |
-| `E_ORBIT_INSECURE_IMAGE_URL` | `<img src>` over plain http: images are fetched over https only. |
-| `E_ORBIT_IMAGE_SOURCE` | `<img src>` with a scheme that is not an image source (`data:`, `javascript:`…). |
+| `E_ORBIT_INSECURE_IMAGE_URL` | `<img src>` over plain http: images are fetched over https only. Thrown for an address written in the template; for one from data, that image shows nothing and the error goes to `mount`'s `onError`. |
+| `E_ORBIT_IMAGE_SOURCE` | `<img src>` with a scheme that is not an image source (`data:`, `javascript:`…) or with no scheme (`//host/a.png`). Thrown or reported as above. |
 | `E_ORBIT_DUPLICATE_KEY` | Two elements of an `each` list share a key. |
 | `E_ORBIT_NO_SCREEN` | `useScreen()` in a component no screen of a stack built. |
 | `E_ORBIT_STACK_SHOWN` | One stack put in two places: a stack is shown once. |

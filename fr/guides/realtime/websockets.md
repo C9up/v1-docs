@@ -107,7 +107,7 @@ for (const socket of sockets.get(userId) ?? []) socket.close(1008, 'signed out')
 | Sur `socket` | |
 |---|---|
 | `send(data)` | Une chaîne part en texte, un `Uint8Array` en binaire. `false` quand le socket se ferme, ou quand le message ferait passer l'arriéré du client au-delà de `maxBufferedBytes` — la connexion est alors fermée avec `1013` plutôt que de mettre en mémoire pour un client qui ne lit pas. |
-| `close(code?, reason?)` | Ferme une fois écrit ce qui est en file. `code` vaut `1000` (défaut), `1001`–`1014` ou `3000`–`4999` ; `reason` fait au plus 123 octets (sinon `E_WEBSOCKET_CLOSE_CODE`, `E_WEBSOCKET_CLOSE_REASON`). |
+| `close(code?, reason?)` | Ferme une fois écrit ce qui est en file, et au plus tard 5 secondes après l'appel même si le client ne lit pas. `code` vaut `1000` (défaut), `1001`–`1014` ou `3000`–`4999` ; `reason` fait au plus 123 octets (sinon `E_WEBSOCKET_CLOSE_CODE`, `E_WEBSOCKET_CLOSE_REASON`). |
 | `on('message' \| 'close', listener)`, `off(...)` | Un écouteur qui lève une erreur est signalé, jamais autorisé à faire tomber le process. |
 | `closed` | Une promesse de `{ code, reason }` : le code de fermeture du client, celui du serveur, ou `1006` quand la connexion a coupé. |
 | `bufferedAmount`, `readyState` | Octets en attente pour le client ; `open`, `closing` ou `closed`. |
@@ -143,7 +143,9 @@ export const http = {
 | Un message ou une trame au-delà de sa limite | ferme la connexion avec `1009` |
 | Aucun échange pendant `idleTimeout` | envoie un ping à mi-parcours, ferme avec `1001` à la fin |
 | Un client qui ne lit plus | ferme avec `1013` dès que `maxBufferedBytes` serait dépassé — rien au-delà n'est jamais gardé en mémoire |
-| Vos handlers prennent du retard | arrête de lire le socket jusqu'à ce qu'ils rattrapent, si bien qu'un client rapide ne peut pas remplir la mémoire du serveur |
+| Une écriture que le client ne prend pas pendant `idleTimeout` | ferme avec `1001` (`idle timeout`) et libère ce qui l'attendait |
+| `socket.close()` pendant qu'une écriture vers le client est bloquée | termine la connexion au plus tard 5 secondes après ; votre écouteur `close` reçoit le code que vous avez passé |
+| JavaScript ne prend pas les messages à temps | arrête de lire le socket jusqu'à ce que les messages déjà reçus soient remis à JavaScript. Un message compte comme remis quand son écouteur `message` est appelé, pas quand un écouteur `async` se termine : un écouteur qui attend ne ralentit pas le client, bornez vous-même ce travail |
 | L'application s'arrête | ferme chaque socket avec `1001` et attend jusqu'à 5 secondes qu'ils se terminent |
 
 Un WebSocket compte dans `http.maxConnections` tant qu'il est ouvert (voir

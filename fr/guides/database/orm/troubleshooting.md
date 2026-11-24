@@ -14,15 +14,22 @@ Ce guide couvre le dépannage :
 
 ## `E_ATLAS_NAPI_NOT_FOUND`
 
-Cause: package natif indisponible pour la plateforme/architecture courante.
+Cause: le paquet de plateforme qui porte les binaires d'atlas n'est pas installé.
 L'erreur est `errors.E_ATLAS_NAPI_NOT_FOUND` (`code: 'E_ATLAS_NAPI_NOT_FOUND'`), levée par
-la première requête compilée sans le binaire.
+la première requête compilée sans le binaire. Le driver de base vient du même paquet ; sans lui,
+la première connexion lève `E_ATLAS_DB_DRIVER_NOT_FOUND`.
+
+Le message nomme le paquet de votre machine, par exemple `@c9up/atlas-linux-x64-gnu`. L'erreur
+de chargement est la `cause` de l'exception.
 
 Actions:
 
-- réinstaller les dépendances (`pnpm install`)
-- vérifier la résolution des dépendances optionnelles par plateforme
-- vérifier version Node et environnement de build
+- réinstallez les dépendances avec les dépendances optionnelles activées (pas de
+  `--no-optional`, pas de `--omit=optional`)
+- si vous installez le paquet à la main, prenez la version exacte de `@c9up/atlas`
+- sur Alpine (musl), les paquets Linux visent la glibc et ne se chargent pas
+- si le message dit qu'il n'y a pas de binaire précompilé, votre plateforme n'est pas construite :
+  atlas fournit Linux x64 et arm64, macOS x64 et arm64, et Windows x64
 
 ## `E_INVALID_COLUMN`
 

@@ -22,7 +22,7 @@ providers: [
 
 ```typescript
 // config/logger.ts
-import { defineConfig, logLevel, targets } from '@c9up/spectrum'
+import { defineConfig, logLevel, stdSerializers, targets } from '@c9up/spectrum'
 
 const inProduction = process.env.NODE_ENV === 'production'
 
@@ -38,9 +38,13 @@ export default defineConfig({
       modules: {
         db: 'debug',
       },
-      // A logged request or response carries every header as it came: the
-      // session cookie, the bearer token and the cookies set in reply are
-      // kept out of the line here.
+      // A request or a response logged under `req` / `res` is written as its
+      // method, url, query, params, status and headers: never its body or its
+      // cookie map. Its headers come as they arrived: the session cookie, the
+      // bearer token and the cookies set in reply are kept out of the line by
+      // the paths below. Anything logged under another key is written as it
+      // is: censor it with a path of its own.
+      serializers: { req: stdSerializers.req, res: stdSerializers.res },
       redact: {
         paths: [
           'req.headers.authorization',
@@ -123,9 +127,17 @@ const audit = logger.child({ module: 'audit' }, { level: 'warn', msgPrefix: '[au
 `stdSerializers.req` writes the request's id, method, url, query, params,
 remote address and **every header as it came** — `cookie` and `authorization`
 included, so the signed session cookie, the CSRF token and a bearer token land
-in the line. `stdSerializers.res` writes the status and every response header,
-`set-cookie` included. Censoring them is `redact`'s job: keep the three paths
-above wherever these serializers are wired. Options that
+in the line. It never writes the body or the cookie map. `stdSerializers.res`
+writes the status and every response header, `set-cookie` included. Censoring
+them is `redact`'s job: keep the three paths above wherever these serializers
+are wired.
+
+Both read `ctx.request` and `ctx.response` as well as Node's request and
+response. On `ctx.request`, `url` is the path and the query string is written
+apart under `query`, parsed: `req.query.token` can then censor a token it
+carries. Log the request under `req`: `logger.info('login attempt', { req:
+ctx.request })`. Under another key no serializer applies, and the request is
+written by its `toJSON()`, a full dump with the body and the cookies. Options that
 cannot be honoured — `customLevels`, `useOnlyCustomLevels`, `levelComparison`,
 `nestedKey`, `crlf`, `hooks.streamWrite`, `transport.pipeline` — throw instead
 of being ignored.
@@ -156,7 +168,10 @@ const logger = new Logger({
 A path that names nothing leaves the entry exactly as it was, and nothing is
 mutated: the objects along a censored path are copied — keeping their
 prototype, so a model's `toJSON` still decides what it shows — and the ones
-the caller passed in are not. A path runs through getters too.
+the caller passed in are not. A path runs through getters too. On an object
+with a `toJSON()`, a path is applied to what `toJSON()` returns, which is
+what the line shows. An object written into the message by `%j`, `%o` or
+`%O` is redacted with the same paths.
 
 `censor` may be a function, called with the value and the path it was found at
 (`['users', '0', 'card']`); `remove: true` drops matched keys instead. A

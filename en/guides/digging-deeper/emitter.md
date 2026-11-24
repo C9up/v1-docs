@@ -135,6 +135,28 @@ assignable wherever a `() => void` is expected — await it when the
 next assertion depends on the subscription actually being gone.
 :::
 
+### Request and reply
+
+`onRequest()` registers the one handler that answers a request name. It gets
+the request envelope as JSON and a `reply` function; `request()` resolves with
+what it replies, parsed as JSON when it is JSON.
+
+```ts
+emitter.onRequest('query:user.find', (eventJson, reply) => {
+  const { data } = JSON.parse(eventJson)
+  reply(JSON.stringify(users.find(JSON.parse(data).id)))
+})
+
+const user = await emitter.request('query:user.find', { id: 1 }, 1000)
+```
+
+A handler that throws or rejects ends that request at once: `request()`
+rejects with `E_EVENTS_HANDLER_FAILED`, whose message carries the handler's
+message, and the failure is reported through `onError`. The process keeps
+running. A request no handler answers rejects with
+`E_EVENTS_NO_REQUEST_HANDLER`, one that gets no reply in time with
+`E_EVENTS_TIMEOUT`.
+
 ## Wiring
 
 `EventsProvider` binds the bus into the container. Register it (it ships in the

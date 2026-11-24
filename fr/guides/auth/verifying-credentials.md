@@ -11,8 +11,8 @@ Ce guide couvre la vérification sûre des identifiants :
 Une connexion qui sort tôt pour un compte inconnu répond en microsecondes ; une
 qui vérifie un hachage de mot de passe répond en ~100 ms. Cet écart suffit à
 dire à un appelant anonyme quels emails sont inscrits. `authFinder` le referme :
-un uid inconnu paie lui aussi un hachage, et chaque échec lève la même
-`E_INVALID_CREDENTIALS` (400).
+un uid inconnu passe par la même vérification qu'un uid connu, et chaque échec
+lève la même `E_INVALID_CREDENTIALS` (400).
 
 ```ts
 import { Hash } from '@c9up/sigil'
@@ -30,11 +30,18 @@ await users.verifyPassword(user, currentPassword)           // booléen
 
 - Un uid ou un mot de passe vide échoue tout de suite — cela ne dit rien d'aucun
   compte.
-- Un uid inconnu exécute `hash.make(password)`, le coût d'une vraie
-  vérification, puis échoue.
+- Un uid inconnu vérifie le mot de passe contre un hachage leurre, fait une
+  fois par le même hasher : l'appel que coûte un vrai compte. Puis il échoue.
 - Une ligne sans hachage de mot de passe (un compte qui se connecte par SSO) est
-  un identifiant refusé, après le même hachage — pas un plantage qui
+  un identifiant refusé, après la même vérification — pas un plantage qui
   signalerait l'existence du compte.
+- Un mot de passe que le hasher refuse est un mauvais mot de passe, sur les
+  trois branches de la même façon : même erreur, même coût. sigil refuse un mot
+  de passe de plus de 1024 octets, 72 avec bcrypt. Vérifiez la longueur quand
+  le mot de passe est défini (inscription, changement de mot de passe), pas à
+  la connexion.
+- Un hasher qui ne peut rien hacher (son binaire natif manque) n'est pas un
+  mauvais mot de passe : sa propre erreur est levée.
 
 Passez `users.verifyCredentials` tel quel à un garde, ou enveloppez-le pour
 façonner le payload : un garde lit une `E_INVALID_CREDENTIALS` levée comme un
@@ -62,7 +69,8 @@ Les quatre méthodes de l'interface `NativeWarden.hashPassword*` (`hashPasswordA
 ## Limiter les connexions — AuthRateLimiter
 
 Comptez une tentative de connexion **avant** de vérifier le mot de passe, sous
-l'IP du client et l'identifiant essayé, et effacez les deux en cas de succès :
+l'IP du client et l'identifiant essayé. En cas de succès, effacez seulement la
+clé de l'identifiant :
 
 ```ts
 import { AuthRateLimiter, RedisAttemptStore } from '@c9up/warden'
@@ -77,8 +85,14 @@ const keys = AuthRateLimiter.loginKeys(ctx.request.ip(), email)
 const decision = await limiter.attempt(...keys)
 if (!decision.allowed) return response.status(429).json({ retryAfter: decision.retryAfterSeconds })
 const user = await verify(email, password)
-if (user) await limiter.clear(...keys)
+if (user) await limiter.clear(AuthRateLimiter.identifierKey(email))
 ```
+
+La clé de l'adresse n'est pas effacée en cas de succès : elle court jusqu'à la
+fin de sa fenêtre. Si un succès l'effaçait, un client qui possède un compte
+pourrait essayer un mot de passe sur quelques autres comptes, se connecter au
+sien, et recommencer avec un compteur remis à zéro. Pour débloquer une adresse à
+la main, effacez `AuthRateLimiter.ipKey(ip)`.
 
 Compter d'abord est ce qui tient face à une rafale : chaque tentative est un
 incrément atomique, si bien que vingt essais simultanés ne peuvent pas tous lire

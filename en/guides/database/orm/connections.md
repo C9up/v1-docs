@@ -206,20 +206,42 @@ await db.truncateAllTables(['audit_log'])
 
 ## Advisory locks
 
-Session-level advisory locks let cooperating processes serialise around a shared
-key without a table lock, through `getAdvisoryLock` / `releaseAdvisoryLock`.
+`getAdvisoryLock` / `releaseAdvisoryLock` take and release a session-level
+advisory lock of the database. They are low-level: read what they do before you
+build on them.
+
+- **The lock belongs to one connection.** Both calls go through the pool, on
+  whichever connection answers. The lock is held by the connection that took it.
+- **It is not a mutex between two requests of one process.** The lock is
+  re-entrant on its connection: a second `getAdvisoryLock(key)` that lands on
+  the same pooled connection returns `true` while the first holder is still
+  inside.
+- **A release on another connection frees nothing.** When
+  `releaseAdvisoryLock(key)` lands on a different pooled connection, it returns
+  `false`, and the key stays locked until the holding connection closes. Other
+  processes are locked out of that key until then.
+
+The pattern is sound only when both calls run on one connection: a connection
+registered with a pool of one (`pool: { min: 1, max: 1 }`), used for nothing
+else while the lock is held.
 
 ```ts
-const key = 'nightly-report'
+// 'locks' is a connection registered with pool: { min: 1, max: 1 }
+const locks = db.connection('locks')
 
-if (await db.getAdvisoryLock(key)) {
+if (await locks.getAdvisoryLock('nightly-report')) {
   try {
-    // exclusive section — only one holder at a time
+    // run the report
   } finally {
-    await db.releaseAdvisoryLock(key)
+    await locks.releaseAdvisoryLock('nightly-report')
   }
 }
 ```
+
+For a critical section in application code (a payment, a coupon redemption, a
+job that must run once), use [`@c9up/eclipse`](/en/reference/eclipse) instead:
+its locks have an owner and an expiry, and work across processes and hosts. See
+[Locks](/en/guides/digging-deeper/locks).
 
 - Both calls are **non-blocking**: `getAdvisoryLock` returns whether the lock was
   acquired (Postgres `pg_try_advisory_lock`, MySQL `GET_LOCK(key, 0)`), and

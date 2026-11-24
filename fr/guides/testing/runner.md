@@ -24,11 +24,12 @@ Un run qui n'exécute rien n'est pas un succès. `helix test` sort en 1 quand
 la découverte ne trouve aucun fichier de test, quand un chemin, un filtre
 `--files` ou une suite nommée ne désigne rien — une sélection restreint le
 run, elle ne s'élargit jamais à tout l'arbre — et quand un fichier ne déclare
-aucun test. `--pass-with-no-tests` (ou `passWithNoTests` dans
+aucun test (une erreur de fichier de code `E_HELIX_NO_TEST_SUITE`).
+`--pass-with-no-tests` (ou `passWithNoTests` dans
 `helix.config.ts`) accepte un run vide.
 
 En CI (`CI` défini), un `.only` ou un `.pin()` fait échouer les tests qu'il
-sélectionne au lieu de restreindre le run : oublié dans un commit, il ne peut
+sélectionne (`E_HELIX_UNEXPECTED_ONLY`) au lieu de restreindre le run : oublié dans un commit, il ne peut
 pas rendre le build vert. `--allow-only` (ou `allowOnly`) le laisse
 restreindre malgré tout ; `--allow-only=false` l'interdit partout.
 
@@ -37,7 +38,10 @@ lève — est une erreur de fichier, rapportée à côté des résultats du fich
 sur les deux pools, y compris quand elle survient après que le fichier a
 rendu son résultat. De même pour un worker qui sort avec un code que ses
 résultats n'expliquent pas, et pour un teardown de runner (`api.cleanup`) qui
-lève. Une assertion `.resolves` / `.rejects` que le test n'a pas attendue
+lève. Chaque erreur garde son `code` dans les rapporteurs : `spec` l'affiche
+entre crochets avant le message, et `json` le met sur l'erreur (voir
+[Sortie des rapporteurs](/fr/reference/helix#sortie-des-rapporteurs)). Une
+assertion `.resolves` / `.rejects` que le test n'a pas attendue
 fait échouer ce test.
 
 Ce qu'un test affiche arrive au terminal quand son fichier se termine, sous
@@ -53,6 +57,12 @@ ou un plugin qui modifie `api.config.timeout`, le `timeout` du fichier de
 config, puis 60 s. Les hooks `beforeEach` / `afterEach` et `test.setup` /
 `test.teardown` tournent sous l'échéance de leur test et le font échouer, en
 se nommant, s'ils restent bloqués.
+
+Un test qui attend une promesse que rien ne résoudra échoue avec
+`E_HELIX_TIMEOUT` quand son échéance passe, même si rien d'autre n'est en
+attente et sous `vi.useFakeTimers()` : l'échéance tourne sur l'horloge réelle
+et garde le worker en vie pendant le test. Elle est effacée dès que le test se
+termine : elle ne retient donc jamais un worker après son fichier.
 
 Une échéance par fichier, distincte (`--file-timeout`, `fileTimeout`,
 10 minutes par défaut), tue un worker bloqué là où aucun timeout de test

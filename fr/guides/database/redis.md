@@ -155,7 +155,7 @@ export const healthChecks = new HealthChecks().register([
 
 Les deux s'enregistrent tels quels dans le `HealthChecks` de ream. Chacun porte le nom de sa connexion — `Redis health check (main)`, `Redis memory consumption health check (cache)` — si bien que deux connexions font deux entrées ; `as(nom)` en renomme un, `cacheFor(durée)` réutilise un résultat. Les seuils prennent des octets ou une taille (`'100 mb'`) et valent par défaut 100 Mo et 120 Mo, pour qu'une vérification laissée sans réglage puisse quand même échouer ; un seuil illisible lève `E_INVALID_BYTES_VALUE`. `compute(async (connection) => octets)` remplace la façon de mesurer la mémoire.
 
-Les deux renvoient `{ status, message, finishedAt, meta }` au lieu de lever : un endpoint de santé rapporte, il ne plante pas. `meta.connection` donne le nom et l'état de la connexion ; la vérification mémoire ajoute `meta.memoryInBytes: { used, warningThreshold, failureThreshold }`.
+Les deux renvoient `{ status, message, finishedAt, meta }` au lieu de lever : un endpoint de santé rapporte, il ne plante pas. `meta.connection` donne le nom et l'état de la connexion ; la vérification mémoire ajoute `meta.memoryInBytes: { used, warningThreshold, failureThreshold }`. Quand une vérification échoue sur une erreur, `meta.error` ne contient que `{ name, code }` : la classe de l'erreur et un code comme `WRONGPASS` ou `ECONNREFUSED`. Le message est un texte fixe. L'erreur elle-même n'est jamais dans le rapport : une route de santé est souvent publique, et l'erreur peut porter l'adresse contactée. La connexion journalise l'erreur.
 
 Aucune n'envoie de commande à une connexion qui n'est pas prête : ioredis la mettrait en file d'attente, et une sonde qui reste bloquée est la panne même qu'elle doit signaler. Une connexion encore en train de composer a droit à trois secondes, une connexion déjà en échec à aucune, et une connexion qu'ioredis a terminée d'elle-même est recomposée une fois. Une connexion fermée par `quit()`, ou que le manager a oubliée, est signalée fermée et n'est jamais recomposée : un socket rouvert par la vérification ne serait suivi par personne, survivrait à `quitAll()` et empêcherait le process de sortir.
 
@@ -195,6 +195,8 @@ quasar.connection().on('subscriber:error', ({ error, connection }) => { /* … *
 ```
 
 Sans cela, une connexion pub/sub qui tombe est invisible. La dernière erreur est aussi lisible via `connection.lastSubscriberError`.
+
+Une erreur que quasar transmet — dans un événement, dans `lastError` / `lastSubscriberError`, dans le journal, ou comme rejet d'une commande — garde `error.command.name` mais pas `error.command.args`. Ces arguments sont ce qui a été envoyé : le mot de passe d'un `AUTH` refusé, une valeur mise en cache, un jeton de verrou.
 
 Les abonnements se signalent de la même façon :
 

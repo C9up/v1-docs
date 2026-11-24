@@ -61,7 +61,7 @@ const email = f.field('email')   // { value, error, touched, set, markTouched }
 // dans un template
 html`
   <form @submit=${(e) => f.handleSubmit(e)}>
-    <input value=${email.value}
+    <input value="${email.value}"
            @input=${(e) => email.set(e.target.value)}
            @blur=${email.markTouched} />
     ${() => email.touched() && email.error()

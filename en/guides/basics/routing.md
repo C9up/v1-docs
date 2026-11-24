@@ -27,10 +27,13 @@ router.get('/users', async ({ response }) => {
 })
 
 router.post('/users', async ({ request, response }) => {
-  const data = request.all()
+  const data = await request.validateUsing(createUser)
   response.status(201).json({ user: data })
 })
 ```
+
+`createUser` is a validator: it keeps only the fields it declares. See
+[Validation](/en/guides/basics/validation/).
 
 ### Available Methods
 
@@ -95,15 +98,17 @@ router.resource('posts', PostsController)
 // DELETE /posts/:id    → PostsController.destroy
 ```
 
-Routes are automatically named (`posts.index`, `posts.store`, `posts.show`, etc.). `resource()` returns a `GroupBuilder`, so you can chain prefix, middleware, and guards:
+Routes are automatically named (`posts.index`, `posts.store`, `posts.show`, etc.). `resource()` returns a `RouteResource`: it filters the actions and sets middleware per action, but has no `prefix()` or `guard()`. To prefix or guard a resource, put it in a group:
 
 ```typescript
-router.resource('posts', PostsController).prefix('/api/v1').guard('jwt')
+router.group(() => {
+  router.resource('posts', PostsController)
+}).prefix('/api/v1').guard('jwt')
 ```
 
 ## Route Groups
 
-Groups apply shared configuration (prefix, middleware, guards) to a set of routes. The preferred syntax is the fluent callback form:
+Groups apply shared configuration (prefix, middleware, guards, roles, permissions) to a set of routes. The preferred syntax is the fluent callback form:
 
 ```typescript
 router.group(() => {
@@ -113,10 +118,12 @@ router.group(() => {
 }).prefix('/api/v1').middleware('throttle').guard('jwt')
 ```
 
+`.guard()`, `.role()` and `.permission()` work on a group as they do on a route, and only restrict: the request is authenticated by a guard both the group and the route name, the user has one of the group's roles AND meets the route's own role requirements, and holds every permission of the group and of the route. See [Protecting routes](/en/guides/auth/protecting-routes#guards-on-routes).
+
 The legacy config-object form is also supported:
 
 ```typescript
-router.group({ prefix: '/api/v1', guards: ['jwt'] }, (r) => {
+router.group({ prefix: '/api/v1', guards: ['jwt'], roles: ['admin'] }, (r) => {
   r.get('/users', [UsersController, 'index'])
 })
 ```
@@ -127,13 +134,15 @@ Groups can be nested:
 router.group(() => {
   router.group(() => {
     router.resource('users', UsersController)
-  }).prefix('/v1')
+  }).prefix('/v1').as('v1')
 
   router.group(() => {
     router.resource('users', UsersController)
-  }).prefix('/v2')
+  }).prefix('/v2').as('v2')
 }).prefix('/api').guard('jwt')
 ```
+
+`.as('v1')` and `.as('v2')` keep the route names apart (`v1.users.index`, `v2.users.index`). Without them, both resources name their routes `users.index`, and the router refuses the same name on two paths (`E_DUPLICATE_ROUTE_NAME`).
 
 ## Domains
 
@@ -267,10 +276,23 @@ a guard's `401` (with its login redirect or `WWW-Authenticate` challenge) is
 the answer. A session-authenticated request on a `.guard('jwt')` route is
 refused, so a cross-site form post riding the session cookie cannot reach an
 endpoint meant for bearer tokens. An auth state that does not report
-`authenticatedViaGuard` and has no `authenticateUsing` is refused too. Several
-guards — from the route, its group and `@Guard` on the controller — form one
-list: any of them may authenticate. RPC methods and GraphQL resolvers apply the
-same check.
+`authenticatedViaGuard` and has no `authenticateUsing` is refused too.
+
+`.guard('jwt', 'web')` accepts either guard. Each other declaration is a level
+of its own: a group's `.guard()`, each nested group's, a second `.guard()` call
+on the route and `@Guard` on the controller. The request must be authenticated
+by a guard that EVERY level names. A request is authenticated by one guard, so
+a route `.guard('web')` inside a group `.guard('jwt')` refuses every request;
+the gate never authenticates once per level. RPC methods (and their groups,
+nested ones included) apply the same rule; a GraphQL resolver has one level.
+
+`.guard()`, `.role()` and `.permission()` must name at least one guard, role
+or permission. Called with nothing, or with an empty list
+(`.role(...roles)`, `group({ guards: [] })`), they throw
+`E_EMPTY_GATE_REQUIREMENT` when the route is declared, instead of leaving the
+route public. The same holds for RPC methods and groups, `config/rpc.ts`
+`guards`, and the `guards`, `roles` and `permissions` options of a GraphQL
+resolver.
 
 `.permission()` checks the authenticated user's own permissions, as the auth
 layer resolves them: when `ctx.auth.hasAllPermissions()` exists (warden's

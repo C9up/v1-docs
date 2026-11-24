@@ -76,7 +76,7 @@ Types:
 | `LdapConfig` | interface | Options of `ldap()` |
 | `AppleConfig` | interface | `AppleKey & { callbackUrl; scopes?; authorizeParams? }` |
 | `OidcMetadata` | interface | The discovery document fields read: `issuer`, `authorization_endpoint`, `token_endpoint`, `jwks_uri`, `userinfo_endpoint?`, … |
-| `RemoteOptions` | interface | `{ ttlMs?, minRefetchMs?, now? }`, caching of the discovery document and keys |
+| `RemoteOptions` | interface | `{ ttlMs?, minRefetchMs?, now? }`: `ttlMs` (default 1 hour) is how long the discovery document and the key set are trusted before they are fetched again; `minRefetchMs` (default 5 minutes) is the shortest interval between two refetches for an unknown key |
 | `IdTokenClaims` | interface | `{ iss, sub, aud, exp, iat?, nonce?, azp?, [claim: string]: unknown }` |
 | `Jwk` | interface | `{ kty, kid?, alg?, use?, [key: string]: unknown }` |
 | `SupportedAlg` | type | `'RS256' \| 'RS384' \| 'RS512' \| 'PS256' \| 'PS384' \| 'PS512' \| 'ES256' \| 'ES384' \| 'ES512'` |
@@ -90,9 +90,11 @@ Apple, SAML, XML and LDAP helpers:
 | `AppleKey` | interface | `{ clientId, teamId, keyId, privateKey }` |
 | `validateAssertion` | function | `validateAssertion(assertion: XmlElement, expected: SamlExpectations): SamlIdentity` |
 | `assertResponseSucceeded` | function | `assertResponseSucceeded(response: XmlElement): void`; throws `E_TRANSIT_SAML_REJECTED` unless the status is Success |
-| `assertionInside` | function | `assertionInside(signed: XmlElement): XmlElement`, the assertion a signature covers |
+| `validateResponse` | function | `validateResponse(response: XmlElement, expected: SamlResponseExpectations): void`; checks the response's own `Destination`, `Issuer` and `InResponseTo` |
+| `assertionInside` | function | `assertionInside(signed: XmlElement, response: XmlElement): XmlElement`, the one assertion of the posted response, when the signed element is that assertion or the response itself |
 | `SamlIdentity` | interface | `{ nameId, nameIdFormat, attributes: Record<string, string[]>, assertionId, notOnOrAfter, rememberUntil, sessionIndex }` |
 | `SamlExpectations` | interface | `{ issuer, audience, recipient, inResponseTo?, clockSkewSeconds?, now? }` |
+| `SamlResponseExpectations` | interface | `{ issuer, destination, inResponseTo?, signed }`; `signed` says the signature covers the response itself |
 | `SAML_PROTOCOL_NS`, `SAML_ASSERTION_NS` | const | The SAML 2.0 protocol and assertion namespaces |
 | `AssertionReplayStore` | interface | `{ remember(assertionId: string, expiresAt: number): Promise<boolean> }`; `false` for an assertion already seen |
 | `MemoryAssertionReplayStore` | class | Remembers assertions in this process |
@@ -246,7 +248,7 @@ export default defineConfig({
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `issuer` | `string` | — | The issuer URL, as it appears in the tokens |
+| `issuer` | `string` | — | The issuer URL, as it appears in the tokens. Must be `https`; `http://localhost` is accepted for development |
 | `clientId` | `string` | — | Client id |
 | `clientSecret` | `string \| (() => string \| Promise<string>)` | — | Secret, or a function called at each token request |
 | `callbackUrl` | `string` | — | Redirect URI |
@@ -254,7 +256,7 @@ export default defineConfig({
 | `authorizeParams` | `Record<string, string>` | — | `prompt`, `login_hint`, `acr_values`… |
 | `userinfo` | `boolean` | `true` | Also call the userinfo endpoint when advertised |
 | `leewaySeconds` | `number` | `60` | Clock drift tolerated on the id token |
-| `cache` | `RemoteOptions` | — | Caching of the discovery document and signing keys |
+| `cache` | `RemoteOptions` | — | Caching of the discovery document and signing keys. `ttlMs` is also the longest a key the provider withdrew keeps verifying tokens |
 
 `SamlConfig`:
 
@@ -325,8 +327,9 @@ export default defineConfig({
 | [`E_TRANSIT_CALLBACK_NOT_CONFIRMED`](/en/reference/errors#e-transit-callback-not-confirmed) | An OAuth1 provider did not confirm the callback URL |
 | [`E_TRANSIT_NO_REQUEST_TOKEN`](/en/reference/errors#e-transit-no-request-token) | An OAuth1 provider answered without a request token |
 | [`E_TRANSIT_DISCOVERY_FAILED`](/en/reference/errors#e-transit-discovery-failed) | OpenID Connect discovery answered an HTTP error |
-| [`E_TRANSIT_INVALID_DISCOVERY`](/en/reference/errors#e-transit-invalid-discovery) | The discovery document lacks a required field, or names another issuer |
-| [`E_TRANSIT_JWKS_FAILED`](/en/reference/errors#e-transit-jwks-failed) | Fetching the provider's JWKS failed, or it has no `keys` array |
+| [`E_TRANSIT_INSECURE_ISSUER`](/en/reference/errors#e-transit-insecure-issuer) | An OpenID Connect `issuer` is not an `https` URL (`http://localhost` excepted); raised when the driver is built |
+| [`E_TRANSIT_INVALID_DISCOVERY`](/en/reference/errors#e-transit-invalid-discovery) | The discovery document lacks a required field, names another issuer, or gives an endpoint that is not `https` |
+| [`E_TRANSIT_JWKS_FAILED`](/en/reference/errors#e-transit-jwks-failed) | Fetching the provider's JWKS failed, or it has no `keys` array. Keys older than `cache.ttlMs` are not used in its place |
 | [`E_TRANSIT_UNKNOWN_SIGNING_KEY`](/en/reference/errors#e-transit-unknown-signing-key) | The id_token names a signing key the provider did not publish |
 | [`E_TRANSIT_UNSUPPORTED_ALGORITHM`](/en/reference/errors#e-transit-unsupported-algorithm) | The provider declares only id_token algorithms transit refuses (asymmetric signatures are required) |
 | [`E_TRANSIT_NO_ID_TOKEN`](/en/reference/errors#e-transit-no-id-token) | The token response carries no id_token; check that the `openid` scope is granted |
@@ -335,14 +338,14 @@ export default defineConfig({
 | [`E_TRANSIT_USERINFO_MISMATCH`](/en/reference/errors#e-transit-userinfo-mismatch) | The userinfo response describes another subject than the id_token |
 | [`E_TRANSIT_SAML_REJECTED`](/en/reference/errors#e-transit-saml-rejected) | A SAML response or assertion is refused |
 | [`E_TRANSIT_INVALID_SIGNATURE`](/en/reference/errors#e-transit-invalid-signature) | An XML signature does not verify, or is not one transit accepts |
-| [`E_TRANSIT_INVALID_BER`](/en/reference/errors#e-transit-invalid-ber) | An LDAP message does not encode or decode as BER |
+| [`E_TRANSIT_INVALID_BER`](/en/reference/errors#e-transit-invalid-ber) | An LDAP message does not encode or decode as BER, or a DN, an attribute or a filter value handed to `LdapConnection` is not a string |
 | [`E_TRANSIT_QUASAR_MISSING`](/en/reference/errors#e-transit-quasar-missing) | A Redis replay store names a quasar connection and `@c9up/quasar` is not installed, or its provider has not booted |
 | [`E_TRANSIT_INCOMPLETE_CONNECTION`](/en/reference/errors#e-transit-incomplete-connection) | The quasar connection lacks a command the replay store issues |
 | [`E_TRANSIT_FAKE_NOT_DECLARED`](/en/reference/errors#e-transit-fake-not-declared) | `FakeTransit` was asked for a provider no `willReturn()` declared |
 | [`E_TRANSIT_FAKE_ASSERTION`](/en/reference/errors#e-transit-fake-assertion) | A `FakeTransit` assertion (`assertBegan`, `assertSignedIn`, `assertNobodySignedIn`) failed |
 | [`E_TRANSIT_LDAP_ERROR`](/en/reference/errors#e-transit-ldap-error) | A directory refused or could not be reached; `resultCode` is the LDAP result code when the directory answered one (49 for invalid credentials, status 400) |
 
-Each one is a class of the `errors` namespace and a `@c9up/flare` `Exception`, with status 500 except `E_OAUTH_STATE_MISMATCH` (400), `E_TRANSIT_UNKNOWN_PROVIDER` (404), and `E_TRANSIT_LDAP_ERROR` for invalid credentials or an empty login or password (400): branch on `error.code` or on `error instanceof errors.E_*`. `E_TRANSIT_PROTECTED_PARAMETER` carries the refused `parameter`.
+Each one is a class of the `errors` namespace and a `@c9up/flare` `Exception`, with status 500 except `E_OAUTH_STATE_MISMATCH` (400), `E_TRANSIT_UNKNOWN_PROVIDER` (404), and `E_TRANSIT_LDAP_ERROR` for invalid credentials, an empty login or password, or one that is not a string (400): branch on `error.code` or on `error instanceof errors.E_*`. `E_TRANSIT_PROTECTED_PARAMETER` carries the refused `parameter`.
 
 The errors a visitor meets during a sign-in (`E_OAUTH_MISSING_CODE`, `E_OAUTH_STATE_MISMATCH`, `E_TRANSIT_UNKNOWN_PROVIDER`) extend `errors.HttpResponseException` and render themselves. Each has an `identifier` (`errors.<CODE>`, the translation key read through `ctx.i18n`), `getResponseMessage(error, ctx)` and `handle(error, ctx)`. `handle` negotiates with `request.accepts`: `{ errors: [{ message }] }` for JSON, a JSON:API error object for JSON:API, and otherwise a flash (`error`, and the message under its code) with a redirect back when the request has a session, or the message as text when it has none.
 
@@ -353,6 +356,14 @@ The errors a visitor meets during a sign-in (`E_OAUTH_MISSING_CODE`, `E_OAUTH_ST
 - `LdapError` becomes `errors.E_TRANSIT_LDAP_ERROR`: its `code` is now `'E_TRANSIT_LDAP_ERROR'`, and the LDAP result code moved to `resultCode` (`error.code === 49` becomes `error.resultCode === 49`).
 - `E_TRANSIT_STATE_MISMATCH` is now `E_OAUTH_STATE_MISMATCH`, with the message "Unable to verify re-redirect state".
 - A callback without its code raises `E_OAUTH_MISSING_CODE` before anything is sent to the provider, where it used to fail as `E_TRANSIT_TOKEN_EXCHANGE_FAILED`.
+- `assertionInside(signed)` now takes the posted response too: call `assertionInside(signed, response)`. It answers the response's one direct `<Assertion>` child, and refuses a signed element that is neither that assertion nor the response.
+- A SAML sign-in now refuses a signature that is not a direct child of the element it references, a signed element that is neither the posted `<Response>` nor its one `<Assertion>`, and any SAML element written under a `<ds:Signature>`. Identity providers do not send these shapes.
+- `authenticate()` on a directory now refuses a login or a password that is not a string (an array or an object read from a request body) as invalid credentials: `E_TRANSIT_LDAP_ERROR`, `resultCode` 49, status 400. Nothing is sent to the directory. An array or an object used to be sent as an empty password.
+- `LdapConnection.bind()` refuses a password that is not a non-empty string (`E_TRANSIT_LDAP_ERROR`), and `LdapConnection` refuses a DN, an attribute or a filter value that is not a string (`E_TRANSIT_INVALID_BER`). Convert the value to a string before you pass it.
+- The OpenID Connect signing keys are now fetched again once they are older than `cache.ttlMs` (default 1 hour), where they used to be kept until a token named an unknown key. A key the provider withdrew stops verifying tokens within that time. Lower `cache.ttlMs` to shorten it. If the keys cannot be fetched then, the sign-in fails with `E_TRANSIT_JWKS_FAILED`.
+- `oidc()` now refuses an `issuer` that is not `https` with `E_TRANSIT_INSECURE_ISSUER`, when the driver is built (at boot). `http://localhost` is still accepted. For a development provider on another host name, reach it as `http://localhost` (publish its port) or put TLS in front of it.
+- A discovery document that gives an `authorization_endpoint`, `token_endpoint`, `jwks_uri` or `userinfo_endpoint` that is not `https` is now refused with `E_TRANSIT_INVALID_DISCOVERY`.
+- A signed SAML `<Response>` must now carry a `Destination` equal to `callbackUrl` and an `<Issuer>` equal to `issuer`. On any response, a `Destination`, an `<Issuer>` or an `InResponseTo` that is present and differs is refused. Check that `callbackUrl` is exactly the ACS URL registered at the identity provider.
 
 ## See also
 

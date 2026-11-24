@@ -8,7 +8,11 @@
 pnpm add @c9up/blackhole
 ```
 
-`ream configure @c9up/blackhole` enregistre le provider, enregistre `@c9up/blackhole/server_middleware` sur le niveau serveur et `@c9up/blackhole/middleware` à la fin du niveau routeur, et écrit `config/blackhole.ts`. Un stockage Redis demande `@c9up/quasar` (ou votre propre client) ; le stockage base de données du limiteur utilise `@c9up/atlas` s'il est présent ; `@c9up/blackhole/hono` demande `hono`. Le paquet embarque son moteur natif ; sans lui, `createBlackhole()` lève une erreur.
+`ream configure @c9up/blackhole` enregistre le provider, enregistre `@c9up/blackhole/server_middleware` sur le niveau serveur et `@c9up/blackhole/middleware` à la fin du niveau routeur, et écrit `config/blackhole.ts`. Un stockage Redis demande `@c9up/quasar` (ou votre propre client) ; le stockage base de données du limiteur utilise `@c9up/atlas` s'il est présent ; `@c9up/blackhole/hono` demande `hono`.
+
+Le moteur natif est livré dans un petit paquet par plateforme, `@c9up/blackhole-<plateforme>`, pour linux x64 et arm64 (glibc), macOS x64 et arm64, et Windows x64. `@c9up/blackhole` les déclare en dépendances optionnelles, et votre gestionnaire de paquets installe seulement celui de votre machine. Vous n'avez pas besoin de toolchain Rust. N'installez pas avec les dépendances optionnelles désactivées (`--no-optional`, `--omit=optional`) : le moteur serait absent.
+
+Il n'existe pas de repli JavaScript. Sans le moteur, `createBlackhole()` lève `E_BLACKHOLE_NAPI_REQUIRED`, et son message nomme le paquet à installer, par exemple `@c9up/blackhole-linux-x64-gnu`.
 
 ## Points d'entrée
 
@@ -75,7 +79,7 @@ CSRF, CORS, XSS :
 | `CorsConfig` | interface | Options CORS (voir Configuration) |
 | `CorsResult` | interface | `{ headers, varyOrigin, preflight }` |
 | `CorsOriginValue`, `CorsHeadersValue` | type | `boolean \| string \| string[]` |
-| `XssConfig` | interface | `{ enabled?, allowAttributes?: XssOptInAttribute[] }` |
+| `XssConfig` | interface | `{ enabled?, allowAttributes?: XssOptInAttribute[], maxInputBytes?, maxDepth? }` |
 | `XssOptInAttribute` | type | `'id' \| 'is' \| 'slot' \| 'part' \| 'data-*'` |
 
 Stockages de limitation (l'option globale `rateLimit`) :
@@ -126,7 +130,7 @@ Chaque export de `@c9up/blackhole/limiter` est aussi exporté ici.
 | `cspHasNonce` | `cspHasNonce(): boolean` | Indique si la CSP nomme `@nonce` |
 | `generateNonce` | `generateNonce(): string` | Un nonce neuf |
 | `cors` | `cors(requestOrigin: string, method: string, requestMethod?: string, requestHeaders?: string, ctx?: BlackholeContext): CorsResult \| undefined` | La décision CORS ; `undefined` sans `cors` |
-| `sanitizeResponse` | `sanitizeResponse(body: string, contentType: string): string` | Assainit un corps `text/html` comme balisage non fiable, quoi que dise `xss` |
+| `sanitizeResponse` | `sanitizeResponse(body: string, contentType: string): string` | Assainit un corps `text/html` comme balisage non fiable, quoi que dise `xss` ; lève `E_BLACKHOLE_HTML_TOO_LARGE`, `E_BLACKHOLE_HTML_TOO_DEEP` ou `E_BLACKHOLE_HTML_TOO_COMPLEX` au-delà des bornes |
 | `xssEnabled` | `xssEnabled(): boolean` | Indique si les réponses sont assainies |
 
 ### `@c9up/blackhole/config`
@@ -217,7 +221,7 @@ Les adaptateurs n'ont pas de session : `csrf.session: true` y refuse toutes les 
 | `consume` | `consume(key: string, amount?: number): Promise<LimiterResponse>` | Compte ; lève `errors.E_TOO_MANY_REQUESTS` au-delà du budget |
 | `increment` / `decrement` | `increment(key: string, amount?: number): Promise<LimiterResponse>` | Compte sans lever d'erreur |
 | `attempt` | `attempt<T>(key: string, callback: () => T \| Promise<T>, amount?: number): Promise<T \| undefined>` | Exécute `callback` s'il reste du budget à la clé |
-| `penalize` | `penalize<T>(key: string, callback: () => T \| Promise<T>, amount?: number): Promise<[ThrottleException, null] \| [null, T]>` | Exécute `callback` ; une erreur compte contre la clé |
+| `penalize` | `penalize<T>(key: string, callback: () => T \| Promise<T>, amount?: number): Promise<[ThrottleException, null] \| [null, T]>` | Exécute `callback`, la tentative comptée d'abord ; une erreur la laisse comptée, un succès efface la clé |
 | `block` | `block(key: string, duration: number \| string): Promise<LimiterResponse>` | Bloque la clé |
 | `set` | `set(key: string, requests: number, duration?: number \| string): Promise<LimiterResponse>` | |
 | `get` | `get(key: string): Promise<LimiterResponse \| null>` | |
@@ -280,7 +284,7 @@ export default defineConfig({
 | `pathTraversal` | `boolean` | `true` | Refuse `..` dans le chemin, brut ou encodé |
 | `paramPollution` | `boolean` | `true` | Refuse une clé de query répétée (sauf les clés finissant par `[]`) |
 | `cors` | `CorsConfig` | — | Absent, CORS n'est pas géré |
-| `xss` | `boolean \| XssConfig` | `false` | Assainit chaque réponse `text/html` comme balisage non fiable |
+| `xss` | `boolean \| XssConfig` | `false` | Assainit chaque réponse `text/html` comme balisage non fiable ; `allowAttributes`, `maxInputBytes` (1 Mio), `maxDepth` (512) |
 | `xFrame` | `XFrameConfig` | actif, `SAMEORIGIN` | `X-Frame-Options` |
 | `hsts` | `HstsConfig` | actif, 180 jours, `includeSubDomains` | `Strict-Transport-Security` ; `maxAge` en secondes ou en durée |
 | `contentTypeSniffing` | `ContentTypeSniffingConfig` | actif | `X-Content-Type-Options: nosniff` |
@@ -295,7 +299,7 @@ export default defineConfig({
 | Option | Type | Défaut | Description |
 |---|---|---|---|
 | `enabled` | `boolean` | `true` | |
-| `methods` | `string[]` | `POST`, `PUT`, `PATCH`, `DELETE` | Méthodes contrôlées |
+| `methods` | `string[]` | `POST`, `PUT`, `PATCH`, `DELETE` | Méthodes contrôlées ; une requête est contrôlée quand sa méthode de ligne de requête ou sa méthode surchargée (`_method`) y figure |
 | `exceptRoutes` | `string[] \| ((ctx: BlackholeContext) => boolean)` | — | Motifs de route, chemins, préfixes de chemin finissant par `*`, ou un prédicat |
 | `trustedOrigins` | `string[]` | — | Autres origines autorisées pour les requêtes qui modifient l'état ; la même origine l'est toujours |
 | `enableXsrfCookie` | `boolean` | `true` | Dépose le cookie lisible `XSRF-TOKEN` |
@@ -347,6 +351,14 @@ Le jeton est lu dans `X-XSRF-TOKEN`, `X-CSRF-TOKEN` ou le champ de formulaire `_
 | [`E_BLACKHOLE_INVALID_CORS`](/fr/reference/errors#e-blackhole-invalid-cors) | CORS combine une origine joker avec `credentials: true`, ou sa liste d'origines contient autre chose que des chaînes non vides. |
 | [`E_BLACKHOLE_INVALID_DURATION`](/fr/reference/errors#e-blackhole-invalid-duration) | Une durée (`maxAge` de HSTS, une durée de limiteur) est négative ou illisible. |
 | [`E_BLACKHOLE_INVALID_RATE_LIMIT`](/fr/reference/errors#e-blackhole-invalid-rate-limit) | Une limite de débit ou un limiteur reçoit un nombre de requêtes ou une durée qui n'est pas un entier positif. |
+| [`E_BLACKHOLE_INVALID_XSS_ATTRIBUTE`](/fr/reference/errors#e-blackhole-invalid-xss-attribute) | `xss.allowAttributes` nomme un attribut hors de la liste autorisée (`id`, `is`, `slot`, `part`, `data-*`, `class`) ; le moteur natif le refuse. |
+| [`E_BLACKHOLE_INVALID_XSS_LIMIT`](/fr/reference/errors#e-blackhole-invalid-xss-limit) | `xss.maxInputBytes` ou `xss.maxDepth` n'est pas un entier positif. |
+| [`E_BLACKHOLE_HTML_TOO_LARGE`](/fr/reference/errors#e-blackhole-html-too-large) | `sanitizeResponse()` (ou la passe `xss`) a reçu un corps `text/html` plus long que `xss.maxInputBytes` (1 Mio par défaut). |
+| [`E_BLACKHOLE_HTML_TOO_DEEP`](/fr/reference/errors#e-blackhole-html-too-deep) | Le HTML à assainir imbrique des éléments plus profond que `xss.maxDepth` (512 par défaut), mesuré sur l'arbre que construit le parser. |
+| [`E_BLACKHOLE_HTML_TOO_COMPLEX`](/fr/reference/errors#e-blackhole-html-too-complex) | Le HTML à assainir construit plus de quatre fois sa taille plus 64 Kio (balises de mise en forme mal imbriquées recréées dans chaque bloc). |
+| [`E_BLACKHOLE_UNKNOWN_CHECK`](/fr/reference/errors#e-blackhole-unknown-check) | `check()` a demandé une vérification que le moteur n'a pas (seules `rateLimit`, `shield` et `csrf` existent). |
+| [`E_BLACKHOLE_INVALID_HEADERS`](/fr/reference/errors#e-blackhole-invalid-headers) | `check()` a reçu des en-têtes de requête qui ne sont pas un objet de chaînes. |
+| [`E_BLACKHOLE_INTERNAL_PANIC`](/fr/reference/errors#e-blackhole-internal-panic) | Le moteur natif a paniqué pendant la vérification d'une requête ; `cause` porte l'erreur native. |
 | [`E_BLACKHOLE_SECRET_MISSING`](/fr/reference/errors#e-blackhole-secret-missing) | CSRF est activé et aucun `secret` n'a été donné. |
 | [`E_BLACKHOLE_WEAK_SECRET`](/fr/reference/errors#e-blackhole-weak-secret) | Le `secret` CSRF est l'exemple de l'échafaudage, ou fait moins de 16 caractères. |
 | [`E_BLACKHOLE_INVALID_SECRET`](/fr/reference/errors#e-blackhole-invalid-secret) | Le `secret` CSRF n'est ni une chaîne ni un `Secret` qui en enveloppe une (une `TypeError`). |
@@ -378,6 +390,12 @@ Une option invalide (une source CSP sans guillemets, `credentials` CORS avec une
 - Les classes d'erreur ne sont plus exportées une à une : `E_BLACKHOLE_SESSION_NOT_READY` devient `errors.E_BLACKHOLE_SESSION_NOT_READY`, et ainsi de suite ; `ThrottleException` devient `errors.ThrottleException`, aussi `errors.E_TOO_MANY_REQUESTS`.
 - `E_BLACKHOLE_RATE_LIMITED` devient `E_TOO_MANY_REQUESTS` : la limitation globale répond sa 429 avec le code que lève un throttle. Le corps garde sa forme, `{ "error": { "code": "E_TOO_MANY_REQUESTS", "message": "Too many requests" } }`.
 - Le middleware Ream lève désormais `errors.E_BAD_CSRF_TOKEN` sur un refus CSRF au lieu de répondre sur place. La réponse ne change pas (l'erreur se rend elle-même par son `handle`), mais le gestionnaire d'exceptions de votre application la voit désormais et peut l'intercepter ou la personnaliser. blackhole demande donc `@c9up/ream` 0.2.32 ou plus récent, qui rend une erreur levée à l'intérieur de la chaîne de middlewares.
+- Le contrôle CSRF lit désormais la méthode de la ligne de requête en plus de la méthode surchargée. Un `POST` dont le corps porte `_method=GET` (ou `HEAD`, `OPTIONS`, tout verbe hors de `csrf.methods`) échappait au contrôle ; il lui faut maintenant un token valide, comme à tout `POST`. Envoyez le token avec ces formulaires, ou listez la route dans `csrf.exceptRoutes` si elle doit vraiment accepter des envois d'un autre site.
+- `class` est désormais retiré du balisage non fiable, comme `id` et `data-*` : sur une page à classes utilitaires, il dessinait des calques que le filtre de `style` refuse. Ajoutez `'class'` à `xss.allowAttributes` si votre page ne lit aucune classe dans du balisage non fiable.
+- `sanitizeResponse()` lève désormais une erreur sur un corps `text/html` qui dépasse ses bornes — `E_BLACKHOLE_HTML_TOO_LARGE` au-delà de 1 Mio, `E_BLACKHOLE_HTML_TOO_DEEP` au-delà de 512 éléments imbriqués, `E_BLACKHOLE_HTML_TOO_COMPLEX` quand le parse construirait plus de quatre fois l'entrée. Interceptez-les là où vous assainissez une entrée utilisateur, ou augmentez `xss.maxInputBytes` / `xss.maxDepth`. Avec `xss: true`, une telle réponse se termine désormais par une 500.
+- Un champ `_csrf` qui contient une moitié de paire UTF-16 isolée est désormais un token absent (403 `E_BAD_CSRF_TOKEN` sur une requête contrôlée) au lieu d'une 500.
+- `penalize()` compte désormais la tentative avant que le callback ne s'exécute, et l'efface en cas de succès. Des requêtes envoyées ensemble ne peuvent plus toutes exécuter leur callback : au plus `requests` callbacks s'exécutent par clé. Une tentative refusée parce que la clé n'en avait plus reste désormais comptée.
+- La clé stockée d'un limiteur porte désormais son budget : `<requests>/<duration>/<blockDuration>:<key>` (dans Redis sous le préfixe du store, dans la colonne `key` de la base). Deux budgets sur la même clé ne partagent plus un compteur. Les compteurs écrits avant la mise à jour ne sont plus lus : chaque clé repart de zéro une fois. Le code qui lit directement les clés Redis ou la table doit utiliser la nouvelle forme.
 
 ## Voir aussi
 

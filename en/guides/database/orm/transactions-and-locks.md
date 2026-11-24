@@ -192,7 +192,10 @@ On a `@SoftDeletes` model, bulk DML honours the soft-delete scope just like read
 `delete()` **soft-deletes** (stamps `deleted_at`) rather than issuing a hard
 `DELETE` — consistent with the instance-level `delete()`. For a real `DELETE` use
 `forceDelete()`; `restore()` clears `deleted_at` in bulk. `withTrashed()` /
-`onlyTrashed()` widen / restrict the scope before the mutation.
+`onlyTrashed()` widen / restrict the scope before the mutation. The filter is
+ANDed with your clauses as one group, so `where(a).orWhere(b).update(…)` never
+reaches a deleted row. `restore()` keeps the other guards of the query (the
+repository scope, the key of a `related().query()`) and reaches only deleted rows.
 
 ## Connection-level writes and upserts
 

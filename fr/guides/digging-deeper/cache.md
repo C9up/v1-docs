@@ -72,6 +72,8 @@ await users.set('42', { id: 42 })
 await users.get('42') // lit la clé sous-jacente `users:42`
 ```
 
+Le nom doit être une chaîne non vide. `namespace('')`, `undefined` ou `null` lève `E_ECHO_INVALID_ARGUMENT` : un identifiant de tenant manquant échoue au lieu de rendre tout le store.
+
 ### Prefix et TTL par défaut
 
 ```ts
@@ -144,7 +146,7 @@ Les tags appartiennent au namespace qui les a écrits : `tenantA.deleteByTag(['u
 
 ## Limites actuelles
 
-- `flush()` Redis parcourt un curseur `SCAN` sur le préfixe — jamais `KEYS`, qui bloque le serveur. Il touche quand même toutes les clés préfixées, donc reste une opération lourde sur un gros jeu de données ; il lève une erreur sur un client sans `scan` plutôt que de retomber sur `KEYS`
+- `flush()` Redis parcourt un curseur `SCAN` sur le préfixe — jamais `KEYS`, qui bloque le serveur. Il touche quand même toutes les clés préfixées, donc reste une opération lourde sur un gros jeu de données ; il lève une erreur sur un client sans `scan` plutôt que de retomber sur `KEYS`. Il respecte le `keyPrefix` de la connexion et parcourt chaque maître d'un cluster
 - les capacités tags dependent du driver concret
 
 ## Erreurs

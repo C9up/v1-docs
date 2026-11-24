@@ -84,6 +84,20 @@ export default defineConfig({
 
 `csrf: true` / `csrf: false` is shorthand for enabling/disabling with defaults. `GET`, `HEAD`, and `OPTIONS` are never guarded.
 
+**Method override.** The check looks at the method on the request line, not
+only at the one a `_method` field or an override middleware reports. A request
+is guarded when either of them is in `methods`. A `POST` whose body says
+`_method=GET` is still a `POST` for the check, so it needs a valid token. A
+`POST ?_method=DELETE` is guarded too, even when `methods` lists `DELETE`
+only. On Ream the request-line method is `request.intended()`; on Express it
+is `req.originalMethod` (set by `method-override`), on Fastify
+`request.raw.method`, on Hono the method `@hono/node-server` received.
+
+**A `_csrf` value that is not valid text.** A `_csrf` field holding a lone
+UTF-16 surrogate counts as a missing token: a guarded request is refused with
+`403 E_BAD_CSRF_TOKEN`, any other request goes through. With `csrf: false` the
+body is not read at all.
+
 **Cookie attributes.** The `XSRF-TOKEN` cookie now defaults `Secure` in production (`NODE_ENV === 'production'`) — no need to set it by hand. It is intentionally **not** `httpOnly`: the double-submit flow needs the browser JS to read the cookie and echo it as `X-XSRF-TOKEN`. Setting `cookie: { httpOnly: true }` makes the cookie unreadable and every non-form POST will `403` — blackhole logs a warning if you do. Only enable it for an all-server-rendered app that submits exclusively via the `_csrf` form field.
 
 > Bearer/JWT routes are CSRF-immune (the browser can't attach an `Authorization` header cross-site), so list your token-authed API prefixes in `exceptRoutes`; reserve CSRF for cookie/session-authed routes.

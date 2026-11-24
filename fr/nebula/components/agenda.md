@@ -70,7 +70,7 @@ Une plage ne prend le focus que si `onRangeActivate` est donné : son libellé e
 
 ### Tons, jours fériés, indications
 
-`tone` dit ce qu'est un événement ou une plage — `'default' | 'primary' | 'success' | 'warning' | 'danger' | 'muted'` — et l'application y range ses propres états (libre, réservé, arrivé, annulé), un sens chacun. `accent` colore le bord gauche d'un événement de n'importe quelle couleur CSS, celle d'une catégorie ; `struck` le barre. Une colonne `holiday: true` a son en-tête et sa grille marqués ; `hint` est une seconde ligne sous son libellé.
+`tone` dit ce qu'est un événement ou une plage — `'default' | 'primary' | 'success' | 'warning' | 'danger' | 'muted'` — et l'application y range ses propres états (libre, réservé, arrivé, annulé), un sens chacun. `accent` colore le bord gauche d'un événement de n'importe quelle couleur CSS, celle d'une catégorie. La valeur ne règle que cette propriété : une valeur qui n'est pas une couleur est ignorée et la couleur du ton reste. Une valeur enregistrée ne peut donc pas ajouter d'autres styles au bloc. `struck` le barre. Une colonne `holiday: true` a son en-tête et sa grille marqués ; `hint` est une seconde ligne sous son libellé.
 
 ### Créneaux libres et nouveaux événements
 

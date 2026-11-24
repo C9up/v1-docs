@@ -260,6 +260,9 @@ The class is `Job`; the record is `JobRecord`. They used to share the name.
 
 - if `handle()` fails and `attempts < maxAttempts`, job goes back to `pending`
 - otherwise job is marked `failed` and stored as failed
+- a job whose worker died more than `maxStalledCount` times (Redis driver,
+  1 by default) is marked `failed` too, and its `failed()` hook receives
+  `E_JOB_STALLED`; its handler does not run again
 - read failures through `failedJobs()`
 
 ```ts

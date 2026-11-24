@@ -60,8 +60,11 @@ export const App = component(() => {
 
 `run` enregistre l'app sous le nom que l'activité générée démarre, donne à
 orbit son hôte natif et la table de styles de l'app, branche le bouton retour
-d'Android, puis monte le composant racine avec les props de lancement (les
-extras de l'intent). Hors d'une app construite par ream, `useHost(host)` et
+d'Android, puis monte le composant racine. L'activité générée ne lui passe
+aucune prop de lancement : c'est elle qui lance l'app, donc n'importe quelle
+app du téléphone peut la démarrer avec les extras de son choix, et ils
+n'atteignent jamais votre composant. Hors d'une app construite par ream,
+`useHost(host)` et
 `mount(App(), { viewport })` font la même chose à la main.
 
 ## Correspondances
@@ -106,14 +109,16 @@ encoche et, quand il est ouvert, clavier.
 | Code | Cause |
 |---|---|
 | `E_ORBIT_NO_HOST` | `mount` a tourné avant que `useHost` donne à orbit un hôte natif, ou le module n'est pas celui d'orbit. |
-| `E_ORBIT_COMMIT_FAILED` | L'hôte natif a refusé une transmission ; le message porte son rapport. |
+| `E_ORBIT_COMMIT_FAILED` | L'hôte natif a refusé une transmission ; le message porte son rapport. Ce qu'elle portait est renvoyé avec la suivante. |
+| `E_ORBIT_TREE_TOO_DEEP` | Les vues s'imbriquent sur plus de 100 niveaux : l'hôte refuse la transmission avant la mise en page. |
+| `E_ORBIT_SVG_VALUE` | Une valeur d'un `<svg>` que l'hôte ne sait pas lire : cette forme est laissée de côté, le reste est dessiné. Passée à `onError` de `mount`, jamais levée. |
 | `E_ORBIT_UNSUPPORTED_ELEMENT` | Un élément sans correspondance native (`select`, `canvas`, ou `text` / un dégradé dans un `svg`). |
 | `E_ORBIT_BLOCK_IN_TEXT` | Un élément bloc dans du texte : un texte natif ne contient que des passages en ligne. |
 | `E_ORBIT_INVALID_MOTION` | `motion=${…}` n'était pas un objet de valeurs animées. |
 | `E_ORBIT_INVALID_SCROLL_BINDING` | `scroll-y=${…}` n'était pas une valeur animée. |
 | `E_ORBIT_INVALID_COLOR` | Une couleur qu'orbit ne sait pas lire. |
-| `E_ORBIT_INSECURE_IMAGE_URL` | `<img src>` en http simple : les images ne se chargent qu'en https. |
-| `E_ORBIT_IMAGE_SOURCE` | `<img src>` avec un schéma qui n'est pas une source d'image (`data:`, `javascript:`…). |
+| `E_ORBIT_INSECURE_IMAGE_URL` | `<img src>` en http simple : les images ne se chargent qu'en https. Levée pour une adresse écrite dans le template ; pour une adresse venue des données, l'image n'affiche rien et l'erreur va à `onError` de `mount`. |
+| `E_ORBIT_IMAGE_SOURCE` | `<img src>` avec un schéma qui n'est pas une source d'image (`data:`, `javascript:`…) ou sans schéma (`//hote/a.png`). Levée ou signalée comme ci-dessus. |
 | `E_ORBIT_DUPLICATE_KEY` | Deux éléments d'une liste `each` partagent une clé. |
 | `E_ORBIT_NO_SCREEN` | `useScreen()` dans un composant qu'aucun écran d'une pile n'a construit. |
 | `E_ORBIT_STACK_SHOWN` | Une même pile placée à deux endroits : une pile s'affiche une fois. |

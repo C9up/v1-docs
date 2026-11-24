@@ -150,7 +150,7 @@ La région. Montez-la une fois près de la racine ; elle affiche les notificatio
 | `theme` | `'light' \| 'dark' \| 'system'` | `'system'` | `system` suit la variante `dark` de l'application. |
 | `invert` | `boolean` | `false` | Inverser les surfaces claire et sombre. |
 | `hotkey` | `string[]` | `['altKey', 'KeyT']` | Touches et codes `KeyboardEvent` qui atteignent la région. |
-| `offset` | `Offset` | `'24px'` | Depuis les bords de la fenêtre : une valeur, ou `{ top, right, bottom, left }`. |
+| `offset` | `Offset` | `'24px'` | Depuis les bords de la fenêtre : une valeur, ou `{ top, right, bottom, left }`. Chacune ne règle que sa propriété ; une valeur que la propriété refuse est ignorée. |
 | `mobileOffset` | `Offset` | `'16px'` | La même chose, à 600 px de large et moins. |
 | `dir` | `'rtl' \| 'ltr' \| 'auto'` | — | Sens d'écriture de la région. |
 | `icons` | `ToastIcons` | celles de shadcn | Remplace l'icône de `success`, `info`, `warning`, `error`, `loading`, ou la croix de fermeture ; `null` n'en affiche aucune. |

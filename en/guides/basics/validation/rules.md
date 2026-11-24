@@ -28,7 +28,7 @@ rules.string()
   .max(100)     // Maximum length (inclusive)
   .email()      // Must match email pattern (no whitespace, @ required)
   .uuid()       // Any UUID version — .uuid({ version: 4 }) pins one
-  .url()        // Must parse as a URL
+  .url()        // A URL: http, https or ftp unless told otherwise
   .regex(/…/)   // Must match the pattern
   .in(['a'])    // Must be one of these
   .trim()       // Trim whitespace before validation (transform)
@@ -37,6 +37,21 @@ rules.string()
 
 `uuid()` takes a version, or a list of them: `uuid({ version: [4, 7] })`.
 Without one, any version passes.
+
+`url()` takes the options of validator.js's `isURL` under their own names, with
+the same defaults: `protocols` (`['http', 'https', 'ftp']`), `require_protocol`
+(`false`), `require_tld` (`true`), `require_valid_protocol` (`true`),
+`disallow_auth`, `host_whitelist`, `host_blacklist` and the others.
+
+```typescript
+rules.string().url({ protocols: ['https'], require_protocol: true })
+```
+
+The scheme is read from the value as it is written. A scheme that is not in
+`protocols` is refused, with or without `//` after it: `javascript:…` never
+passes, whatever follows. Without a scheme, `example.com`, `example.com:8080`
+and `user:password@example.com` are still URLs; set `require_protocol` to
+refuse them.
 
 ### Number Rules
 
@@ -64,6 +79,12 @@ On an array or a record, `min()` and `max()` are `minLength()` and `maxLength()`
 the size they bound is the number of items, or of keys. The error names the
 rule that ran — `array.minLength`, `record.maxLength`.
 
+When an array, a record, a tuple or an object fails one of its own rules, what
+it holds is not validated. An array over `maxLength(5)` reports
+`array.maxLength` and nothing else: no item rule runs, a database rule
+(`exists()`, `unique()`) included. `.bail(false)` on the container validates
+the items anyway.
+
 ### Boolean Rules
 
 ```typescript
@@ -84,6 +105,20 @@ const s = schema({
 s.validateResult({ name: 'Alice' })
 // valid: true — nickname is absent but optional
 ```
+
+`optional()`, `nullable()` and `nullish()` return a new chain. The chain they
+are called on does not change, so two schemas can share it:
+
+```typescript
+const email = rules.string().email()
+
+const register = schema({ email })                   // email is required
+const update   = schema({ email: email.optional() }) // email is optional here only
+```
+
+The other methods (`email()`, `min()`, `trim()`…) add to the chain they are
+called on and return it. A validator keeps its own copy of the chains when it
+is built: changing a chain afterwards does not change that validator.
 
 ### Files
 
@@ -297,7 +332,15 @@ still validated alongside.
 
 ## Transforms
 
-Transforms run before validation rules. They modify the value in place so subsequent rules see the transformed result:
+Three kinds of method change a value, at three different moments:
+
+| Method | When it runs | What it receives |
+| --- | --- | --- |
+| `.parse(fn)` | First, before the presence check and the type rule | The raw input |
+| `.trim()`, `.escape()`, `.toLowerCase()`, `.toUpperCase()`, `.toCamelCase()`, `.normalizeEmail()`, `.normalizeUrl()` | After the type rule, before the other rules | A value of the right type |
+| `.transform(fn)` | Last, once the whole payload is valid | The validated value |
+
+The built-in ones run before the rules, so the rules judge their result:
 
 ```typescript
 const s = schema({
@@ -310,4 +353,28 @@ s.validateResult({ username: '  Al  ' })
 //            message: 'The username field must be at least 3', meta: { min: 3 } }]
 ```
 
-Available transforms: `.trim()`
+`.transform()` runs after the rules. The rules judge the value before it, and
+the callback only receives a value that passed them:
+
+```typescript
+const s = schema({
+  percent: rules.number().max(100).transform((value) => Number(value) / 100),
+})
+
+s.validateResult({ percent: 50 })    // valid, data.percent === 0.5
+s.validateResult({ percent: 5000 })  // refused by max(100): the callback is not called
+```
+
+The callback runs for a valid payload only, after the async rules too. It is
+not called for an absent value or for `null`. A rule written after
+`.transform()` in the chain still judges the value before it.
+
+To change a value before it is validated, use `.parse()`. It runs first, so it
+must test what it receives:
+
+```typescript
+rules.number()
+  .parse((value) => (typeof value === 'string' ? value.replace(',', '.') : value))
+  .max(100)
+// '12,5' → 12.5, then max(100) judges 12.5
+```

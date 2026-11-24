@@ -138,6 +138,21 @@ runs and styles it.
 The last 50 requests are kept, in memory, and the bar is injected only in
 development. A production response is byte-for-byte what the handler produced.
 
+The profiler holds request bodies, sessions and the signed-in user, so its pages
+and the reload stream (everything under `/__ream/`) answer only a `Host` the
+server is meant to be reached by: an IP address, `localhost`, a `.localhost`
+name, or the bind host. Any other host gets `403 Blocked request. This host
+("<name>") is not allowed.` — that is what stops a web page from reading them
+through DNS rebinding. A request the browser marks cross-site is refused too.
+To open them under another name (a tunnel, a `.test` domain), list it:
+
+```ts
+new Ignitor({ allowedHosts: ['myapp.test', '.tunnel.example'] }) // `.` = and its subdomains
+```
+
+`allowedHosts: true` accepts any host and leaves the pages open to DNS
+rebinding.
+
 #### The query panel
 
 Queries reach the profiler as `db:query` events on the application's emitter.

@@ -64,18 +64,32 @@ a tab closed early — must not keep its session forever:
 
 ```typescript
 const registry = createLiveRegistry({
-  claimTimeoutMs: 60_000,   // unclaimed (no subscription, no event) → disposed
-  idleTimeoutMs: undefined, // claimed and silent → kept (default); set it if
-                            // relay's disconnect is not wired to live.disconnect
-  maxPerOwner: 32,          // past it, the owner's oldest session is disposed
-  maxSessions: 10_000,      // past it, mount throws E_AURORA_LIVE_SESSION_LIMIT
+  claimTimeoutMs: 60_000,      // unclaimed (no subscription, no handled event) → disposed
+  idleTimeoutMs: 10 * 60_000,  // claimed, then no event and no keep-alive → disposed
+  maxPerOwner: 32,             // past it, the owner's oldest session is disposed
+  maxSessions: 10_000,         // past it, mount makes room or throws E_AURORA_LIVE_SESSION_LIMIT
 })
 ```
 
-The values shown are the defaults. A session is claimed by its owner
-subscribing to its channel or sending it an event. Answer
-`E_AURORA_LIVE_SESSION_LIMIT` with a 503: evicting another visitor's session to
-make room would hand the limit to whoever mounts fastest.
+The values shown are the defaults, and they are the production settings: you
+do not have to set anything. A session is claimed when its owner subscribes to
+its channel or sends it an event the component handles; a POST naming an event
+the component does not have (answered 400) claims nothing.
+
+A claimed session stays while its client is there. Each handled event restarts
+its idle clock, and so does the keep-alive `liveClient` sends every two minutes
+(`keepAliveMs`) through `buildLiveTransport`. A client that only watches keeps
+its session; a closed tab stops sending, and its session ends ten minutes later.
+If you write your own transport, give it a `keepAlive(id)` that posts
+`{ id, keepAlive: true }` to the event route, or set `idleTimeoutMs` to the
+longest time your users may watch without clicking. Keep `idleTimeoutMs` well
+above the client's `keepAliveMs`.
+
+When the registry is full, `mount` makes room before it refuses: the oldest
+session nobody claimed goes first, then the least recently used one that has
+been silent for half of `idleTimeoutMs`. A session in use is never evicted.
+Only when every session is in use does `mount` throw
+`E_AURORA_LIVE_SESSION_LIMIT`; answer it with a 503.
 
 ### Client side
 
@@ -94,7 +108,7 @@ liveClient({
 })
 ```
 
-`liveClient` **hydrates** the SSR HTML, applies inbound patches by setting the mirror signal (aurora patches the exact node), and forwards `data-live-click` via the transport.
+`liveClient` **hydrates** the SSR HTML, applies inbound patches by setting the mirror signal (aurora patches the exact node), forwards `data-live-click` via the transport, and keeps the session alive every `keepAliveMs` (two minutes by default) while it is mounted.
 
 ### Shared / multiplayer state
 

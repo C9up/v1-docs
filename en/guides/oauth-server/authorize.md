@@ -94,6 +94,32 @@ lost a scope or a redirect URI meanwhile, or registered more scopes than the
 page listed. It mints nothing: the code exists only once `grant` runs. A ticket
 lasts ten minutes; `consentTicketTtlSeconds` in the config changes it.
 
+### When the consent screen is skipped
+
+`authorize()` answers `redirect` without a consent screen in two cases: the
+client is `trusted`, or the user already agreed to every scope it asks for
+(and the request has no `prompt=consent`).
+
+Neither applies to a public client whose redirect URI is a loopback address,
+`localhost` or a private-use scheme (`com.example.app:/callback`). Such a
+client gets the screen every time. Any other program on the user's machine can
+send the same `client_id`, with its own PKCE pair and its own port, so nothing
+proves the request comes from the application the user approved (RFC 8252
+§8.6). Without the screen, that program would get the user's tokens and the
+user would see nothing. A confidential client proves who it is with its secret,
+and a public client on an `https` redirect URI receives the code on a host it
+owns: both keep the silent path.
+
+### The issuer on the redirect
+
+Every redirect `grant()`, `deny()` and `authorize()` build carries `iss`, the
+issuer (RFC 9207), next to `code` or `error` and `state`. A client that talks
+to several authorization servers compares it with the server it sent the user
+to, and so detects a code that came from another one (the mix-up attack). The
+metadata document announces it with
+`authorization_response_iss_parameter_supported: true`. If you build a redirect
+yourself with `successRedirect()` or `errorRedirect()`, pass `visa.issuer`.
+
 `authorize()` takes the query as the parser hands it over. A parameter sent
 twice (`scope=a&scope=b`) or bracketed (`scope[]=a`, `scope[x]=1`) arrives as an
 array or an object, and RFC 6749 §3.1 says a parameter MUST NOT be included
@@ -117,7 +143,9 @@ const { client, secret } = await visa.registerClient({
 gets a new one. A public client — a SPA, a native app — registers with
 `tokenEndpointAuthMethod: 'none'`, gets no secret, and may not use
 `client_credentials`: "the client itself" means nothing when anyone can read
-its id out of a browser.
+its id out of a browser. A public client on a loopback, `localhost` or
+private-use-scheme redirect URI also sees the consent screen every time — see
+[When the consent screen is skipped](#when-the-consent-screen-is-skipped).
 
 The `tokenEndpointAuthMethod` a client registers is the **only** one accepted:
 a client declared `client_secret_basic` sending its secret in the body is

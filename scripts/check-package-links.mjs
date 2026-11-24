@@ -80,8 +80,10 @@ for (const pkg of readdirSync(packages)) {
 
     if (!/\.(ts|mts|rs)$/.test(file)) continue
     const code = text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
-    sources.push({ where, code })
-    for (const m of code.matchAll(/["'`](E_[A-Z][A-Z0-9_]*[A-Z0-9])["'`]/g)) {
+    // A Rust file's `#[cfg(test)]` module holds fixtures, not codes a user meets.
+    const shipped = file.endsWith('.rs') ? code.split(/#\[cfg\(test\)\]\s*mod\b/)[0] : code
+    sources.push({ where, code: shipped })
+    for (const m of shipped.matchAll(/["'`](E_[A-Z][A-Z0-9_]*[A-Z0-9])["'`]/g)) {
       if (!codes.has(m[1])) codes.set(m[1], where)
     }
   }

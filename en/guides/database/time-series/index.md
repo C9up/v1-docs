@@ -87,7 +87,7 @@ export default defineConfig({
 
 `ream configure @c9up/eon` writes this file, declares the four variables in `start/env.ts` (the password is optional, for token auth) and seeds `.env` with `TDENGINE_PASSWORD=change-me`: a placeholder that authenticates nowhere. Set the real password before the first run; never keep TDengine's factory `taosdata`, which every image ships with. The config has no fallback values, so a deployment missing a variable fails at boot instead of connecting to localhost.
 
-Put credentials in `user` / `password` / `token`: the user and password go in the connection request, the token in the URL's query, as taosAdapter expects. They are also accepted in the URL (`ws://user:pass@host`, `?token=`, a database as the path); eon masks the password and every query value of the URL in its error messages. There is no connection pool — eon holds a single long-lived connection; `connectRetries` covers the initial-connect race (docker/k8s cold start), not per-query reconnection.
+Put credentials in `user` / `password` / `token`: the user and password go in the connection request, the token in the URL's query, as taosAdapter expects. They are also accepted in the URL (`ws://user:pass@host`, `?token=`, a database as the path); eon masks the password and every query value of the URL in its error messages. A URL that does not parse is never copied into the error, not even into its `cause`. In the URL, a password holding `#`, `/`, `?` or `\` must be percent-encoded; otherwise give it in `password`. There is no connection pool — eon holds a single long-lived connection; `connectRetries` covers the initial-connect race (docker/k8s cold start), not per-query reconnection.
 
 ### The `EonConnection` seam
 

@@ -60,6 +60,8 @@ await codemods.addProvider('@community/your-plugin/provider')
 
 Ajoute des paires `KEY=value` à `.env` (créant le fichier s'il manque) et à `.env.example` quand le projet en a un, pour qu'un clone neuf apprenne que les variables existent. Idempotent — une clé déjà présente en début de ligne est laissée intacte dans l'un comme l'autre fichier, donc les valeurs écrites par l'utilisateur ou un précédent `configure` sont préservées ; `overwrite: true` (ou des codemods créés avec `force`) remplace plutôt cette ligne sur place.
 
+Un `.env` qu'il crée n'est lisible que par son propriétaire (mode `0600`) ; un fichier existant garde son mode. Un `.env` qui est un lien symbolique menant hors du projet, ou vers un chemin qui n'existe pas, est refusé avec `E_CODEMODS_UNSAFE_PATH`.
+
 Les clés listées dans `omitFromExample` sont écrites vides (`KEY=`) dans `.env.example`, pour que la valeur de développement d'un secret n'atteigne jamais le fichier commité. Une valeur ou une clé contenant un saut de ligne est refusée avant toute écriture.
 
 ```typescript
@@ -73,7 +75,7 @@ Utilisez des valeurs placeholder qui signalent « à remplir » (chaîne vide, b
 
 ### `writeFile(filePath, content, options?)`
 
-Écrit un fichier sous la racine du projet. Le chemin est résolu relativement à la racine et rejeté s'il s'échappe via `..` ou un lien symbolique. Idempotent — les fichiers existants sont laissés intacts à moins que `options.force` ne soit défini (transmis par `ream add --force` / `ream configure --force`).
+Écrit un fichier sous la racine du projet. Le chemin est résolu relativement à la racine et rejeté s'il s'échappe via `..` ou un lien symbolique — un lien symbolique vers un chemin qui n'existe pas encore est refusé aussi, car écrire à travers créerait ce chemin. Idempotent — les fichiers existants sont laissés intacts à moins que `options.force` ne soit défini (transmis par `ream add --force` / `ream configure --force`).
 
 ```typescript
 await codemods.writeFile('config/your-plugin.ts', `import { defineConfig } from '@community/your-plugin'

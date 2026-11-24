@@ -36,21 +36,21 @@ pnpm add @c9up/archive
 | `GcsDriver` | classe | Google Cloud Storage avec un compte de service. `new GcsDriver(config: GcsConfig)`. |
 | `DriveFile` | classe | Un handle sur un fichier, lu seulement quand une méthode le demande. |
 | `DriveDirectory` | classe | Une entrée de répertoire de `listAll()` : `{ isFile: false; isDirectory: true; name; prefix }`. |
-| `StaticMiddleware` | classe | Sert un répertoire sous un préfixe d'URL, avec ETag et Last-Modified. `new StaticMiddleware(config: StaticConfig)`. |
+| `StaticMiddleware` | classe | Sert un répertoire sous un préfixe d'URL, avec ETag et Last-Modified. Par défaut, les fichiers cachés (dot-files) ne sont pas servis. `new StaticMiddleware(config: StaticConfig)`. |
 | `createSignedRouteHandler` | fonction | `createSignedRouteHandler(options: SignedRouteOptions)` : un middleware qui vérifie les URL signées du disque local et sert le fichier. |
 | `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs) |
-| `DriveConfig` | interface | `{ default: string; services: Record<string, DriveServiceFactory>; fakes?: { location?: string } }`. |
-| `ArchiveConfig` | interface | La forme à disque unique : `{ driver: 'local' \| 's3' \| 'gcs'; local?: { root; signingSecret?; routeBasePath? }; s3?: S3Config; gcs?: GcsConfig }`. Exécutée comme un disque nommé `default`. |
+| `DriveConfig` | interface | `{ default: string; services: Record<string, DriveServiceFactory> }`. |
+| `ArchiveConfig` | interface | La forme à disque unique : `{ driver: 'local' \| 's3' \| 'gcs'; local?: { root; signingSecret?; routeBasePath?; visibility? }; s3?: S3Config; gcs?: GcsConfig }`. Exécutée comme un disque nommé `default`. |
 | `DriveServiceFactory` | type | `() => StorageDriver`. |
-| `FsServiceOptions` | interface | `{ location?: string; root?: string; signingSecret?: string \| ReleasableSecret; routeBasePath?: string }`. |
-| `LocalDriverOptions` | interface | `{ signingSecret?: string \| ReleasableSecret; routeBasePath?: string }`. |
+| `FsServiceOptions` | interface | `{ location?: string; root?: string; signingSecret?: string \| ReleasableSecret; routeBasePath?: string; visibility: Visibility }`. |
+| `LocalDriverOptions` | interface | `{ signingSecret?: string \| ReleasableSecret; routeBasePath?: string; visibility?: Visibility }`. Ici, `visibility` vaut `'public'` par défaut. |
 | `S3Config` | interface | `{ bucket; region?; endpoint?; accessKeyId; secretAccessKey; publicUrl?; requestTimeoutMs? }`. |
 | `GcsConfig` | interface | `{ bucket; serviceAccount: GcsServiceAccount; publicUrl?; requestTimeoutMs? }`. |
 | `GcsServiceAccount` | interface | `{ client_email: string; private_key: string; project_id?: string }`. |
 | `StorageDriver` | interface | Le contrat d'un driver : chaque méthode du tableau plus bas. |
 | `Visibility` | type | `'public' \| 'private'`. |
 | `WriteOptions` | interface | `{ visibility?; contentType?; cacheControl?; contentDisposition?; contentLength? }`. |
-| `PutStreamOptions` | interface | `{ contentType?: string; contentLength?: number }`. |
+| `PutStreamOptions` | interface | `{ visibility?: Visibility; contentType?: string; contentLength?: number }`. |
 | `SignedUrlOptions` | interface | `{ expiresIn?: number \| string; contentType?: string; contentDisposition?: string }`. `expiresIn` en secondes ou sous la forme `'30mins'` ; 300 par défaut, 604800 au plus. |
 | `Metadata` | interface | `{ size; contentLength; mimeType; contentType; lastModified: Date; etag; visibility }`. |
 | `StorageEntry` | interface | `{ path: string; size: number; lastModified: Date }`. |
@@ -59,7 +59,8 @@ pnpm add @c9up/archive
 | `FileSnapshot` | interface | `{ key; name; contentLength; contentType?; lastModified: string; etag }`. |
 | `MoveToDiskOptions` | interface | `WriteOptions & { moveAs?: 'stream' \| 'buffer' }` ; `'stream'` par défaut. |
 | `ReleasableSecret` | interface | `{ release(): string }`. |
-| `StaticConfig` | interface | `{ root: string; prefix?: string; maxAge?: number; extensions?: string[] }`. |
+| `StaticConfig` | interface | `{ root: string; prefix?: string; maxAge?: number; extensions?: string[]; dotFiles?: DotFilesPolicy }`. |
+| `DotFilesPolicy` | type | `'allow' \| 'deny' \| 'ignore'`. |
 | `StaticMiddlewareHttpContext` / `StaticMiddlewareResponse` | interface | La partie du contexte HTTP qu'utilise le middleware statique. |
 | `SignedRouteOptions` | interface | `{ storage: StorageManager; driver: LocalDriver; prefix?: string }`. |
 | `SignedRouteHttpContext` / `SignedRouteResponse` | interface | La partie du contexte HTTP qu'utilise la route signée. |
@@ -127,21 +128,21 @@ moveToDisk(key: string, options?: MoveToDiskOptions): Promise<void>
 |---|---|---|
 | `put` | `put(filePath: string, content: Buffer \| string, options?: WriteOptions): Promise<void>` | Écrit un fichier. |
 | `putStream` | `putStream(filePath: string, readable: NodeJS.ReadableStream, options?: PutStreamOptions): Promise<void>` | Écrit depuis un flux. |
-| `copyFromFs` / `moveFromFs` | `copyFromFs(source: string \| URL, destination: string, options?: WriteOptions): Promise<void>` | Copie (ou déplace) un fichier du système de fichiers local vers le disque. |
+| `copyFromFs` / `moveFromFs` | `copyFromFs(source: string \| URL, destination: string, options?: WriteOptions): Promise<void>` | Copie (ou déplace) un fichier du système de fichiers local vers le disque. `options.visibility` s'applique, comme sur `put`. |
 | `get` | `get(filePath: string): Promise<Buffer \| null>` | Contenu, `null` s'il est absent. |
 | `getBytes` / `getArrayBuffer` | `getBytes(filePath: string): Promise<Uint8Array>` | Contenu ; un fichier absent lève `E_CANNOT_READ_FILE`, avec `E_ARCHIVE_NOT_FOUND` en `cause`. |
 | `getStream` | `getStream(filePath: string): Promise<NodeJS.ReadableStream>` | Un fichier absent lève `E_CANNOT_READ_FILE`, avec `E_ARCHIVE_NOT_FOUND` en `cause`. |
 | `exists` | `exists(filePath: string): Promise<boolean>` | |
 | `delete` | `delete(filePath: string): Promise<boolean>` | |
-| `deleteAll` | `deleteAll(prefix: string): Promise<void>` | Chaque fichier sous un préfixe. |
-| `copy` / `move` | `copy(from: string, to: string, options?: WriteOptions): Promise<void>` | Au sein du disque. `move` garde la visibilité. |
+| `deleteAll` | `deleteAll(prefix: string): Promise<void>` | Chaque fichier sous le répertoire que nomme `prefix` : `'users/1'` et `'users/1/'` suppriment `users/1/…`, jamais `users/10/…`. `''` désigne tout le disque. |
+| `copy` / `move` | `copy(from: string, to: string, options?: WriteOptions): Promise<void>` | Au sein du disque. Les deux gardent la visibilité de la source, sauf si `options.visibility` est donné. |
 | `url` / `getUrl` | `url(filePath: string): Promise<string>` | URL publique pour un fichier public, URL signée pour un fichier privé. |
 | `publicUrl` | `publicUrl(filePath: string): string` | URL non signée, sans égard à la visibilité. |
 | `getSignedUrl` | `getSignedUrl(filePath: string, options?: SignedUrlOptions): string \| Promise<string>` | URL de lecture limitée dans le temps. |
 | `getSignedUploadUrl` | `getSignedUploadUrl(filePath: string, options?: SignedUrlOptions): string \| Promise<string>` | URL de téléversement limitée dans le temps ; disques cloud seulement. |
 | `getMetadata` / `getMetaData` | `getMetadata(filePath: string): Promise<Metadata>` | Un fichier absent lève `E_CANNOT_GET_METADATA`, avec `E_ARCHIVE_NOT_FOUND` en `cause`. |
 | `getVisibility` / `setVisibility` | `setVisibility(filePath: string, visibility: Visibility): Promise<void>` | |
-| `list` | `list(prefix: string): AsyncIterable<StorageEntry>` | Chaque fichier sous un préfixe, paginé à la demande. |
+| `list` | `list(prefix: string): AsyncIterable<StorageEntry>` | Chaque fichier sous le répertoire que nomme `prefix` (même règle que `deleteAll`), paginé à la demande. |
 | `listAll` | `listAll(prefix: string, options?: ListAllOptions): Promise<ListAllResult>` | Une page de fichiers et de répertoires. |
 | `file` | `file(key: string): DriveFile` | Un handle, rien n'est lu. |
 | `fromSnapshot` | `fromSnapshot(snapshot: FileSnapshot): DriveFile` | Un handle reconstruit depuis un instantané stocké. |
@@ -166,13 +167,14 @@ moveToDisk(key: string, options?: MoveToDiskOptions): Promise<void>
 |---|---|---|---|
 | `default` | `string` | — | Le disque que rend `use()` sans nom. La configuration générée lit `DRIVE_DISK` (`fs` s'il est absent). |
 | `services` | `Record<string, DriveServiceFactory>` | — | Disques nommés, construits au premier usage. |
-| `fakes.location` | `string` | — | Accepté sans être lu : les faux vivent en mémoire. |
 | `services.fs({ location })` | `string` | `'./storage'` | Répertoire racine (`root` est accepté aussi). |
 | `services.fs({ signingSecret })` | `string \| ReleasableSecret` | aucun | Active `getSignedUrl` sur le disque local ; 16 caractères au moins. |
 | `services.fs({ routeBasePath })` | `string` | `'/storage'` | Chemin d'URL sur lequel sont construites les URL du disque local. |
+| `services.fs({ visibility })` | `'public' \| 'private'` | obligatoire | `'private'` : chaque fichier du disque est privé, quoi que demande une écriture ; `getUrl()` signe, et la route signée refuse toute requête non signée. `'public'` : un fichier écrit sans visibilité est public, et `put(…, { visibility: 'private' })` ou `setVisibility()` en rend un privé. |
 | `S3Config.requestTimeoutMs` / `GcsConfig.requestTimeoutMs` | `number` | `30000` | Plus long silence permis au fournisseur pendant une requête ; `0` le désactive. |
 | `StaticConfig.prefix` | `string` | `'/static'` | Préfixe d'URL du middleware statique. |
 | `StaticConfig.maxAge` | `number` | `0` | `max-age` en secondes. |
+| `StaticConfig.dotFiles` | `'ignore' \| 'deny' \| 'allow'` | `'ignore'` | Un chemin dont un segment commence par `.` (`.vite/manifest.json`, `%2Eenv` une fois décodé) : `'ignore'` le passe au middleware suivant, `'deny'` répond 403, `'allow'` le sert. |
 
 ## Liaisons du conteneur
 
@@ -193,7 +195,7 @@ Les jetons texte sont typés sur `ContainerBindings` dès que `@c9up/archive` es
 |---|---|
 | [`E_ARCHIVE_INVALID_SIGNATURE`](/fr/reference/errors#e-archive-invalid-signature) | La signature d'une URL signée est incomplète, malformée ou fausse (403). |
 | [`E_ARCHIVE_EXPIRED_SIGNATURE`](/fr/reference/errors#e-archive-expired-signature) | Une URL signée a expiré (403). |
-| [`E_ARCHIVE_ACCESS_DENIED`](/fr/reference/errors#e-archive-access-denied) | Une requête non signée demande un fichier privé (403). |
+| [`E_ARCHIVE_ACCESS_DENIED`](/fr/reference/errors#e-archive-access-denied) | Une requête non signée demande autre chose qu'un fichier public stocké : un fichier privé, un nom absent, n'importe quel fichier d'un disque privé (403). |
 | [`E_ARCHIVE_INVALID_KEY`](/fr/reference/errors#e-archive-invalid-key) | La route signée refuse le chemin (403) ; levée aussi pour une clé qui nomme un marqueur de visibilité, ou une clé de `moveToDisk()` qui n'est pas une chaîne. |
 | [`E_ARCHIVE_NOT_FOUND`](/fr/reference/errors#e-archive-not-found) | Aucun fichier sous la clé (statut 404). Une opération du disque la transmet comme `cause` de son erreur `E_CANNOT_*`. |
 | [`E_CANNOT_WRITE_FILE`](/fr/reference/errors#e-cannot-write-file) | `put`, `putStream`, `copyFromFs` ou `moveFromFs` n'a pas pu écrire le fichier ; l'erreur du driver est la `cause`. |
@@ -230,7 +232,7 @@ Les jetons texte sont typés sur `ContainerBindings` dès que `@c9up/archive` es
 | [`E_ARCHIVE_PROVIDER_NOT_REGISTERED`](/fr/reference/errors#e-archive-provider-not-registered) | `boot()` a tourné avant `register()`. |
 | [`E_ARCHIVE_TEMPLATE_ENGINE`](/fr/reference/errors#e-archive-template-engine) | Les aides de templates ne peuvent pas être publiées sur inker. |
 | [`E_ARCHIVE_REMOTE_FAILED`](/fr/reference/errors#e-archive-remote-failed) | S3 ou GCS a refusé une requête ou signalé un échec ; le statut HTTP du fournisseur est dans `providerStatus`, et `status` reste 500. |
-| [`E_ARCHIVE_INVALID_DRIVER_CONFIG`](/fr/reference/errors#e-archive-invalid-driver-config) | `S3Driver` n'a reçu ni `region` ni `endpoint`, ou `GcsDriver` n'a pas de `bucket` ou pas de `client_email` / `private_key` de compte de service. |
+| [`E_ARCHIVE_INVALID_DRIVER_CONFIG`](/fr/reference/errors#e-archive-invalid-driver-config) | `S3Driver` n'a reçu ni `region` ni `endpoint`, `GcsDriver` n'a pas de `bucket` ou pas de `client_email` / `private_key` de compte de service, ou la `visibility` d'un disque local n'est ni `'public'` ni `'private'`. |
 | [`E_ARCHIVE_CONTENT_LENGTH_EXCEEDED`](/fr/reference/errors#e-archive-content-length-exceeded) | `putStream()` a lu plus d'octets que le `contentLength` que vous avez déclaré. |
 | [`E_ARCHIVE_INVALID_STATIC_PREFIX`](/fr/reference/errors#e-archive-invalid-static-prefix) | Vous avez passé un `prefix` vide à `StaticMiddleware`. |
 | [`E_ARCHIVE_NOT_BOOTED`](/fr/reference/errors#e-archive-not-booted) | Le service `storage` a été lu avant le boot d'`ArchiveProvider`. |
@@ -241,6 +243,16 @@ Chaque code est une classe du namespace `errors` et une `Exception` de `@c9up/fl
 
 ## Migration
 
+- `services.fs()` exige désormais `visibility`. Ajoutez `visibility: 'public'` pour garder l'ancien comportement, ou `visibility: 'private'` pour signer chaque fichier du disque.
+- `copyFromFs()`, `moveFromFs()` et `putStream()` appliquent désormais `options.visibility`. Un fichier écrit avec `visibility: 'private'` arrivait public sur le disque local : vérifiez ces fichiers avec `getVisibility()` et appelez `setVisibility(key, 'private')` au besoin.
+- `copy()` donne désormais à la copie la visibilité de la source. La copie d'un fichier privé est privée ; passez `{ visibility: 'public' }` pour la rendre publique.
+- `deleteAll(prefix)`, `list(prefix)` et `listAll(prefix, { recursive: true })` lisent désormais `prefix` comme un répertoire : `'users/1'` n'atteint plus `users/10/…`. Pour filtrer sur une partie d'un nom, listez le répertoire parent et filtrez les clés.
+- Une URL signée locale signe désormais le `routeBasePath` du disque avec la clé. Les URL signées avant la mise à jour ne marchent plus (elles expirent de toute façon en 7 jours au plus) : signez-les à nouveau.
+- La route signée répond à une requête non signée pour un nom absent par 403 `E_ARCHIVE_ACCESS_DENIED`, comme pour un fichier privé. Elle ne la passe plus au middleware suivant.
+- `copy()`, et `move()` entre deux périphériques, refusent désormais un lien à la cible ou à la source, comme `put()` et `get()`.
+- `StaticMiddleware` ne sert plus les fichiers cachés : mettez `dotFiles: 'allow'` pour les servir à nouveau.
+- La route signée et `StaticMiddleware` envoient désormais `charset=utf-8` avec un type texte (`text/html; charset=utf-8`).
+- `DriveConfig` n'a plus de clé `fakes`. `fakes.location` était accepté et jamais lu : `drive.fake()` garde ses fichiers en mémoire. Retirez `fakes` de `config/archive.ts` ; TypeScript le refuse désormais.
 - `ArchiveError` disparaît : testez `error.code`, ou `error instanceof errors.E_ARCHIVE_*` avec `import { errors } from '@c9up/archive'`.
 - `ArchiveRemoteError` devient `errors.E_ARCHIVE_REMOTE_FAILED` ; `providerStatus` ne change pas.
 - `error.hint` devient `error.help`.

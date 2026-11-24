@@ -150,7 +150,7 @@ The region. Mount it once near the root; it shows the toasts addressed to its `i
 | `theme` | `'light' \| 'dark' \| 'system'` | `'system'` | `system` follows the app's `dark` variant. |
 | `invert` | `boolean` | `false` | Swap the light and dark surfaces. |
 | `hotkey` | `string[]` | `['altKey', 'KeyT']` | `KeyboardEvent` keys and codes that reach the region. |
-| `offset` | `Offset` | `'24px'` | From the viewport's edges: a value, or `{ top, right, bottom, left }`. |
+| `offset` | `Offset` | `'24px'` | From the viewport's edges: a value, or `{ top, right, bottom, left }`. Each is set as that one property; a value the property refuses is ignored. |
 | `mobileOffset` | `Offset` | `'16px'` | The same, at 600 px wide and under. |
 | `dir` | `'rtl' \| 'ltr' \| 'auto'` | — | Writing direction of the region. |
 | `icons` | `ToastIcons` | shadcn's | Replace the icon of `success`, `info`, `warning`, `error`, `loading`, or the close cross; `null` shows none. |

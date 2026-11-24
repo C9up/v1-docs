@@ -89,13 +89,15 @@ robledo.registerRoutes()
 | `updateStatus` | function | What the native side knows: server, runtime, platform, current and pending update. |
 | `CheckResult` | type | What `checkForUpdate` resolves to. |
 | `UpdateStatus` | interface | What `updateStatus` returns. |
-| `NativeRobledo` | interface | The native module, structurally: `status()`, `stage(…)`, `ready()`. |
+| `NativeRobledo` | interface | The native module, structurally: `status()`, `verify(manifest, signature)`, `receive(path, file)`, `finish()`, `ready()`. |
+| `MAX_LATEST_BYTES` | const | `1048576`: the largest `latest` answer `checkForUpdate` reads. |
+| `PARALLEL_DOWNLOADS` | const | `4`: how many files `checkForUpdate` fetches at once. |
 | `NATIVE_MODULE_NAME` | const | `"NativeRobledo"`. |
 | `errors` | namespace | The same namespace as `@c9up/robledo`'s, see [Errors](#errors) |
 
 | Function | Signature | Description |
 |---|---|---|
-| `checkForUpdate` | `checkForUpdate(options?: { fetch?: Fetch }): Promise<CheckResult>` | Fetches `<url>/<platform>/<runtime>/latest`, downloads the files the manifest lists, and hands them to the native side, which verifies the signature and every digest before keeping them. The update takes effect at the next start. `fetch` defaults to the global one. |
+| `checkForUpdate` | `checkForUpdate(options?: { fetch?: Fetch }): Promise<CheckResult>` | Fetches `<url>/<platform>/<runtime>/latest` (at most `MAX_LATEST_BYTES`), and has the native side check the manifest first: its signature, runtime, platform, and that it is newer than every update this phone accepted. Only then does it download the files the manifest lists, `PARALLEL_DOWNLOADS` at a time, each refused as soon as it runs past its signed size, and hand each one to the native side as it arrives, which checks its digest. The update takes effect at the next start. `fetch` defaults to the global one. |
 | `markReady` | `markReady(): void` | Keeps the running update. An update that never calls it is abandoned at the start after, and the previous one runs again. |
 | `updateStatus` | `updateStatus(): UpdateStatus` | Reads the native status. |
 
@@ -140,12 +142,17 @@ The app side reads `mobile.updates` (`url`, `publicKey`) in `reamrc.ts` at build
 | [`E_ROBLEDO_NOT_BOOTED`](/en/reference/errors#e-robledo-not-booted) | `@c9up/robledo/services/main` is used before the provider booted. |
 | [`E_ROBLEDO_NO_NATIVE_MODULE`](/en/reference/errors#e-robledo-no-native-module) | The app has no `NativeRobledo` module: it was not built with robledo installed. |
 | [`E_ROBLEDO_BAD_RESPONSE`](/en/reference/errors#e-robledo-bad-response) | The server answered an update check, or a file download, with something other than an update. |
-| [`E_ROBLEDO_REFUSED`](/en/reference/errors#e-robledo-refused) | The phone refused the update: bad signature, altered file, wrong runtime. |
+| [`E_ROBLEDO_REFUSED`](/en/reference/errors#e-robledo-refused) | The phone refused the update: bad signature, altered file, wrong runtime, another app's update. |
+| [`E_ROBLEDO_NOT_NEWER`](/en/reference/errors#e-robledo-not-newer) | The update is not newer than the newest this phone accepted, or than the bundle inside the app: an old update served again. Publish a rollback as a new update. |
 
 ## Migration
 
 - `RobledoError` is gone: test `error.code`, or `error instanceof errors.E_ROBLEDO_*` with `import { errors } from '@c9up/robledo'` (or from `@c9up/robledo/mobile` on the phone).
 - The `RobledoErrorCode` type is gone: `error.code` is a `string`.
+- A phone now refuses an update whose `createdAt` is not later than the newest it accepted (`E_ROBLEDO_NOT_NEWER`). To roll back, do not point `latest` back at an old update: publish the old code again with `ream android:publish`, which signs it as a new update.
+- `checkForUpdate` has the manifest's signature checked before it downloads anything, and refuses a file larger than its signed size or a `latest` answer over `MAX_LATEST_BYTES` (`E_ROBLEDO_BAD_RESPONSE`).
+- `NativeRobledo` has `verify`, `receive` and `finish` in place of `stage`: a test that fakes the native module implements those.
+- The phone also reads `embeddedCreatedAt` and `appId` from the `ream-updates.json` that `ream android:build` writes into the app. With `embeddedCreatedAt`, an update older than the bundle inside a store release is refused, so a store release is never replaced by an older update. With `appId`, an update signed for another app is refused (the signed manifest names its app). An app built before these fields existed has neither check: rebuild it, then publish its updates with the same version of the CLI.
 
 ## See also
 

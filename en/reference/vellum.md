@@ -9,7 +9,11 @@ pnpm add @c9up/vellum
 ream configure @c9up/vellum
 ```
 
-`ream configure @c9up/vellum` adds the provider, the `VELLUM_FORMAT` variable, and writes `config/vellum.ts`. The engine ships as a prebuilt binary per platform; `@c9up/ream` is an optional peer.
+`ream configure @c9up/vellum` adds the provider, the `VELLUM_FORMAT` variable, and writes `config/vellum.ts`. `@c9up/ream` is an optional peer.
+
+The native engine comes as one small package per platform, `@c9up/vellum-<platform>`, for linux x64 and arm64 (glibc), macOS x64 and arm64, and Windows x64. `@c9up/vellum` lists them as optional dependencies, and your package manager installs only the one that matches your machine. No Rust toolchain is needed. Do not install with optional dependencies turned off (`--no-optional`, `--omit=optional`): the engine would be left out.
+
+There is no JavaScript fallback. Without the engine, the first call throws `E_VELLUM_NAPI_REQUIRED`, and its message names the package to install, for example `@c9up/vellum-linux-x64-gnu`. The bundled fonts stay in `@c9up/vellum` itself.
 
 ## Entry points
 
@@ -99,7 +103,7 @@ Every method takes the PDF as a `Buffer` and runs on the thread pool. Pages coun
 |---|---|---|---|
 | `anchors` | `ReadonlyArray<Buffer>` | config `trustedAnchors` | Root certificates to trust, DER or PEM. |
 | `allowedResponders` | `ResponderPolicy` | config | Which responders may be contacted. |
-| `checkRevocation` | `boolean` | | Ask each signing certificate's issuer; the answer is `good`, `revoked` or unknown. |
+| `checkRevocation` | `boolean` | | Ask each signing certificate's issuer; the answer is `good`, `revoked` or unknown. A signature that is not `trusted` answers unknown without anything being asked. |
 | `revocationTimeoutMs` | `number` | `10000` | |
 
 `SignatureReport` carries `field`, `coversWholeDocument`, `digestMatches`, `signatureVerifies`, `signer`, `signedAt`, `timestamped`, `trusted`, `chain`, `moment`, `momentAt`, `signerCertificate`, `issuerCertificate` and `problems`; `CheckedSignature` adds `revocation?: RevocationAnswer` (`{ status: string; detail?: string }`). `FormField` is `{ name, kind, value?, options, readOnly, required, multiline, password, maxLength? }`.
@@ -194,7 +198,7 @@ const preview = await vellum.render(pdf, { page: 1, width: 1200 })
 | `background` | `string` | | `#rgb`, `#rrggbb`, `#rrggbbaa` or `'transparent'`. |
 | `maxPixels` | `number` | 50 million | Pixels one page may rasterise to. |
 | `maxTotalPixels` | `number` | 500 million | Pixels `renderAll` may rasterise across every page. |
-| `maxDecodedBytes` | `number` | 256 MiB | Decoded stream bytes reading one page may need. |
+| `maxDecodedBytes` | `number` | 256 MiB | Decoded stream bytes reading one page may need, plus, when rendering, the buffers drawing it keeps: a byte per pixel per soft mask, four per pixel per image draw. |
 | `maxOperations` | `number` | 10 million | Content operators and glyphs one page may take. |
 | `maxTotalDecodedBytes` | `number` | 1 GiB | Decoded bytes across every page of `renderAll` and `extractTextAll`. |
 | `maxTotalOperations` | `number` | 10 million | Operators and glyphs across every page of `renderAll` and `extractTextAll`. |
@@ -274,6 +278,11 @@ Each code is a class of the `errors` namespace (`import { errors } from '@c9up/v
 - `VellumNativeRequiredError` becomes `errors.E_VELLUM_NAPI_REQUIRED`.
 - The `name` of an error is no longer `"VellumError"`.
 - `E_VELLUM_INVALID_PDF` now has `status` 422.
+- `verifySignatures()` no longer trusts a path through a certificate that is not an authority (`basicConstraints` without `cA`), even one bearing the signer's own name, nor through an authority whose key usage leaves out `keyCertSign`. Such a signature now reports `trusted: false`; have it signed with a certificate the authority issued directly.
+- With `checkRevocation: true`, a signature whose `trusted` is `false` now answers `revocation: { status: 'unknown' }` without asking any responder, since its issuer is not known to be one.
+- `render()` and `renderAll()` now charge `maxDecodedBytes` with the buffers drawing a page keeps: a byte per pixel per soft mask, four bytes per pixel per image draw, pattern tiles and cached glyphs. A large page with many soft masks or image draws can now be refused with `E_VELLUM_RENDER_FAILED`; raise `maxDecodedBytes` for a document you trust.
+- An edit or a signature whose written document would weigh more than 1 GiB is now refused with the operation's error (`E_VELLUM_ROTATE_FAILED`, `E_VELLUM_SIGN_FAILED`…).
+- `PdfDocument.svg()` now refuses, with `E_VELLUM_INVALID_SVG`, an SVG that draws more than 1 000 000 elements and path segments once its `<use>` elements, clip paths, masks and patterns are expanded, and a gzip SVG that inflates past 16 MiB. Simplify the drawing, or draw it as an image.
 
 ## See also
 

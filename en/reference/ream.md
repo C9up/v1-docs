@@ -8,6 +8,18 @@
 pnpm add @c9up/ream
 ```
 
+The native binaries (HTTP server, scheduler, event bus) come in one npm package per platform, which `@c9up/ream` lists as an optional dependency at its exact version:
+
+| Platform | Package |
+|---|---|
+| Linux x64 (glibc) | `@c9up/ream-linux-x64-gnu` |
+| Linux arm64 (glibc) | `@c9up/ream-linux-arm64-gnu` |
+| macOS x64 | `@c9up/ream-darwin-x64` |
+| macOS arm64 | `@c9up/ream-darwin-arm64` |
+| Windows x64 | `@c9up/ream-win32-x64-msvc` |
+
+The package manager installs only the one that matches the machine, so an install downloads one platform's binaries and needs no Rust toolchain. Do not omit optional dependencies (`--no-optional`, `--omit=optional`): the binaries would be missing. Linux binaries target glibc; musl (Alpine) is not supported. A missing binary throws `E_REAM_NAPI_NOT_FOUND`: its `help` names the package to install, and its `cause` is the load error.
+
 `ream new` creates a project with it. Optional peer dependencies: `@c9up/inker` (template rendering and the session template tags), `@c9up/quasar` (the redis session store and the redis scheduler lock), `@c9up/comet` (the JSON-RPC router).
 
 ## Entry points
@@ -41,7 +53,6 @@ pnpm add @c9up/ream
 | `@c9up/ream/events/provider` | `EventsProvider` (default export). |
 | `@c9up/ream/events/config` | `defineConfig`, `checkEventsConfig` for `config/events.ts`. |
 | `@c9up/ream/events/services/main` | The emitter (default export), `getEmitter`, `setEmitter`. |
-| `@c9up/ream/events/configure` | The configure hook that registers the events provider and writes `config/events.ts`. |
 | `@c9up/ream/events/testing` | `FakeBus`: an in-memory event bus for tests. |
 | `@c9up/ream/events/helix` | Event assertions for tests: `collect`, `fake`, `assertEmitted`, `waitForEvent`, … |
 | `@c9up/ream/scheduler/provider` | `ScheduleProvider` (default export). |
@@ -139,7 +150,7 @@ Every `make:` command takes `--force` (`-f`), `--dry-run` and `--json`. The Igni
 | `RequestValidator` | class | Validates a request with a validator object. |
 | `RequestAwareValidator`, `RequestValidationOptions`, `ValidatableContext`, `ValidationHookContext` | type | Its contracts. |
 | `RawRequest`, `RouteInfo`, `AuthState`, `Authorizer` | interface | Parts of the context. |
-| `SseStream`, `SseStreamOptions` | class / interface | The stream `response.sse()` opens. |
+| `SseStream`, `SseStreamOptions` | class / interface | The stream `response.sse()` opens. Its `end()` ends the HTTP response: the client reads the end of the body once what was sent before is delivered. |
 | `ServerWebSocket` | class | The server side of one WebSocket connection. |
 | `WebSocketHub` | class | The sockets of one server. |
 | `WebSocketContext` | type | `HttpContext & { socket: ServerWebSocket }`. |
@@ -151,7 +162,7 @@ Every `make:` command takes `--force` (`-f`), `--dry-run` and `--json`. The Igni
 | `ErrorHandlerClass`, `LazyImport`, `MiddlewareClass`, `MiddlewareEntry`, `MiddlewareFunction` | type | Middleware and error handler shapes. |
 | `resolveMiddlewareEntry` | function | `resolveMiddlewareEntry(entry: MiddlewareEntry): MiddlewareFunction`. |
 | `composeMiddleware` | function | `composeMiddleware(middleware: MiddlewareFunction[]): MiddlewareFunction`. |
-| `MiddlewareRegistry` | class | Named middleware. |
+| `MiddlewareRegistry`, `NamedMiddlewareSource` | class / interface | Named middleware. `new MiddlewareRegistry(source?)`: `get(name)` answers a name given to `register()`, else the source's (the application's registry reads its router's `named()` collection); `names()` lists both. |
 | `Macroable`, `MacroFn`, `GetterFn` | class / type | `macro()` and `getter()`, on `HttpContext`, `Request`, `Response`, `Router` and the route builders. |
 | `BodyParserMiddleware`, `BodyParserConfig` | class / interface | Parses JSON, form, raw and multipart bodies. |
 | `MultipartFile`, `FileValidationOptions`, `MimeType` | class / type | An uploaded file: `validate()`, `errors`, `move()`, `stream()`. |
@@ -236,12 +247,12 @@ Every `make:` command takes `--force` (`-f`), `--dry-run` and `--json`. The Igni
 
 | Export | Kind | Description |
 |---|---|---|
-| `GraphQLEngine`, `GraphQLConfig`, `ResolverOptions`, `SelectionField` | class / type | A GraphQL engine. |
+| `GraphQLEngine`, `GraphQLConfig`, `ResolverOptions`, `SelectionField` | class / type | A GraphQL engine. `GraphQLConfig`: `schemaPath`, `path`, `playground`, `debug`, and the limits `maxQueryBytes` (100 000), `maxDepth` (12), `maxComplexity` (1000), `maxErrors` (100), `maxFieldRepeats` (10), `maxMutationRepeats` (1). `ResolverOptions`: `guard`/`guards`, `role`/`roles`, `permissions`, `middleware` (named middleware run before each call), `maxRepeats`. `engine.resolveType(abstractType, fn)` names the object type of an interface or union value. |
 | `GraphQLProvider`, `GraphQLProviderOptions` | class / interface | Mounts it. |
 | `OpenApiGenerator`, `OpenApiConfig` | class / interface | Builds an OpenAPI document from the routes. |
 | `OpenApiMiddleware`, `OpenApiMiddlewareConfig` | class / interface | Serves it. |
 | `OpenApiProvider`, `OpenApiProviderOptions`, `OpenApiDocsConfig` | class / interface | Registers both. |
-| `HealthCheck`, `HealthChecker`, `HealthCheckResult`, `HealthStatus` | class / type | A `/health` endpoint for liveness and readiness probes. |
+| `HealthCheck`, `HealthCheckOptions`, `HealthChecker`, `HealthCheckResult`, `HealthStatus` | class / type | A `/health` endpoint for liveness and readiness probes. |
 
 #### Console
 
@@ -374,7 +385,8 @@ new Container(options?: ContainerOptions)
 | `resolving` | `resolving(token: ServiceToken, callback: (value) => void \| Promise<void>): void` | Runs each time `token` is constructed. |
 | `swap` | `swap(token: ServiceToken, factory: ServiceFactory): void` | Replaces a binding, for tests. |
 | `override` | `override<T>(token: ServiceToken, value: T): void` | Replaces a binding with a value, for tests. |
-| `restore` / `restoreAll` | `restore(token?: ServiceToken): void` | Undoes swaps. |
+| `restore` / `restoreAll` | `restore(token?: ServiceToken): void` | Undoes swaps. A token holds one swap: `restore(token)` removes it outright. |
+| `swapped` | `swapped(token: ServiceToken): ServiceFactory \| undefined` | The factory swapped in for `token`, without running it; `undefined` when it is not swapped. Put it back later with `swap(token, previous)`. |
 | `createResolver` | `createResolver(): ContainerResolver` | A resolver with its own scoped values. |
 | `runWithScopedValues` | `runWithScopedValues<T>(values: ReadonlyMap<ServiceToken, unknown>, fn: () => Promise<T>): Promise<T>` | |
 | `has` / `hasBinding` / `hasAllBindings` | `has(token: ServiceToken): boolean` | Resolvable / explicitly bound / all of them. |
@@ -413,7 +425,7 @@ new Container(options?: ContainerOptions)
 
 | Member | Signature | Description |
 |---|---|---|
-| `method` | `method(): string` | Honours `_method` spoofing when enabled. |
+| `method` | `method(): string` | The method the route was matched with: with `http.allowMethodSpoofing` on, a `POST` takes the `_method` of its query string (`?_method=DELETE`). A `_method` in the body is never read. |
 | `intended` | `intended(): string` | The real method. |
 | `url` | `url(includeQs?: boolean): string` | The pathname, with the query string on request. |
 | `completeUrl` | `completeUrl(includeQueryString?: boolean): string` | `protocol://host/path`. |
@@ -445,7 +457,7 @@ new Container(options?: ContainerOptions)
 | `plainCookie` | `plainCookie<T>(name: string, defaultValue?: T, options?: { encoded?: boolean }): T \| null` | |
 | `encryptedCookie` | `encryptedCookie(name: string, defaultValue?: string): string \| null` | |
 | `cookies` / `cookiesList` | `cookies(): Dict` | |
-| `hasValidSignature` | `hasValidSignature(purpose?: string): boolean` | Verifies a signed URL. |
+| `hasValidSignature` | `hasValidSignature(purpose?: string): boolean` | Verifies a signed URL over the exact path the router matched and its query. |
 | `is` | `is(types: string[]): string \| null` | Matches the content type. |
 | `accepts`, `language`, `charset`, `encoding` | `accepts<T extends string>(types: T[]): T \| null` | Content negotiation. |
 | `types`, `languages`, `charsets`, `encodings` | `types(): string[]` | Everything the client accepts, best first. |
@@ -468,7 +480,7 @@ new Container(options?: ContainerOptions)
 | `location` | `location(url: string): Response` | |
 | `send` | `send(data: unknown): void` | The content type is detected when unset. |
 | `json` | `json(data: unknown): void` | |
-| `jsonp` | `jsonp(body: unknown, callbackName?: string): void` | |
+| `jsonp` | `jsonp(body: unknown, callbackName?: string): void` | Sends `X-Content-Type-Options: nosniff`. |
 | `sendBuffer` | `sendBuffer(buffer: Buffer): void` | |
 | `stream` | `stream(body: ReadableStream, errorCallback?): Promise<void>` | |
 | `download` | `download(filePath: string, generateEtag?: boolean, errorCallback?): void` | |
@@ -508,7 +520,8 @@ new Container(options?: ContainerOptions)
 | `where` | `where(param: string, matcher: string \| ParamMatcher): Router` | A matcher for every route. |
 | `matchers` | `{ number(), uuid(), slug() }` | |
 | `use` | `use(middleware: LazyImport<MiddlewareClassConstructor>[]): Router` | Router middleware: runs on matched routes. |
-| `named` | `named(collection: Record<string, MiddlewareEntry>): Record<string, (args?) => MiddlewareFunction>` | Named middleware. |
+| `named` | `named<Name extends string>(collection: Record<Name, MiddlewareEntry>): Record<Name, (args?) => MiddlewareFunction>` | Named middleware: one factory per name of the collection. Routes and groups also reach them by name, `.middleware('auth')`; RPC methods and GraphQL resolvers too. |
+| `getNamedMiddleware` / `getNamedMiddlewareNames` | `getNamedMiddleware(name: string): MiddlewareFunction \| undefined` | What `named()` declared, by name, run with no arguments; and the list of names. |
 | `controllers` | `controllers(map: Record<string, LazyControllerImport>): Router` | Controllers referenced by string. |
 | `urlFor` / `makeUrl` | `urlFor(name: string, params?: Record<string, string>): string` | |
 | `makeSignedUrl` | `makeSignedUrl(name: string, params?, options?: SignedUrlOptions): string` | |
@@ -529,10 +542,10 @@ new Container(options?: ContainerOptions)
 |---|---|---|
 | `as` | `as(name: string): RouteBuilder` | Names the route. |
 | `prefix` | `prefix(prefix: string): RouteBuilder` | |
-| `middleware` | `middleware(...names: string[]): RouteBuilder` | Named middleware. |
+| `middleware` | `middleware(...names: string[]): RouteBuilder` | Named middleware, by the names `router.named()` declared, run with no arguments (pass arguments with `.use(middleware.auth(args))`). A name nothing declares stops the application when the kernel is built: `E_MIDDLEWARE_NOT_FOUND`. |
 | `use` | `use(...mw: MiddlewareFunction[]): RouteBuilder` | Inline middleware. |
-| `guard` | `guard(...guards: string[]): RouteBuilder` | Authentication guards. |
-| `role` / `permission` | `role(...roles: string[]): RouteBuilder` | |
+| `guard` | `guard(...guards: string[]): RouteBuilder` | Authentication by one of the guards; each call adds a level. |
+| `role` / `permission` | `role(...roles: string[]): RouteBuilder` | `role` needs one of its roles; each call adds a requirement. `permission` needs every one. |
 | `where` | `where(param: string, matcher: string \| ParamMatcher): RouteBuilder` | |
 | `validate` | `validate(validator: string): RouteBuilder` | Validates the body with a named validator. |
 | `domain` | `domain(d: string): RouteBuilder` | |
@@ -542,7 +555,7 @@ new Container(options?: ContainerOptions)
 
 ### `GroupBuilder`
 
-`prefix(p)`, `as(namePrefix)`, `middleware(...names)`, `use(...mw)`, `guard(...guards)`, `domain(d)`, `where(param, matcher)`, each returning the group; `routes` lists its routes.
+`prefix(p)`, `as(namePrefix)`, `middleware(...names)`, `use(...mw)`, `guard(...guards)`, `role(...roles)`, `permission(...permissions)`, `domain(d)`, `where(param, matcher)`, each returning the group; `routes` lists its routes. `permission` adds the group's permissions to each route's own. `guard` and `role` each add a level of their own: the request must be authenticated by a guard the group AND every route level name, and the user needs one of the group's roles AND one of each route-level list. `group({ guards, roles, permissions }, callback)` does the same.
 
 ### `RouteResource`
 
@@ -570,7 +583,7 @@ new Container(options?: ContainerOptions)
 | `flash` | `flash(key: string \| Record<string, unknown>, value?: unknown): void` | For the next request only. |
 | `flashAll`, `flashOnly`, `flashExcept` | `flashOnly(keys: string[]): void` | Flash the request input. |
 | `flashErrors` | `flashErrors(errors: Record<string, string \| string[]>): void` | |
-| `flashValidationErrors` | `flashValidationErrors(error, withInput?: boolean): void` | |
+| `flashValidationErrors` | `flashValidationErrors(error, withInput?: boolean): void` | Flashes the input without the password fields, `_csrf` and `_method`. |
 | `reflash`, `reflashOnly`, `reflashExcept` | | Keep the previous flash data. |
 | `flashMessages` | `ReadOnlyValuesStore` | What the previous request flashed. |
 | `old` | `old<T>(key: string, defaultValue?: T): T` | One previous flash value. |
@@ -578,7 +591,7 @@ new Container(options?: ContainerOptions)
 | `sessionId`, `fresh`, `isEmpty`, `readonly`, `revocable` | | |
 | `setIntendedUrl`, `getIntendedUrl`, `pullIntendedUrl`, `clearIntendedUrl` | | Where the user was heading. |
 | `supportsTagging` | `supportsTagging(): boolean` | |
-| `tag` / `untag` | `tag(userId: string \| number): Promise<void>` | Links the session to a user. |
+| `tag` / `untag` | `tag(userId: string \| number): Promise<void>` | Links the session to a user. A session created or regenerated in the request is tagged when it is saved. |
 
 ### `Env`
 
@@ -667,7 +680,7 @@ new ExceptionHandler(debug: boolean)
 
 ### `@c9up/ream/exceptions`
 
-`Exception`, `createError`, `ErrorClass`, `RuntimeException`, `InvalidArgumentsException`, `E_ROUTE_NOT_FOUND`, `E_UNAUTHORIZED_ACCESS`, `E_AUTHORIZATION_FAILURE`, `E_VALIDATION_ERROR`, `E_HTTP_EXCEPTION`, `E_HTTP_REQUEST_ABORTED`, `HttpError`, `StatusPageRenderer`, `ExceptionClass`, `ExceptionHandler`: the same as in `@c9up/ream`.
+`Exception`, `createError`, `ErrorClass`, `RuntimeException`, `InvalidArgumentsException`, `E_ROUTE_NOT_FOUND`, `E_UNAUTHORIZED_ACCESS`, `E_AUTHORIZATION_FAILURE`, `E_WARDEN_MFA_REQUIRED`, `E_VALIDATION_ERROR`, `E_HTTP_EXCEPTION`, `E_HTTP_REQUEST_ABORTED`, `HttpError`, `StatusPageRenderer`, `ExceptionClass`, `ExceptionHandler`: the same as in `@c9up/ream`.
 
 ### `@c9up/ream/env`
 
@@ -680,7 +693,7 @@ new ExceptionHandler(debug: boolean)
 
 | Export | Kind | Description |
 |---|---|---|
-| `createHyperServerFactory` | function | `createHyperServerFactory(): ((port: number, host?: string) => HyperServerLike) \| undefined`: the native server for this platform, or `undefined` when no binary is available. |
+| `createHyperServerFactory` | function | `createHyperServerFactory(): (port: number, host?: string) => HyperServerLike`: the native server for this platform. There is no JavaScript server to fall back to: it throws `E_REAM_NAPI_NOT_FOUND` when the binary is missing, `E_REAM_NAPI_LOAD_FAILED` when it is there but does not load (`cause` is the load error), and `E_REAM_NAPI_UNSUPPORTED_PLATFORM` on a platform with no binary. |
 
 ### `@c9up/ream/hot` and `@c9up/ream/dev/hmr`
 
@@ -745,7 +758,6 @@ The session middleware class is the default export. `session/config` exports `de
 | `events` | `Emitter`, `BaseEvent`, `EventsBuffer`, `EventsProvider`, `defineConfig`, `EventsConfig`, `ListenerClass`, `BufferedEvent`, `BufferedEventName`, `EventFinder`, `UnsubscribeFunction`, `AsyncUnsubscribeFunction`, `ContainerResolver` (the resolver shape listeners are built with), `EventBus`, `EventsAppContext`. |
 | `events/provider` | `EventsProvider` (default): builds the bus and binds `emitter`. |
 | `events/config` | `defineConfig`, `checkEventsConfig(config: unknown): EventsConfig`, `EventsConfig`. |
-| `events/configure` | `configure(codemods)`: registers `@c9up/ream/events/provider` and writes `config/events.ts`. |
 | `events/testing` | `FakeBus`: captures emits and requests (`CapturedEmit`, `CapturedRequest`, `FakeBusPredicate`, `FakeBusPredicateArg`, `FakeBusRequestHandler`). |
 | `events/helix` | `collect(bus, pattern)`, `fake(bus, pattern)`, `assertEmitted(events, name, payload?)`, `assertNotEmitted(events, name)`, `waitForEvent(events, name, options?)`, `waitForChain(events, correlationId, names, options?)`, and `CollectedEvent`, `CollectResult`, `WaitForEventOptions`, `WaitForChainOptions`. |
 
@@ -779,7 +791,7 @@ locks.redis(options: { connection: string | LockRedisResolver; prefix?: string }
 | Provider | Options |
 |---|---|
 | `GraphQLProvider` (default) | `GraphQLProviderOptions`: `engine` to inject. |
-| `OpenApiProvider` (default) | `OpenApiDocsConfig`: `enabled` (default `true`), `specPath` (default `/api-docs`), `docsPath` (Swagger UI, default `/docs`), `title` (default `'API'`), `version` (default `'1.0.0'`). `OpenApiProviderOptions`: `generator` to inject. |
+| `OpenApiProvider` (default) | `OpenApiDocsConfig`: `enabled` (default: on except in production), `guards`, `middleware` (names or functions), `specPath` (default `/api-docs`), `docsPath` (Swagger UI, default `/docs`), `title` (default `'API'`), `version` (default `'1.0.0'`). `OpenApiProviderOptions`: `generator` to inject. |
 | `StaticProvider` (default) | `StaticProviderOptions`: `middleware` to inject. |
 
 ### `@c9up/ream/health`
@@ -926,6 +938,7 @@ Assertions, on both: `assertStatus`, `assertHeader`, `assertHeaderMissing`, `ass
 | `importer` | `(filePath: string) => Promise<unknown>` | | How the app's modules are imported. |
 | `watchDirs` | `string[]` | | Directories watched for hot reload. |
 | `gracefulShutdown` | `boolean` | `true` | Drains the server on SIGTERM / SIGINT (web mode). |
+| `allowedHosts` | `string[] \| true` | — | Development only: hosts the `/__ream/` pages answer besides IP addresses, `localhost`, `.localhost` names and the bind host (a leading `.` adds the subdomains). `true` allows any host. |
 
 ### `config/app.ts`: `http`
 
@@ -1058,6 +1071,7 @@ Each code links to its row in the [error index](/en/reference/errors).
 | [`E_DUPLICATE_ROUTE_NAME`](/en/reference/errors#e-duplicate-route-name) | Two routes carry the same name. |
 | [`E_MISSING_ROUTE_NAME`](/en/reference/errors#e-missing-route-name) | A named group prefixes a route that has no name of its own. Name every route of a named group. |
 | [`E_INVALID_ROUTE_DOMAIN`](/en/reference/errors#e-invalid-route-domain) | A route domain has a parameter without a name, or the same parameter twice. |
+| [`E_EMPTY_GATE_REQUIREMENT`](/en/reference/errors#e-empty-gate-requirement) | `.guard()`, `.role()` or `.permission()` was called with nothing, or a route group, an RPC group, `config/rpc.ts`, `config/openapi.ts` or a GraphQL resolver was given an empty `guards`, `roles` or `permissions` list. An empty requirement would protect nothing. Raised where the route, method or resolver is declared; for a controller action whose `@Role()`, `@Permission()` or `@Guard()` names nothing, on each request to it. |
 | [`E_UNREGISTERED_CONTROLLER`](/en/reference/errors#e-unregistered-controller) | A route names a controller by string that is not registered. |
 | [`E_NO_VIEW_ENGINE`](/en/reference/errors#e-no-view-engine) | `router.on(path).render()` was used and no template engine is installed. |
 | [`E_VALIDATOR_NOT_FOUND`](/en/reference/errors#e-validator-not-found) | A route names a validator that is not registered. |
@@ -1091,7 +1105,7 @@ Each code links to its row in the [error index](/en/reference/errors).
 | Code | Raised when |
 |---|---|
 | [`E_PIPELINE_UNKNOWN_MIDDLEWARE`](/en/reference/errors#e-pipeline-unknown-middleware) | A route references a named middleware that is not registered. Register it with `middleware.register()`. |
-| [`E_MIDDLEWARE_NOT_FOUND`](/en/reference/errors#e-middleware-not-found) | A named middleware could not be resolved when the pipeline was built. Register it with `middleware.register()`. |
+| [`E_MIDDLEWARE_NOT_FOUND`](/en/reference/errors#e-middleware-not-found) | A route, an RPC method or a GraphQL resolver names a middleware nothing declared. Declare it with `router.named()` (or `middleware.register()`). An HTTP route's names are checked when the kernel is built, at boot. |
 | [`E_MIDDLEWARE_ENTRY`](/en/reference/errors#e-middleware-entry) | A middleware entry with no declared parameters was read as a lazy import, and it did not resolve to a module with a default export. |
 | [`E_PIPELINE_DOUBLE_NEXT`](/en/reference/errors#e-pipeline-double-next) | A middleware called `next()` more than once. Each middleware should call `next()` at most once. |
 | [`E_PIPELINE_ERROR`](/en/reference/errors#e-pipeline-error) | A handler threw an error that carries no framework code. The error keeps the stage position in its context. |
@@ -1108,6 +1122,7 @@ Each code links to its row in the [error index](/en/reference/errors).
 | [`E_HTTP_REQUEST_ABORTED`](/en/reference/errors#e-http-request-aborted) (400) | The class `response.abort()` (or `abortIf` / `abortUnless`) throws; the body given is sent with the status given, 400 by default. It extends `E_HTTP_EXCEPTION` and carries its code. |
 | [`E_UNAUTHORIZED_ACCESS`](/en/reference/errors#e-unauthorized-access-ream) (401) | A route's `.auth()` guard refused the request, or `.role()` / `.permission()` found no authenticated user. The same code, status, message (`Unauthorized access`), `identifier`, `getResponseMessage` and `handle` as `@c9up/warden`'s: it renders itself as `401 { "error": { "code", "message" } }`. |
 | [`E_AUTHORIZATION_FAILURE`](/en/reference/errors#e-authorization-failure-ream) (403) | A route's `.role()` or `.permission()` refused an authenticated user. The same code, status, message (`Access denied`), `identifier`, `getResponseMessage` and `handle` as `@c9up/warden`'s: it renders itself by content negotiation, `{ "errors": [{ "message" }] }` for JSON, a JSON:API error object, the message as text for HTML, a denied form submission with a session redirected back with the message flashed. The roles and permissions asked for are not sent. |
+| [`E_WARDEN_MFA_REQUIRED`](/en/reference/errors#e-warden-mfa-required-ream) (403) | The route gate reached a controller action carrying `@RequireMfa()` with a credential that did not complete the MFA step-up (`ctx.auth.user.mfa` is not `true`). The same code, status, message and body as `@c9up/warden`'s middleware: `403 { error: { code, message } }`. |
 | [`E_VALIDATION_ERROR`](/en/reference/errors#e-validation-error) (422) | The request data failed validation. The message is `Validation failure`, `messages` carries one entry per field and rule; a browser form is redirected back with the errors flashed. |
 | [`E_REQUEST_ENTITY_TOO_LARGE`](/en/reference/errors#e-request-entity-too-large) (413) | The request body is over the body parser's limit. Reading the raw body of such a request raises it too. |
 | [`E_HANDLER_FAILURE`](/en/reference/errors#e-handler-failure) (500) | The exception handler itself threw while rendering an error. |
@@ -1125,7 +1140,7 @@ Each code links to its row in the [error index](/en/reference/errors).
 | [`E_TOO_MANY_REQUESTS`](/en/reference/errors#e-too-many-requests) (429) | The native server's rate limit refused the request; the body carries `retryAfter`, with `Retry-After` and `X-RateLimit-*` headers. |
 | [`E_STREAM_UNKNOWN`](/en/reference/errors#e-stream-unknown) (500) | A server-sent event stream id is unknown to the server. |
 | [`E_RESPONSE_INVALID_HEADER`](/en/reference/errors#e-response-invalid-header) | A header name or value carries CR, LF or NUL, which would split the response. |
-| [`E_RESPONSE_INVALID_COOKIE`](/en/reference/errors#e-response-invalid-cookie) | Cookie options a browser rejects: `sameSite: true`, `SameSite=None` or `partitioned` without `secure`, or an invalid `expires` date. |
+| [`E_RESPONSE_INVALID_COOKIE`](/en/reference/errors#e-response-invalid-cookie) | A cookie a browser would reject or misread: a name outside the cookie token grammar, a `path` or `domain` outside the attribute grammar, `sameSite: true`, `SameSite=None` or `partitioned` without `secure`, an invalid `expires` date, or an `http.cookie` block with an unknown key or a value of the wrong type. |
 | [`E_RESPONSE_NO_CONTEXT`](/en/reference/errors#e-response-no-context) | `response.redirect()` on a response built outside a request. |
 | [`E_RESPONSE_SSE_UNSUPPORTED`](/en/reference/errors#e-response-sse-unsupported) | `response.sse()` on a server that has no stream backend. |
 | [`E_REDIRECT_NO_ROUTER`](/en/reference/errors#e-redirect-no-router) | `redirect().toRoute()` with no route URL resolver wired. |
@@ -1167,6 +1182,7 @@ Each code links to its row in the [error index](/en/reference/errors).
 | [`E_INVALID_ENV_VARIABLES`](/en/reference/errors#e-invalid-env-variables) | `Env.create()` found environment variables that fail their schema. The message is `Validation failed for one or more environment variables`; `help` lists each one on a `- ` line, and `failures` holds them. |
 | [`E_MISSING_ENCRYPTER_KEY`](/en/reference/errors#e-missing-encrypter-key) | Encryption, a signed cookie or a signed URL was used and `APP_KEY` is not set. `help` names what needed it. |
 | [`E_INSECURE_ENCRYPTER_KEY`](/en/reference/errors#e-insecure-encrypter-key) | `APP_KEY` is shorter than 16 characters, or is a key known from scaffolding or documentation. |
+| [`E_CRYPTO_FAILED`](/en/reference/errors#e-crypto-failed) | A native crypto call (`hmacSign()`, `randomHex()`…) failed in the engine. |
 | [`E_REAMRC_UNKNOWN_OPTION`](/en/reference/errors#e-reamrc-unknown-option) | `reamrc.ts` `tests` holds an option that does not exist. |
 | [`E_MISSING_PROVIDER_FILE`](/en/reference/errors#e-missing-provider-file) | A `reamrc.ts` `providers` entry has no `file`. |
 | [`E_INVALID_PROVIDER`](/en/reference/errors#e-invalid-provider) | A `reamrc.ts` `providers` entry has a `file` that is not a function. A provider module with no default export, or whose default export is not a class, raises `E_RUNTIME_EXCEPTION`. |
@@ -1180,6 +1196,14 @@ Each code links to its row in the [error index](/en/reference/errors).
 | [`E_IGNITOR_GRPC_UNSUPPORTED`](/en/reference/errors#e-ignitor-grpc-unsupported) | A gRPC handler is registered, but this server cannot serve gRPC. |
 | [`E_SERVER_GRPC_ALREADY_SET`](/en/reference/errors#e-server-grpc-already-set) | A second gRPC handler was registered on the server. |
 | [`E_SERVER_GRPC_INVALID_LIMIT`](/en/reference/errors#e-server-grpc-invalid-limit) | A gRPC message size limit is not a whole number of bytes, or `-1` for no limit. |
+| [`E_SERVER_INVALID_PORT`](/en/reference/errors#e-server-invalid-port) | The native server was given a port above 65535. |
+| [`E_SERVER_INVALID_HOST`](/en/reference/errors#e-server-invalid-host) | The native server's bind address is not an IPv4 or IPv6 address, nor `localhost`. |
+| [`E_SERVER_INVALID_TRUSTED_PROXY`](/en/reference/errors#e-server-invalid-trusted-proxy) | A `trustedProxies()` entry is not an address, a CIDR range, a netmask range, a named range or `*`. The server refuses to start. |
+| [`E_SERVER_INVALID_BODY_LIMIT`](/en/reference/errors#e-server-invalid-body-limit) | A body limit handed to the native server is not a byte count or a part count of zero or more. |
+| [`E_SERVER_BIND_FAILED`](/en/reference/errors#e-server-bind-failed) | The native server could not bind its address: the port is taken, or the address is not on this machine. |
+| [`E_SERVER_NO_HANDLER`](/en/reference/errors#e-server-no-handler) | The native server was started before a request handler was registered. |
+| [`E_SERVER_NOT_STARTED`](/en/reference/errors#e-server-not-started) | The native server's port was read before the server started. |
+| [`E_SERVER_LOCK_POISONED`](/en/reference/errors#e-server-lock-poisoned) | A lock of the native server was left poisoned by a panic. This is a bug in Ream. |
 | [`E_REAM_STUB_SYNTAX`](/en/reference/errors#e-ream-stub-syntax) | A stub template has a syntax error. |
 | [`E_ENV_FILE_NOT_FOUND`](/en/reference/errors#e-env-file-not-found) | A `.env` value `file:<path>` names a file that does not exist. The message names the variable and the path. |
 | [`E_ENV_CIRCULAR_REFERENCE`](/en/reference/errors#e-env-circular-reference) | `.env` values reference each other in a loop (`A=$B`, `B=$A`). |
@@ -1188,7 +1212,7 @@ Each code links to its row in the [error index](/en/reference/errors).
 | [`E_DUMP_DIE_EXCEPTION`](/en/reference/errors#e-dump-die-exception) (500) | `dd()` stopped the request (answered with an HTML dump) or the command (printed the dump). Never reported. |
 | [`E_APP_ALREADY_BOOTED`](/en/reference/errors#e-app-already-booted) | `app.setMode()` or `app.setEnvironment()` was called after the application booted. |
 | [`E_APP_ROOT_NOT_SET`](/en/reference/errors#e-app-root-not-set) | `app.makePath()` (or another path helper) on an application with no root. |
-| [`E_APP_MISSING_DEFAULT_EXPORT`](/en/reference/errors#e-app-missing-default-export) | A lazily imported module (`app.importDefault()`, a lazy listener) has no default export. |
+| [`E_APP_MISSING_DEFAULT_EXPORT`](/en/reference/errors#e-app-missing-default-export) | A lazily imported module (`app.importDefault()`, a lazy listener, a route's lazy controller) has no default export. |
 | [`E_APP_SHUTDOWN_FAILED`](/en/reference/errors#e-app-shutdown-failed) | Several terminating or shutdown hooks failed; `errors` holds each failure. |
 | [`E_SERVICE_NOT_BOOTED`](/en/reference/errors#e-service-not-booted) | A `@c9up/ream/services/*` accessor, `urlFor()` or `signedUrlFor()` was used before the application booted it. |
 | [`E_ENV_PATH_NO_FILE`](/en/reference/errors#e-env-path-no-file) | `ENV_PATH` names a directory that holds none of the `.env` files. |
@@ -1197,7 +1221,7 @@ Each code links to its row in the [error index](/en/reference/errors).
 | [`E_BASE64_MALFORMED`](/en/reference/errors#e-base64-malformed) | `base64.decode()` or `base64.urlDecode()` in strict mode met a malformed value. |
 | [`E_HEALTH_INVALID_THRESHOLD`](/en/reference/errors#e-health-invalid-threshold) | A memory health check threshold is not a byte size, or not a percentage between 0 and 100. |
 | [`E_REAM_STUB_NOT_FOUND`](/en/reference/errors#e-ream-stub-not-found) | No stub at the given path. |
-| [`E_REAM_STUB_UNSAFE_PATH`](/en/reference/errors#e-ream-stub-unsafe-path) | A stub path, or the destination a stub declares, is absolute or leaves its root. |
+| [`E_REAM_STUB_UNSAFE_PATH`](/en/reference/errors#e-ream-stub-unsafe-path) | A stub path, or the destination a stub declares, is absolute or leaves its root, or a generator's destination is a symbolic link leading outside the project or to nothing. |
 | [`E_REAM_STUB_NO_DESTINATION`](/en/reference/errors#e-ream-stub-no-destination) | A stub declares no destination (no `to:` front-matter line), or an empty one. |
 | [`E_REAM_STUB_FORBIDDEN_KEY`](/en/reference/errors#e-ream-stub-forbidden-key) | A stub template reads or sets a key it may not reach (`constructor`, `__proto__`…). A `TypeError`. |
 | [`E_REAM_STUB_EVALUATION`](/en/reference/errors#e-ream-stub-evaluation) | A stub template failed while rendering: an unknown name, a property of nothing, a call to what is not a function, `{{#each}}` over what is not a list. A `TypeError` or a `ReferenceError`. |
@@ -1209,9 +1233,9 @@ Each code links to its row in the [error index](/en/reference/errors).
 | [`E_CODEMODS_INVALID_ENV_VALIDATION`](/en/reference/errors#e-codemods-invalid-env-validation) | `defineEnvValidations()` was given a comment over one line, or a rule that is not one complete expression. |
 | [`E_CODEMODS_MIDDLEWARE_CONFLICT`](/en/reference/errors#e-codemods-middleware-conflict) | A middleware is already registered in the other tier of `start/kernel.ts`. |
 | [`E_REAM_INTERNAL`](/en/reference/errors#e-ream-internal) | An invariant inside `@c9up/ream` broke; a bug to report. |
-| [`E_REAM_NAPI_UNSUPPORTED_PLATFORM`](/en/reference/errors#e-ream-napi-unsupported-platform) | No prebuilt native binary (scheduler, event bus, GraphQL) exists for this platform. |
-| [`E_REAM_NAPI_LOAD_FAILED`](/en/reference/errors#e-ream-napi-load-failed) | A native binary exists but cannot be loaded; `cause` is the loader's error. |
-| [`E_REAM_NAPI_NOT_FOUND`](/en/reference/errors#e-ream-napi-not-found) | A native binary is not found. |
+| [`E_REAM_NAPI_UNSUPPORTED_PLATFORM`](/en/reference/errors#e-ream-napi-unsupported-platform) | No prebuilt native binary (HTTP server, scheduler, event bus, GraphQL) exists for this platform. |
+| [`E_REAM_NAPI_LOAD_FAILED`](/en/reference/errors#e-ream-napi-load-failed) | A native binary exists but cannot be loaded. The message names the binary and the fix (rebuild a local build, reinstall a platform package); `cause` is the load error, with the paths on the host. |
+| [`E_REAM_NAPI_NOT_FOUND`](/en/reference/errors#e-ream-napi-not-found) | A native binary is found neither at the package root nor in the platform package `@c9up/ream-<platform>`; `help` names the package to install, `cause` is the loader's error. |
 
 ### Console
 
@@ -1264,6 +1288,8 @@ Each code links to its row in the [error index](/en/reference/errors).
 | [`E_SCHEDULE_TASK_TIMEOUT`](/en/reference/errors#e-schedule-task-timeout) | A task did not complete within its `timeoutMs`; it keeps running in the background. |
 | [`E_SCHEDULE_PROVIDER_ALREADY_REGISTERED`](/en/reference/errors#e-schedule-provider-already-registered) | The scheduler provider was registered twice on the same container. |
 | [`E_SCHEDULER_NATIVE_ERROR`](/en/reference/errors#e-scheduler-native-error) | A call into the native scheduler failed. |
+| [`E_NATIVE_CALLBACK_FAILED`](/en/reference/errors#e-native-callback-failed) | A JavaScript callback the native binding could not hold: napi refused to wrap it. napi's own status is in the message. |
+| [`E_NATIVE_PANIC`](/en/reference/errors#e-native-panic) | A Rust panic in a native binding, caught before it could stop the process. This is a bug in Ream. The scheduler reports it as `E_SCHEDULER_NATIVE_ERROR`. |
 | [`E_SCHEDULER_INVALID_CRON`](/en/reference/errors#e-scheduler-invalid-cron) | The native scheduler refused a cron expression. |
 | [`E_SCHEDULER_CRON_NO_FIRE`](/en/reference/errors#e-scheduler-cron-no-fire) | The native scheduler refused a cron expression that never fires. |
 | [`E_SCHEDULER_DUPLICATE_TASK`](/en/reference/errors#e-scheduler-duplicate-task) | The native scheduler already has a task of that name. |
@@ -1281,7 +1307,9 @@ Each code links to its row in the [error index](/en/reference/errors).
 | [`E_EVENTS_ASSERTION_FAILED`](/en/reference/errors#e-events-assertion-failed) | An event assertion failed (`assertEmitted()`, `assertNotEmitted()`, on the helpers or the `FakeBus`). |
 | [`E_EVENTS_TIMEOUT`](/en/reference/errors#e-events-timeout) | An awaited event, event chain or fake request reply did not arrive within its timeout. |
 | [`E_EVENTS_DUPLICATE_REQUEST_HANDLER`](/en/reference/errors#e-events-duplicate-request-handler) | `FakeBus.onRequest()` was given a second handler for the same name. |
-| [`E_EVENTS_NO_REQUEST_HANDLER`](/en/reference/errors#e-events-no-request-handler) | `FakeBus.request()` named a request no handler answers. |
+| [`E_EVENTS_NO_REQUEST_HANDLER`](/en/reference/errors#e-events-no-request-handler) | `emitter.request()` or `FakeBus.request()` named a request no handler answers. |
+| [`E_EVENTS_HANDLER_FAILED`](/en/reference/errors#e-events-handler-failed) | A request handler panicked, or refused the request with an error of its own. |
+| [`E_EVENTS_BUS_FAILED`](/en/reference/errors#e-events-bus-failed) | The native event bus failed: its task panicked or was cancelled, or an event could not be serialized. |
 
 ### RPC and GraphQL
 
@@ -1293,6 +1321,9 @@ Each code links to its row in the [error index](/en/reference/errors).
 | [`E_RPC_PROVIDER_ALREADY_REGISTERED`](/en/reference/errors#e-rpc-provider-already-registered) | The RPC provider was registered twice on the same container. |
 | [`E_GRAPHQL_PROVIDER_ALREADY_REGISTERED`](/en/reference/errors#e-graphql-provider-already-registered) | The GraphQL provider was registered twice on the same container. |
 | [`E_GRAPHQL_SCHEMA_NOT_FOUND`](/en/reference/errors#e-graphql-schema-not-found) | The GraphQL `schemaPath` names a file that does not exist. |
+| [`E_GRAPHQL_INVALID_SCHEMA`](/en/reference/errors#e-graphql-invalid-schema) | The GraphQL schema does not parse, declares a type twice, or names a type it does not declare. Every query is then refused with `GraphQL schema could not be read`, and the reason is logged. |
+| [`E_GRAPHQL_INVALID_RESULT`](/en/reference/errors#e-graphql-invalid-result) | A GraphQL resolver returned a value its field's declared type cannot hold: an object under a `String`, something that is not a list under `[Task]`, a value of an interface or union whose object type is not known. The field fails; the client reads `Internal server error` outside debug. |
+| [`E_GRAPHQL_SERIALIZE_FAILED`](/en/reference/errors#e-graphql-serialize-failed) | The native GraphQL parser could not serialize its result. |
 
 ### HTTP client
 
@@ -1309,6 +1340,7 @@ Each one is a class of `errors`, a flare `Exception`: read `error.code`, or test
 
 ## Migration
 
+- `@c9up/ream/events/configure` is gone. `ream configure` takes a package name, so it never reached that hook. Every new app already lists `@c9up/ream/events/provider`, and `config/events.ts` is optional: without it the bus uses the in-memory store. Add the provider to `reamrc.ts` by hand if your app predates that.
 - `ReamError`, `isReamError` and the module errors (`AtlasError`, `ContainerError`, `EventsError`, `ForgeError`, `PipelineError`, `RouterError`, `RuneError`, `WardenError`) are gone. Replace `isReamError(error, 'E_X')` and `instanceof ReamError` with `error instanceof errors.E_X` or a test on `error.code`. The advice that was in `hint` is in `help`; the data that was in `context` is on named fields (`E_CIRCULAR_DEPENDENCY.chain`, `E_RESPONSE_TOO_LARGE.bytes` and `ceiling`, `E_SCHEDULE_INVALID_CRON.task` and `cronExpr`…). `error.docsUrl` is `errorDocsUrl(error.code)`.
 - The error classes are no longer exported one by one from `@c9up/ream`: `import { E_ROUTE_NOT_FOUND } from '@c9up/ream'` becomes `import { errors } from '@c9up/ream'` and `errors.E_ROUTE_NOT_FOUND`. `@c9up/ream/exceptions` still exports the HTTP exceptions by name.
 - Renamed classes: `ShutdownError` is `errors.E_APP_SHUTDOWN_FAILED` (an `Exception` with `errors`, no longer an `AggregateError`); `EnvValidationException` and `EnvVarError` are `errors.E_INVALID_ENV_VARIABLES` (`failures` lists each variable); `HttpClientError` is one class per code, `errors.E_HTTP_CLIENT_*`, and `reason` is gone: read `error.code`; `WebSocketRefused` is `errors.E_TEST_CLIENT_WEBSOCKET_REFUSED`; `ExpectationError` is `errors.E_TEST_CLIENT_ASSERTION_FAILED`; `StubSyntaxError`, `StubTypeError` and `StubReferenceError` are `errors.E_REAM_STUB_SYNTAX`, `E_REAM_STUB_FORBIDDEN_KEY` and `E_REAM_STUB_EVALUATION`, and no longer extend `TypeError` or `ReferenceError`.
@@ -1324,6 +1356,44 @@ Each one is a class of `errors`, a flare `Exception`: read `error.code`, or test
 - `E_INVALID_ENV_VARIABLES` has the message `Validation failed for one or more environment variables`; the failures are in `help`, one `- ` line each. `E_IDENTIFIER_ALREADY_DEFINED` is a `createError` class (`new E_IDENTIFIER_ALREADY_DEFINED([name])`) with status 500, and has no `identifier` field.
 - A compressed JSON, form or text body (`Content-Encoding` other than `identity`) is refused with `E_ENCODING_UNSUPPORTED` (415) instead of being parsed as text.
 - The native scheduler's codes carry the namespace: `INVALID_CRON` is `E_SCHEDULER_INVALID_CRON`, `CRON_NO_FIRE` is `E_SCHEDULER_CRON_NO_FIRE`, `DUPLICATE_TASK` is `E_SCHEDULER_DUPLICATE_TASK`; the native loader's `<PREFIX>_NAPI_NOT_FOUND`, `<PREFIX>_NAPI_LOAD_FAILED` and `<PREFIX>_UNSUPPORTED_PLATFORM` are `E_REAM_NAPI_NOT_FOUND`, `E_REAM_NAPI_LOAD_FAILED` and `E_REAM_NAPI_UNSUPPORTED_PLATFORM`.
+- `createHyperServerFactory()` no longer returns `undefined`. A missing native binary throws `E_REAM_NAPI_NOT_FOUND`, a binary that does not load throws `E_REAM_NAPI_LOAD_FAILED` with the load error as `cause`, and an unsupported platform throws `E_REAM_NAPI_UNSUPPORTED_PLATFORM`. Before, each of these returned `undefined`: a web app then stopped on `E_IGNITOR_NO_SERVER_FACTORY` without the reason, and a test app ran with no server. Remove any `if (serverFactory === undefined)` check: the error now says what is missing.
+- Role gates only restrict. `RouteDefinition.roles` (and `RpcMethodDefinition.roles`) is now a `string[][]`: a list of requirements, and the user needs one role of EACH. Before, a group's roles, a route's roles and the controller's `@Role()` were one flat list and any role of it passed: a route `.role('editor')` inside a group `.role('admin')` let an editor through, and `@Role('a', 'b')` let a user with `a` only through when warden's middleware was not installed. Now:
+  - `.role('a', 'b')` still needs `a` or `b`, but `.role('a').role('b')` needs both;
+  - a group's `.role()` (chained or `group({ roles })`) and each nested group's add a requirement on top of the route's own;
+  - each role of `@Role('a', 'b')` is required, on ream's route gate as on warden's middleware.
+
+  A route that relied on the old reading needs every role it really accepts in ONE call: `.role('admin', 'editor')`. Code that reads `route.roles` gets arrays of roles, and `MiddlewareRegistry.buildChain()` takes `roles: [['admin']]`. Permissions do not change: every one is required, the group's and the route's together.
+- Guard levels only restrict too. `RouteDefinition.guards` and `RpcMethodDefinition.guards` are now `string[][]`, and the request must be authenticated by a guard EVERY level names. Before, a group's guards, a route's guards and `@Guard()` were one list, and any of them could authenticate: a route `.guard('web')` inside a group `.guard('jwt')` accepted a session-only request. Now `.guard('jwt', 'web')` still accepts either guard, but `.guard('jwt').guard('web')`, a group `.guard('jwt')` around a route `.guard('web')`, or any levels with no guard in common accept no request (401). `ctx.auth.authenticateUsing()` is called once, with the guards every level names. A nested `rpc.group()` now keeps the enclosing group's guards and middleware; before, it replaced them. OpenAPI lists the guards every level names as the security alternatives. `MiddlewareRegistry.buildChain()` takes `guards: [['jwt']]`.
+- GraphQL checks every selection against the schema, at every depth, before any resolver runs. Before, only root fields were checked: below them a client could select any property of what a resolver returned, and `{ tasks }` with no sub-selection answered the objects whole. Now:
+  - a field its type does not declare is refused (`Cannot query field "passwordHash" on type "User".`), and so is a fragment on a type the value cannot be;
+  - a field of object type needs a sub-selection: replace `{ tasks }` with `{ tasks { id title } }`;
+  - only **own properties** that the type declares are copied. A getter on a class prototype is no longer read: return the value as a property of the object;
+  - an object under `Int`, `Float`, `String`, `Boolean`, `ID` or an enum fails the field (`E_GRAPHQL_INVALID_RESULT`) unless its `toJSON()` gives a string, a number or a boolean. Declare a `scalar` for a free-form value, or an object type with its fields;
+  - a single value under a list type, or a list under an object type, fails the field;
+  - the schema must declare every type it names (`scalar DateTime`, `type User`). Otherwise every query answers `GraphQL schema could not be read`;
+  - a field of an interface or union type needs the object type of each value: return objects with `__typename`, or register `engine.resolveType('SearchResult', (value) => 'User')`;
+  - `__typename` is answered on every object, interface and union type, and at the root.
+- GraphQL stops validating after 100 errors (`maxErrors`) and ends the list with `Too many validation errors, error limit reached. Validation aborted.` A message is reported once.
+- GraphQL bounds how many times one request may select the same root field: 10 times (`maxFieldRepeats`), and once for a mutation (`maxMutationRepeats`). A request that repeats a mutation under aliases is now refused. To batch a mutation, raise `maxMutationRepeats` or set `maxRepeats` on its resolver.
+- The route gate enforces `@RequireMfa()`. Before, it read `@Guard`, `@Role` and `@Permission` off a controller action and ignored `@RequireMfa`: without Warden's auth middleware, the action ran without the step-up. Now an action carrying it answers 401 to an anonymous request and `403 E_WARDEN_MFA_REQUIRED` unless `ctx.auth.user.mfa` is `true`, on every stack. If your own auth middleware fills `ctx.auth`, put the credential's `mfa` claim on `ctx.auth.user`. `MiddlewareRegistry.buildChain()` takes `mfa: true`.
+- `ctx.route.controller` and `ctx.route.action` are set on the first request to a lazily imported controller too. Before, they were empty on that request, so a middleware reading the action's decorators through them (Warden's) let it through once per route after each start. A lazily imported module with no default export now answers `E_APP_MISSING_DEFAULT_EXPORT`.
+- `.guard()`, `.role()` and `.permission()` refuse an empty call. Before, `.guard()`, `.role(...roles)` with an empty list and `group({ guards: [], roles: [] })` added no requirement and the route stayed public. They now throw `E_EMPTY_GATE_REQUIREMENT` when the route is declared; so do an RPC method's `.guard()` / `.role()` / `.permission()`, `rpc.group({ guards: [] })`, `guards: []` in `config/rpc.ts`, and `guards: []`, `roles: []` or `permissions: []` on a GraphQL resolver. A controller action whose `@Role()`, `@Permission()` or `@Guard()` names nothing answers every request with `E_EMPTY_GATE_REQUIREMENT` (500). Name at least one (`.guard('jwt')`), or remove the call or the key for no requirement. A list read from configuration must not be empty.
+- Cookie names are no longer percent-decoded on read nor percent-encoded on write. A cookie sent as `%73ession` is read as `%73ession`, not as `session`. `response.cookie()`, `plainCookie()`, `encryptedCookie()` and `clearCookie()` now throw `E_RESPONSE_INVALID_COOKIE` for a name with a space, a `;`, a `=`, a control or a non-ASCII character; before, such a name was written encoded. Rename the cookie to visible ASCII (`my_pref` instead of `my pref`).
+- With `http.allowMethodSpoofing` on, `request.method()` no longer reads `_method` from the body. It answers the method the route was matched with: the `_method` of the query string on a `POST`, or the request-line method. A body `_method` never selected a route; it only changed what `request.method()` told the CSRF check, the body parser and your middleware. Put `_method` in the form's `action` URL (`action="/posts/1?_method=DELETE"`).
+- `SignedUrl.verify()` and `request.hasValidSignature()` check the signature over the exact `path?query` received, without parsing it as a URL. A URL whose path a URL parser would normalise (`\`, `.` or `..` segments, `%2e%2e`, a leading `//`), whose query was reordered or re-encoded, or an absolute URL (`https://host/path?…`) no longer verifies. Pass `verify()` the request target as received (`req.url`, `request.url(true)`), and send the URL `make()` returned unchanged.
+- Upload type detection reads the first 64 KiB of each file, and the files of one request share one bound on ZIP work (4096 entries, 4 MiB scanned). A ZIP-based file past that bound, or whose distinguishing part starts after 64 KiB, now reports `typeSource: 'claimed'` and the client's extension instead of a detected type. If `extnames` validation then refuses such an upload, send fewer ZIP-based files per request.
+- `response.cookie()`, `encryptedCookie()`, `plainCookie()` and `clearCookie()` now merge the cookie defaults under the options of each call: `maxAge: '2h'`, `path: '/'`, `httpOnly: true`, `secure: true`, `sameSite: 'lax'`, overridable in `config/app.ts` → `http.cookie`. A cookie written without options was `name=value; HttpOnly` and lasted the browser session; it now lasts two hours and is sent over HTTPS only. Pass `maxAge: undefined` for a browser-session cookie, `secure: false` (or `http.cookie.secure: false`) for a cookie a plain-HTTP host must receive. An unknown key or a wrong type in `http.cookie` stops the boot with `E_RESPONSE_INVALID_COOKIE`.
+- A cookie `path` or `domain` outside the cookie grammar (a `;`, a control character, a non-ASCII character, a domain that is not a host name) now throws `E_RESPONSE_INVALID_COOKIE`; a CR or LF there threw `E_RESPONSE_INVALID_HEADER` before.
+- `redirect().toIntended()` and `redirect().back()` judge a relative URL by how a browser parses it: `/<TAB>/host`, `/<LF>/host` and `/\host` now fall back instead of leaving the site.
+- A request handler that throws or rejects ends its request with `E_EVENTS_HANDLER_FAILED` (message `Request handler for '<name>' failed: <message>`). Before, a synchronous throw ended the process and a rejection left the requester waiting for `E_EVENTS_TIMEOUT`; with `FakeBus`, `request()` rejected with the handler's own error. Catch `errors.E_EVENTS_HANDLER_FAILED` where you awaited the handler's error or the timeout. A `FakeBus` request handler receives a third argument, `fail(message)`.
+- `OpenApiProvider` is off in production: set `enabled: true` in `config/openapi.ts` to serve the docs there, with `guards` or `middleware` to protect them. `/api-docs` and `/docs` are now routes, not a server middleware: your server middleware runs before them, and an application route on the same path and method now stops the boot with `E_DUPLICATE_ROUTE` (move the docs with `specPath` / `docsPath`).
+- `session.flashValidationErrors()` no longer flashes `password`, `password_confirmation`, `passwordConfirmation`, `_csrf` and `_method` back: a form redisplayed after a validation failure gets those fields empty.
+- `HealthCheck` (the root-export class) reports a check that throws as `Health check failed` instead of the thrown message, and a timeout as `Health check timed out after <ms>ms` without the check's name (it is in `name`). The thrown error goes to the new `onError` option, stderr by default: pass `onError` to send it to your logger.
+- A codemod or a `make:*` generator no longer writes through a symbolic link to a path that does not exist: `addEnvVars`, `writeFile`, `makeUsingStub` and the `reamrc.ts` / `start/kernel.ts` / `start/env.ts` codemods throw `E_CODEMODS_UNSAFE_PATH`, a generator skips it (`E_REAM_STUB_UNSAFE_PATH` with `--force`). `writeFile` now refuses an existing link out of the project even without `force`. Replace such a link with a regular file. A `.env` that `addEnvVars` creates has mode `0600`.
+- A resolver's bound values (the request's `HttpContext`, anything bound with `ctx.containerResolver.bindValue()`) are no longer visible to async work that outlives the resolution: a timer or an unawaited promise started while a service was being built for a request now gets `E_CONTAINER_NOT_FOUND` from `make(HttpContext)` instead of that request's context. Hand such work the data it needs when it is scheduled.
+- In development, the `/__ream/` pages (profiler, toolbar assets, reload stream) answer `403` to a `Host` that is not an IP address, `localhost`, a `.localhost` name or the bind host, and to a cross-site request. Opening them through another name (a tunnel, a `.test` domain) needs `allowedHosts: ['that.name']` on the `Ignitor`.
+- `route.middleware('auth')` and `group.middleware('auth')` now find a middleware declared with `router.named({ auth })`. Before, only names given to `middleware.register()` or `Ignitor.named()` resolved, and the route answered 500 `E_MIDDLEWARE_NOT_FOUND` on every request. A name nothing declares now stops the application at boot (when the HTTP kernel is built) with `E_MIDDLEWARE_NOT_FOUND`, naming the route: fix the name, or declare it in `router.named()`. RPC methods and GraphQL resolvers find `router.named()` names too.
+- The middlewares of `router.use()` now run before the route's named middlewares, as the documented order says. Before, a named middleware ran first, so a named `auth` that reads the session or the user found by `@c9up/warden/silent-auth` refused every request. A named middleware that relied on running before the router stack must move into it. `MiddlewareRegistry.buildChain()` takes the router stack as `routerMiddleware`, not mixed into the inline list.
 
 ## See also
 

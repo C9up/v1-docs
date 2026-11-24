@@ -101,7 +101,7 @@ With [@c9up/robledo](https://github.com/C9up/robledo) installed and
 store release:
 
 ```bash
-ream generate:update-key     # robledo.key (keep it out of git) and the public key to paste
+ream generate:update-key     # robledo.key (owner-only; ream new's .gitignore lists it) and the public key to paste
 ream android:publish         # bundle, sign, write robledo/android/<runtime>/<id>/
 ```
 
@@ -122,3 +122,28 @@ signing key comes from `REAM_UPDATES_KEY`, else `robledo.key`, and must match
 `mobile.updates.publicKey`. Plain http is accepted only to this computer
 (`localhost`, `127.0.0.1`, `10.0.2.2`), for development; the app is then
 allowed cleartext to that host alone.
+
+A phone only moves forward. `android:publish` stamps each update with the
+time it was built (`createdAt`, signed with the rest), and a phone refuses an
+update that is not newer than the newest it accepted, with
+`E_ROBLEDO_NOT_NEWER`. So a server or a CDN that serves an old update again
+cannot take installed apps back to it. To roll back on purpose, publish the
+old code again: `android:publish` signs it as a new update.
+
+The build also writes two fields into the app (`assets/ream-updates.json`).
+Each one closes a gap:
+
+- `embeddedCreatedAt` is the time of the build, in seconds. The JS inside the
+  app is at least that recent. A phone refuses an update published before
+  this build, and drops one it already holds when a store release brings a
+  newer build. Without it, an app updated from the store keeps launching an
+  older over-the-air update.
+- `appId` is the app's `mobile.id`, its Android `applicationId`.
+  `android:publish` signs the same id into each update, and a phone refuses an
+  update that names another app. Without it, an update published for another
+  of your apps, signed with the same key, would install.
+
+So a store build does not take an update published before it. If that update
+must still apply, publish it again after the build. Both times come from the
+clock of the machine that builds or publishes: a clock set ahead makes phones
+refuse the updates published before that time.

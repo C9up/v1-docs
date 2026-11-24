@@ -8,7 +8,9 @@
 pnpm add @c9up/rune
 ```
 
-Le paquet embarque son moteur natif. Un schéma que le moteur sait exécuter est exécuté par lui ou pas du tout (`E_RUNE_NAPI_REQUIRED`) ; les règles personnalisées, un traducteur et un fournisseur de messages tournent en TypeScript.
+Le moteur natif est livré dans un petit paquet par plateforme, `@c9up/rune-<plateforme>`, pour linux x64 et arm64 (glibc), macOS x64 et arm64, et Windows x64. `@c9up/rune` les déclare en dépendances optionnelles, et votre gestionnaire de paquets installe seulement celui de votre machine. Vous n'avez pas besoin de toolchain Rust. N'installez pas avec les dépendances optionnelles désactivées (`--no-optional`, `--omit=optional`) : le moteur serait absent.
+
+Un schéma que le moteur sait exécuter est exécuté par lui ou pas du tout : sans le moteur, il lève `E_RUNE_NAPI_REQUIRED`, et son message nomme le paquet à installer, par exemple `@c9up/rune-linux-x64-gnu`. Les règles personnalisées, un traducteur et un fournisseur de messages tournent en TypeScript.
 
 ## Points d'entrée
 
@@ -96,18 +98,18 @@ Types (aussi dans `@c9up/rune/types`) :
 | `array` | `array(item?: RuleChain): RuleChain<T[]>` | Un tableau |
 | `record` | `record(valueChain: RuleChain): RuleChain<Record<string, T>>` | Un objet aux clés libres |
 | `tuple` | `tuple(items: readonly RuleChain[]): RuleChain` | Un tableau de longueur fixe |
-| `union` | `union(branches: readonly UnionBranch[]): RuleChain` ; `union.if(predicate, chain)`, `union.else(chain)` | La première branche qui correspond |
+| `union` | `union(branches: readonly UnionBranch[]): RuleChain` ; `union.if(predicate, chain)`, `union.else(chain)` | La première branche dont le prédicat est vrai, sinon la branche `union.else`, sinon la valeur est refusée (`union`) |
 | `unionOfTypes` | `unionOfTypes(chains: readonly RuleChain[]): RuleChain` | La branche dont le type correspond |
 | `optional` | `optional(): RuleChain<undefined>` | Absent seulement |
 | `null` | `null(): RuleChain<null>` | `null` seulement |
 | `file` | `file(options?: { size?; extnames?; verifyContent? }): RuleChain<FileLike>` | Un fichier envoyé |
 | `nativeFile` | `nativeFile(options?: { minSize?; maxSize?; mimeTypes? }): RuleChain<FileLike>` | Un `File` / `Blob` |
 
-`rune.group(branches)` avec `group.if(predicate, shape)` et `group.else(shape)` ajoute des champs à un objet selon les données.
+`rune.group(branches)` avec `group.if(predicate, shape)` et `group.else(shape)` ajoute des champs à un objet selon les données. Quand aucune branche ne s'applique, l'objet est refusé (`unionGroup`). `group(...).otherwise(callback)` et `union(...).otherwise(callback)` prennent un `UnionNoMatchCallback` qui décide à la place.
 
 ### `RuleChain`
 
-Chaque méthode renvoie la chaîne. Le guide [Règles](/fr/guides/basics/validation/rules) décrit chacune.
+Chaque méthode renvoie la chaîne sur laquelle vous l'appelez, sauf `optional`, `nullable`, `nullish`, `transform` et `clone`, qui renvoient une nouvelle chaîne et laissent la leur inchangée. Un validateur garde sa propre copie de ses chaînes au moment où il est construit. Le guide [Règles](/fr/guides/basics/validation/rules) décrit chaque méthode.
 
 | Groupe | Méthodes |
 |---|---|
@@ -118,7 +120,8 @@ Chaque méthode renvoie la chaîne. Le guide [Règles](/fr/guides/basics/validat
 | Tableaux, records, objets | `minLength`, `maxLength`, `fixedLength`, `notEmpty`, `distinct`, `compact`, `validateKeys`, `allowUnknownProperties`, `denyUnknownProperties`, `merge`, `partial`, `pick`, `omit`, `toCamelCaseKeys`, `getProperties`, `getChoices`, `otherwise` |
 | Fichiers | `minSize`, `maxSize`, `mimeTypes`, `verifyContent` |
 | Base de données | `unique(options: DatabaseRuleOptions \| callback)`, `exists(options \| callback)` |
-| Transformations | `trim`, `escape`, `toLowerCase`, `toUpperCase`, `toCamelCase`, `normalizeEmail`, `normalizeUrl`, `parse`, `transform` |
+| Avant les règles | `parse` (en premier, sur l'entrée brute), puis `trim`, `escape`, `toLowerCase`, `toUpperCase`, `toCamelCase`, `normalizeEmail`, `normalizeUrl` (après la règle de type) |
+| Après les règles | `transform(fn)` : s'exécute en dernier, sur la valeur validée d'une charge valide |
 | Règles personnalisées | `use(rule: CompiledRule)`, `useAsync(rule: AsyncCompiledRule)`, `custom(name: string, validate: (value: unknown) => boolean, message?: string)` |
 | Messages et schéma | `message(text)`, `meta(object)`, `clone` |
 
@@ -133,8 +136,8 @@ Chaque méthode renvoie la chaîne. Le guide [Règles](/fr/guides/basics/validat
 | `validateResultAsync` | `validateResultAsync(data: unknown, options?): Promise<ValidationResult<T>>` | |
 | `validateOrThrow` | `validateOrThrow(data: unknown, options?): T` | Synchrone, lève `errors.E_VALIDATION_ERROR` |
 | `validateOrThrowAsync` | `validateOrThrowAsync(data: unknown, options?): Promise<T>` | |
-| `fields` | `fields: Record<string, RuleChain>` | La forme |
-| `schema` | `schema: RuleChain` | La chaîne objet, pour `partial()`, `pick()`, `omit()` |
+| `fields` | `fields: Record<string, RuleChain>` | La forme à partir de laquelle le validateur a été construit |
+| `schema` | `schema: RuleChain` | La chaîne à partir de laquelle le validateur a été construit, pour `partial()`, `pick()`, `omit()` ; la modifier ne modifie pas le validateur |
 | `errorReporter` | `errorReporter: ErrorReporterFactory \| ((error) => void) \| null` | Le rapporteur de ce validateur |
 | `messagesProvider` | `messagesProvider: MessagesProviderContract \| null` | Les messages de ce validateur ; une option par appel l'emporte |
 | `toJSON` | `toJSON(): { schema: SchemaIntrospection; refs: string[] }` | Introspection |
@@ -200,9 +203,9 @@ result.errors[0]?.rule   // 'isEven'
 | [`E_RUNE_CONFLICTING_URL_OPTIONS`](/fr/reference/errors#e-rune-conflicting-url-options) | `normalizeUrl()` a reçu à la fois `forceHttp` et `forceHttps` |
 | [`E_RUNE_UNSUPPORTED_JSON_SCHEMA_TARGET`](/fr/reference/errors#e-rune-unsupported-json-schema-target) | Une cible JSON Schema que rune n'émet pas |
 | [`E_RUNE_NO_OUTPUT_SCHEMA`](/fr/reference/errors#e-rune-no-output-schema) | La forme de sortie ne peut être décrite : une transformation peut produire n'importe quoi |
-| [`E_RUNE_NAPI_REQUIRED`](/fr/reference/errors#e-rune-napi-required) | Le moteur natif n'est pas chargé |
-| [`E_RUNE_NAPI_NOT_FOUND`](/fr/reference/errors#e-rune-napi-not-found) | Le binaire du moteur natif est introuvable |
-| [`E_RUNE_NAPI_REQUEST_REFUSED`](/fr/reference/errors#e-rune-napi-request-refused) | Le moteur natif a refusé la requête |
+| [`E_RUNE_NAPI_REQUIRED`](/fr/reference/errors#e-rune-napi-required) | Le moteur natif n'est pas chargé. Le message nomme le paquet à installer |
+| [`E_RUNE_NAPI_NOT_FOUND`](/fr/reference/errors#e-rune-napi-not-found) | Le binaire du moteur natif est introuvable. Le message nomme le paquet à installer |
+| [`E_RUNE_NAPI_REQUEST_REFUSED`](/fr/reference/errors#e-rune-napi-request-refused) | Le moteur natif a refusé la requête. Un validateur ne la lève pas : il valide cette charge en TypeScript |
 | [`E_RUNE_NAPI_INVALID_RESPONSE`](/fr/reference/errors#e-rune-napi-invalid-response) | Le moteur natif a répondu une forme inattendue |
 
 Chacune est une classe d'`errors`, une `Exception` de flare : lisez `error.code`, ou testez `error instanceof errors.E_VALIDATION_ERROR`.
@@ -215,6 +218,15 @@ Chacune est une classe d'`errors`, une `Exception` de flare : lisez `error.code`
 - Le conseil qu'une erreur portait dans `hint` est sur `help`.
 - L'interface `ValidationError` (`{ field, rule, message, index?, meta? }`) devient `ValidationErrorNode` : `ValidationError` est la classe d'exception, la même que `errors.E_VALIDATION_ERROR`. Remplacez `import type { ValidationError }` par `ValidationErrorNode` là où il typait un nœud d'échec.
 - `SimpleErrorReporter` est nouveau.
+- `url()` et `helpers.isURL()` refusent désormais une valeur dont le schéma n'est pas dans `protocols`, même sans `//` après lui : `javascript:…@host`, `myapp:host`. L'hôte est contrôlé comme validator.js le contrôle : son TLD doit faire au moins deux lettres (`http://example.c1` est désormais refusé), et `http://[::1]` est désormais accepté. Pour accepter un autre schéma, listez-le : `url({ protocols: ['https', 'myapp'] })`.
+- `transform()` s'exécute désormais après les règles, sur une charge valide, et non plus avant elles. Une règle ne juge plus ce que renvoie le callback : `number().max(100).transform((n) => n / 100)` refuse désormais `5000`. Si vous utilisiez `transform()` pour préparer une valeur avant les règles, utilisez `parse()` : cette méthode s'exécute avant elles.
+- `optional()`, `nullable()` et `nullish()` renvoient désormais une nouvelle chaîne au lieu de modifier celle sur laquelle vous les appelez. Utilisez ce qu'elles renvoient : écrivez `const nickname = name.optional()`, et non `name.optional()` seul sur une ligne.
+- Un validateur garde désormais sa propre copie de ses chaînes au moment où il est construit. Une règle ajoutée à une chaîne après `create()` ou `schema()` n'atteint plus ce validateur : construisez le validateur une fois la chaîne complète.
+- Une `union` construite avec `union.if()` refuse désormais une valeur quand aucun prédicat n'est vrai et qu'il n'y a pas de branche `union.else` ; elle n'essaie plus les branches dont le prédicat était faux. Un `group` sans branche correspondante refuse désormais l'objet avec `unionGroup`. Ajoutez une branche `union.else(chain)` ou `group.else(shape)`, ou un `.otherwise(callback)`, pour accepter les autres cas.
+- Les éléments d'un tableau, les valeurs d'un record, les positions d'un tuple et les propriétés d'un objet ne sont plus validés quand le conteneur échoue à l'une de ses propres règles : les erreurs ne listent alors que la règle du conteneur. Appelez `.bail(false)` sur le conteneur pour les valider quand même.
+- `requiredWhen(field, '<' | '>' | '<=' | '>=', n)` compare désormais une chaîne numérique comme un nombre : le champ devient requis pour `"17" < 18`, comme il l'était déjà pour `17`.
+- `decimal()` refuse désormais un nombre que JavaScript écrit avec un exposant (`1e-7`, `1e21`).
+- Sur une chaîne `number()` ou `boolean()`, `sameAs()`, `notSameAs()` et `confirmed()` convertissent désormais l'autre champ avant de comparer : `"7"` et `7` sont la même valeur. `distinct()` fait de même pour les éléments de `array(number())`, et `distinct('id')` tient `"7"` et `7` pour une seule valeur.
 
 ## Voir aussi
 

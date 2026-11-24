@@ -65,6 +65,17 @@ ream new <destination> [--template <name>] [--db <name>] [-y] [--pkg <name>] [--
 | `--pkg` | The package manager that installs the project: `pnpm`, `npm` or `yarn`. Defaults to the one that launched `ream`, else `pnpm`. |
 | `--git-init` | Initialises a git repository in the new project. |
 
+A new project does not list `reflect-metadata`: `@c9up/ream` depends on it and loads it. Since ream-cli 0.3.23, `ream test`, `ream repl`, `ream inspect` and `ream <command>` load it through `@c9up/ream` too. An older ream-cli imports it from the project, so a project without the dependency fails on these commands until you update the CLI.
+
+What the `api` and `web` templates mount in `start/kernel.ts`:
+
+- `api`: on the server tier, a timing middleware and `@c9up/blackhole/server_middleware`; on the router tier, the body parser and `@c9up/blackhole/middleware`. `config/blackhole.ts` turns on `X-Frame-Options: DENY`, HSTS and `X-Content-Type-Options: nosniff`, turns CSRF and the content security policy off (an API authenticates with tokens and serves no HTML), and sets a CORS policy that allows no origin until you list one in `cors.origin`.
+- `web`: on the server tier, `@c9up/blackhole/server_middleware`; on the router tier, the body parser, the session, `@c9up/blackhole/middleware` (signed CSRF) and `@c9up/warden/silent-auth`. Silent auth reads who is signed in and refuses nobody. The refusing middleware is `app/middleware/auth_middleware.ts`, registered as the named `auth` middleware: attach it with `.use(middleware.auth())`, or chain `.guard('session')` on the route.
+
+The server-tier half of blackhole runs on every request, so a response to a path no route matches carries the protective headers too, and the rate limit counts it.
+
+The generated `.gitignore` keeps `.env`, `.env.local`, `.env.*.local`, `robledo.key` and `*.keystore` out of git. `.env.example` and the shared `.env.<NODE_ENV>` files stay committed.
+
 ### `ream template`
 
 ```sh
@@ -183,6 +194,8 @@ ream mcp install | uninstall | status
 | `uninstall` | Removes the entry. |
 | `status` | Shows whether the server is registered. |
 
+`.mcp.json` comes with the repository, so `install` and `uninstall` refuse it when it is a symbolic link or not a regular file, and write nothing.
+
 ### `ream generate:key`
 
 ```sh
@@ -202,6 +215,8 @@ ream android:build [--release] [--aab]
 
 Builds from the `mobile` block of `reamrc.ts`. `--release` signs with the app's keystore (a debug build otherwise); `--aab` builds an Android App Bundle for the Play Store and implies `--release`.
 
+With `mobile.updates` set, the build writes `assets/ream-updates.json` for `@c9up/robledo`: the update server, the public key, the native runtime, `embeddedCreatedAt` (the time of the build, in seconds: an update published before it is refused) and `appId` (`mobile.id`: an update for another app is refused). See [Over-the-air updates](/en/guides/mobile/building#over-the-air-updates).
+
 ### `ream android:run`
 
 ```sh
@@ -216,7 +231,7 @@ Builds, installs and starts the app. A debug build loads its JS from Metro, whic
 ream android:publish [--key <file>]
 ```
 
-Bundles, signs and publishes the app's JS as an over-the-air update (`@c9up/robledo`) for its current native runtime. The signing key comes from `REAM_UPDATES_KEY`, else from `--key` (default `robledo.key`).
+Bundles, signs and publishes the app's JS as an over-the-air update (`@c9up/robledo`) for its current native runtime. The signing key comes from `REAM_UPDATES_KEY`, else from `--key` (default `robledo.key`). The signed manifest carries `createdAt` (the time of publishing, in seconds) and `appId` (`mobile.id`), which installed apps check.
 
 ### `ream generate:update-key`
 
@@ -225,6 +240,8 @@ ream generate:update-key [--out <file>] [--force]
 ```
 
 Generates the Ed25519 key pair updates are signed with. `--out` is where the private key goes (default `robledo.key`); `--force` replaces an existing key, after which installed apps refuse updates until rebuilt.
+
+The private key file is readable by its owner only (`0600`), also when `--force` replaces a file that others could read. A destination that is a symbolic link or not a regular file is refused, and nothing is written: a cloned repository decides what `robledo.key` is, and a link would put the key wherever it points.
 
 ### `ream css:compile`
 
@@ -241,6 +258,15 @@ Reads Tailwind's compiled CSS and writes the JSON style table orbit reads, to `-
 | `FORCE_COLOR`, `NO_COLOR` | Colour, as set by `--ansi` / `--no-ansi`; passed on to the Node side. |
 | `REAM_PROBE_TIMEOUT_SECS` | Seconds `ream configure` / `ream add` wait for a package module to load (default 10). |
 | `REAM_UPDATES_KEY` | The signing key of `ream android:publish`. |
+
+## Migration
+
+- A new `web` app mounts `@c9up/warden/silent-auth` on every route, and `app/middleware/auth_middleware.ts` is now the middleware that refuses a request nobody is signed in to, registered as the named `auth` middleware. In an app made by an older `ream new`, the global `AuthMiddleware` refused nobody, and `.guard('session')` answered 401 to every user, signed in or not. Replace `() => import('#middleware/auth_middleware.js')` in `router.use([...])` with `() => import('@c9up/warden/silent-auth')`, and protect each route with `.guard('session')` or with the named `auth` middleware.
+- The `web` and `api` templates mount `@c9up/blackhole/server_middleware` on the server tier. In an app made by an older `ream new`, add `server.use([() => import('@c9up/blackhole/server_middleware')])` to `start/kernel.ts` (for `api`, also add `@c9up/blackhole` to the dependencies, its provider to `reamrc.ts`, `@c9up/blackhole/middleware` after the body parser, and a `config/blackhole.ts`).
+- `ream generate:update-key` and `ream mcp install` / `uninstall` refuse a destination that is a symbolic link. Replace the link with a regular file.
+- `ream generate:update-key --force` sets the key file to `0600`.
+- The Android activity generated by `ream android:*` no longer passes the launch intent's extras to the root component: `run()` receives no launch props. Any app on the phone can start yours with extras of its choosing, so do not read a screen, an address or a switch from them.
+- `ream android:build` writes `embeddedCreatedAt` and `appId` into the app, and `ream android:publish` signs `appId` into each update. An app built by an older version has neither, so a store release does not replace an older over-the-air update, and an update signed with the same key for another app is accepted. Rebuild the app and release it to the store. Then publish its updates with this version only: the rebuilt app refuses an update without `appId`.
 
 ## Releasing
 

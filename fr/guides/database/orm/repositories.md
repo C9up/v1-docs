@@ -194,7 +194,11 @@ const invoices = new BaseRepository(Invoice, db, {
 ```
 
 Le scope s'applique aux finders du repository, à `query()` et à ses écritures
-par id ou par colonne — `updateById`, `updateWhere`, `increment`, `decrement`.
+par id ou par colonne — `updateById`, `updateWhere`, `increment`, `decrement`,
+`upsert`. Sur PostgreSQL et SQLite, `upsert` laisse intacte une ligne en conflit
+hors du scope (`DO UPDATE … WHERE <scope>`). Le `ON DUPLICATE KEY UPDATE` de
+MySQL n'accepte pas de condition : un `upsert` qui met à jour des colonnes y est
+refusé avec `E_UNSUPPORTED`. Sans `updateColumns` (`INSERT IGNORE`), il s'exécute.
 Il est transmis à toutes les requêtes que lancent ses relations :
 
 - les preloads, imbriqués compris ;
@@ -229,3 +233,9 @@ Atlas gère les scopes soft delete selon la config de l'entité:
 - défaut: exclut les supprimés
 - `withTrashed()` inclut tout
 - `onlyTrashed()` ne garde que les supprimés
+
+Le filtre est combiné par `AND` aux clauses de la requête prises en un groupe,
+comme le scope : `where('email', login).orWhere('username', login)` ne trouve pas
+un compte supprimé. Il s'applique aux lectures, à `paginate()` (total et page),
+aux écritures en masse, aux preloads et aux sous-requêtes de `whereHas` /
+`withCount`.

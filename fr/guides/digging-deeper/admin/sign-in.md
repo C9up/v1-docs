@@ -44,8 +44,11 @@ Une écriture refusée faute de token CSRF vérifié répond à un appelant JSON
 soumis (en minuscules, sous son empreinte SHA-256) **avant** de vérifier le mot
 de passe. La sixième tentative en 15 minutes sur l'une ou l'autre clé est
 refusée avec `429` et un en-tête `Retry-After`, sans atteindre la vérification
-des identifiants ; une connexion réussie remet les deux compteurs à zéro. Un
-limiteur en panne (store indisponible) refuse la tentative avec `503`.
+des identifiants. Une connexion réussie remet à zéro le compteur de l'email
+seulement : celui de l'IP continue de compter jusqu'à la fin de sa fenêtre.
+Ainsi, un client qui possède un compte admin ne peut pas remettre sa limite à
+zéro en se connectant entre deux essais sur d'autres comptes. Un limiteur en
+panne (store indisponible) refuse la tentative avec `503`.
 
 L'IP est comptée d'abord, et une tentative refusée sur elle ne compte pas
 l'email : une adresse déjà limitée ne peut pas remplir le store d'identifiants

@@ -26,6 +26,13 @@ la demande jamais. Il lève hors d'un test (une restauration mise en file à cet
 endroit ne s'exécuterait jamais) et quand aucun container n'est actif.
 `overrideOn(container, token, value)` vise un container explicitement.
 
+Annuler un override remet ce qui était là avant lui, pas une place vide. Un
+faux que le fichier a mis en place dans `beforeAll` est toujours là pour le
+test suivant, et deux overrides du même token se défont un par un. Il faut
+pour cela un container capable de lire son swap en cours : le `Container` de
+`@c9up/ream` le fait avec `swapped(token)`. Sur un container qui ne l'a pas,
+le nettoyage appelle `restore(token)`, qui retire tous les swaps du token.
+
 ## Voyage dans le temps
 
 ```ts

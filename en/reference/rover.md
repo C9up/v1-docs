@@ -11,6 +11,8 @@ ream configure @c9up/rover
 
 `ream configure @c9up/rover` adds the provider, the `MAIL_MAILER`, `MAIL_FROM`, `SMTP_HOST` and `SMTP_PORT` variables, and writes `config/mail.ts`. Optional peers: `@c9up/ream` (provider), `@c9up/inker` (mail views rendered with inker), `ical-generator` (`icalEvent(callback)`), `@c9up/helix` (the `mailFake()` test plugin).
 
+Mail templates run in a native engine. It comes as one small package per platform, `@c9up/rover-<platform>`, for linux x64 and arm64 (glibc), macOS x64 and arm64, and Windows x64. `@c9up/rover` lists them as optional dependencies, and your package manager installs only the one that matches your machine. No Rust toolchain is needed. Do not install with optional dependencies turned off (`--no-optional`, `--omit=optional`): the engine would be left out. Without it, rendering a template throws `E_MAIL_TEMPLATE_NAPI_REQUIRED`, and its message names the package to install, for example `@c9up/rover-linux-x64-gnu`.
+
 ## Entry points
 
 | Import | Contents |
@@ -225,14 +227,14 @@ Each assertion of the fake throws an `AssertionError` from `node:assert` when it
 
 ### Webhooks
 
-Each handler is a `WebhookMiddleware`, `(ctx, next) => Promise<void>`, to mount on a route that keeps the raw body. It verifies the provider's signature, refuses a stale one (default 300 seconds), answers 401 or 400 on a refusal and 200 otherwise, and emits `mail.delivered`, `mail.bounced` or `mail.failed` on the emitter; an emitter failure never fails the answer.
+Each handler is a `WebhookMiddleware`, `(ctx, next?) => Promise<void>`, that you mount as the handler of a Ream route (`router.post('/webhooks/mailgun', handler)`), with or without the body parser. It reads the signed bytes with `ctx.request.rawBuffer()`, the body as it came over the wire. It verifies the provider's signature, refuses a stale one (default 300 seconds), answers 401 or 400 on a refusal and 200 otherwise, and emits `mail.delivered`, `mail.bounced` or `mail.failed` on the emitter; an emitter failure never fails the answer.
 
 | Import | Export | Signature |
 |---|---|---|
 | `@c9up/rover/webhooks/mailgun` | `createMailgunWebhookHandler` | `(options: MailgunWebhookOptions) => WebhookMiddleware`; options `signingKey`, `emitter`, `maxAgeSeconds?`, `tokenStore?` |
 | `@c9up/rover/webhooks/mailgun` | `MemoryWebhookTokenStore` | `new MemoryWebhookTokenStore(options?: { maxEntries?: number })` (default 10000): the in-process store of used signature tokens; `claim(token, ttlSeconds): boolean`, `size` |
 | `@c9up/rover/webhooks/mailgun` | `WebhookTokenStore` | `{ claim(token: string, ttlSeconds: number): boolean \| Promise<boolean> }`: pass a shared one behind several instances |
-| `@c9up/rover/webhooks/sendgrid` | `createSendGridWebhookHandler` | `(options: SendGridWebhookOptions) => WebhookMiddleware`; options `publicKey` (Ed25519, base64 DER or PEM), `emitter`, `maxAgeSeconds?` |
+| `@c9up/rover/webhooks/sendgrid` | `createSendGridWebhookHandler` | `(options: SendGridWebhookOptions) => WebhookMiddleware`; options `publicKey` (the ECDSA P-256 key of the signed event webhook, base64 DER or PEM; any other key is refused with `E_ROVER_WEBHOOK_INVALID_KEY`), `emitter`, `maxAgeSeconds?`; verifies ECDSA over SHA-256 |
 | `@c9up/rover/webhooks/resend` | `createResendWebhookHandler` | `(options: ResendWebhookOptions) => WebhookMiddleware`; options `secret` (`whsec_…` or raw base64), `emitter`, `maxAgeSeconds?` |
 
 A Mailgun signature token is accepted once: a replay answers 401.
@@ -293,7 +295,7 @@ Each code is a class of the `errors` namespace (`import { errors } from '@c9up/r
 | [`E_MAIL_TEMPLATE_READ_ERROR`](/en/reference/errors#e-mail-template-read-error) | A mail template cannot be read. |
 | [`E_MAIL_TEMPLATE_SYNTAX`](/en/reference/errors#e-mail-template-syntax) | A mail template has a syntax error. |
 | [`E_MAIL_TEMPLATE_RECURSION`](/en/reference/errors#e-mail-template-recursion) | Mail templates include each other too deep. |
-| [`E_MAIL_TEMPLATE_NAPI_REQUIRED`](/en/reference/errors#e-mail-template-napi-required) | There is no rover native binary for this platform. |
+| [`E_MAIL_TEMPLATE_NAPI_REQUIRED`](/en/reference/errors#e-mail-template-napi-required) | The native rover template engine is missing or failed to load. The message names the package to install. |
 | [`E_ROVER_ICAL_UNAVAILABLE`](/en/reference/errors#e-rover-ical-unavailable) | `icalEvent(callback)` needs `ical-generator`, which is not installed or does not build a calendar. |
 | [`E_ROVER_UNKNOWN`](/en/reference/errors#e-rover-unknown) | A send failed with an error that carries no code of its own. Only the `error.code` of a `mail:failed` event: there is no class. |
 | [`E_ROVER_NOT_BOOTED`](/en/reference/errors#e-rover-not-booted) | The `services/main` mail singleton was used before `RoverProvider` booted. |
@@ -302,6 +304,7 @@ Each code is a class of the `errors` namespace (`import { errors } from '@c9up/r
 | [`E_ROVER_ABSTRACT_MAIL`](/en/reference/errors#e-rover-abstract-mail) | `BaseMail` was instantiated directly instead of through a subclass. |
 | [`E_ROVER_WEBHOOK_KEY_MISSING`](/en/reference/errors#e-rover-webhook-key-missing) | A webhook handler was created without its secret, public key or signing key. |
 | [`E_ROVER_WEBHOOK_INVALID_SECRET`](/en/reference/errors#e-rover-webhook-invalid-secret) | The Resend webhook secret is not valid base64, or decodes to fewer than 16 bytes. |
+| [`E_ROVER_WEBHOOK_INVALID_KEY`](/en/reference/errors#e-rover-webhook-invalid-key) | The SendGrid webhook `publicKey` is not a public key, or not an ECDSA key on P-256. |
 | [`E_ROVER_INTERNAL`](/en/reference/errors#e-rover-internal) | An internal invariant broke (nodemailer composed no message); report it as a bug. |
 
 ## Migration
@@ -314,6 +317,8 @@ Each code is a class of the `errors` namespace (`import { errors } from '@c9up/r
 - `E_ASSERTION_FAILED` is gone: the message assertions and the fake mailer's assertions throw an `AssertionError` from `node:assert`.
 - `docsUrl`, `sourceFile`, `sourceLine` and `pipelineStage` are gone: nothing set them.
 - The `name` of an error is no longer `"RoverError"`.
+- The webhook handlers read the signed body with `ctx.request.rawBuffer()`, Ream's own method, instead of `ctx.request.rawBody()`. Mount them directly on a Ream route. A context you build yourself (another framework, a test) must now provide `request.rawBuffer()` returning the wire bytes as a `Buffer`; `response.header()` is no longer needed.
+- `createSendGridWebhookHandler()` now refuses a `publicKey` that is not an ECDSA key on P-256 with `E_ROVER_WEBHOOK_INVALID_KEY`, and a string that is not a key with the same code. Use the verification key from the SendGrid dashboard.
 
 ## See also
 

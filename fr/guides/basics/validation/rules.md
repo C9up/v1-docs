@@ -28,7 +28,7 @@ rules.string()
   .max(100)       // Longueur maximale
   .email()        // Doit être un email valide
   .uuid()         // N'importe quelle version — .uuid({ version: 4 }) en fixe une
-  .url()          // Doit être une URL
+  .url()          // Une URL : http, https ou ftp, sauf indication contraire
   .regex(/…/)     // Doit correspondre au motif
   .in(['a'])      // Doit faire partie de ces valeurs
   .trim()         // Supprimer les espaces (transformation)
@@ -36,6 +36,21 @@ rules.string()
 
 `uuid()` accepte une version, ou une liste : `uuid({ version: [4, 7] })`. Sans
 précision, toutes les versions passent.
+
+`url()` prend les options de `isURL` de validator.js, sous leurs noms et avec
+les mêmes valeurs par défaut : `protocols` (`['http', 'https', 'ftp']`),
+`require_protocol` (`false`), `require_tld` (`true`), `require_valid_protocol`
+(`true`), `disallow_auth`, `host_whitelist`, `host_blacklist` et les autres.
+
+```typescript
+rules.string().url({ protocols: ['https'], require_protocol: true })
+```
+
+Le schéma d'URL est lu dans la valeur telle qu'elle est écrite. Un schéma absent
+de `protocols` est refusé, qu'il soit suivi de `//` ou non : `javascript:…` ne
+passe jamais, quelle que soit la suite. Sans schéma, `example.com`,
+`example.com:8080` et `user:password@example.com` restent des URL ; activez
+`require_protocol` pour les refuser.
 
 ### Règles number
 
@@ -62,6 +77,12 @@ Sur un tableau ou un record, `min()` et `max()` valent `minLength()` et
 `maxLength()` : la taille qu'ils bornent est le nombre d'éléments, ou de clés.
 L'erreur nomme la règle exécutée : `array.minLength`, `record.maxLength`.
 
+Quand un tableau, un record, un tuple ou un objet échoue à l'une de ses propres
+règles, son contenu n'est pas validé. Un tableau qui dépasse `maxLength(5)`
+rapporte `array.maxLength` et rien d'autre : aucune règle d'élément ne
+s'exécute, pas même une règle de base de données (`exists()`, `unique()`).
+`.bail(false)` sur le conteneur valide quand même les éléments.
+
 ### Champs optionnels
 
 ```typescript
@@ -72,6 +93,22 @@ const s = schema({
 
 s.validateResult({ name: 'Alice' })  // valid — nickname est optionnel
 ```
+
+`optional()`, `nullable()` et `nullish()` renvoient une nouvelle chaîne. La
+chaîne sur laquelle vous les appelez ne change pas : deux schémas peuvent donc
+la partager.
+
+```typescript
+const email = rules.string().email()
+
+const register = schema({ email })                   // email est requis
+const update   = schema({ email: email.optional() }) // email est optionnel ici seulement
+```
+
+Les autres méthodes (`email()`, `min()`, `trim()`…) ajoutent à la chaîne sur
+laquelle vous les appelez et la renvoient. Un validateur garde sa propre copie
+des chaînes au moment où il est construit : modifier une chaîne ensuite ne
+modifie pas ce validateur.
 
 ### Fichiers
 
@@ -293,7 +330,16 @@ les clés déclarées sont validées par ailleurs.
 
 ## Transformations
 
-Les transformations modifient la valeur **avant** l'exécution des règles de validation :
+Trois sortes de méthodes modifient une valeur, à trois moments différents :
+
+| Méthode | Quand elle s'exécute | Ce qu'elle reçoit |
+| --- | --- | --- |
+| `.parse(fn)` | En premier, avant le contrôle de présence et la règle de type | L'entrée brute |
+| `.trim()`, `.escape()`, `.toLowerCase()`, `.toUpperCase()`, `.toCamelCase()`, `.normalizeEmail()`, `.normalizeUrl()` | Après la règle de type, avant les autres règles | Une valeur du bon type |
+| `.transform(fn)` | En dernier, une fois toute la charge valide | La valeur validée |
+
+Les méthodes intégrées s'exécutent avant les règles : les règles jugent donc
+leur résultat.
 
 ```typescript
 const s = schema({
@@ -304,4 +350,31 @@ s.validateResult({ name: '  Al  ' })
 // Trim vers 'Al', puis min(3) échoue
 // errors: [{ field: 'name', rule: 'min',
 //            message: 'The name field must be at least 3', meta: { min: 3 } }]
+```
+
+`.transform()` s'exécute après les règles. Les règles jugent la valeur d'avant,
+et le callback ne reçoit qu'une valeur qui les a passées :
+
+```typescript
+const s = schema({
+  percent: rules.number().max(100).transform((value) => Number(value) / 100),
+})
+
+s.validateResult({ percent: 50 })    // valide, data.percent === 0.5
+s.validateResult({ percent: 5000 })  // refusé par max(100) : le callback n'est pas appelé
+```
+
+Le callback ne s'exécute que pour une charge valide, après les règles
+asynchrones aussi. Il n'est pas appelé pour une valeur absente ni pour `null`.
+Une règle écrite après `.transform()` dans la chaîne juge toujours la valeur
+d'avant.
+
+Pour modifier une valeur avant sa validation, utilisez `.parse()`. Cette méthode
+s'exécute en premier : elle doit donc tester ce qu'elle reçoit.
+
+```typescript
+rules.number()
+  .parse((value) => (typeof value === 'string' ? value.replace(',', '.') : value))
+  .max(100)
+// '12,5' → 12.5, puis max(100) juge 12.5
 ```

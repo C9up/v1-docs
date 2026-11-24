@@ -10,6 +10,8 @@ pnpm add @c9up/atom
 
 The Rust engine loads through N-API in Node, WebAssembly in the browser and a JSI module on a phone (declared in `reamNative`, linked by `ream android:*`). Where none loads, the TypeScript engine answers with the same digits.
 
+In Node, the binary comes in one npm package per platform, which `@c9up/atom` lists as an optional dependency at its exact version: `@c9up/atom-linux-x64-gnu`, `@c9up/atom-linux-arm64-gnu`, `@c9up/atom-darwin-x64`, `@c9up/atom-darwin-arm64`, `@c9up/atom-win32-x64-msvc`. The package manager installs only the one that matches the machine. An install that omits optional dependencies (`--no-optional`, `--omit=optional`) skips it: atom then runs on the TypeScript engine, and `nativeAtom()` throws `E_ATOM_ENGINE_NOT_FOUND`, naming the package to install, with the load error as its `cause`. The WebAssembly engine and the sources of the phone build are the same on every platform: they stay in `@c9up/atom`.
+
 ## Entry points
 
 | Import | Contents |
@@ -58,7 +60,7 @@ The Rust engine loads through N-API in Node, WebAssembly in the browser and a JS
 | `MoneyOptions` | interface | `{ scale?: number; exact?: boolean; mode?: RoundMode }`. |
 | `MoneyRoundingOptions` | interface | `{ mode?: RoundMode }`. |
 | `MoneyFormatOptions` | interface | `Intl.NumberFormatOptions` without `style` and `currency`, plus `locale?: Intl.LocalesArgument`. |
-| `AtomContext` | interface | `{ precision: number; roundMode: RoundMode; quantizeMode: RoundMode; maxDigits: number }`. |
+| `AtomContext` | interface | `{ precision: number; roundMode: RoundMode; quantizeMode: RoundMode; maxDigits: number; maxExponent: number; maxScale: number }`. |
 | `AtomContextOptions` | type | `Partial<AtomContext>`. |
 | `BulkDivOptions` | interface | `{ precision?: number; mode?: RoundMode }`. |
 | `BulkStddevOptions` | interface | `BulkDivOptions` plus `sample?: boolean`. |
@@ -152,7 +154,7 @@ The callback form plans and runs once. Without a callback, it returns the plan, 
 
 | `Bulk` member | Signature | Description |
 |---|---|---|
-| `column` | `column(values: Iterable<DecimalInput>): BulkColumn` | Every column of one plan has the same length. |
+| `column` | `column(values: Iterable<DecimalInput>): BulkColumn` | Every column of one plan has the same length. A plan runs only the columns it loaded. |
 | `minorUnits` | `minorUnits(values: Iterable<string \| number \| bigint>, scale: number): BulkColumn` | A column held as minor units; the fastest way in. |
 | `of` | `of(value: DecimalInput): BulkScalar` | A single value. |
 | `run` | `run<T>(outputs: T): { [K in keyof T]: Decimal }` | Computes the named outputs. |
@@ -208,6 +210,10 @@ resetAtomContext(): AtomContext
 | `roundMode` | `RoundMode` | `'half-up'` | Rounding of those results and of `toScale`, `toFixed`. |
 | `quantizeMode` | `RoundMode` | `'half-up'` | Rounding of `quantize` and of `Money`. |
 | `maxDigits` | `number` | `20000` | Most significant digits an input may carry; longer input is refused (ceiling 1 000 000). |
+| `maxExponent` | `number` | `100` | How far the exponent of a scientific literal (`1e-18`, `2.5E+6`) or of a `number` may move the decimal point, either way; a wider one is refused before it is written out (ceiling 10 000). |
+| `maxScale` | `number` | `10000` | Most fractional digits a value, a precision or a scale may carry (ceiling 10 000). It may not be lower than `precision`. |
+
+`1e-9990` is seven bytes and a value of ten thousand digits: every operation that reads it pays for them. `maxExponent` refuses such a literal when it is read. Raise it only where you need such values. A list of amounts taken from a request costs work for each of its values, so bound its length in the application too.
 
 ## Errors
 
@@ -217,8 +223,8 @@ resetAtomContext(): AtomContext
 | [`E_ATOM_INVALID_DECIMAL`](/en/reference/errors#e-atom-invalid-decimal) | A string or number does not read as a decimal (`parseLocale` included) |
 | [`E_ATOM_UNSAFE_INTEGER`](/en/reference/errors#e-atom-unsafe-integer) | A JavaScript number is an integer past `Number.MAX_SAFE_INTEGER`; pass a string or a bigint |
 | [`E_ATOM_INVALID_INTEGER`](/en/reference/errors#e-atom-invalid-integer) | Minor units are not a whole number |
-| [`E_ATOM_DECIMAL_TOO_LARGE`](/en/reference/errors#e-atom-decimal-too-large) | A value or a result is past the `maxDigits` significant-digit bound |
-| [`E_ATOM_INVALID_SCALE`](/en/reference/errors#e-atom-invalid-scale) | A scale or a precision is not a whole number from 0 to 10 000 |
+| [`E_ATOM_DECIMAL_TOO_LARGE`](/en/reference/errors#e-atom-decimal-too-large) | A value or a result is past the `maxDigits` significant-digit bound, or a literal's exponent is past `maxExponent` |
+| [`E_ATOM_INVALID_SCALE`](/en/reference/errors#e-atom-invalid-scale) | A scale or a precision is not a whole number from 0 to `maxScale` (10 000 by default) |
 | [`E_ATOM_INVALID_EXPONENT`](/en/reference/errors#e-atom-invalid-exponent) | A `pow` exponent is not a whole number in range |
 | [`E_ATOM_INVALID_ROUNDING_MODE`](/en/reference/errors#e-atom-invalid-rounding-mode) | A rounding mode is not one atom knows |
 | [`E_ATOM_INVALID_RANGE`](/en/reference/errors#e-atom-invalid-range) | `clamp` / `between` got a minimum greater than the maximum |
@@ -242,11 +248,12 @@ resetAtomContext(): AtomContext
 | [`E_ATOM_BULK_NO_OUTPUT`](/en/reference/errors#e-atom-bulk-no-output) | `run()` got no value to compute |
 | [`E_ATOM_BULK_BAD_OUTPUT`](/en/reference/errors#e-atom-bulk-bad-output) | `run()` got something that is not a planned value |
 | [`E_ATOM_BULK_LENGTH_MISMATCH`](/en/reference/errors#e-atom-bulk-length-mismatch) | A plan's columns have different lengths |
+| [`E_ATOM_BULK_FOREIGN_COLUMN`](/en/reference/errors#e-atom-bulk-foreign-column) | `run()` / `runAsync()` got a value that reads a column of another plan |
 | [`E_ATOM_BULK_EMPTY_COLUMN`](/en/reference/errors#e-atom-bulk-empty-column) | A column has no value |
 | [`E_ATOM_BULK_BAD_INDEX`](/en/reference/errors#e-atom-bulk-bad-index) | `at()` is outside the column |
 | [`E_ATOM_BULK_BAD_PERCENTILE`](/en/reference/errors#e-atom-bulk-bad-percentile) | A percentile is not a fraction between 0 and 1 |
 | [`E_ATOM_BULK_BAD_EXPONENT`](/en/reference/errors#e-atom-bulk-bad-exponent) | A planned `pow` exponent is not a whole number in range |
-| [`E_ATOM_BULK_BAD_PRECISION`](/en/reference/errors#e-atom-bulk-bad-precision) | A planned precision is not a whole number from 0 to 10 000 |
+| [`E_ATOM_BULK_BAD_PRECISION`](/en/reference/errors#e-atom-bulk-bad-precision) | A planned precision is not a whole number from 0 to `maxScale` (10 000 by default) |
 | [`E_ATOM_BULK_BAD_SCALE`](/en/reference/errors#e-atom-bulk-bad-scale) | `minorUnits()` got a scale that is not one |
 | [`E_ATOM_BULK_NOT_MINOR_UNITS`](/en/reference/errors#e-atom-bulk-not-minor-units) | `minorUnits()` got a value that is not a whole number of minor units |
 | [`E_ATOM_BULK_TOO_SHORT`](/en/reference/errors#e-atom-bulk-too-short) | A planned sample standard deviation has fewer than two values |
@@ -254,13 +261,15 @@ resetAtomContext(): AtomContext
 | [`E_ATOM_BULK_BAD_PROGRAM`](/en/reference/errors#e-atom-bulk-bad-program) | The TypeScript evaluator or the native engine met a malformed plan (a bug in atom) |
 | [`E_ATOM_BULK_LOST_OUTPUT`](/en/reference/errors#e-atom-bulk-lost-output) | A run returned fewer values than it was asked for (a bug in atom) |
 
-Each one is a class of the `errors` namespace and a `@c9up/flare` `Exception` with status 500: branch on `error.code` or on `error instanceof errors.E_ATOM_*`. The Rust engine and the TypeScript engine raise the same errors; a refusal of the Rust engine keeps its original error as `cause`.
+Each one is a class of the `errors` namespace and a `@c9up/flare` `Exception` with status 500: branch on `error.code` or on `error instanceof errors.E_ATOM_*`. The Rust engine and the TypeScript engine raise the same errors; a refusal of the Rust engine keeps its original error as `cause`. The engine names the refusal by its code, at the start of that error's message (`E_ATOM_DIVISION_BY_ZERO: Division by zero`), and atom raises the class of that code.
 
 ## Migration
 
 - `AtomError` is gone: test `error.code`, or `error instanceof errors.E_ATOM_*` with `import { errors } from '@c9up/atom'`.
 - `AtomTypeError` is gone, and the Atlas adapter's refusals are no longer a `TypeError`: replace `instanceof TypeError` with `error.code === 'E_ATOM_INVALID_COLUMN_VALUE'` (or `E_ATOM_NULL_COLUMN_VALUE`).
 - A refusal of the Rust engine (division by zero, negative root...) now carries its `E_ATOM_*` code instead of none: code that matched its message can test the code.
+- A scientific literal or a `number` whose exponent is past ±100 (`'1e-101'`, `1e-150`) is now refused with `E_ATOM_DECIMAL_TOO_LARGE`; an exponent past ±10 000 was refused with `E_ATOM_INVALID_DECIMAL` and now raises `E_ATOM_DECIMAL_TOO_LARGE` too. If you read wider values, raise the bound: `configureAtomContext({ maxExponent: 10_000 })`.
+- `run()` and `runAsync()` now refuse a planned value that reads a column loaded on another `Bulk`, with `E_ATOM_BULK_FOREIGN_COLUMN`, even when the lengths match. Load every column on the plan that runs it.
 
 ## See also
 

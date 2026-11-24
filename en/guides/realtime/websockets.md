@@ -105,7 +105,7 @@ for (const socket of sockets.get(userId) ?? []) socket.close(1008, 'signed out')
 | On `socket` | |
 |---|---|
 | `send(data)` | A string goes as text, a `Uint8Array` as binary. `false` when the socket is closing, or when the message would take the client's backlog past `maxBufferedBytes` — the connection is then closed with `1013` instead of buffering for a client that does not read. |
-| `close(code?, reason?)` | Closes once what is queued has been written. `code` is `1000` (default), `1001`–`1014`, or `3000`–`4999`; `reason` at most 123 bytes (otherwise `E_WEBSOCKET_CLOSE_CODE`, `E_WEBSOCKET_CLOSE_REASON`). |
+| `close(code?, reason?)` | Closes once what is queued has been written, and at most 5 seconds after the call even if the client does not read. `code` is `1000` (default), `1001`–`1014`, or `3000`–`4999`; `reason` at most 123 bytes (otherwise `E_WEBSOCKET_CLOSE_CODE`, `E_WEBSOCKET_CLOSE_REASON`). |
 | `on('message' \| 'close', listener)`, `off(...)` | A listener that throws is reported, never allowed to take the process down. |
 | `closed` | A promise of `{ code, reason }`: the client's close code, the server's, or `1006` when the connection dropped. |
 | `bufferedAmount`, `readyState` | Bytes waiting for the client; `open`, `closing` or `closed`. |
@@ -141,7 +141,9 @@ export const http = {
 | A message or a frame over its limit | closes the connection with `1009` |
 | No traffic for `idleTimeout` | pings at half the timeout, closes with `1001` at the end |
 | A client that stops reading | closes with `1013` once `maxBufferedBytes` would be passed — nothing past it is ever held in memory |
-| Your handlers fall behind | stops reading the socket until they catch up, so a fast client cannot fill the server's memory |
+| A write the client does not take for `idleTimeout` | closes with `1001` (`idle timeout`) and frees what was waiting for it |
+| `socket.close()` while a write to the client is stuck | ends the connection at most 5 seconds later; your `close` listener gets the code you passed |
+| JavaScript does not take the messages in time | stops reading the socket until the messages already received have been handed to JavaScript. A message counts as handed over when its `message` listener is called, not when an `async` listener finishes: a listener that awaits does not slow the client down, so bound that work yourself |
 | The application shuts down | closes every socket with `1001` and waits up to 5 seconds for them to finish |
 
 A WebSocket counts toward `http.maxConnections` for as long as it is open (see

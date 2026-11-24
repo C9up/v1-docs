@@ -66,8 +66,40 @@ rune.string().in((field) => allowedFor(field.meta.tenant))
 `enum().getChoices()` relit la liste, pour qu'un formulaire affiche exactement
 les options que le validateur acceptera — depuis une seule déclaration.
 
-Également : `union().otherwise(cb)` rapporte quand aucune branche n'a matché, et
-`record().validateKeys(cb)` contrôle l'ENSEMBLE des clés plutôt que les valeurs.
+Également : `record().validateKeys(cb)` contrôle l'ENSEMBLE des clés plutôt que
+les valeurs.
+
+### Quand aucune branche ne s'applique
+
+Une `union` construite avec `union.if()` et un `group` sont décidés par leurs
+prédicats. Quand aucun prédicat ne répond vrai et qu'il n'y a pas de branche
+`else`, la valeur est refusée : l'erreur est `union` pour une union,
+`unionGroup` pour un groupe. Une branche dont le prédicat a répondu faux n'est
+jamais essayée.
+
+```ts
+const payment = rune.object({ type: rune.string() }).merge(
+  rune.group([
+    rune.group.if((data) => data.type === 'stripe', { account_id: rune.string() }),
+    rune.group.if((data) => data.type === 'paypal', { email: rune.string().email() }),
+  ]),
+)
+// { type: 'other' } → refusé, règle `unionGroup`
+```
+
+`union().otherwise(cb)` et `group().otherwise(cb)` remplacent cette erreur. Le
+callback reçoit la valeur et le champ, et rapporte ce qu'il veut ; un callback
+qui ne rapporte rien accepte la valeur :
+
+```ts
+rune.group([...]).otherwise((value, field) => {
+  field.report('Unknown payment type', 'paymentType', field)
+})
+```
+
+Une union faite seulement de chaînes simples
+(`union([rune.string(), rune.number()])`) n'a pas de prédicat : la première
+chaîne qui valide la valeur l'emporte.
 
 ## Tester une règle personnalisée
 

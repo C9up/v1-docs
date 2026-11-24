@@ -50,7 +50,7 @@ The server entry and the browser entries do not import each other; never import 
 | `finishVisit` | function | `finishVisit(ctx: unknown, res: object, info: PhotonRequestInfo, options: { url: string; version: string; location?: string }): boolean`: answers an asset-version mismatch or a `location()` instead of the page; `true` when it did. |
 | `varyOnPhoton` | function | `varyOnPhoton(res: object): void`: adds `X-Photon` to `Vary`. |
 | `readRequestInfo` | function | `readRequestInfo(ctx: unknown): PhotonRequestInfo`. |
-| `readRequestUrl` | function | `readRequestUrl(ctx: unknown): string`. |
+| `readRequestUrl` | function | `readRequestUrl(ctx: unknown): string`: the path and query of the request. A path a browser would read as another host (`//host/x`, `/\host/x`) gets `/.` in front, so it stays on your origin. |
 | `shouldReloadForAssetVersion` | function | `shouldReloadForAssetVersion(info: PhotonRequestInfo, serverVersion: string): boolean`: a GET from the client router carrying another asset version. |
 | `onRescue` | function | `onRescue(next?: RescueListener): void`: where errors of rescued deferred props are reported; the request's logger by default. |
 | `reportRescued` | function | `reportRescued(errors: readonly RescuedError[], ctx: SsrRequestContext \| undefined): void`. |
@@ -168,7 +168,7 @@ The server entry and the browser entries do not import each other; never import 
 
 | Member | Signature | Description |
 |---|---|---|
-| `visit` | `visit(target: string \| RouteTarget, options?: VisitOptions): Promise<void>` | Fetches the page and swaps it in; with `only`, `except` or `reset`, a partial reload. Another origin is a full navigation. |
+| `visit` | `visit(target: string \| RouteTarget, options?: VisitOptions): Promise<void>` | Fetches the page and swaps it in; with `only`, `except` or `reset`, a partial reload. Another origin is a full navigation. The request goes to the absolute URL, checked against the origin just before it is sent. |
 | `reload` | `reload(request?: PartialRequest): Promise<void>` | `visit()` of the current URL, uncached. |
 | `get` / `post` / `put` / `patch` | `post(target: string \| RouteTarget, data?: RequestPayload, options?: VisitOptions)` | |
 | `delete` | `delete(target: string \| RouteTarget, options?: VisitOptions)` | |
@@ -199,7 +199,7 @@ The three entries offer the same set, each in its framework's idiom.
 | `setPage` | | | function | Sets the current page. |
 | `shouldIntercept` | function | | | Whether a click event should become a visit. |
 
-Each entry also exports the option and prop types of these: `CreatePhotonAppOptions`, `CreatePhotonAppSsrOptions`, `SetupOptions`, `LinkProps`, `FormProps` (React), `InfiniteScrollProps`, `DeferredProps` and `WhenVisibleProps` (React), `InertiaFormProps` (React), `InertiaForm` and `InertiaFormExtras` (Vue, Svelte), `PhotonRootProps` (Svelte).
+Each entry also exports the option and prop types of these: `CreatePhotonAppOptions`, `CreatePhotonAppSsrOptions`, `SetupOptions`, `LinkProps`, `FormProps` (React), `InfiniteScrollProps`, `DeferredProps` and `WhenVisibleProps` (React), `PhotonForm` (what `useForm` returns, in React, Vue and Svelte), `PhotonFormExtras` (Vue, Svelte), `PhotonRootProps` (Svelte).
 
 ## Configuration
 
@@ -259,6 +259,7 @@ Every error, server or client, is a flare `Exception` named by its code, and car
 | [`E_PHOTON_NO_PAGE`](/en/reference/errors#e-photon-no-page) | `usePage()` was called outside a Photon page (on the server, outside `<PhotonPage>`). |
 | [`E_PHOTON_UNKNOWN_SCROLL_PROP`](/en/reference/errors#e-photon-unknown-scroll-prop) | An infinite scroll names a prop the page object has no scroll prop for. |
 | [`E_PHOTON_INVALID_DEFERRED`](/en/reference/errors#e-photon-invalid-deferred) | `<Deferred>` is missing its `data` prop or its fallback. |
+| [`E_PHOTON_DEFERRED_PROPS_MISSING`](/en/reference/errors#e-photon-deferred-props-missing) | The answer to a deferred group did not carry the props asked for. Reported on the router's `exception` event, not thrown. |
 | [`E_PHOTON_FORM_DATA_MISSING`](/en/reference/errors#e-photon-form-data-missing) | `useForm(rememberKey)` was called without the form data. |
 | [`E_PHOTON_FORM_DEFAULTS_UNSUPPORTED`](/en/reference/errors#e-photon-form-defaults-unsupported) | `setDefaults()` was called on a form whose data is a function. |
 | [`E_PHOTON_INVALID_SVELTE_ROOT`](/en/reference/errors#e-photon-invalid-svelte-root) | The `svelteRoot` given to the Svelte adapter does not export `setPage()`; pass the root from `@c9up/photon/svelte`. |
@@ -266,9 +267,16 @@ Every error, server or client, is a flare `Exception` named by its code, and car
 
 ## Migration
 
+- The form types are renamed, with no alias left: `InertiaFormProps` (React) and `InertiaForm` (Vue, Svelte) become `PhotonForm`, and `InertiaFormExtras` (Vue, Svelte) becomes `PhotonFormExtras`. Rename them in your imports; their shape is unchanged.
+- `PhotronMiddlewareContext`, a misspelt alias, is gone: use `PhotonMiddlewareContext`.
 - `PhotonError` is gone as a class: test `error.code`, or `error instanceof errors.E_PHOTON_*` with `import { errors } from '@c9up/photon'`. `PhotonError` remains as the type every server error satisfies.
 - `PhotonClientError` is gone as a class too: `import { errors } from '@c9up/photon/client'` (or `/client/core`) and test `errors.E_PHOTON_*`.
 - `error.hint` is now `error.help`, and `toJSON()` emits `help`. `error.name` is now the code.
+- `photon.body` now writes the page-data script before `<div id="app">`, and the client reads only `<script type="application/json" id="photon-data">`. A shell that wrote its own page data in another element must write it in such a script.
+- The client router now requests absolute URLs: `fetch` (and `PhotonHost.fetch`) receives `https://your.app/orders` instead of `/orders`. The `url` given to `onBefore`, `onStart`, `onFinish` and to the `start` / `finish` events is absolute too. Code that compared it to a path should compare `new URL(url).pathname`.
+- A visit or a partial reload whose URL leaves your origin at request time is now refused instead of sent. A first page whose `url` points to another origin uses the address the page was loaded at.
+- For a request path a browser reads as another host (`//host/x`, `/\host/x`), the page `url`, the `409` location and `readRequestUrl()` now start with `/.` (`/.//host/x`): the same path, on your origin.
+- The client router asks for each deferred prop once per visit. An answer that does not carry it is reported on `router.on('exception', cb)` (`photon:exception` on `document`) with `E_PHOTON_DEFERRED_PROPS_MISSING`, and the prop is not asked for again until the next visit. Listen there if a page should show an error instead of its fallback.
 
 ## See also
 

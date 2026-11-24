@@ -32,12 +32,16 @@ const mfa = new MfaManager({
   rateLimit: { maxAttempts: 5, windowSeconds: 900 }, // + store: new RedisAttemptStore(redis) on a cluster
 })
 
+// Did this request pass the step-up? Required to change the factors of an
+// account that already has MFA; the first enrolment does not need it.
+const stepUp = ctx.auth.user?.mfa === true
+
 // 1. Enroll — render `uri` as a QR code (with @c9up/prism: `await qrcode.toString(uri)`)
-const { factorId, uri } = await mfa.enrollTotp({ id: user.id, name: user.email })
+const { factorId, uri } = await mfa.enrollTotp({ id: user.id, name: user.email }, { stepUp })
 // 2. Confirm with a first code from the authenticator app
-await mfa.confirmTotp(user.id, factorId, code)     // → true once confirmed
+await mfa.confirmTotp(user.id, factorId, code, { stepUp }) // → true once confirmed
 // 3. Recovery codes — display ONCE
-const codes = await mfa.createBackupCodes(user.id)
+const codes = await mfa.createBackupCodes(user.id, { stepUp })
 
 // Sign-in step-up — a TOTP code OR a backup code, rate-limited per user
 if (await mfa.verify(user.id, submitted)) {
@@ -48,7 +52,17 @@ if (await mfa.verify(user.id, submitted)) {
 }
 ```
 
-Status helpers: `isEnabled(userId)`, `listFactors(userId)` (never leaks secret material), `disableFactor(userId, factorId)`, `await isLocked(userId)`.
+Status helpers: `isEnabled(userId)`, `listFactors(userId)` (never leaks secret material), `disableFactor(userId, factorId, { stepUp })`, `await isLocked(userId)`.
+
+Once an account has a confirmed factor, `enrollTotp`, `confirmTotp`,
+`createBackupCodes` and `disableFactor` need `{ stepUp: true }`, and throw
+**403 `E_WARDEN_MFA_REQUIRED`** without it. Pass `ctx.auth.user.mfa === true`:
+the guard sets it from the credential, so only a request that passed the
+second factor can add, replace or remove one. Without this, someone who knows
+only the password could sign in, generate new recovery codes or remove the
+authenticator, and the second factor would protect nothing. Before the first
+factor is confirmed there is nothing to step up with, so the first enrolment
+works without it. A refused call changes nothing and spends no attempt.
 
 Factor operations name the owner beside the factor id and refuse a factor that
 belongs to someone else: a factor id travels through requests, and one leaked
@@ -71,7 +85,7 @@ backup-code `count` 1–100, `length` 8–64.
 
 ### @RequireMfa — gating routes
 
-A route decorated with `@RequireMfa()` is reachable only when the credential the request came with completed an MFA step-up: a JWT signed with `{ mfa: true }`, or a session on which `markMfaVerified()` ran. Otherwise the auth middleware returns **403 `E_WARDEN_MFA_REQUIRED`**. `user.mfa` is set by the guard from that credential, never from what `findUser` returns — an account with MFA *enabled* has not stepped up. A credential with no step-up notion — an access token, a Basic credential, a session revived from a remember-me cookie — always carries `mfa: false`, whatever the user row holds. A new sign-in and a logout clear the session's step-up.
+A route decorated with `@RequireMfa()` is reachable only when the credential the request came with completed an MFA step-up: a JWT signed with `{ mfa: true }`, or a session on which `markMfaVerified()` ran. Otherwise the request is refused with **403 `E_WARDEN_MFA_REQUIRED`**. Two gates enforce it, and either one is enough: Ream's route gate, on every route whose handler is a controller action, and Warden's auth middleware (`router.use([() => import('@c9up/warden/middleware')])`), which also authenticates the request. With the route gate alone, something must fill `ctx.auth` first: Warden's middleware, `@c9up/warden/silent-auth`, or your own auth middleware. `@RequireMfa()` without `@Guard` still requires an authenticated request: an anonymous one gets a 401. `user.mfa` is set by the guard from that credential, never from what `findUser` returns — an account with MFA *enabled* has not stepped up. A credential with no step-up notion — an access token, a Basic credential, a session revived from a remember-me cookie — always carries `mfa: false`, whatever the user row holds. A new sign-in and a logout clear the session's step-up.
 
 ```typescript
 import { Guard, RequireMfa } from '@c9up/warden'
@@ -101,7 +115,7 @@ import { OtpProvider, WebauthnProvider } from '@c9up/warden'
 // Delivered OTP — you supply the email/SMS channel
 const otp = new OtpProvider({ channel: { send: (to, code) => mailer.send(to, code) } })
 const { challengeId } = await otp.start(user.email)
-await otp.verify(challengeId, submitted)           // single-use, TTL + attempt budget
+await otp.verify(challengeId, user.email, submitted) // single-use, TTL + attempt budget
 
 // Passkeys — attestation is trust-on-registration (request attestation: 'none')
 const webauthn = new WebauthnProvider({ rpName: 'Fluveo', rpID: 'fluveo.ch', origin: 'https://fluveo.ch' })
@@ -109,6 +123,14 @@ const reg = await webauthn.startRegistration({ id: user.id, name: user.email })
 // … browser ceremony … then:
 await webauthn.finishRegistration(reg.state, user.id, browserResponse)
 ```
+
+A code is bound to the recipient it was sent to. `verify()` takes that
+recipient as the application knows it for the sign-in in progress — the
+pending user's email, never a value read from the request. A challenge started
+for another recipient answers `{ ok: false, reason: 'not_found' }` and stays
+intact for its owner. Keep the `challengeId` on the server between the two
+requests (in the session, or in a signed pending-sign-in token), next to the
+pending user.
 
 #### Writing your own challenge store
 

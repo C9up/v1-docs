@@ -77,6 +77,19 @@ await User.create({ role: 'admin' })   // E_MASS_ASSIGNMENT
 await User.create({ is_admin: true })  // E_MASS_ASSIGNMENT — resolves to isAdmin
 ```
 
+When `updateOrCreate`, `updateOrCreateMany` or `related().updateOrCreate` find
+the row, they apply the payload with `merge()`. A key that is neither a declared
+property nor its column name throws `E_EXTRA_PROPERTIES`, so `{ IsAdmin: 1 }`
+or `{ Id: 42 }` never reaches the UPDATE. Pass `{ allowExtraProperties: true }`
+as the last argument to keep such keys in `$extras` instead:
+
+```typescript
+await User.updateOrCreate({ email }, body, { allowExtraProperties: true })
+```
+
+`save()` writes declared columns only: a property you set on the instance
+without declaring it is never written.
+
 ### `fill()` / `merge()` and `$extras`
 
 A payload key is resolved in this order: a declared property, then the DB

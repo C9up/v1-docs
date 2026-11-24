@@ -132,6 +132,14 @@ router.group(() => {
 }).prefix('/admin').middleware('admin')
 ```
 
+By name, a middleware runs with no arguments. To pass some, call its factory and attach the result with `.use()`. The arguments reach the third parameter of `handle()`:
+
+```typescript
+router.get('/reports', [ReportsController, 'index']).use(middleware.throttle({ max: 10 }))
+```
+
+Every name given to `.middleware()` must be declared in `router.named()`. A misspelt name stops the application at boot with `E_MIDDLEWARE_NOT_FOUND`, which names the route. The request never runs without the middleware.
+
 ## Inline Middleware
 
 Attach a one-off middleware function directly to a route with `.use()`. Useful for route-specific logic that does not warrant a full class:
@@ -257,6 +265,9 @@ export default class AuthMiddleware {
       if (payload) {
         ctx.auth = {
           isAuthenticated: true,
+          // The guard that vouched for the request: `.guard('jwt')` on a
+          // route lets it through only when this names one of its guards.
+          authenticatedViaGuard: 'jwt',
           user: { id: payload.sub, email: payload.email },
           roles: payload.roles ?? [],
           permissions: payload.permissions ?? [],
@@ -339,6 +350,12 @@ class Auditor {
 A singleton that reads a request-bound value while it is being built is **not**
 cached application-wide — it belongs to that request. One that reads none is
 cached exactly as before.
+
+The values bound on a resolver are visible while that resolver's `make()` or
+`call()` runs, and no longer. A timer or a promise that a constructor starts
+during the build does not see them later: its `make(HttpContext)` fails with
+`E_CONTAINER_NOT_FOUND`, as it would outside any request. Pass what background
+work needs as plain data instead.
 
 ### Contextual bindings
 

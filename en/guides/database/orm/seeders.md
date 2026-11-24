@@ -60,6 +60,13 @@ environments. When the runner is given the current environment, it skips any
 seeder whose list excludes it. Leaving `environment` unset runs the seeder
 everywhere.
 
+Names are compared through the alias table: `prod` is `production`, `dev` is
+`development`, `test` is `testing`. `db:seed` always has a current environment.
+Without `--environment`, it reads the application's environment, else
+`REAM_ENV` / `NODE_ENV` (production when either says so). With neither variable
+set, the environment is `unknown`, and a seeder with an `environment` list does
+not run.
+
 ```ts
 export default class DemoUsersSeeder extends BaseSeeder {
   static environment = ['development', 'testing']
@@ -184,7 +191,8 @@ Flags:
 - `--connection=name` — run against a specific registered connection instead of
   the default.
 - `--environment=name` — override the environment used for `static environment`
-  gating; falls back to the factory's `environment`, then `NODE_ENV`.
+  gating; falls back to the factory's `environment`, then the application's
+  environment, then `REAM_ENV` / `NODE_ENV` (`unknown` when neither is set).
 - `--compact-output` — print a single summary line (`Seeded N seeder(s)`)
   instead of listing each seeder.
 - `--interactive` — accepted, but has no effect. The console kernel is

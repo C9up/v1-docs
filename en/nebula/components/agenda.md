@@ -70,7 +70,7 @@ A range is not focusable unless `onRangeActivate` is given: then its label is a 
 
 ### Tones, holidays, hints
 
-`tone` says what an event or a range is — `'default' | 'primary' | 'success' | 'warning' | 'danger' | 'muted'` — and an app maps its own states onto them (free, booked, arrived, cancelled), one meaning each. `accent` colours an event's left edge with any CSS colour, a category's own; `struck` draws it struck through. A column with `holiday: true` has its header and its grid marked; `hint` is a second line under its label.
+`tone` says what an event or a range is — `'default' | 'primary' | 'success' | 'warning' | 'danger' | 'muted'` — and an app maps its own states onto them (free, booked, arrived, cancelled), one meaning each. `accent` colours an event's left edge with any CSS colour, a category's own. It is set as that one property: a value that is not a colour is ignored and the tone's colour stays, so a stored value cannot add other styles to the block. `struck` draws it struck through. A column with `holiday: true` has its header and its grid marked; `hint` is a second line under its label.
 
 ### Free slots and new events
 

@@ -61,12 +61,13 @@ a replay or a misdirected sign-in looks like.
 
 | | |
 | --- | --- |
-| Signature | Against the metadata's certificate, over the assertion, before anything else is read. |
-| Wrapping | The element the signature covers is the element that is read. Nothing is looked up in the document afterwards. |
+| Signature | Against the metadata's certificate, before anything else is read. It sits directly in the element it signs. |
+| Wrapping | The signed element is the posted response or its one assertion, and that assertion is the one read. Nothing is looked up in the document afterwards. |
 | Issuer | The provider the config names. |
 | Audience | This application's entity id. |
 | Recipient | The URL this application answers at. |
 | `InResponseTo` | The request this sign-in made. |
+| Response | Its own `Destination`, `Issuer` and `InResponseTo`, when it carries them. A signed response must carry the first two. |
 | Windows | The assertion's and the bearer confirmation's, with a minute of drift. |
 | Replay | The assertion id, remembered for as long as the assertion could still be accepted. |
 
@@ -86,6 +87,17 @@ Signed on both, the response's own signature — the one enveloped in
 and the single assertion is read from the element it covers. Any other shape
 with several signatures (two on the response, several inside it with none on
 it) is refused.
+
+A signature does not cover itself: everything under `<ds:Signature>` is left
+out of what is signed. So the assertion is never searched for. It is the one
+`<Assertion>` child of the posted response, and it is read only when the signed
+element is that assertion or the response around it. These are refused:
+
+- a signed document of another kind placed in the response, such as the
+  provider's signed metadata or a signed refusal;
+- a second assertion next to the signed one;
+- a signed assertion moved elsewhere in the document;
+- any SAML element written under a `<ds:Signature>`.
 
 ### Replay, and a second replica
 

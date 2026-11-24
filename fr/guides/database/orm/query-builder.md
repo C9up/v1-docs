@@ -165,6 +165,20 @@ scope partagé ou à une requête de base réutilisable.
 query.clearSelect().clearWhere().clearOrder().clearHaving().clearLimit().clearOffset()
 ```
 
+`clearWhere()` retire les clauses que vous avez ajoutées. Les contraintes
+qu'atlas ajoute lui-même restent : la clé d'un `related().query()`, le scope du
+repository et le filtre `@SoftDeletes`.
+
+`wrapExisting()` ferme les clauses ajoutées jusque-là en un groupe. Ce que vous
+ajoutez ensuite leur est combiné par `AND`, chaque côté entre parenthèses :
+
+```ts
+query.where('email', login).orWhere('username', login)
+  .wrapExisting()
+  .where('tenant_id', 1)
+// WHERE ("email" = ? OR "username" = ?) AND "tenant_id" = ?
+```
+
 ### HAVING EXISTS
 
 Une sous-requête corrélée dans `HAVING` filtre des **groupes** par quelque chose

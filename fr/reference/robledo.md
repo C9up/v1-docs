@@ -89,13 +89,15 @@ robledo.registerRoutes()
 | `updateStatus` | fonction | Ce que sait le côté natif : serveur, runtime, plateforme, mise à jour en cours et en attente. |
 | `CheckResult` | type | Ce que résout `checkForUpdate`. |
 | `UpdateStatus` | interface | Ce que renvoie `updateStatus`. |
-| `NativeRobledo` | interface | Le module natif, structurellement : `status()`, `stage(…)`, `ready()`. |
+| `NativeRobledo` | interface | Le module natif, structurellement : `status()`, `verify(manifest, signature)`, `receive(path, file)`, `finish()`, `ready()`. |
+| `MAX_LATEST_BYTES` | const | `1048576` : la plus grande réponse `latest` que lit `checkForUpdate`. |
+| `PARALLEL_DOWNLOADS` | const | `4` : le nombre de fichiers que `checkForUpdate` télécharge à la fois. |
 | `NATIVE_MODULE_NAME` | const | `"NativeRobledo"`. |
 | `errors` | namespace | Le même namespace que celui de `@c9up/robledo`, voir [Erreurs](#erreurs) |
 
 | Fonction | Signature | Description |
 |---|---|---|
-| `checkForUpdate` | `checkForUpdate(options?: { fetch?: Fetch }): Promise<CheckResult>` | Interroge `<url>/<platform>/<runtime>/latest`, télécharge les fichiers que liste le manifeste et les remet au côté natif, qui vérifie la signature et chaque empreinte avant de les garder. La mise à jour prend effet au prochain démarrage. `fetch` vaut par défaut le `fetch` global. |
+| `checkForUpdate` | `checkForUpdate(options?: { fetch?: Fetch }): Promise<CheckResult>` | Interroge `<url>/<platform>/<runtime>/latest` (au plus `MAX_LATEST_BYTES`) et fait d'abord vérifier le manifeste par le côté natif : sa signature, son runtime, sa plateforme, et qu'il est plus récent que toute mise à jour acceptée par ce téléphone. Ensuite seulement, il télécharge les fichiers que liste le manifeste, `PARALLEL_DOWNLOADS` à la fois. Chacun est refusé dès qu'il dépasse sa taille signée, et remis au côté natif dès son arrivée, qui vérifie son empreinte. La mise à jour prend effet au prochain démarrage. `fetch` vaut par défaut le `fetch` global. |
 | `markReady` | `markReady(): void` | Conserve la mise à jour en cours. Une mise à jour qui ne l'appelle jamais est abandonnée au démarrage suivant, et la précédente reprend. |
 | `updateStatus` | `updateStatus(): UpdateStatus` | Lit l'état natif. |
 
@@ -140,12 +142,17 @@ Le côté app lit `mobile.updates` (`url`, `publicKey`) dans `reamrc.ts` au mome
 | [`E_ROBLEDO_NOT_BOOTED`](/fr/reference/errors#e-robledo-not-booted) | `@c9up/robledo/services/main` est utilisé avant le démarrage du provider. |
 | [`E_ROBLEDO_NO_NATIVE_MODULE`](/fr/reference/errors#e-robledo-no-native-module) | L'app n'a pas de module `NativeRobledo` : elle n'a pas été construite avec robledo installé. |
 | [`E_ROBLEDO_BAD_RESPONSE`](/fr/reference/errors#e-robledo-bad-response) | Le serveur a répondu à une vérification, ou à un téléchargement de fichier, par autre chose qu'une mise à jour. |
-| [`E_ROBLEDO_REFUSED`](/fr/reference/errors#e-robledo-refused) | Le téléphone a refusé la mise à jour : signature invalide, fichier altéré, mauvais runtime. |
+| [`E_ROBLEDO_REFUSED`](/fr/reference/errors#e-robledo-refused) | Le téléphone a refusé la mise à jour : signature invalide, fichier altéré, mauvais runtime, mise à jour d'une autre app. |
+| [`E_ROBLEDO_NOT_NEWER`](/fr/reference/errors#e-robledo-not-newer) | La mise à jour n'est pas plus récente que la plus récente acceptée par ce téléphone, ni que le bundle inclus dans l'app : une ancienne mise à jour servie à nouveau. Publiez un retour en arrière comme une nouvelle mise à jour. |
 
 ## Migration
 
 - `RobledoError` disparaît : testez `error.code`, ou `error instanceof errors.E_ROBLEDO_*` avec `import { errors } from '@c9up/robledo'` (ou depuis `@c9up/robledo/mobile` sur le téléphone).
 - Le type `RobledoErrorCode` disparaît : `error.code` est une `string`.
+- Un téléphone refuse désormais une mise à jour dont le `createdAt` n'est pas postérieur à la plus récente qu'il a acceptée (`E_ROBLEDO_NOT_NEWER`). Pour revenir en arrière, ne faites pas pointer `latest` vers une ancienne mise à jour : publiez à nouveau l'ancien code avec `ream android:publish`, qui le signe comme une nouvelle mise à jour.
+- `checkForUpdate` fait vérifier la signature du manifeste avant tout téléchargement. Il refuse un fichier plus grand que sa taille signée, ou une réponse `latest` de plus de `MAX_LATEST_BYTES` (`E_ROBLEDO_BAD_RESPONSE`).
+- `NativeRobledo` a `verify`, `receive` et `finish` à la place de `stage` : un test qui simule le module natif implémente ces méthodes.
+- Le téléphone lit aussi `embeddedCreatedAt` et `appId` dans le `ream-updates.json` que `ream android:build` écrit dans l'app. Avec `embeddedCreatedAt`, une mise à jour plus ancienne que le bundle d'une version du store est refusée : une version du store n'est jamais remplacée par une mise à jour plus ancienne. Avec `appId`, une mise à jour signée pour une autre app est refusée (le manifeste signé nomme son app). Une app construite avant ces champs n'a ni l'un ni l'autre contrôle : reconstruisez-la, puis publiez ses mises à jour avec la même version de la CLI.
 
 ## Voir aussi
 

@@ -98,7 +98,11 @@ une URL `data:` en chaîne, un fichier en `URL`, ou ses octets, dimensionné par
 avec les polices chargées par le document. Un SVG est souvent le fichier de
 quelqu'un d'autre : il ne lit aucun fichier ni le réseau, quoi qu'il nomme, un
 SVG imbriqué n'est pas suivi, et une image incorporée est bornée comme une image
-de page. Une chaîne n'est jamais lue comme un chemin, car le balisage vient
+de page. Ce qu'il dessine est borné aussi, compté une fois ses éléments `<use>`,
+ses tracés de découpe, ses masques et ses motifs développés : au plus
+1 000 000 d'éléments et de segments de tracé, la borne d'un `path()`. Un SVG
+gzip (`.svgz`) est décompressé jusqu'aux mêmes 16 Mio que le balisage donné.
+Au-delà, `E_VELLUM_INVALID_SVG`. Une chaîne n'est jamais lue comme un chemin, car le balisage vient
 souvent d'un utilisateur : un fichier se passe en `new URL('file:///…')` ou en
 octets.
 

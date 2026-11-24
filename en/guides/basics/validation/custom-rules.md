@@ -69,8 +69,37 @@ rune.string().in((field) => allowedFor(field.meta.tenant))
 `enum().getChoices()` reads the list back, so a form renders the same options the
 validator will accept — from one declaration instead of two.
 
-Also: `union().otherwise(cb)` reports when no branch matched, and
-`record().validateKeys(cb)` checks the key SET rather than the values.
+Also: `record().validateKeys(cb)` checks the key SET rather than the values.
+
+### When no branch applies
+
+A `union` built with `union.if()` and a `group` are decided by their
+predicates. When no predicate answers true and there is no `else` branch, the
+value is refused: the error is `union` for a union, `unionGroup` for a group.
+A branch whose predicate answered false is never tried.
+
+```ts
+const payment = rune.object({ type: rune.string() }).merge(
+  rune.group([
+    rune.group.if((data) => data.type === 'stripe', { account_id: rune.string() }),
+    rune.group.if((data) => data.type === 'paypal', { email: rune.string().email() }),
+  ]),
+)
+// { type: 'other' } → refused, rule `unionGroup`
+```
+
+`union().otherwise(cb)` and `group().otherwise(cb)` replace that error. The
+callback receives the value and the field, and reports what it wants; a
+callback that reports nothing accepts the value:
+
+```ts
+rune.group([...]).otherwise((value, field) => {
+  field.report('Unknown payment type', 'paymentType', field)
+})
+```
+
+A union made only of plain chains (`union([rune.string(), rune.number()])`)
+has no predicate: the first chain that validates the value wins.
 
 ## Testing a custom rule
 

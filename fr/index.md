@@ -125,6 +125,7 @@ router.ws('/chat/:room', ({ socket }) => {
 import { inject } from '@c9up/ream'
 import type { HttpContext } from '@c9up/ream'
 import { UserService } from '../services/UserService.js'
+import { createUser } from '../validators/user.js'
 
 @inject()
 export default class UsersController {
@@ -135,7 +136,8 @@ export default class UsersController {
   }
 
   async store({ request, response }: HttpContext) {
-    const user = await this.userService.create(request.all())
+    const data = await request.validateUsing(createUser)
+    const user = await this.userService.create(data)
     response.status(201).json({ data: user })
   }
 }

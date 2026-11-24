@@ -72,6 +72,8 @@ await users.set('42', { id: 42 })
 await users.get('42') // reads the underlying key `users:42`
 ```
 
+The name must be a non-empty string. `namespace('')`, `undefined` or `null` throws `E_ECHO_INVALID_ARGUMENT`: a missing tenant id fails instead of giving back the whole store.
+
 ### Prefix and default TTL
 
 ```ts
@@ -144,7 +146,7 @@ Tags belong to the namespace that wrote them: `tenantA.deleteByTag(['user:1'])` 
 
 ## Current limitations
 
-- Redis `flush()` walks a `SCAN` cursor over the prefix — never `KEYS`, which blocks the server. It still touches every prefixed key, so it stays a heavy operation on a large dataset; it throws on a client without `scan` rather than falling back to `KEYS`
+- Redis `flush()` walks a `SCAN` cursor over the prefix — never `KEYS`, which blocks the server. It still touches every prefixed key, so it stays a heavy operation on a large dataset; it throws on a client without `scan` rather than falling back to `KEYS`. It honours the connection's `keyPrefix`, and scans every master of a cluster
 - tag behavior depends on concrete driver capabilities
 
 ## Errors

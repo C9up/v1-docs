@@ -18,7 +18,7 @@ const greeting = (name: string) => html`<p>Bonjour, ${name} !</p>`
 Les emplacements dans les templates sont typés :
 
 - **Slot texte** — `<p>${value}</p>` interpole une string, un nombre ou un signal en nœud texte.
-- **Slot attribut** — `<a href="${url}">` pose un attribut ; si la valeur est un signal, l'attribut se re-render au changement. Un slot qui forme toute la valeur omet l'attribut pour `null`, `undefined` ou `false` et l'écrit vide pour `true`, côté serveur comme dans le navigateur ; mêlé à du texte fixe (`class="a ${x}"`), `null`, `undefined` et `false` n'ajoutent rien.
+- **Slot attribut** — `<a href="${url}">` pose un attribut ; si la valeur est un signal, l'attribut se re-render au changement. Un slot qui forme toute la valeur omet l'attribut pour `null`, `undefined` ou `false` et l'écrit vide pour `true`, côté serveur comme dans le navigateur ; mêlé à du texte fixe (`class="a ${x}"`), `null`, `undefined` et `false` n'ajoutent rien. Le serveur écrit entre guillemets toute valeur qui contient un slot, même quand le template la laisse sans guillemets : `title=${x}` avec un `x` vide donne `title=""`, jamais `title=` suivi de l'attribut d'après. Mettez quand même vos valeurs entre guillemets, comme les exemples de ce guide.
 - **Slot propriété** — `<input .value="${signal}">` (préfixe pointé) écrit une propriété DOM.
 - **Attribut booléen** — `<button ?disabled="${signal}">` toggle la présence de l'attribut.
 - **Slot événement** — `<button @click="${handler}">` ajoute un écouteur.
@@ -49,6 +49,20 @@ de rendu divergeaient et livraient chacun un bug différent.
 | `.text`, `.textContent`, `.innerText` sur `<script>` ou `<style>` | `E_AURORA_SLOT_IN_RAW_TEXT` | La version propriété d'un slot à l'intérieur de l'élément : elle écrit la source que le navigateur exécute. |
 | `.innerHTML`, `.outerHTML`, `.srcdoc` | `E_AURORA_SLOT_IN_HTML_PROPERTY` | Ces propriétés parsent leur valeur comme du HTML, gestionnaires compris. Mettez le contenu dans un slot texte, ou passez un template `html` imbriqué. |
 | Un template `` html`…` `` imbriqué (ou un tableau qui en contient un) comme valeur d'attribut ou de `.value` | `E_AURORA_TEMPLATE_IN_ATTRIBUTE` | Du markup n'a pas de sens dans un attribut. Passez une chaîne — pour une prop typée `string \| TemplateResult`, liez sa forme texte à `title`/`aria-label`. |
+
+aurora lit un template comme le tokenizer du navigateur, donc un refus vaut pour
+toutes les écritures valides :
+
+- Des espaces autour du `=` ne cachent pas l'attribut : `href ="${url}"`,
+  `href= "${url}"` et `href = ${url}` désignent tous `href`. Ils sont protégés ou
+  refusés comme `href="${url}"`.
+- Un `/` termine un nom de balise ou d'attribut : `<script/x>` est un script,
+  `x/href` donne `x` puis `href`. Un `=` placé au début d'un nom fait partie du
+  nom, donc `<img ='${v}'>` est un slot dans un nom d'attribut.
+- Un `<script>` se termine là où le navigateur le termine. Après `<!--<script>`
+  dans un script, le premier `</script>` ne le termine pas.
+- Dans le navigateur, les noms sont vérifiés une seconde fois sur le template
+  parsé.
 
 Dans `<svg>` et `<math>` les règles raw-text sont suspendues, le parseur ne
 changeant jamais d'état en contenu étranger — `<svg><title>${label}</title></svg>`

@@ -8,7 +8,9 @@
 pnpm add @c9up/sigil
 ```
 
-`ream configure @c9up/sigil` registers the provider, writes `config/hash.ts` and adds `HASH_DRIVER=argon2` to the environment files. The package ships its native engine for linux x64 and arm64 (glibc), macOS x64 and arm64, and Windows x64; no Rust toolchain is needed. There is no JavaScript fallback: without the engine, hashing throws `E_SIGIL_NAPI_REQUIRED`.
+`ream configure @c9up/sigil` registers the provider, writes `config/hash.ts` and adds `HASH_DRIVER=argon2` to the environment files. The native engine comes as one small package per platform, `@c9up/sigil-<platform>`, for linux x64 and arm64 (glibc), macOS x64 and arm64, and Windows x64. `@c9up/sigil` lists them as optional dependencies, and your package manager installs only the one that matches your machine. No Rust toolchain is needed. Do not install with optional dependencies turned off (`--no-optional`, `--omit=optional`): the engine would be left out.
+
+There is no JavaScript fallback. Without the engine, hashing throws `E_SIGIL_NAPI_REQUIRED`, and its message names the package to install, for example `@c9up/sigil-linux-x64-gnu`.
 
 ## Entry points
 

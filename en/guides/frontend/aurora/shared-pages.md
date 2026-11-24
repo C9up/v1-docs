@@ -94,7 +94,7 @@ export default component((props) => {
 
   return html`<main>
     <h1>${props.title}</h1>
-    <aside data-status=${() => status()}>${() => status()}</aside>
+    <aside data-status="${() => status()}">${() => status()}</aside>
   </main>`
 })
 ```
@@ -133,8 +133,10 @@ That's it. `aurora.render(ctx, name, props)`:
 2. Calls the factory with `props` as the browser will receive them — round-tripped through JSON, so a `Date` is its ISO string and a model is what its `toJSON()` returns (so the columns it hides are absent) — and runs SSR via `renderToString`. Server and browser render from the same data, so a page never hydrates against values it did not have on the server.
 3. Wraps the markup in a full HTML document with:
    - the importmap that aliases `@c9up/aurora` → `/__assets/aurora/index.js`
-   - a `<script id="aurora-page-data" type="application/json">` blob carrying `{ name, props, url, rootId }`
+   - a `<script type="application/json" data-aurora-page>` blob carrying `{ name, props, url, rootId }`, first in the `<body>`, before the root
    - an inline `<script type="module">` that imports aurora + the same page module and calls `hydrate(root, () => Page(data.props))`
+
+   The bootstrap reads the data with `document.querySelector('script[data-aurora-page][type="application/json"]')`. Only that script matches: an element of your page cannot take its place, even one whose `id` and text come from data. Read it the same way if your own code needs the page data.
 
 Browser-side, aurora adopts the SSR DOM in place, attaches signals + event listeners + lifecycle hooks. The `onMount` callback you wrote fires once the tree is live.
 

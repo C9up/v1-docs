@@ -119,7 +119,7 @@ Every input is treated as hostile, because these documents come from uploads:
 | --- | --- | --- |
 | `maxPixels` | 50 million | The pixels one page may rasterise to. |
 | `maxTotalPixels` | 500 million | The pixels `renderAll` may rasterise across every page, checked before the first is drawn. |
-| `maxDecodedBytes` | 256 MiB | The decoded stream data one page may need: content, images, fonts. |
+| `maxDecodedBytes` | 256 MiB | The decoded stream data one page may need: content, images, fonts. Rendering also charges it with the buffers drawing keeps until the page is done: a byte per pixel per soft mask, four per pixel per image draw, pattern tiles and cached glyphs. |
 | `maxOperations` | 10 million | The content operators and glyphs one page may take to draw, nested forms included. |
 | `maxTotalDecodedBytes` | 1 GiB | The decoded stream data `renderAll` and `extractTextAll` may need across every page. |
 | `maxTotalOperations` | 10 million | The operators and glyphs `renderAll` and `extractTextAll` may take across every page — and so the text `extractTextAll` hands back. |

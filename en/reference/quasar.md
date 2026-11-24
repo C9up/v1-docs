@@ -108,7 +108,7 @@ Every ioredis command of the forwarded list is a method of the connection (`conn
 | `name` / `connectionName` | `readonly name: string` | The declared connection name. |
 | `status` | `get status(): RedisClient['status']` | The command socket's ioredis status. |
 | `subscriberStatus` | `get subscriberStatus(): RedisClient['status'] \| undefined` | The pub/sub socket's status, `undefined` until the first subscription. |
-| `lastError` / `lastSubscriberError` | `get lastError(): unknown` | Last error of each socket. |
+| `lastError` / `lastSubscriberError` | `get lastError(): unknown` | Last error of each socket; its `command` keeps the name, not the arguments. |
 | `isConnecting` / `isReady` / `isClosed` | `isReady(): boolean` | State of the command socket. |
 | `autoPipelineQueueSize` | `get autoPipelineQueueSize(): number` | Commands waiting in the auto-pipeline. |
 | `ioConnection` | `get ioConnection(): RedisClient` | The raw ioredis client. |
@@ -184,6 +184,8 @@ Each one is a class of the `errors` namespace and a `@c9up/flare` `Exception` wi
 
 - `QuasarError` is gone: test `error.code`, or `error instanceof errors.E_QUASAR_*` with `import { errors } from '@c9up/quasar'`.
 - `InvalidBytesValueError` is no longer exported: use `errors.E_INVALID_BYTES_VALUE`, which was already its alias.
+- An error from a connection or a rejected command no longer carries `error.command.args`; `error.command.name` stays. Log the arguments yourself where you need them and know they are safe.
+- A failed health check now reports a fixed `message` and `meta.error: { name, code }` instead of the error's message and the error object. Read the connection's log for the full error.
 
 ## See also
 

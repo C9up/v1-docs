@@ -160,14 +160,18 @@ decides what `false` becomes, once, for the whole app:
 import { AuthorizationResponse, Bouncer } from '@c9up/warden'
 
 Bouncer.responseBuilder = (value) =>
-  value === false
-    ? AuthorizationResponse.deny('Nothing here', 404)
-    : AuthorizationResponse.from(value)
+  value instanceof AuthorizationResponse
+    ? value
+    : value === true
+      ? AuthorizationResponse.allow()
+      : AuthorizationResponse.deny('Nothing here', 404)
 ```
 
 Without it every `return false` is a bare 403 with no message. It reaches
 abilities and policies alike, and an explicit `AuthorizationResponse` still
-passes through untouched.
+passes through untouched. It receives a boolean or a response: a check that
+returned anything else reaches it as `false`. What it answers must be an
+`AuthorizationResponse`; anything else is a denial.
 
 `authorizer.setEmitter(emitter)` hands an authorizer an event sink after
 construction, which one built directly — a test, a console command — had no way

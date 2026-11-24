@@ -69,6 +69,29 @@ const users = repo.query()
 
 `preload` issues batched subqueries (`IN (...)`) to prevent N+1 patterns.
 
+## Querying through a relation
+
+`entity.related(rel).query()` returns a query already limited to the rows of
+`entity`: the foreign key for `@HasMany` / `@HasOne`, the owner key for
+`@BelongsTo`, the pivot lookup for `@ManyToMany`, the intermediate table for the
+through relations. The clauses you chain are ANDed with that limit as one group,
+so an `orWhere()` cannot reach the rows of another parent:
+
+```ts
+user.related('docs').query().where('published', true).orWhere('pinned', true)
+// SELECT * FROM "docs" WHERE ("published" = ? OR "pinned" = ?) AND "user_id" = ?
+```
+
+The same limit holds for `update()`, `delete()`, `increment()` and `decrement()`
+built from that query, a many-to-many included: they change only the related
+rows linked to `entity`. `clearWhere()` drops your clauses, not the limit.
+
+The sub-queries of `whereHas()`, `withCount()` and `withAggregate()` and the
+callback of `preload()` follow the same rule: your clauses form one group, ANDed
+with the correlation to the parent. On a `@SoftDeletes` related model they leave
+the deleted rows out, as a preload does; call `withTrashed()` in the callback to
+count them.
+
 ## Relation keys: property or column
 
 A relation key — `foreignKey`, `localKey`, `ownerKey` on a `@BelongsTo`, and

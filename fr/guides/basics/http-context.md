@@ -70,7 +70,7 @@ response.status(201).json({ data }) // Status chaînable
 response.noContent()                // 204 No Content
 response.header('x-trace', id)      // Définir un en-tête
 response.type('application/xml')    // Définir le content-type
-response.cookie('session', token, { httpOnly: true, maxAge: 3600 })
+response.cookie('remember_device', token, { maxAge: '30d' })
 response.redirect().toPath('/login')
 response.redirect().status(301).toPath('/new')
 response.redirect().toRoute('users.show', { id: '1' })
@@ -254,6 +254,12 @@ await ctx.session.tag(String(user.id))   // connexion
 await ctx.session.untag(String(user.id)) // déconnexion
 ```
 
+L'ordre des appels dans la requête n'a pas d'importance. À la connexion,
+l'identifiant de session est neuf ou vient d'être régénéré : sa ligne n'existe
+pas encore. L'association est gardée et écrite avec la ligne quand la session
+est enregistrée, à la fin de la requête. Une session sans aucune donnée n'est
+pas enregistrée, ni associée.
+
 Pour fermer toutes les sessions d'un utilisateur, on les liste depuis le store
 et on détruit chacune :
 
@@ -378,6 +384,11 @@ session.flash({ notice: 'Enregistré' })  // une paire ou un objet
 session.flashErrors({ email: 'Pris' })   // dans `errorsBag`
 session.flashValidationErrors(error)     // inputErrorsBag + errorsBag + input
 ```
+
+`flashValidationErrors()` flashe la saisie sans `password`,
+`password_confirmation`, `passwordConfirmation`, `_csrf` ni `_method` : un mot
+de passe ne doit pas rester en clair dans le store de session. `flashAll()`
+flashe tout ; utilisez `flashExcept()` quand le formulaire a un champ secret.
 
 Les données flash vivent exactement une requête de plus. Cette requête les sort
 de la session et réécrit la session sans elles, même si elle ne fait que lire :

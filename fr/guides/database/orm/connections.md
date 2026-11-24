@@ -218,21 +218,43 @@ await db.truncateAllTables(['audit_log'])
 
 ## Verrous consultatifs (advisory locks)
 
-Les verrous consultatifs au niveau de la session permettent à des processus
-coopérants de se sérialiser autour d'une clé partagée sans verrou de table, grâce à
-`getAdvisoryLock` / `releaseAdvisoryLock`.
+`getAdvisoryLock` / `releaseAdvisoryLock` prennent et libèrent un verrou
+consultatif de session de la base. Ce sont des outils de bas niveau : lisez ce
+qu'ils font avant de vous appuyer dessus.
+
+- **Le verrou appartient à une connexion.** Les deux appels passent par le pool,
+  sur la connexion qui répond. Le verrou est tenu par la connexion qui l'a pris.
+- **Ce n'est pas un mutex entre deux requêtes d'un même processus.** Le verrou
+  est réentrant sur sa connexion : un second `getAdvisoryLock(key)` qui tombe sur
+  la même connexion du pool renvoie `true` alors que le premier détenteur est
+  encore dans la section.
+- **Une libération sur une autre connexion ne libère rien.** Quand
+  `releaseAdvisoryLock(key)` tombe sur une autre connexion du pool, il renvoie
+  `false`, et la clé reste verrouillée jusqu'à la fermeture de la connexion qui
+  la tient. Les autres processus restent bloqués sur cette clé jusque-là.
+
+Ce schéma ne tient que si les deux appels passent par une seule connexion : une
+connexion enregistrée avec un pool d'une connexion (`pool: { min: 1, max: 1 }`),
+qui ne sert à rien d'autre tant que le verrou est tenu.
 
 ```ts
-const key = 'nightly-report'
+// 'locks' est une connexion enregistrée avec pool: { min: 1, max: 1 }
+const locks = db.connection('locks')
 
-if (await db.getAdvisoryLock(key)) {
+if (await locks.getAdvisoryLock('nightly-report')) {
   try {
-    // section exclusive — un seul détenteur à la fois
+    // produire le rapport
   } finally {
-    await db.releaseAdvisoryLock(key)
+    await locks.releaseAdvisoryLock('nightly-report')
   }
 }
 ```
+
+Pour une section critique dans le code applicatif (un paiement, l'utilisation
+d'un coupon, une tâche qui ne doit tourner qu'une fois), utilisez plutôt
+[`@c9up/eclipse`](/fr/reference/eclipse) : ses verrous ont un propriétaire et une
+expiration, et fonctionnent entre processus et entre machines. Voir
+[Verrous](/fr/guides/digging-deeper/locks).
 
 - Les deux appels sont **non bloquants** : `getAdvisoryLock` renvoie si le verrou a
   été acquis (Postgres `pg_try_advisory_lock`, MySQL `GET_LOCK(key, 0)`), et

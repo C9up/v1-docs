@@ -108,12 +108,13 @@ ream doctor
 
 `ream new` demande un template. `web` et `api` diffèrent désormais réellement :
 
-- **`api`** — minimal : point d'entrée serveur, une route racine, un kernel de timing. Pas d'auth.
+- **`api`** — minimal : point d'entrée serveur, une route racine, un kernel avec un middleware de mesure du temps et le body parser. Pas d'auth. Blackhole en deux moitiés : la moitié serveur (`@c9up/blackhole/server_middleware`) pour chaque requête, et la moitié routeur après le body parser. `config/blackhole.ts` active `X-Frame-Options: DENY`, HSTS et `nosniff`. Il désactive le CSRF et la politique de sécurité du contenu (une API s'authentifie par jeton et ne sert pas de HTML), et n'autorise aucune origine CORS tant que vous n'en listez pas.
 - **`web`** — le squelette api plus un kit d'auth session/cookie pré-câblé. Une app `web` fraîche démarre authentifiée par cookie d'emblée :
-  - un kernel enchaînant body parser → `SessionMiddleware` cookie → blackhole (CSRF signé + en-têtes de sécurité) → middleware d'auth. L'ordre est porteur : blackhole passe après le body parser parce qu'un formulaire envoie son token CSRF dans le corps, et après la session parce que le token lui est lié (avec une config de session, blackhole avant la session refuse chaque requête avec `E_BLACKHOLE_SESSION_NOT_READY`) ; la session passe avant l'auth pour que `ctx.session` soit peuplé quand le guard session résout l'utilisateur ;
+  - un kernel avec la moitié serveur de blackhole (`@c9up/blackhole/server_middleware`) au niveau serveur : une 404 porte aussi les en-têtes de protection et compte pour la limite de débit. Au niveau routeur : body parser → `SessionMiddleware` cookie → moitié routeur de blackhole (CSRF signé) → `@c9up/warden/silent-auth`. L'ordre est porteur : blackhole passe après le body parser parce qu'un formulaire envoie son token CSRF dans le corps, et après la session parce que le token lui est lié (avec une config de session, blackhole avant la session refuse chaque requête avec `E_BLACKHOLE_SESSION_NOT_READY`) ; la session passe avant l'authentification silencieuse pour que le guard session trouve l'utilisateur connecté ;
   - `config/auth.ts` par défaut sur la stratégie session (`defaultStrategy: 'session'`, avec un `findUser` en stub TODO) ;
   - `config/blackhole.ts` avec le CSRF signé activé (`secret` lu depuis `APP_KEY`) ;
-  - `app/middleware/auth_middleware.ts` qui peuple `ctx.auth` depuis `ctx.session` ;
+  - l'authentification silencieuse sur chaque route : elle lit qui est connecté, note le guard qui a reconnu l'utilisateur, et ne refuse personne. Une route chaînée avec `.guard('session')` répond alors 401 à une requête anonyme et s'exécute pour un utilisateur connecté ;
+  - `app/middleware/auth_middleware.ts`, le middleware qui refuse une requête sans utilisateur connecté, inscrit comme middleware nommé `auth` dans `start/kernel.ts` (`.use(middleware.auth())` sur une route) ;
   - les providers reamrc sigil + warden + blackhole ;
   - une `APP_KEY` fraîchement générée dans `.env` — chaque app créée reçoit la sienne, jamais un placeholder partagé — et un alias d'import `#middleware/*`.
 - **`microservice`** / **`slim`** — légers, sans kit HTTP d'auth.

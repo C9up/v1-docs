@@ -43,6 +43,7 @@ pnpm add @c9up/parsec
 | `instrumentHealthChecks` | fonction | `instrumentHealthChecks(metrics: MetricsManager): () => void` : chronomètre chaque contrôle de santé via le canal de traçage de ream ; renvoie le désabonnement. |
 | `HEALTH_CHANNEL` | constante | `'ream.health.check'`. |
 | `errors` | namespace | Les erreurs du paquet, une classe par code, voir [Erreurs](#erreurs) |
+| `MetricsRecorder` | type | Ce que renvoie `use(name?)` : `counter`, `gauge`, `histogram`, `scrape(): Promise<string \| null>`, `shutdown()` et `getDriver()` d'un exportateur. Type seul : c'est le gestionnaire qui le construit. |
 | `MetricsConfig` | interface | `{ default: string; exporters: Record<string, () => MetricsDriver> }`. |
 | `MetricsDriver` | interface | Le contrat d'un driver : `createCounter`, `createGauge`, `createHistogram`, `scrape()` et `shutdown()` facultatifs. |
 | `DriverOptions` | interface | `{ maxSeries?: number; collectTimeout?: number }`. |
@@ -106,7 +107,7 @@ pnpm add @c9up/parsec
 
 | Membre | Signature | Description |
 |---|---|---|
-| `use` | `use(name?: string)` | L'enregistreur d'un exportateur (celui par défaut sans nom), construit une fois. Il a les mêmes `counter`, `gauge`, `histogram`, `scrape`, `shutdown` et `getDriver()`. |
+| `use` | `use(name?: string): MetricsRecorder` | L'enregistreur d'un exportateur (celui par défaut sans nom), construit une fois. Il a les mêmes `counter`, `gauge`, `histogram`, `scrape`, `shutdown` et `getDriver()`. |
 | `counter` | `counter(options: CounterOptions): Counter` | Déclare ou retrouve un compteur sur l'exportateur par défaut. Le même nom rend le même instrument. |
 | `gauge` | `gauge(options: GaugeOptions): Gauge` | Déclare ou retrouve une jauge. |
 | `histogram` | `histogram(options: HistogramOptions): Histogram` | Déclare ou retrouve un histogramme. |

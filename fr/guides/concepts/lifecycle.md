@@ -29,7 +29,6 @@ Le point d'entrée canonique pour un serveur HTTP Ream :
 
 ```typescript
 // bin/server.ts
-import 'reflect-metadata'
 import { Ignitor, prettyPrintError } from '@c9up/ream'
 
 const APP_ROOT = new URL('../', import.meta.url)
@@ -48,7 +47,15 @@ new Ignitor(APP_ROOT, { port: 3000 })
   })
 ```
 
-`import 'reflect-metadata'` doit être la première instruction du fichier. Elle active les métadonnées de décorateurs TypeScript pour l'injection par constructeur.
+### reflect-metadata
+
+L'injection par constructeur lit les types du constructeur que TypeScript enregistre sur une classe décorée (`emitDecoratorMetadata`). TypeScript ne les enregistre que si le paquet `reflect-metadata` est chargé avant la définition de la classe. Sinon, il les ignore sans erreur, et le conteneur n'a rien à injecter.
+
+Vous n'avez pas à l'importer vous-même. `@c9up/ream` le charge en tête de son point d'entrée, tout comme `@c9up/atlas` et `@c9up/warden`. Un module exécute ses imports avant son propre code. Une classe qui importe `@inject()`, `@Column()` ou `@Guard()` de ces paquets est donc toujours définie après le chargement de `reflect-metadata`.
+
+Un seul cas demande de l'attention : une classe décorée uniquement par votre propre décorateur (ou celui d'une autre bibliothèque), dans un fichier qui s'exécute avant tout import de `@c9up/ream`. Gardez `@c9up/ream` comme premier import de `bin/server.ts`, comme ci-dessus, et ce cas ne peut pas se produire.
+
+Votre `package.json` n'a pas non plus à lister `reflect-metadata` : `@c9up/ream` en dépend. Les commandes `ream` le chargent via `@c9up/ream`, et les fichiers qu'écrit `ream new` ne l'importent pas.
 
 ## Constructeur de l'Ignitor
 

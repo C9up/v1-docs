@@ -42,9 +42,11 @@ A write refused for want of a verified CSRF token answers a JSON caller with
 `POST /admin/login` counts every attempt under the client IP and under the
 submitted email (lower-cased, keyed by its SHA-256 digest) **before** checking
 the password. The sixth attempt in 15 minutes on either key is refused with
-`429` and a `Retry-After` header, without reaching the credential check; a
-successful sign-in clears both counters. A limiter that fails (a store outage)
-refuses the attempt with `503`.
+`429` and a `Retry-After` header, without reaching the credential check. A
+successful sign-in clears the email's counter only: the IP's keeps counting
+until its window ends, so a client that owns one admin account cannot reset
+its limit by signing in between guesses at other accounts. A limiter that
+fails (a store outage) refuses the attempt with `503`.
 
 The IP is counted first, and an attempt refused on it does not count the email:
 an address already throttled cannot fill the store with invented identifiers

@@ -87,7 +87,7 @@ ream configure @c9up/echo
 | `clear` | `clear(): Promise<void>` | Vide le store, ou seulement cet espace de noms. |
 | `setWithTags` | `setWithTags(key: string, value: unknown, tags: string[], ttlSeconds?: number): Promise<void>` | |
 | `deleteByTag` | `deleteByTag(tags: string[]): Promise<void>` | Aussi `deleteByTag(options: DeleteByTagOptions)`. `flushTags(tags)` est un alias déprécié. |
-| `namespace` | `namespace(ns: string): CacheManager` | Une vue sous un préfixe de clé supplémentaire ; partage le driver, les défauts et l'état de vol unique. |
+| `namespace` | `namespace(ns: string): CacheManager` | Une vue sous un préfixe de clé supplémentaire ; partage le driver, les défauts et l'état de vol unique. Lève `E_ECHO_INVALID_ARGUMENT` si `ns` n'est pas une chaîne non vide : un identifiant de tenant manquant ne rend jamais tout le store. |
 | `use` | `use(name?: string): CacheManager` | Un store nommé de la config. Lève une erreur quand le gestionnaire n'a qu'un store et qu'un nom est donné. |
 | `on` / `once` | `on<E extends keyof CacheEventMap>(event: E, listener: (payload: CacheEventMap[E]) => void): this` | Un écouteur qui lève une erreur est ignoré. |
 | `off` | `off<E extends keyof CacheEventMap>(event: E, listener?: (payload: CacheEventMap[E]) => void): this` | Sans écouteur, les retire tous. |
@@ -137,7 +137,7 @@ ream configure @c9up/echo
 | Factory | Signature | Description |
 |---|---|---|
 | `drivers.memory` | `memory(options?: MemoryDriverOptions): DriverFactory` | |
-| `drivers.redis` | `redis(options: { client: RedisClient; prefix?: string } \| { connection?: string; prefix?: string }): DriverFactory` | Un client, ou le nom d'une connexion quasar, chargée à la première commande. |
+| `drivers.redis` | `redis(options: { client: RedisClient; prefix?: string } \| { connection?: string; prefix?: string }): DriverFactory` | Un client, ou le nom d'une connexion quasar, chargée à la première commande. `clear()` respecte le `keyPrefix` de la connexion et parcourt chaque maître d'un cluster. |
 | `drivers.redisBus` | `redisBus(options?: { connection?: string; channel?: string }): CacheBus` | Le pub/sub Redis comme bus. |
 | `drivers.tiered` | `tiered(options: { l1: DriverFactory; l2: DriverFactory } & Omit<TieredDriverOptions, 'l1' \| 'l2'>): DriverFactory` | Ce que `Store` construit à partir de deux couches. |
 
@@ -177,7 +177,7 @@ ream configure @c9up/echo
 
 | Commande | Arguments et options | Description |
 |---|---|---|
-| `cache:clear` | `[store]`, `--namespace` (`-n`), `--tags` (`-t`), `--force` | Vide un store, un espace de noms ou des tags. Demande confirmation en production, sauf avec `--force`. |
+| `cache:clear` | `[store]`, `--namespace` (`-n`), `--tags` (`-t`), `--force` | Vide un store, un espace de noms ou des tags. Demande confirmation en production, sauf avec `--force`. Échoue si `--namespace` est vide. |
 | `cache:delete` | `<key> [store]` | Supprime une entrée. Demande confirmation en production. |
 | `cache:prune` | `[store]` | Retire les entrées expirées, pour les stores sans TTL natif. |
 
@@ -227,11 +227,11 @@ Les jetons chaîne sont déclarés sur `ContainerBindings`. Le provider publie l
 | [`E_ECHO_LOCK_TIMEOUT`](/fr/reference/errors#e-echo-lock-timeout) | Un appelant a trop attendu la factory d'un autre pour la même clé, sans valeur périmée. |
 | [`E_ECHO_INVALID_ARGUMENT`](/fr/reference/errors#e-echo-invalid-argument) | Une méthode a reçu un argument dont elle ne peut rien faire. |
 | [`E_ECHO_INVALID_DURATION`](/fr/reference/errors#e-echo-invalid-duration) | Une durée n'est ni un nombre ni une chaîne lisible. |
-| [`E_ECHO_INVALID_CONFIG`](/fr/reference/errors#e-echo-invalid-config) | Une valeur de config est illisible, ou un store n'a pas de couche. |
+| [`E_ECHO_INVALID_CONFIG`](/fr/reference/errors#e-echo-invalid-config) | Une valeur de config est illisible, ou un store n'a pas de couche, ou le `keyPrefix` d'une connexion Redis n'est pas une chaîne quand `clear()` en a besoin. |
 | [`E_ECHO_UNKNOWN_STORE`](/fr/reference/errors#e-echo-unknown-store) | Un nom de store, ou le store par défaut, n'est pas déclaré dans `stores`. |
 | [`E_ECHO_UNSUPPORTED_DRIVER`](/fr/reference/errors#e-echo-unsupported-driver) | La config à un seul store nomme un autre driver que `memory`. |
 | [`E_ECHO_NOT_TAGGABLE`](/fr/reference/errors#e-echo-not-taggable) | Invalidation par tag sur un driver sans tags. |
-| [`E_ECHO_SCAN_UNSUPPORTED`](/fr/reference/errors#e-echo-scan-unsupported) | `flush()` sur un client Redis sans `scan()`. |
+| [`E_ECHO_SCAN_UNSUPPORTED`](/fr/reference/errors#e-echo-scan-unsupported) | `flush()` sur un client Redis, ou sur un maître de cluster, sans `scan()`. |
 | [`E_ECHO_UNSERIALIZABLE_VALUE`](/fr/reference/errors#e-echo-unserializable-value) | Le driver mémoire stocke du JSON et la valeur n'en a pas ; passez `serialize: false`. |
 | [`E_ECHO_QUASAR_MISSING`](/fr/reference/errors#e-echo-quasar-missing) | Un store Redis est configuré et `@c9up/quasar` n'est pas installé. |
 | [`E_ECHO_INCOMPLETE_CONNECTION`](/fr/reference/errors#e-echo-incomplete-connection) | La connexion quasar n'a pas `publish()` ou `subscribe()`. |
@@ -247,6 +247,8 @@ Chacune est une classe d'`errors`, une `Exception` de flare : lisez `error.code`
 - Aucune n'étend plus `TypeError` : remplacez `instanceof TypeError` par le code.
 - `E_FACTORY_ERROR`, `E_FACTORY_HARD_TIMEOUT`, `E_UNDEFINED_VALUE` et `E_L2_CACHE_ERROR` portent désormais les messages du module de cache (« Factory has thrown an error », « Factory has timed out after waiting for hard timeout », « Cannot set undefined value in the cache, key: `<clé>` », « An error occurred while interacting with the L2 cache ») : lisez `cause`, `key` et `operation` plutôt que d'analyser le message. Leurs constructeurs sont `(key, cause, isBackground?)`, `(key)`, `(key)` et `(cause, { operation }?)`.
 - `errors.E_FACTORY_SOFT_TIMEOUT` est nouvelle.
+- `namespace('')` lève désormais `E_ECHO_INVALID_ARGUMENT`, de même que `undefined` et `null`. Avant, il rendait la vue racine, dont `clear()` vidait tout le store. Vérifiez le nom avant l'appel, et utilisez le cache racine pour agir sur tout le store.
+- `cache:clear --namespace=` avec une valeur vide échoue désormais. Omettez `--namespace` pour vider tout le store.
 
 ## Voir aussi
 

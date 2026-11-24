@@ -18,7 +18,7 @@ const greeting = (name: string) => html`<p>Hello, ${name}!</p>`
 Slots inside templates are typed positions:
 
 - **Text slot** — `<p>${value}</p>` interpolates a string, number, or signal as a text node.
-- **Attribute slot** — `<a href="${url}">` sets an attribute; if the value is a signal, the attribute re-renders on change. A slot that is the whole value leaves the attribute out for `null`, `undefined` or `false` and writes it empty for `true`, on the server as in the browser; joined with static text (`class="a ${x}"`), `null`, `undefined` and `false` add nothing.
+- **Attribute slot** — `<a href="${url}">` sets an attribute; if the value is a signal, the attribute re-renders on change. A slot that is the whole value leaves the attribute out for `null`, `undefined` or `false` and writes it empty for `true`, on the server as in the browser; joined with static text (`class="a ${x}"`), `null`, `undefined` and `false` add nothing. The server writes a value that holds a slot between quotes even when the template leaves it unquoted: `title=${x}` with an empty `x` gives `title=""`, never `title=` followed by the next attribute. Quote your values anyway, as the examples here do.
 - **Property slot** — `<input .value="${signal}">` (dotted prefix) writes a DOM property.
 - **Boolean attribute** — `<button ?disabled="${signal}">` toggles the attribute presence.
 - **Event slot** — `<button @click="${handler}">` adds a listener.
@@ -49,6 +49,19 @@ to disagree and each shipped a different bug.
 | `.text`, `.textContent`, `.innerText` on `<script>` or `<style>` | `E_AURORA_SLOT_IN_RAW_TEXT` | The property spelling of a slot inside the element: it writes the source the browser runs. |
 | `.innerHTML`, `.outerHTML`, `.srcdoc` | `E_AURORA_SLOT_IN_HTML_PROPERTY` | These properties parse their value as HTML, handlers and all. Put the content in a text slot, or pass a nested `html` template. |
 | A nested `` html`…` `` template (or an array holding one) as an attribute value or a `.value` | `E_AURORA_TEMPLATE_IN_ATTRIBUTE` | Markup has no meaning in an attribute. Pass a string — for a prop typed `string \| TemplateResult`, bind its string form to `title`/`aria-label`. |
+
+aurora reads a template the way the browser's tokenizer reads it, so a refusal
+holds for every valid spelling:
+
+- Whitespace around the `=` does not hide the attribute: `href ="${url}"`,
+  `href= "${url}"` and `href = ${url}` are all `href`, guarded or refused like
+  `href="${url}"`.
+- A `/` ends a tag or attribute name: `<script/x>` is a script, `x/href` is `x`
+  then `href`. A `=` where a name starts is part of the name, so
+  `<img ='${v}'>` is a slot in an attribute name.
+- A `<script>` ends where the browser ends it. After `<!--<script>` inside a
+  script, the first `</script>` does not end it.
+- In the browser, the names are checked again on the parsed template.
 
 Inside `<svg>` and `<math>` the raw-text rules are suspended, because the parser
 never switches state in foreign content — `<svg><title>${label}</title></svg>` is

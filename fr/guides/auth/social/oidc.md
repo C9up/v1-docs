@@ -73,14 +73,41 @@ découverte et au `iss` de chaque token. Écrivez-le comme le fournisseur l'écr
 et l'omettre fait échouer toutes les connexions. Seule l'URL well-known est
 construite sans elle.
 
+L'issuer doit être une URL `https`. Tout ce à quoi une connexion se fie est lu
+chez lui : les endpoints, puis les clés qui vérifient le token. En HTTP simple,
+quiconque se trouve entre votre serveur et le fournisseur peut répondre à sa
+place, publier sa propre clé et signer un token pour n'importe quel
+utilisateur. Un issuer qui n'est pas en `https` lève `E_TRANSIT_INSECURE_ISSUER`
+à la construction du driver : l'application ne démarre pas. Les endpoints
+donnés par le document de découverte (`authorization_endpoint`,
+`token_endpoint`, `jwks_uri`, `userinfo_endpoint`) doivent aussi être en
+`https`, sinon la connexion échoue avec `E_TRANSIT_INVALID_DISCOVERY`.
+
+`http://localhost` est la seule exception, pour un fournisseur que vous lancez
+sur votre propre machine. Son document de découverte peut alors donner des
+endpoints en `http://localhost`.
+
 ### Les clés, et quand elles sont relues
 
-Le document de découverte est mis en cache une heure ; les clés de signature le
-sont jusqu'à ce qu'un token en nomme une absente, ce qui est la façon dont une
-rotation est captée. Cette relecture est limitée à une fois toutes les cinq
-minutes, pour qu'un flot de tokens nommant des clés inventées ne transforme pas
-votre application en générateur de charge contre le fournisseur. Les deux se
-règlent via `cache`.
+Le document de découverte et les clés de signature sont chacun mis en cache une
+heure (`cache.ttlMs`). Passé ce délai, ils sont relus avant d'être utilisés.
+
+Pour les clés, c'est ce qui rend un retrait effectif. Un fournisseur révoque
+une clé compromise en cessant de la publier. Une clé qui n'est plus publiée
+cesse de vérifier des tokens en moins de `ttlMs`, sans redémarrage. Si les clés
+ne peuvent pas être relues une fois le délai passé, la connexion échoue avec
+`E_TRANSIT_JWKS_FAILED` : un ancien jeu de clés n'est pas utilisé au motif que
+c'est le seul disponible.
+
+Pendant cette heure, un token qui nomme une clé absente déclenche une
+relecture : c'est ainsi qu'une rotation est captée tout de suite. Cette
+relecture est limitée à une fois toutes les cinq minutes
+(`cache.minRefetchMs`), pour qu'un flot de tokens nommant des clés inventées ne
+transforme pas votre application en générateur de charge contre le fournisseur.
+
+```ts
+oidc({ ...config, cache: { ttlMs: 15 * 60_000 } })   // une clé retirée reste acceptée 15 minutes au plus
+```
 
 ### Les fournisseurs qui n'ont besoin d'aucun driver
 

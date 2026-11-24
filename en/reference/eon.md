@@ -10,6 +10,10 @@ pnpm add @c9up/eon
 
 `ream configure @c9up/eon` registers the provider, writes `config/timeseries.ts` and adds `TDENGINE_URL`, `TDENGINE_USER`, `TDENGINE_PASSWORD` and `TDENGINE_DATABASE` to `.env` with their validation rules. `@c9up/eon/testing/vitest` needs `vitest` (an optional peer).
 
+The native query compiler comes as one small package per platform, `@c9up/eon-<platform>`, for linux x64 and arm64 (glibc), macOS x64 and arm64, and Windows x64. `@c9up/eon` lists them as optional dependencies, and your package manager installs only the one that matches your machine. No Rust toolchain is needed. Do not install with optional dependencies turned off (`--no-optional`, `--omit=optional`): the compiler would be left out.
+
+There is no JavaScript fallback. Without the compiler, the first statement eon compiles throws `E_EON_NAPI_NOT_FOUND`, and its message names the package to install, for example `@c9up/eon-linux-x64-gnu`.
+
 ## Entry points
 
 | Import | Contents |
@@ -281,7 +285,7 @@ Every code is on `error.code`, and each code is a class of the `errors` namespac
 | [`E_EON_DECODE`](/en/reference/errors#e-eon-decode) | A server reply or result block does not match the protocol (truncated, unknown type, rows without column metadata); a frame that cannot be trusted closes the connection. |
 | [`E_EON_TIMEOUT`](/en/reference/errors#e-eon-timeout) | A request to TDengine got no reply within `timeoutMs`. |
 | [`E_EON_CLOSED`](/en/reference/errors#e-eon-closed) | The TDengine connection closed while a request was waiting, or a request was sent on a closed one. |
-| [`E_EON_CONNECT`](/en/reference/errors#e-eon-connect) | The WebSocket to taosAdapter could not be opened: a bad URL, a refused connection, or no handshake within the deadline. |
+| [`E_EON_CONNECT`](/en/reference/errors#e-eon-connect) | The WebSocket to taosAdapter could not be opened: a bad URL, a refused connection, or no handshake within the deadline. A URL that does not parse is not attached as the `cause`. |
 | [`E_EON_SERVER_ERROR`](/en/reference/errors#e-eon-server-error) | The TDengine server refused a request (a bad statement, a missing table, bad credentials); `taosCode` holds TDengine's numeric error code. |
 | [`E_EON_NO_TOPIC`](/en/reference/errors#e-eon-no-topic) | `subscribe()` was given no topic; the server would accept it and deliver nothing. |
 | [`E_EON_SEEK_NO_OFFSET`](/en/reference/errors#e-eon-seek-no-offset) | `seek()` was given a partition without an `offset`. |
@@ -298,7 +302,7 @@ Every code is on `error.code`, and each code is a class of the `errors` namespac
 | [`E_EON_INVALID_OFFSET`](/en/reference/errors#e-eon-invalid-offset) | `offset()` was given a value that is not a non-negative integer. |
 | [`E_EON_COMPILE_EMPTY`](/en/reference/errors#e-eon-compile-empty) | The compiler returned no SQL statement. |
 | [`E_EON_UNEXPECTED_PARAMS`](/en/reference/errors#e-eon-unexpected-params) | A time-series query compiled with bound parameters where literal SQL is expected. |
-| [`E_EON_INTERNAL`](/en/reference/errors#e-eon-internal) | An invariant inside eon broke: always a bug in eon itself. |
+| [`E_EON_INTERNAL`](/en/reference/errors#e-eon-internal) | An invariant inside eon broke, or the Rust compiler panicked or could not serialize what it compiled: always a bug in eon itself. |
 | [`E_EON_ALTER_DB_ONE_OPTION`](/en/reference/errors#e-eon-alter-db-one-option) | `alterDatabase()` takes exactly one option. |
 | [`E_EON_MIGRATION_INVALID`](/en/reference/errors#e-eon-migration-invalid) | The migrations tracking table holds an unreadable `executed_at`. |
 | [`E_EON_MIGRATION_LOCKED`](/en/reference/errors#e-eon-migration-locked) | Another run holds the migration lock. |
@@ -331,17 +335,21 @@ Every code is on `error.code`, and each code is a class of the `errors` namespac
 | [`E_EON_INVALID_PRECISION`](/en/reference/errors#e-eon-invalid-precision) | A database precision is not `ms`, `us` or `ns`. |
 | [`E_EON_KEEP_TOO_SMALL`](/en/reference/errors#e-eon-keep-too-small) | `KEEP` is less than three times `DURATION`. |
 | [`E_TS_REQUIRED`](/en/reference/errors#e-ts-required) | A super-table's first column is not a TIMESTAMP. |
-| [`E_TAGS_REQUIRED`](/en/reference/errors#e-tags-required) | A super-table declares no tag. |
+| [`E_TAGS_REQUIRED`](/en/reference/errors#e-tags-required) | A super-table declares no tag, or an INSERT that auto-creates a child table (`using`), or its STMT template, has no tag. |
 | [`E_JSON_TAG_RULE`](/en/reference/errors#e-json-tag-rule) | JSON is tag-only and must be the only tag. |
 | [`E_TYPE_NOT_TAGGABLE`](/en/reference/errors#e-type-not-taggable) | A type that cannot be a tag (DECIMAL) is used as one. |
 | [`E_LENGTH_REQUIRED`](/en/reference/errors#e-length-required) | A type that needs a length (`BINARY(n)`, `NCHAR(n)`…) was given none. |
 | [`E_NAME_COLLISION`](/en/reference/errors#e-name-collision) | A name is listed more than once across the STMT template's tag and value columns. |
 | [`E_INVALID_CLAUSE_TYPE`](/en/reference/errors#e-invalid-clause-type) | A WHERE connector is neither `and` nor `or`. |
 | [`E_INVALID_WHERE_GROUP`](/en/reference/errors#e-invalid-where-group) | A WHERE group is empty, or also names a column. |
-| [`E_INVALID_WHERE_VALUE`](/en/reference/errors#e-invalid-where-value) | A WHERE value (or list element) is not a scalar. |
+| [`E_INVALID_WHERE_VALUE`](/en/reference/errors#e-invalid-where-value) | A WHERE value (or list element) is not a scalar, or an `IN` value is not a list. |
 | [`E_UNSAFE_IDENTIFIER`](/en/reference/errors#e-unsafe-identifier-eon) | The compiler refused an identifier. |
 | [`E_UNSAFE_LITERAL`](/en/reference/errors#e-unsafe-literal-eon) | The compiler refused a literal value. |
 | [`E_UNSAFE_OPERATOR`](/en/reference/errors#e-unsafe-operator) | The compiler refused an operator. |
+| [`E_EON_INVALID_INSERT`](/en/reference/errors#e-eon-invalid-insert) | An INSERT reached the compiler with no column, no row, a row whose width differs from the column list, or `tags` without `using`. |
+| [`E_EON_ALTER_EMPTY`](/en/reference/errors#e-eon-alter-empty) | An ALTER STABLE reached the compiler with no change. |
+| [`E_UNSUPPORTED_CLIENT`](/en/reference/errors#e-unsupported-client-eon) | The compiler was asked for a dialect other than `tdengine`. |
+| [`E_EON_INVALID_SPEC`](/en/reference/errors#e-eon-invalid-spec) | The statement the compiler received does not parse. Eon builds every spec itself, so this points at an eon bug or at a spec built by hand. |
 
 ## Migration
 
@@ -349,6 +357,7 @@ Every code is on `error.code`, and each code is a class of the `errors` namespac
 - A refusal from the TDengine server is `errors.E_EON_SERVER_ERROR`: its `code` is the string `'E_EON_SERVER_ERROR'`, and TDengine's numeric code moved to `taosCode`. `error.code === 9731` becomes `error instanceof errors.E_EON_SERVER_ERROR && error.taosCode === 9731`.
 - A client-side failure carries its code on `error.code` (`E_EON_TIMEOUT`, `E_EON_CLOSED`, `E_EON_DECODE`, `E_EON_CONNECT`, `E_EON_BIND`, `E_EON_SERVER_VERSION`), no longer as a `[E_EON_…]` tag at the start of the message.
 - A query compiler refusal carries its code on `error.code` (`E_UNSAFE_IDENTIFIER`, `E_EON_INVALID_FILL`…), no longer as `CODE:` at the start of the message.
+- `E_EON_CONNECT` for a URL that does not parse no longer carries Node's `TypeError` as its `cause`: that error held the whole URL, password included. Read the message instead.
 
 ## See also
 

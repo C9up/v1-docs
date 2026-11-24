@@ -184,9 +184,13 @@ could write any date there. `moment` says which case applied — `"timestamp"`,
 or `"claimed"` / `"unknown"`, both judged now.
 
 Every link is checked: each certificate's signature verifies with the key of
-the one above it, each issuer says it is an authority, the path length and the
-name constraints an authority was given are honoured, and the signing
-certificate is allowed to sign at all. An anchor is matched by the whole
+the one above it, each issuer says it is an authority (`cA` in its basic
+constraints) and, when its key usage is restricted, that it may sign
+certificates, the path length and the name constraints an authority was given
+are honoured, and the signing certificate is allowed to sign at all. An
+ordinary certificate issuing one under its own name is no exception: its
+holder would otherwise pick a new key, a new responder and new key usages
+under the name the authority certified. An anchor is matched by the whole
 certificate or by its name and key — never by a name and serial number, which
 anyone can copy. A certificate that signed itself and is not an anchor ends the
 path, and a path longer than eight is treated as a loop.
@@ -202,7 +206,9 @@ const signatures = await vellum.verifySignatures(mandate, { checkRevocation: tru
 ```
 
 That is a network call per signing certificate, to the responder it names, so
-it is off unless asked for. Signatures sharing a certificate share one
+it is off unless asked for. Only a `trusted` signature is asked about: off a
+trusted path its "issuer" could be anybody, and so could the answer it signs,
+so the answer is `unknown`. Signatures sharing a certificate share one
 question; at most four are asked at once, and no more than sixteen
 certificates per call — the rest answer `unknown` without anything being
 asked, since the document chooses the responders.

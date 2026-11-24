@@ -69,6 +69,30 @@ const users = repo.query()
 
 `preload` déclenche des requêtes batchées (`IN (...)`) pour éviter le N+1.
 
+## Interroger une relation
+
+`entity.related(rel).query()` renvoie une requête déjà limitée aux lignes de
+`entity` : la clé étrangère pour `@HasMany` / `@HasOne`, la clé du propriétaire
+pour `@BelongsTo`, la table pivot pour `@ManyToMany`, la table intermédiaire pour
+les relations through. Les clauses que vous ajoutez sont combinées à cette limite
+par `AND`, en un seul groupe. Un `orWhere()` ne peut donc pas atteindre les lignes
+d'un autre parent :
+
+```ts
+user.related('docs').query().where('published', true).orWhere('pinned', true)
+// SELECT * FROM "docs" WHERE ("published" = ? OR "pinned" = ?) AND "user_id" = ?
+```
+
+La même limite vaut pour `update()`, `delete()`, `increment()` et `decrement()`
+construits depuis cette requête, many-to-many compris : ils ne modifient que les
+lignes liées à `entity`. `clearWhere()` retire vos clauses, pas la limite.
+
+Les sous-requêtes de `whereHas()`, `withCount()` et `withAggregate()` et le
+callback de `preload()` suivent la même règle : vos clauses forment un groupe,
+combiné par `AND` à la corrélation avec le parent. Sur un modèle lié
+`@SoftDeletes`, elles écartent les lignes supprimées, comme un preload. Appelez
+`withTrashed()` dans le callback pour les compter.
+
 ## Clés de relation : propriété ou colonne
 
 Une clé de relation — `foreignKey`, `localKey`, `ownerKey` sur un `@BelongsTo`,

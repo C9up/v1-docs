@@ -132,6 +132,14 @@ router.group(() => {
 }).prefix('/admin').middleware('admin')
 ```
 
+Par son nom, un middleware s'exécute sans arguments. Pour lui en passer, appelez sa fabrique et attachez le résultat avec `.use()`. Les arguments arrivent dans le troisième paramètre de `handle()` :
+
+```typescript
+router.get('/reports', [ReportsController, 'index']).use(middleware.throttle({ max: 10 }))
+```
+
+Chaque nom donné à `.middleware()` doit être déclaré dans `router.named()`. Un nom mal orthographié arrête l'application au démarrage avec `E_MIDDLEWARE_NOT_FOUND`, qui nomme la route. La requête ne s'exécute jamais sans le middleware.
+
 ## Middleware en ligne
 
 Attachez une fonction middleware ponctuelle directement à une route avec `.use()`. Pratique pour une logique propre à une route qui ne mérite pas une classe :
@@ -257,6 +265,9 @@ export default class AuthMiddleware {
       if (payload) {
         ctx.auth = {
           isAuthenticated: true,
+          // Le guard qui a authentifié la requête : le `.guard('jwt')` d'une
+          // route ne la laisse passer que si ce champ nomme l'un de ses guards.
+          authenticatedViaGuard: 'jwt',
           user: { id: payload.sub, email: payload.email },
           roles: payload.roles ?? [],
           permissions: payload.permissions ?? [],
@@ -339,6 +350,12 @@ class Auditor {
 Un singleton qui lit une valeur liée à la requête pendant sa construction n'est
 **pas** mis en cache pour toute l'application — il appartient à cette requête.
 Celui qui n'en lit aucune est mis en cache comme avant.
+
+Les valeurs liées sur un resolver sont visibles pendant que son `make()` ou son
+`call()` s'exécute, et plus après. Un timer ou une promesse qu'un constructeur
+lance pendant la construction ne les voit pas plus tard : son
+`make(HttpContext)` échoue avec `E_CONTAINER_NOT_FOUND`, comme hors de toute
+requête. Passez plutôt à ce travail de fond les données dont il a besoin.
 
 ### Liaisons contextuelles
 

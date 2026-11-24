@@ -79,7 +79,9 @@ more flags are shared by every one of them — `--dry-run` prints what would be
 written without writing it, and `--json` reports the outcome as a single JSON
 object on the last line of stdout, which is what `@c9up/ream-mcp` reads. When
 `--force` does overwrite several files, a failure part-way through restores what
-the same run had already written.
+the same run had already written. A destination that is a symbolic link leading
+outside the project, or to a path that does not exist, counts as already there:
+it is skipped, and refused with `E_REAM_STUB_UNSAFE_PATH` under `--force`.
 
 `make:middleware` takes `--stack server|named|router` (default `router`), which
 picks the registration line the generated file suggests:

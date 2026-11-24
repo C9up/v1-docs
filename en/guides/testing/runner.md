@@ -23,18 +23,22 @@ helix test --tsx=false           # use the parent's loader instead of tsx
 A run that executes nothing is not a pass. `helix test` exits 1 when
 discovery finds no test file, when a path, a `--files` filter or a named
 suite matches nothing — a selection narrows the run, it never widens to the
-whole tree — and when a file declares no test. `--pass-with-no-tests` (or
-`passWithNoTests` in `helix.config.ts`) accepts an empty run.
+whole tree — and when a file declares no test (a file error coded
+`E_HELIX_NO_TEST_SUITE`). `--pass-with-no-tests` (or `passWithNoTests` in
+`helix.config.ts`) accepts an empty run.
 
 Under CI (`CI` set), a `.only` or a `.pin()` fails the tests it selects
-instead of narrowing the run, so one left in a commit cannot turn the build
+(`E_HELIX_UNEXPECTED_ONLY`) instead of narrowing the run, so one left in a commit cannot turn the build
 green. `--allow-only` (or `allowOnly`) lets it narrow anyway;
 `--allow-only=false` forbids it everywhere.
 
 An error nobody handled — a floating rejection, a timer that throws — is a
 file error reported beside the file's results, on both pools, including one
 raised after the file reported. So is a worker that exits with a status its
-results do not explain, and a runner teardown (`api.cleanup`) that throws. A
+results do not explain, and a runner teardown (`api.cleanup`) that throws.
+Each error keeps its `code` in the reporters: `spec` prints it in brackets
+before the message, and `json` puts it on the error (see
+[Reporter output](/en/reference/helix#reporter-output)). A
 `.resolves` / `.rejects` assertion the test never awaited fails that test.
 
 What a test prints reaches the terminal once its file finishes, under a
@@ -49,6 +53,12 @@ stdout stays parseable.
 editing `api.config.timeout`, the config file's `timeout`, then 60 s.
 `beforeEach` / `afterEach` hooks and `test.setup` / `test.teardown` run under
 their test's deadline and fail that test, named, when they hang.
+
+A test that awaits a promise nothing will ever settle fails with
+`E_HELIX_TIMEOUT` when its deadline passes, even with nothing else pending
+and under `vi.useFakeTimers()`: the deadline runs on the real clock and keeps
+the worker alive while the test runs. It is cleared as soon as the test
+settles, so it never holds a worker open after its file.
 
 A separate per-file deadline (`--file-timeout`, `fileTimeout`, 10 minutes by
 default) kills a worker stuck where no test timeout reaches, such as a

@@ -49,8 +49,8 @@ Protocol functions, each also reachable through `VisaManager`:
 |---|---|---|
 | `validateAuthorizationRequest` | function | `validateAuthorizationRequest(request: UntrustedAuthorizationRequest, store: VisaStore, options?: AuthorizeOptions): Promise<ValidatedRequest>`; throws `errors.E_VISA_UNREDIRECTABLE` or `errors.E_VISA_OAUTH_ERROR` |
 | `issueAuthorizationCode` | function | `issueAuthorizationCode(validated: ValidatedRequest, userId: string, store: VisaStore, options?: AuthorizeOptions, now?: Date): Promise<string>`; the code lives `codeTtlSeconds` (30 s) |
-| `successRedirect` | function | `successRedirect(validated: ValidatedRequest, code: string): string` |
-| `errorRedirect` | function | `errorRedirect(redirectUri: string, error: errors.E_VISA_OAUTH_ERROR, state?: string): string` |
+| `successRedirect` | function | `successRedirect(validated: ValidatedRequest, code: string, issuer: string): string`; adds `code`, `state` and `iss` (RFC 9207) |
+| `errorRedirect` | function | `errorRedirect(redirectUri: string, error: errors.E_VISA_OAUTH_ERROR, options: { issuer: string; state?: string }): string`; adds `error`, `error_description`, `state` and `iss` (RFC 9207) |
 | `token` | function | `token(request: TokenRequest, credentials: ClientCredentials, store: VisaStore, options?: TokenOptions, now?: Date): Promise<TokenResponse>` |
 | `introspect` | function | `introspect(request, credentials, store, now?, issuer?, options?: IntrospectionOptions): Promise<IntrospectionResponse>` |
 | `revoke` | function | `revoke(request, credentials, store, now?): Promise<void>` |
@@ -129,7 +129,7 @@ Request and option types:
 | `store` | `readonly store: VisaStore` | The configured store |
 | `registerClient` | `registerClient(input: { id: string; name: string; redirectUris: string[]; grantTypes?: GrantType[]; scopes?: string[]; tokenEndpointAuthMethod?: ClientAuthMethod; trusted?: boolean; secretExpiresAt?: Date }): Promise<{ client: Client; secret?: string }>` | Register a client; the secret is returned once and only its hash is stored. `none` creates a public client without a secret |
 | `register` | `register(request: ClientRegistrationRequest, presentedToken?: string, now?: Date): Promise<ClientRegistrationResponse>` | A client registering itself; refused unless `registration.enabled` |
-| `authorize` | `authorize(request: UntrustedAuthorizationRequest, userId: string \| undefined): Promise<AuthorizationOutcome>` | Check an authorization request and decide: redirect, ask consent, or show an error |
+| `authorize` | `authorize(request: UntrustedAuthorizationRequest, userId: string \| undefined): Promise<AuthorizationOutcome>` | Check an authorization request and decide: redirect, ask consent, or show an error. A remembered consent, or `trusted`, skips the consent screen, except for a public client whose redirect URI is loopback, `localhost` or a private-use scheme: that client gets the screen every time (RFC 8252 §8.6) |
 | `grant` | `grant(validated: ValidatedRequest, userId: string, now?: Date): Promise<string>` | The user agreed: record the consent, mint the code, return the redirect URL |
 | `deny` | `deny(validated: ValidatedRequest): string` | The redirect URL carrying `access_denied` |
 | `consentTicket` | `consentTicket(validated: ValidatedRequest, userId: string, now?: Date): ConsentTicket` | A ticket for the consent page, valid `consentTicketTtlSeconds` |
@@ -151,7 +151,7 @@ Request and option types:
 | `name` | `readonly name: string` | Guard name, `'visa'` by default |
 | `verify` | `verify(presented: string): Promise<GuardResult>` | Authenticate an access token; the user comes from `findUser`, or `findClientSubject` for a client-credentials token |
 | `authenticate` | `authenticate(): Promise<GuardResult>` | Throws: this guard takes no credentials |
-| `createToken` | `createToken(user: { id: string } \| string, abilities?: string[], options?: { name?: string; expiresInSeconds?: number }): Promise<VisaAccessToken>` | Mint a token for `user` under `tokenClientId`; `abilities` defaults to `['*']` |
+| `createToken` | `createToken(user: { id: string } \| string, abilities?: string[], options?: { name?: string; expiresInSeconds?: number }): Promise<VisaAccessToken>` | Mint a token for `user` under `tokenClientId`; `abilities` defaults to `['*']`; an `expiresInSeconds` that is not a positive whole number throws `E_VISA_INVALID_TTL` |
 | `invalidateToken` | `invalidateToken(presented: string): Promise<boolean>` | Revoke a token; `true` when it existed |
 | `authenticateAsClient` | `authenticateAsClient(user, abilities?, options?): Promise<GuardClientResponse>` | The `Authorization` header a test client sends to be `user` |
 | `challenge` | `challenge(options?: { error?: string; scope?: readonly string[] }): string` | The `WWW-Authenticate` value of a 401 from this guard |
@@ -167,7 +167,7 @@ Request and option types:
 | `findClientSubject` | `(clientId: string) => Promise<GuardUser \| null>` | — | What a client-credentials token authenticates as; without it such a token is refused |
 | `name` | `string` | `'visa'` | Guard name |
 | `tokenClientId` | `string` | — | The first-party client a token from `createToken` belongs to |
-| `expiresInSeconds` | `number` | — | Lifetime of a token from `createToken` |
+| `expiresInSeconds` | `number` | `3600` | Lifetime of a token from `createToken`; a positive whole number, else `visaGuard()` throws `E_VISA_INVALID_TTL` |
 | `resource` | `string` | — | The protected resource this guard serves; `challenge()` then names its metadata |
 
 ### `VisaStore`
@@ -186,8 +186,8 @@ Every method that takes a credential takes its hash (`hashSecret`).
 | `revokeAccessToken` | `revokeAccessToken(tokenHash: string, at: Date): Promise<void>` |
 | `saveRefreshToken` | `saveRefreshToken(token: RefreshToken): Promise<void>` |
 | `findRefreshToken` | `findRefreshToken(tokenHash: string): Promise<RefreshToken \| null>` |
-| `consumeRefreshToken` | `consumeRefreshToken(tokenHash: string, at: Date): Promise<boolean>`; atomic |
-| `revokeFamily` | `revokeFamily(familyId: string, at: Date): Promise<void>`; every token of a family, when a consumed refresh token comes back |
+| `consumeRefreshToken` | `consumeRefreshToken(tokenHash: string, at: Date): Promise<boolean>`; atomic, `false` when already consumed or revoked |
+| `revokeFamily` | `revokeFamily(familyId: string, at: Date): Promise<void>`; every token of a family that exists when it runs, when a spent code or refresh token comes back or loses the race to be spent |
 | `findConsent` | `findConsent(userId: string, clientId: string): Promise<Consent \| null>` |
 | `saveConsent` | `saveConsent(consent: Consent): Promise<void>` |
 | `listConsents` | `listConsents(userId: string): Promise<Consent[]>` |
@@ -219,7 +219,7 @@ Routes the provider mounts (`prefix` defaults to `/oauth`):
 | `POST {prefix}/introspect` | always | `IntrospectionResponse` |
 | `POST {prefix}/revoke` | always | 200 with an empty body |
 | `POST {prefix}/register` | `registration.enabled` | 201 with `ClientRegistrationResponse` |
-| `GET /.well-known/oauth-authorization-server{issuer path}` | always | The authorization server metadata |
+| `GET /.well-known/oauth-authorization-server{issuer path}` | always | The authorization server metadata, with `authorization_response_iss_parameter_supported: true` |
 | `GET /.well-known/oauth-protected-resource[/{resource path}]` | `protectedResource` is set | `ProtectedResourceMetadata` |
 
 These endpoints read their parameters from the body only; an OAuth parameter in the query string is refused with `invalid_request`. An `E_VISA_OAUTH_ERROR` becomes its `status` and `toResponse()` body, with `WWW-Authenticate` on a 401. `{prefix}/authorize` is not mounted: build it with `visa.authorize()`, `consentTicket()`, `redeemConsentTicket()`, `grant()` and `deny()`.
@@ -301,6 +301,7 @@ export default defineConfig({
 | `accessTokenTtlSeconds` | `number` | `3600` | Access token lifetime |
 | `refreshTokenTtlSeconds` | `number` | 30 days | Refresh token lifetime |
 | `codeTtlSeconds` | `number` | `30` | Authorization code lifetime |
+| `consentTicketTtlSeconds` | `number` | `600` | How long a consent page may stay open before its answer is refused |
 | `issueRefreshTokens` | `boolean` | `true` | Issue refresh tokens |
 | `allowPlainChallenge` | `boolean` | `false` | Accept the `plain` PKCE method; only `S256` otherwise |
 | `prefix` | `string` | `'/oauth'` | Where the endpoints are mounted |
@@ -308,7 +309,6 @@ export default defineConfig({
 | `registration` | `RegistrationOptions` | — | Client self-registration (see below) |
 | `introspection.resourceServers` | `string[]` | — | Confidential clients allowed to introspect any access token; otherwise only the token's own client |
 | `protectedResource` | `{ resource: string; scopesSupported?: string[]; resourceName?: string; resourceDocumentation?: string }` | — | The protected resource; set, its metadata document is served |
-| `consentTicketTtlSeconds` | `number` | `600` | How long a consent ticket stays valid (a `VisaConfig` option) |
 
 `registration`:
 
@@ -339,6 +339,7 @@ export default defineConfig({
 | [`E_VISA_NO_REDIRECT_URI`](/en/reference/errors#e-visa-no-redirect-uri) | `registerClient()` got no redirect URI |
 | [`E_VISA_INVALID_REDIRECT_URI`](/en/reference/errors#e-visa-invalid-redirect-uri) | A redirect URI given to `registerClient()` is not a complete URL |
 | [`E_VISA_INVALID_INITIAL_ACCESS_TOKEN`](/en/reference/errors#e-visa-invalid-initial-access-token) | `registration.initialAccessToken` is the empty string |
+| [`E_VISA_INVALID_TTL`](/en/reference/errors#e-visa-invalid-ttl) | `accessTokenTtlSeconds`, `refreshTokenTtlSeconds`, `codeTtlSeconds` or `consentTicketTtlSeconds` is not a positive whole number; checked when the `VisaManager` is built, and by `token()` and `issueAuthorizationCode()` called directly. Also the guard's `expiresInSeconds`, checked by `visaGuard()` and on each `createToken()` |
 | [`E_VISA_INVALID_SECRET_TTL`](/en/reference/errors#e-visa-invalid-secret-ttl) | `registration.secretTtlSeconds` is not a positive whole number |
 | [`E_VISA_STORE_READ_ONLY`](/en/reference/errors#e-visa-store-read-only) | The store has no `saveClient`, and `registerClient()` was called or registration is enabled |
 | [`E_VISA_MISSING_CONFIG`](/en/reference/errors#e-visa-missing-config) | `VisaProvider` found no `config/visa.ts` |
@@ -358,6 +359,12 @@ Each one is a class of the `errors` namespace and a `@c9up/flare` `Exception`, w
 
 ## Migration
 
+- A public client (`tokenEndpointAuthMethod: 'none'`) whose redirect URI is a loopback address, `localhost` or a private-use scheme (`com.example.app:/callback`) now gets the consent screen on every authorization. A remembered consent and `trusted: true` no longer skip it: any other program on the machine can present that client's id, so nothing proves the request comes from your application. Keep your consent page reachable for these clients. A confidential client, or a public client on an `https` redirect URI, keeps the silent path.
+- `successRedirect(validated, code)` becomes `successRedirect(validated, code, issuer)`, and `errorRedirect(uri, error, state)` becomes `errorRedirect(uri, error, { issuer, state })`. Pass `visa.issuer`. Every authorization response, success or error, now carries `iss` (RFC 9207), and the metadata announces `authorization_response_iss_parameter_supported: true`. A client that reads the metadata then rejects a response without `iss`.
+- The guard's `expiresInSeconds` must be a positive whole number of seconds. Any other value now makes `visaGuard()` throw `E_VISA_INVALID_TTL`, and `createToken()` rejects with it. Until now `NaN` or `Infinity` minted tokens that never expired.
+- A code or a refresh token presented twice at the same time now ends its whole family, the winner's new tokens included. Until now only a presentation that arrived after the first one did. A client must not send the same refresh token in parallel: send one refresh, and let the other requests wait for its result.
+- A store you wrote yourself: `consumeRefreshToken` must answer `false` for a revoked token too, in the same atomic write (`… WHERE consumed_at IS NULL AND revoked_at IS NULL`). The token endpoint now saves the new pair before it calls `consumeRefreshToken` or `consumeAuthorizationCode`, and calls `revokeFamily` when the consume answers `false`.
+- `accessTokenTtlSeconds`, `refreshTokenTtlSeconds`, `codeTtlSeconds` and `consentTicketTtlSeconds` must be positive whole numbers of seconds. Any other value now stops the boot with `E_VISA_INVALID_TTL`. Until now `NaN` or `Infinity` gave codes and tokens that never expired, and `0` or a fraction were used as they were.
 - `VisaError` is gone: test `error.code`, or `error instanceof errors.E_VISA_*` with `import { errors } from '@c9up/visa'`. Its `hint` is now `help`.
 - `OAuthError` becomes `errors.E_VISA_OAUTH_ERROR`: its `code` is now `'E_VISA_OAUTH_ERROR'`, and the protocol string moved to `oauthCode` (`error.code === 'invalid_grant'` becomes `error.oauthCode === 'invalid_grant'`). The constructor, `description`, `status`, `challenge` and `toResponse()` are unchanged.
 - `UnredirectableError` becomes `errors.E_VISA_UNREDIRECTABLE`, still carrying `error`.

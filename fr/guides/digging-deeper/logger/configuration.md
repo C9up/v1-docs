@@ -22,7 +22,7 @@ providers: [
 
 ```typescript
 // config/logger.ts
-import { defineConfig, logLevel, targets } from '@c9up/spectrum'
+import { defineConfig, logLevel, stdSerializers, targets } from '@c9up/spectrum'
 
 const inProduction = process.env.NODE_ENV === 'production'
 
@@ -38,9 +38,13 @@ export default defineConfig({
       modules: {
         db: 'debug',
       },
-      // Une requête ou une réponse journalisée porte chaque en-tête tel qu'il
-      // est arrivé : le cookie de session, le jeton bearer et les cookies posés
-      // en réponse sont tenus hors de la ligne ici.
+      // Une requête ou une réponse loggée sous `req` / `res` est écrite avec
+      // sa méthode, son url, sa query, ses params, son statut et ses en-têtes :
+      // jamais son corps ni ses cookies. Ses en-têtes arrivent tels quels : le
+      // cookie de session, le jeton bearer et les cookies posés en réponse sont
+      // tenus hors de la ligne par les chemins ci-dessous. Ce que vous loggez
+      // sous une autre clé est écrit tel quel : censurez-le avec son propre chemin.
+      serializers: { req: stdSerializers.req, res: stdSerializers.res },
       redact: {
         paths: [
           'req.headers.authorization',
@@ -122,9 +126,18 @@ const audit = logger.child({ module: 'audit' }, { level: 'warn', msgPrefix: '[au
 l'adresse distante de la requête, et **chaque en-tête tel qu'il est arrivé** —
 `cookie` et `authorization` compris : le cookie de session signé, le jeton CSRF
 et un jeton bearer arrivent dans la ligne. `stdSerializers.res` écrit le statut
-et chaque en-tête de réponse, `set-cookie` compris. Les censurer est le travail
+et chaque en-tête de réponse, `set-cookie` compris. `stdSerializers.req`
+n'écrit jamais le corps ni les cookies. Les censurer est le travail
 de `redact` : gardez les trois chemins ci-dessus partout où ces sérialiseurs
-sont branchés. Les options
+sont branchés.
+
+Les deux lisent `ctx.request` et `ctx.response` autant que la requête et la
+réponse de Node. Sur `ctx.request`, `url` est le chemin, et la query string
+est écrite à part sous `query`, déjà analysée : `req.query.token` peut alors
+censurer un jeton qu'elle porte. Loggez la requête sous `req` :
+`logger.info('login attempt', { req: ctx.request })`. Sous une autre clé,
+aucun sérialiseur ne s'applique, et la requête est écrite par son `toJSON()`,
+un export complet avec le corps et les cookies. Les options
 qui ne peuvent pas être honorées — `customLevels`, `useOnlyCustomLevels`,
 `levelComparison`, `nestedKey`, `crlf`, `hooks.streamWrite`,
 `transport.pipeline` — lèvent au lieu d'être ignorées.
@@ -155,7 +168,10 @@ const logger = new Logger({
 Un chemin qui ne désigne rien laisse l'entrée telle quelle, et rien n'est muté :
 les objets le long d'un chemin censuré sont copiés — en gardant leur prototype,
 donc le `toJSON` d'un modèle décide toujours de ce qu'il montre — et ceux que
-l'appelant a passés ne le sont pas. Un chemin traverse aussi les getters.
+l'appelant a passés ne le sont pas. Un chemin traverse aussi les getters. Sur
+un objet qui a un `toJSON()`, un chemin s'applique à ce que `toJSON()`
+renvoie, c'est-à-dire à ce que la ligne montre. Un objet écrit dans le message
+par `%j`, `%o` ou `%O` est censuré avec les mêmes chemins.
 
 `censor` peut être une fonction, appelée avec la valeur et le chemin où elle a
 été trouvée (`['users', '0', 'card']`) ; `remove: true` supprime les clés

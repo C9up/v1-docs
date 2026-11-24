@@ -76,7 +76,7 @@ Types :
 | `LdapConfig` | interface | Options de `ldap()` |
 | `AppleConfig` | interface | `AppleKey & { callbackUrl; scopes?; authorizeParams? }` |
 | `OidcMetadata` | interface | Les champs lus du document de découverte : `issuer`, `authorization_endpoint`, `token_endpoint`, `jwks_uri`, `userinfo_endpoint?`, … |
-| `RemoteOptions` | interface | `{ ttlMs?, minRefetchMs?, now? }`, cache du document de découverte et des clés |
+| `RemoteOptions` | interface | `{ ttlMs?, minRefetchMs?, now? }` : `ttlMs` (1 heure par défaut) est la durée pendant laquelle le document de découverte et le jeu de clés sont utilisés avant d'être relus ; `minRefetchMs` (5 minutes par défaut) est l'intervalle minimal entre deux relectures pour une clé inconnue |
 | `IdTokenClaims` | interface | `{ iss, sub, aud, exp, iat?, nonce?, azp?, [claim: string]: unknown }` |
 | `Jwk` | interface | `{ kty, kid?, alg?, use?, [key: string]: unknown }` |
 | `SupportedAlg` | type | `'RS256' \| 'RS384' \| 'RS512' \| 'PS256' \| 'PS384' \| 'PS512' \| 'ES256' \| 'ES384' \| 'ES512'` |
@@ -90,9 +90,11 @@ Utilitaires Apple, SAML, XML et LDAP :
 | `AppleKey` | interface | `{ clientId, teamId, keyId, privateKey }` |
 | `validateAssertion` | fonction | `validateAssertion(assertion: XmlElement, expected: SamlExpectations): SamlIdentity` |
 | `assertResponseSucceeded` | fonction | `assertResponseSucceeded(response: XmlElement): void` ; lève `E_TRANSIT_SAML_REJECTED` sauf si le statut est Success |
-| `assertionInside` | fonction | `assertionInside(signed: XmlElement): XmlElement`, l'assertion que couvre une signature |
+| `validateResponse` | fonction | `validateResponse(response: XmlElement, expected: SamlResponseExpectations): void` ; vérifie le `Destination`, l'`Issuer` et l'`InResponseTo` propres à la réponse |
+| `assertionInside` | fonction | `assertionInside(signed: XmlElement, response: XmlElement): XmlElement`, l'unique assertion de la réponse postée, quand l'élément signé est cette assertion ou la réponse elle-même |
 | `SamlIdentity` | interface | `{ nameId, nameIdFormat, attributes: Record<string, string[]>, assertionId, notOnOrAfter, rememberUntil, sessionIndex }` |
 | `SamlExpectations` | interface | `{ issuer, audience, recipient, inResponseTo?, clockSkewSeconds?, now? }` |
+| `SamlResponseExpectations` | interface | `{ issuer, destination, inResponseTo?, signed }` ; `signed` dit que la signature couvre la réponse elle-même |
 | `SAML_PROTOCOL_NS`, `SAML_ASSERTION_NS` | const | Les espaces de noms protocole et assertion de SAML 2.0 |
 | `AssertionReplayStore` | interface | `{ remember(assertionId: string, expiresAt: number): Promise<boolean> }` ; `false` pour une assertion déjà vue |
 | `MemoryAssertionReplayStore` | classe | Retient les assertions dans ce processus |
@@ -246,7 +248,7 @@ export default defineConfig({
 
 | Option | Type | Défaut | Description |
 |---|---|---|---|
-| `issuer` | `string` | — | L'URL de l'émetteur, telle qu'elle figure dans les jetons |
+| `issuer` | `string` | — | L'URL de l'émetteur, telle qu'elle figure dans les jetons. Doit être en `https` ; `http://localhost` est accepté en développement |
 | `clientId` | `string` | — | Identifiant client |
 | `clientSecret` | `string \| (() => string \| Promise<string>)` | — | Secret, ou fonction appelée à chaque requête de jeton |
 | `callbackUrl` | `string` | — | URI de redirection |
@@ -254,7 +256,7 @@ export default defineConfig({
 | `authorizeParams` | `Record<string, string>` | — | `prompt`, `login_hint`, `acr_values`… |
 | `userinfo` | `boolean` | `true` | Appelle aussi l'endpoint userinfo quand il est annoncé |
 | `leewaySeconds` | `number` | `60` | Dérive d'horloge tolérée sur l'id token |
-| `cache` | `RemoteOptions` | — | Cache du document de découverte et des clés de signature |
+| `cache` | `RemoteOptions` | — | Cache du document de découverte et des clés de signature. `ttlMs` est aussi la durée maximale pendant laquelle une clé retirée par le fournisseur vérifie encore des jetons |
 
 `SamlConfig` :
 
@@ -325,8 +327,9 @@ export default defineConfig({
 | [`E_TRANSIT_CALLBACK_NOT_CONFIRMED`](/fr/reference/errors#e-transit-callback-not-confirmed) | Un fournisseur OAuth1 n'a pas confirmé l'URL de callback |
 | [`E_TRANSIT_NO_REQUEST_TOKEN`](/fr/reference/errors#e-transit-no-request-token) | Un fournisseur OAuth1 a répondu sans jeton de requête |
 | [`E_TRANSIT_DISCOVERY_FAILED`](/fr/reference/errors#e-transit-discovery-failed) | La découverte OpenID Connect a répondu une erreur HTTP |
-| [`E_TRANSIT_INVALID_DISCOVERY`](/fr/reference/errors#e-transit-invalid-discovery) | Le document de découverte n'a pas un champ requis, ou nomme un autre émetteur |
-| [`E_TRANSIT_JWKS_FAILED`](/fr/reference/errors#e-transit-jwks-failed) | La récupération du JWKS du fournisseur a échoué, ou il n'a pas de tableau `keys` |
+| [`E_TRANSIT_INSECURE_ISSUER`](/fr/reference/errors#e-transit-insecure-issuer) | L'`issuer` OpenID Connect n'est pas une URL `https` (`http://localhost` excepté) ; levée à la construction du driver |
+| [`E_TRANSIT_INVALID_DISCOVERY`](/fr/reference/errors#e-transit-invalid-discovery) | Le document de découverte n'a pas un champ requis, nomme un autre émetteur, ou donne un endpoint qui n'est pas en `https` |
+| [`E_TRANSIT_JWKS_FAILED`](/fr/reference/errors#e-transit-jwks-failed) | La récupération du JWKS du fournisseur a échoué, ou il n'a pas de tableau `keys`. Des clés plus anciennes que `cache.ttlMs` ne sont pas utilisées à sa place |
 | [`E_TRANSIT_UNKNOWN_SIGNING_KEY`](/fr/reference/errors#e-transit-unknown-signing-key) | L'id_token nomme une clé de signature que le fournisseur n'a pas publiée |
 | [`E_TRANSIT_UNSUPPORTED_ALGORITHM`](/fr/reference/errors#e-transit-unsupported-algorithm) | Le fournisseur ne déclare que des algorithmes d'id_token que transit refuse (les signatures asymétriques sont exigées) |
 | [`E_TRANSIT_NO_ID_TOKEN`](/fr/reference/errors#e-transit-no-id-token) | La réponse de jetons ne porte aucun id_token ; vérifiez que le scope `openid` est accordé |
@@ -335,14 +338,14 @@ export default defineConfig({
 | [`E_TRANSIT_USERINFO_MISMATCH`](/fr/reference/errors#e-transit-userinfo-mismatch) | La réponse userinfo décrit un autre sujet que l'id_token |
 | [`E_TRANSIT_SAML_REJECTED`](/fr/reference/errors#e-transit-saml-rejected) | Une réponse ou une assertion SAML est refusée |
 | [`E_TRANSIT_INVALID_SIGNATURE`](/fr/reference/errors#e-transit-invalid-signature) | Une signature XML ne se vérifie pas, ou n'est pas une que transit accepte |
-| [`E_TRANSIT_INVALID_BER`](/fr/reference/errors#e-transit-invalid-ber) | Un message LDAP ne s'encode pas ou ne se décode pas en BER |
+| [`E_TRANSIT_INVALID_BER`](/fr/reference/errors#e-transit-invalid-ber) | Un message LDAP ne s'encode pas ou ne se décode pas en BER, ou un DN, un attribut ou une valeur de filtre passé à `LdapConnection` n'est pas une chaîne |
 | [`E_TRANSIT_QUASAR_MISSING`](/fr/reference/errors#e-transit-quasar-missing) | Un stockage anti-rejeu Redis nomme une connexion quasar et `@c9up/quasar` n'est pas installé, ou son provider n'a pas démarré |
 | [`E_TRANSIT_INCOMPLETE_CONNECTION`](/fr/reference/errors#e-transit-incomplete-connection) | La connexion quasar n'a pas une commande qu'émet le stockage anti-rejeu |
 | [`E_TRANSIT_FAKE_NOT_DECLARED`](/fr/reference/errors#e-transit-fake-not-declared) | `FakeTransit` a été sollicité pour un fournisseur qu'aucun `willReturn()` n'a déclaré |
 | [`E_TRANSIT_FAKE_ASSERTION`](/fr/reference/errors#e-transit-fake-assertion) | Une assertion de `FakeTransit` (`assertBegan`, `assertSignedIn`, `assertNobodySignedIn`) a échoué |
 | [`E_TRANSIT_LDAP_ERROR`](/fr/reference/errors#e-transit-ldap-error) | Un annuaire a refusé ou n'a pas pu être joint ; `resultCode` est le code de résultat LDAP quand l'annuaire en a rendu un (49 pour des identifiants invalides, statut 400) |
 
-Chacune est une classe du namespace `errors` et une `Exception` de `@c9up/flare`, de statut 500 sauf `E_OAUTH_STATE_MISMATCH` (400), `E_TRANSIT_UNKNOWN_PROVIDER` (404), et `E_TRANSIT_LDAP_ERROR` pour des identifiants invalides ou un identifiant ou un mot de passe vide (400) : testez `error.code` ou `error instanceof errors.E_*`. `E_TRANSIT_PROTECTED_PARAMETER` porte le `parameter` refusé.
+Chacune est une classe du namespace `errors` et une `Exception` de `@c9up/flare`, de statut 500 sauf `E_OAUTH_STATE_MISMATCH` (400), `E_TRANSIT_UNKNOWN_PROVIDER` (404), et `E_TRANSIT_LDAP_ERROR` pour des identifiants invalides, un identifiant ou un mot de passe vide, ou qui n'est pas une chaîne (400) : testez `error.code` ou `error instanceof errors.E_*`. `E_TRANSIT_PROTECTED_PARAMETER` porte le `parameter` refusé.
 
 Les erreurs qu'un visiteur rencontre pendant une connexion (`E_OAUTH_MISSING_CODE`, `E_OAUTH_STATE_MISMATCH`, `E_TRANSIT_UNKNOWN_PROVIDER`) étendent `errors.HttpResponseException` et se rendent elles-mêmes. Chacune a un `identifier` (`errors.<CODE>`, la clé de traduction lue par `ctx.i18n`), `getResponseMessage(error, ctx)` et `handle(error, ctx)`. `handle` négocie avec `request.accepts` : `{ errors: [{ message }] }` en JSON, un objet d'erreur JSON:API en JSON:API, et sinon un flash (`error`, et le message sous son code) avec une redirection vers la page précédente quand la requête a une session, ou le message en texte quand elle n'en a pas.
 
@@ -353,6 +356,14 @@ Les erreurs qu'un visiteur rencontre pendant une connexion (`E_OAUTH_MISSING_COD
 - `LdapError` devient `errors.E_TRANSIT_LDAP_ERROR` : son `code` vaut désormais `'E_TRANSIT_LDAP_ERROR'`, et le code de résultat LDAP passe dans `resultCode` (`error.code === 49` devient `error.resultCode === 49`).
 - `E_TRANSIT_STATE_MISMATCH` devient `E_OAUTH_STATE_MISMATCH`, avec le message « Unable to verify re-redirect state ».
 - Un callback sans son code lève `E_OAUTH_MISSING_CODE` avant toute requête au fournisseur, là où il échouait en `E_TRANSIT_TOKEN_EXCHANGE_FAILED`.
+- `assertionInside(signed)` prend désormais aussi la réponse postée : appelez `assertionInside(signed, response)`. Elle renvoie l'unique enfant direct `<Assertion>` de la réponse, et refuse un élément signé qui n'est ni cette assertion ni la réponse.
+- Une connexion SAML refuse désormais une signature qui n'est pas un enfant direct de l'élément qu'elle référence, un élément signé qui n'est ni la `<Response>` postée ni son unique `<Assertion>`, et tout élément SAML écrit sous une `<ds:Signature>`. Les fournisseurs d'identité n'envoient pas ces formes.
+- `authenticate()` sur un annuaire refuse désormais un identifiant ou un mot de passe qui n'est pas une chaîne (un tableau ou un objet lu dans le corps d'une requête) comme des identifiants invalides : `E_TRANSIT_LDAP_ERROR`, `resultCode` 49, statut 400. Rien n'est envoyé à l'annuaire. Un tableau ou un objet était auparavant envoyé comme un mot de passe vide.
+- `LdapConnection.bind()` refuse un mot de passe qui n'est pas une chaîne non vide (`E_TRANSIT_LDAP_ERROR`), et `LdapConnection` refuse un DN, un attribut ou une valeur de filtre qui n'est pas une chaîne (`E_TRANSIT_INVALID_BER`). Convertissez la valeur en chaîne avant de la passer.
+- Les clés de signature OpenID Connect sont désormais relues dès qu'elles ont plus de `cache.ttlMs` (1 heure par défaut), là où elles étaient gardées jusqu'à ce qu'un jeton nomme une clé inconnue. Une clé retirée par le fournisseur cesse de vérifier des jetons dans ce délai. Baissez `cache.ttlMs` pour le raccourcir. Si les clés ne peuvent pas être relues à ce moment, la connexion échoue avec `E_TRANSIT_JWKS_FAILED`.
+- `oidc()` refuse désormais un `issuer` qui n'est pas en `https` avec `E_TRANSIT_INSECURE_ISSUER`, à la construction du driver (au démarrage). `http://localhost` reste accepté. Pour un fournisseur de développement sous un autre nom d'hôte, joignez-le en `http://localhost` (publiez son port) ou placez du TLS devant lui.
+- Un document de découverte qui donne un `authorization_endpoint`, un `token_endpoint`, un `jwks_uri` ou un `userinfo_endpoint` qui n'est pas en `https` est désormais refusé avec `E_TRANSIT_INVALID_DISCOVERY`.
+- Une `<Response>` SAML signée doit désormais porter un `Destination` égal à `callbackUrl` et un `<Issuer>` égal à `issuer`. Sur toute réponse, un `Destination`, un `<Issuer>` ou un `InResponseTo` présent et différent est refusé. Vérifiez que `callbackUrl` est exactement l'URL ACS enregistrée chez le fournisseur d'identité.
 
 ## Voir aussi
 

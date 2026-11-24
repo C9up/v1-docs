@@ -337,6 +337,18 @@ test('places an order without real payment', async () => {
 
 Calling `app.container.restore()` with no argument clears all active swaps at once.
 
+A token holds one swap. A second `swap()` replaces the first, and `restore(token)` removes the token's swap outright. To swap on top of an existing swap and undo only your own, read the current one first with `swapped(token)`, then put it back:
+
+```typescript
+const previous = app.container.swapped('PaymentGateway')
+app.container.swap('PaymentGateway', () => decliningGateway)
+// ...
+if (previous === undefined) app.container.restore('PaymentGateway')
+else app.container.swap('PaymentGateway', previous)
+```
+
+`swapped()` returns the factory without running it. The singleton that was cached before the first swap is kept until the final `restore()`, which puts the same instance back. Helix's `override()` works this way, so a fake swapped in `beforeAll` survives a test that overrides the same token.
+
 ## Scopes reference
 
 | Scope | Lifetime | Decorator |

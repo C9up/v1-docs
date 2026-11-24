@@ -103,7 +103,7 @@ Avec [@c9up/robledo](https://github.com/C9up/robledo) installé et
 sans passer par un store :
 
 ```bash
-ream generate:update-key     # robledo.key (hors de git) et la clé publique à coller
+ream generate:update-key     # robledo.key (lisible par vous seul, listé dans le .gitignore de ream new) et la clé publique à coller
 ream android:publish         # bundle, signe, écrit robledo/android/<runtime>/<id>/
 ```
 
@@ -124,3 +124,31 @@ clé de signature vient de `REAM_UPDATES_KEY`, sinon de `robledo.key`, et doit
 correspondre à `mobile.updates.publicKey`. Le http en clair n'est accepté que
 vers cette machine (`localhost`, `127.0.0.1`, `10.0.2.2`), pour le
 développement ; l'app n'est alors autorisée en clair que vers cet hôte.
+
+Un téléphone ne fait qu'avancer. `android:publish` date chaque mise à jour du
+moment où elle a été construite (`createdAt`, signé avec le reste). Un
+téléphone refuse une mise à jour qui n'est pas plus récente que la plus récente
+qu'il a acceptée, avec `E_ROBLEDO_NOT_NEWER`. Un serveur ou un CDN qui sert à
+nouveau une ancienne mise à jour ne peut donc pas y ramener les apps
+installées. Pour revenir en arrière volontairement, publiez à nouveau l'ancien
+code : `android:publish` le signe comme une nouvelle mise à jour.
+
+Le build inscrit aussi deux champs dans l'app (`assets/ream-updates.json`).
+Chacun ferme une brèche :
+
+- `embeddedCreatedAt` est l'heure du build, en secondes. Le JS contenu dans
+  l'app date au moins de ce moment. Un téléphone refuse une mise à jour publiée
+  avant ce build. Il abandonne aussi celle qu'il détient quand une version du
+  store apporte un build plus récent. Sans ce champ, une app mise à jour depuis
+  le store continue de lancer une mise à jour à distance plus ancienne.
+- `appId` est le `mobile.id` de l'app, son `applicationId` Android.
+  `android:publish` signe le même identifiant dans chaque mise à jour, et un
+  téléphone refuse une mise à jour qui nomme une autre app. Sans ce champ, une
+  mise à jour publiée pour une autre de vos apps, signée avec la même clé,
+  s'installerait.
+
+Un build du store ne prend donc pas une mise à jour publiée avant lui. Si cette
+mise à jour doit encore s'appliquer, publiez-la à nouveau après le build. Les
+deux heures viennent de l'horloge de la machine qui construit ou publie : une
+horloge en avance fait refuser aux téléphones les mises à jour publiées avant
+cette heure.

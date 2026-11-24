@@ -163,6 +163,20 @@ reusable base query needs.
 query.clearSelect().clearWhere().clearOrder().clearHaving().clearLimit().clearOffset()
 ```
 
+`clearWhere()` drops the clauses you chained. The constraints atlas adds itself
+stay: the key of a `related().query()`, the repository scope and the
+`@SoftDeletes` filter.
+
+`wrapExisting()` closes the clauses chained so far into their own group. What
+you chain next is ANDed with them, each side in parentheses:
+
+```ts
+query.where('email', login).orWhere('username', login)
+  .wrapExisting()
+  .where('tenant_id', 1)
+// WHERE ("email" = ? OR "username" = ?) AND "tenant_id" = ?
+```
+
 ### HAVING EXISTS
 
 A correlated subquery in `HAVING` filters **groups** by something outside the

@@ -32,7 +32,7 @@ La même forme fonctionne pour Vue (`./pages/*.vue`) et Svelte (`./pages/*.svelt
 
 ### Ce que fait `hydrate()`
 
-1. Lit le bloc `<script id="photon-data" type="application/json">` émis par le serveur.
+1. Lit le bloc `<script id="photon-data" type="application/json">` émis par le serveur. Seul ce script est lu, jamais un autre élément qui porte le même `id`. Le serveur l'écrit avant le point de montage `<div id="app">` : le balisage que votre page affiche ne peut pas le remplacer.
 2. Valide la forme du payload (`component`, `props`, `url`, `framework`).
 3. Appelle `resolveComponent(name)` pour charger le module de la page.
 4. Dispatche vers l'adapteur correspondant, qui hydrate la cible quand le
@@ -128,6 +128,14 @@ il prend les `errors` du serveur. `reload()` envoie `Cache-Control: no-cache`.
 Une URL d'une autre origine est une navigation complète. Les deux méthodes
 renvoient une promesse, résolue une fois la page appliquée, qu'on peut donc
 attendre ; l'ignorer marche aussi.
+
+Le routeur demande l'URL absolue qu'il a vérifiée, jamais son seul chemin.
+`/.//other.example/x` est sur votre origine, avec le chemin `//other.example/x` ;
+le routeur demande `https://your.app//other.example/x`, et non
+`//other.example/x`, qu'un navigateur lit comme un autre hôte. Chaque requête est
+vérifiée à nouveau juste avant son envoi : une visite ou un rechargement partiel
+dont l'URL quitte l'origine est refusé. L'`url` passée à `onBefore`, `onStart`,
+`onFinish` et aux événements `start` / `finish` est cette URL absolue.
 
 ### Contrat côté serveur
 

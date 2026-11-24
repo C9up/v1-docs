@@ -58,7 +58,11 @@ The argument is fixed per hook kind (never invent one):
   `BaseEntity` instance being written. Mutate it in place — a `beforeSave` hook
   can normalise or hash fields and the mutation is what gets persisted.
 - **`beforeFind`** and **`beforeFetch`** receive the live `ModelQuery`, so you
-  can add scopes/constraints before it runs.
+  can add scopes/constraints before it runs. The clauses the caller chained are
+  already closed into one group (`wrapExisting()`), so a filter the hook adds
+  is ANDed with all of them: `where(a).orWhere(b)` plus a hook's
+  `where('tenant_id', id)` reads `(a OR b) AND tenant_id = ?`. `beforePaginate`
+  receives both queries wrapped the same way.
 - **`afterFind`** receives the hydrated entity **or `null`** (no match);
   **`afterFetch`** receives the hydrated `BaseEntity[]`.
 - **`beforePaginate`** receives the `[countQuery, query]` tuple — mutate **both**
@@ -93,6 +97,21 @@ fires with the paginator, then `afterFetch` with the items.
 A preload is a fetch of the related model: its `beforeFetch` receives the preload
 query and its `afterFetch` the related rows, for every relation kind and for
 `load()` (see [Relations](/en/guides/database/orm/relations#fetch-hooks-on-preloaded-rows)).
+
+The read hooks each terminal of a model query fires:
+
+| Terminal | Hooks |
+|---|---|
+| `first()`, `firstOrFail()` | `beforeFind`, `afterFind` |
+| `exec()`, `await query`, `sole()` | `beforeFetch`, `afterFetch` |
+| `paginate()` | `beforePaginate`, `beforeFetch`, `afterPaginate`, `afterFetch` |
+| `cursorPaginate()` | `beforeFetch`, `afterFetch` (on the page's items) |
+| `exists()`, `doesntExist()` | `beforeFind` (nothing is hydrated, so no after hook) |
+| `pojo()`, `pluck()` | none |
+
+A filter written in a hook does not reach `pojo()` or `pluck()`. Put a filter
+those reads must honour in a [repository scope](/en/guides/database/orm/repositories)
+instead: it reaches every query.
 
 ### Inheritance
 

@@ -8,7 +8,11 @@
 pnpm add @c9up/goldstone
 ```
 
-Ajoutez `() => import('@c9up/goldstone/provider')` aux providers de `reamrc.ts` et créez `config/inbox.ts`. L'analyse et la vérification de l'expéditeur tournent sur un moteur Rust livré en binaire précompilé ; `@c9up/ream` est une dépendance pair facultative.
+Ajoutez `() => import('@c9up/goldstone/provider')` aux providers de `reamrc.ts` et créez `config/inbox.ts`. L'analyse et la vérification de l'expéditeur tournent sur un moteur Rust. `@c9up/ream` est une dépendance pair facultative.
+
+Le moteur natif est livré dans un petit paquet par plateforme, `@c9up/goldstone-<plateforme>`, pour linux x64 et arm64 (glibc), macOS x64 et arm64, et Windows x64. `@c9up/goldstone` les déclare en dépendances optionnelles, et votre gestionnaire de paquets installe seulement celui de votre machine. Vous n'avez pas besoin de toolchain Rust. N'installez pas avec les dépendances optionnelles désactivées (`--no-optional`, `--omit=optional`) : le moteur serait absent.
+
+Il n'existe pas de repli JavaScript. Sans le moteur, la première analyse lève `E_GOLDSTONE_NATIVE_REQUIRED`, et son message nomme le paquet à installer, par exemple `@c9up/goldstone-linux-x64-gnu`.
 
 ## Points d'entrée
 
@@ -106,7 +110,7 @@ Chaque méthode qui prend un `folder` vaut `'INBOX'` par défaut. Les messages s
 | Option | Type | Défaut | Description |
 |---|---|---|---|
 | `ParseOptions.limits` | `Limits` | voir ci-dessous | Les bornes appliquées pendant l'analyse. |
-| `ParseOptions.remoteContent` | `'block' \| 'allow'` | `'block'` | Indique si le `html` assaini peut charger des images, fonds et affiches distants. Les références `cid:` et les liens restent dans les deux cas. |
+| `ParseOptions.remoteContent` | `'block' \| 'allow'` | `'block'` | Indique si le `html` assaini peut charger des images, fonds et affiches distants. Les références `cid:` et les liens qui ont un schéma restent dans les deux cas. |
 | `ReadOptions.authenticate` | `boolean \| AuthenticateOptions` | `true` | Vérifier DKIM, SPF et DMARC. |
 | `AuthenticateOptions.ip`, `helo`, `mailFrom` | `string` | | L'IP, le HELO et le MAIL FROM du serveur qui a livré : ce que vérifie SPF. Sans eux, SPF vaut `none`. |
 | `AuthenticateOptions.maxDkimSignatures` | `number` | `5` | Le nombre maximal de signatures DKIM vérifiées. |
@@ -120,6 +124,8 @@ Chaque méthode qui prend un `folder` vaut `'INBOX'` par défaut. Les messages s
 | `maxDepth` | 32 | La profondeur d'imbrication des multiparts et des messages transportés. |
 | `maxHeaders` | 1000 | Les champs d'un bloc d'en-têtes. |
 | `maxHeaderBytes` | 1 Mio | Taille d'un bloc d'en-têtes. |
+| `maxPartHeaderBytes` | 1 Mio | Taille de tous les blocs d'en-têtes des parties et des messages transportés, ensemble. Le bloc propre du message n'est borné que par `maxHeaderBytes`. |
+| `maxAddresses` | 5000 | Les adresses des en-têtes d'adresses (`From`, `To`, `Cc`, `Bcc`, `Reply-To`, `Sender`, `Resent-*`, `List-*`) de tous les blocs d'en-têtes, y compris ceux des parties ; un groupe compte pour une de plus. Vérifié avant l'analyse du message. |
 | `maxAttachments` | 100 | Le nombre de pièces jointes. |
 | `maxAttachmentBytes` | 25 Mio | Taille d'une pièce jointe décodée. |
 | `maxHtmlBytes` | 512 Kio | Taille du corps HTML assaini ; au-delà, le message est lu sans `html`. |
@@ -136,8 +142,8 @@ Chaque borne est un entier positif inférieur à 2^32.
 | `inReplyTo`, `references` | `readonly string[]` | |
 | `headers` | `readonly Header[]` | Tous les en-têtes, tels que reçus. |
 | `text` | `string \| undefined` | Le corps texte. |
-| `html` | `string \| undefined` | Assaini pour l'affichage : ni script, ni gestionnaire d'événement, ni URL `javascript:`, ni contenu distant sauf autorisation. |
-| `htmlError` | `Exception \| undefined` | Pourquoi `html` est absent alors que le message a un corps HTML (`E_GOLDSTONE_HTML_TOO_LARGE`, `…_TOO_DEEP`, `…_TOO_COMPLEX`). |
+| `html` | `string \| undefined` | Assaini pour l'affichage : ni script, ni gestionnaire d'événement, ni URL `javascript:`, ni contenu distant sauf autorisation, ni URL sans schéma (`/chemin`, `../x`, `//hôte`, `?q`, `#id`). Un e-mail n'a pas d'URL de base dans la page qui l'affiche : une telle URL pointerait vers votre application. L'élément reste, sans l'attribut. Pour résoudre ces URL avec une base de votre choix, partez de `unsanitizedHtml()`. |
+| `htmlError` | `Exception \| undefined` | Pourquoi `html` est absent alors que le message a un corps HTML (`E_GOLDSTONE_HTML_TOO_LARGE`, `…_TOO_DEEP`, `…_TOO_COMPLEX`). La profondeur et la complexité sont mesurées sur l'arbre que construit l'analyseur HTML. |
 | `attachments` | `readonly Attachment[]` | |
 | `authenticity` | `Authenticity \| undefined` | Présent quand le message est lu avec `readMessage`. |
 | `header(name)` | `header(name: string): string \| undefined` | Le premier en-tête de ce nom, sans tenir compte de la casse. |
@@ -251,14 +257,15 @@ Chaque code est une classe de l'espace de noms `errors` (`import { errors } from
 | [`E_GOLDSTONE_TOO_MANY_PARTS`](/fr/reference/errors#e-goldstone-too-many-parts) | Un message compte plus de parties MIME qu'autorisé. |
 | [`E_GOLDSTONE_TOO_DEEP`](/fr/reference/errors#e-goldstone-too-deep) | Des parties MIME sont imbriquées plus profondément qu'autorisé. |
 | [`E_GOLDSTONE_TOO_MANY_HEADERS`](/fr/reference/errors#e-goldstone-too-many-headers) | Un bloc d'en-têtes compte plus de champs qu'autorisé. |
-| [`E_GOLDSTONE_HEADERS_TOO_LARGE`](/fr/reference/errors#e-goldstone-headers-too-large) | Un bloc d'en-têtes dépasse la taille autorisée. |
+| [`E_GOLDSTONE_HEADERS_TOO_LARGE`](/fr/reference/errors#e-goldstone-headers-too-large) | Un bloc d'en-têtes dépasse `maxHeaderBytes`, ou les blocs d'en-têtes des parties dépassent ensemble `maxPartHeaderBytes`. |
+| [`E_GOLDSTONE_TOO_MANY_ADDRESSES`](/fr/reference/errors#e-goldstone-too-many-addresses) | Les en-têtes d'adresses comptent plus d'adresses que `maxAddresses`. |
 | [`E_GOLDSTONE_MISSING_BOUNDARIES`](/fr/reference/errors#e-goldstone-missing-boundaries) | Un message multipart déclare des délimiteurs qui n'apparaissent jamais. |
 | [`E_GOLDSTONE_BOUNDARY_TOO_LONG`](/fr/reference/errors#e-goldstone-boundary-too-long) | Un délimiteur multipart est trop long. |
 | [`E_GOLDSTONE_TOO_MANY_ATTACHMENTS`](/fr/reference/errors#e-goldstone-too-many-attachments) | Un message compte plus de pièces jointes qu'autorisé. |
 | [`E_GOLDSTONE_ATTACHMENT_TOO_LARGE`](/fr/reference/errors#e-goldstone-attachment-too-large) | Une pièce jointe dépasse la taille autorisée. |
 | [`E_GOLDSTONE_HTML_TOO_LARGE`](/fr/reference/errors#e-goldstone-html-too-large) | Le corps HTML dépasse `maxHtmlBytes` (dans `htmlError`). |
-| [`E_GOLDSTONE_HTML_TOO_DEEP`](/fr/reference/errors#e-goldstone-html-too-deep) | Le corps HTML est imbriqué trop profondément (dans `htmlError`). |
-| [`E_GOLDSTONE_HTML_TOO_COMPLEX`](/fr/reference/errors#e-goldstone-html-too-complex) | Le corps HTML compte trop d'éléments (dans `htmlError`). |
+| [`E_GOLDSTONE_HTML_TOO_DEEP`](/fr/reference/errors#e-goldstone-html-too-deep) | Le corps HTML imbrique plus de 1000 éléments (dans `htmlError`). |
+| [`E_GOLDSTONE_HTML_TOO_COMPLEX`](/fr/reference/errors#e-goldstone-html-too-complex) | Le corps HTML construit un arbre hors de proportion avec son balisage : trop de nœuds, ou trop de travail pour les placer, par exemple des balises égarées dans un tableau (dans `htmlError`). |
 | [`E_GOLDSTONE_DNS_UNAVAILABLE`](/fr/reference/errors#e-goldstone-dns-unavailable) | Une vérification de l'expéditeur avait besoin du DNS et le DNS a échoué. |
 | [`E_GOLDSTONE_INVALID_ENVELOPE`](/fr/reference/errors#e-goldstone-invalid-envelope) | L'enveloppe donnée à une vérification de l'expéditeur est invalide. |
 | [`E_GOLDSTONE_ENGINE`](/fr/reference/errors#e-goldstone-engine) | Le moteur a échoué sans l'un des codes ci-dessus. |
@@ -278,6 +285,10 @@ Chaque code est une classe de l'espace de noms `errors` (`import { errors } from
 - `GoldstoneNativeRequiredError` devient `errors.E_GOLDSTONE_NATIVE_REQUIRED`.
 - `fromEngine()` et `htmlError` donnent une `Exception` de flare, la classe du code.
 - Un refus du contenu d'un message a désormais le `status` 422 (voir [Erreurs](#erreurs)).
+- Le `html` assaini ne garde plus les URL sans schéma (`href="/compte"`, `src="/logo.png"`, `href="#haut"`, `href="//hôte/x"`) : l'attribut est retiré, l'élément reste. Si vous en avez besoin, résolvez-les vous-même depuis `unsanitizedHtml()` avec la base de votre choix.
+- Un message dont les en-têtes d'adresses comptent plus de 5000 adresses au total est désormais refusé avec `E_GOLDSTONE_TOO_MANY_ADDRESSES`. Augmentez `limits.maxAddresses` si vous recevez des e-mails envoyés à plus de destinataires.
+- Un message dont les blocs d'en-têtes des parties dépassent 1 Mio ensemble est désormais refusé avec `E_GOLDSTONE_HEADERS_TOO_LARGE`. Augmentez `limits.maxPartHeaderBytes` si vous importez des messages qui transportent beaucoup de messages transférés.
+- Un HTML qui place beaucoup de balises égarées dans un tableau, ou qui imbrique plus de 1000 éléments derrière un commentaire ou une balise mal fermée, n'a plus de `html` et a un `htmlError` (`E_GOLDSTONE_HTML_TOO_COMPLEX` ou `E_GOLDSTONE_HTML_TOO_DEEP`). Un HTML rempli de références de caractères (`&nbsp;`) n'est plus refusé.
 
 ## Voir aussi
 

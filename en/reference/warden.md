@@ -8,7 +8,11 @@
 pnpm add @c9up/warden
 ```
 
-`ream configure @c9up/warden` registers the provider, adds `JWT_SECRET` (a random value) and `JWT_EXPIRY=3600` to the environment files, and writes `config/auth.ts` with a JWT guard whose `findUser` and `verifyCredentials` throw until you write them. The `@can` / `@cannot` template tags need `@c9up/inker`; the Redis stores need `@c9up/quasar` or a client of your own. JWT signing runs in the package's native engine.
+`ream configure @c9up/warden` registers the provider, adds `JWT_SECRET` (a random value) and `JWT_EXPIRY=3600` to the environment files, and writes `config/auth.ts` with a JWT guard whose `findUser` and `verifyCredentials` throw until you write them. The `@can` / `@cannot` template tags need `@c9up/inker`; the Redis stores need `@c9up/quasar` or a client of your own. JWT signing runs in a native Rust engine.
+
+The native engine comes as one small package per platform, `@c9up/warden-<platform>`, for linux x64 and arm64 (glibc), macOS x64 and arm64, and Windows x64. `@c9up/warden` lists them as optional dependencies, and your package manager installs only the one that matches your machine. No Rust toolchain is needed. Do not install with optional dependencies turned off (`--no-optional`, `--omit=optional`): the engine would be left out.
+
+There is no JavaScript fallback. Without the engine, signing or verifying a JWT throws `E_WARDEN_NAPI_REQUIRED`, and its message names the package to install, for example `@c9up/warden-linux-x64-gnu`.
 
 ## Entry points
 
@@ -56,7 +60,7 @@ Authentication:
 | `AuthManager` | class | The configured guards; authenticates, verifies, issues tokens, resolves rights |
 | `Authenticator` | class | `ctx.auth`, one request's authentication state |
 | `GuardAccessor` | class | `ctx.auth.use(name)`, one guard of one request |
-| `authFinder` | function | `authFinder<User>(options: AuthFinderOptions<User>): AuthFinder<User>`: `verifyCredentials(uid, password)` throws `E_INVALID_CREDENTIALS` for an unknown account and a wrong password alike, after the same hash work |
+| `authFinder` | function | `authFinder<User>(options: AuthFinderOptions<User>): AuthFinder<User>`: `verifyCredentials(uid, password)` throws `E_INVALID_CREDENTIALS` for an unknown account, a wrong password and a password the hasher refuses alike, after the same hash work |
 | `AuthFinder`, `AuthFinderOptions`, `AuthFinderHasher` | interface | `{ hash: { make, verify }, findForAuth(uid), passwordColumnName? }` (default column `password`) |
 | `extractCredentials` | function | The bearer token, API key, Basic header and session of a request |
 | `API_KEY_GUARD_NAMES` | const | The guard names read as access-token guards: `access_tokens`, `api-key` |
@@ -76,8 +80,8 @@ Route decorators:
 | Export | Kind | Description |
 |---|---|---|
 | `Guard` | decorator | `@Guard(first: string, ...rest: string[])`: the guards that may authenticate the route; the first that succeeds wins |
-| `Permission` | decorator | `@Permission(...permissions: string[])`: every one required |
-| `Role` | decorator | `@Role(...roles: string[])`: every one required |
+| `Permission` | decorator | `@Permission(...permissions: string[])`: every one required; at least one name |
+| `Role` | decorator | `@Role(...roles: string[])`: every one required; at least one name |
 | `RequireMfa` | decorator | `@RequireMfa()`: the user must have passed the MFA step-up |
 | `getGuardMetadata`, `getPermissionMetadata`, `getRoleMetadata`, `getRequireMfaMetadata` | function | Read the decorators of a handler |
 
@@ -122,9 +126,9 @@ JWT, refresh and remember-me tokens:
 | `TokenBlacklist` | class | `new TokenBlacklist(driver: BlacklistDriver)`: `revoke(jti, expiresAt)`, `isRevoked(jti)`, `cleanup()` |
 | `MemoryBlacklistDriver`, `RedisBlacklistDriver`, `ResilientBlacklistDriver` | class | Revocation list drivers; the resilient one wraps a primary driver with an in-memory fallback |
 | `BlacklistDriver`, `RedisBlacklistConfig`, `RedisLikeClient`, `ResilientBlacklistConfig`, `BlacklistDegradeEvent` | interface | Their contracts and options |
-| `mintRefreshToken`, `generateRefreshToken`, `hashRefreshToken` | function | Refresh token creation and hashing |
+| `mintRefreshToken`, `rotateRefreshToken`, `decodeRefreshToken` | function | Open a token family at sign-in; spend a refresh token for its successor; split a presented value into its family and the hash of its secret. See [Refresh tokens](#refresh-tokens) |
 | `MemoryRefreshTokenDriver` | class | In-memory `RefreshTokenDriver` |
-| `RefreshTokenDriver`, `MintedRefreshToken`, `StoredRefreshToken` | interface | Refresh token storage |
+| `RefreshTokenDriver`, `MintedRefreshToken`, `StoredRefreshToken`, `RefreshTokenSuccessor`, `RefreshTokenRotation` | interface / type | Refresh token storage, one row per family, and the answer of a rotation |
 | `RememberMeToken` | class | A remember-me token |
 | `mintRememberMeToken`, `verifyAndRecycleRememberMeToken` | function | Issue a remember-me token; verify one and replace it |
 | `MemoryRememberMeTokenDriver` | class | In-memory `RememberMeTokenDriver` |
@@ -138,8 +142,9 @@ Multi-factor authentication:
 
 | Export | Kind | Description |
 |---|---|---|
-| `MfaManager` | class | `new MfaManager(config: MfaManagerConfig)`: `enrollTotp`, `confirmTotp`, `verifyTotp`, `createBackupCodes`, `verifyBackupCode`, `verify(userId, code)`, `isLocked`, `listFactors`, `isEnabled`, `disableFactor` |
+| `MfaManager` | class | `new MfaManager(config: MfaManagerConfig)`: `enrollTotp`, `confirmTotp`, `verifyTotp`, `createBackupCodes`, `verifyBackupCode`, `verify(userId, code)`, `isLocked`, `listFactors`, `isEnabled`, `disableFactor`; `enrollTotp`, `confirmTotp`, `createBackupCodes` and `disableFactor` take `{ stepUp }` and need it once the account has MFA |
 | `MfaManagerConfig` | interface | `{ issuer: string; totp?; backupCodes?; store?; rateLimit? }` |
+| `MfaChangeOptions`, `MfaEnrollOptions` | interface | `{ stepUp? }`, `{ stepUp?, label? }`: the options of a factor change |
 | `MfaRateLimitConfig` | interface | `{ maxAttempts?, windowSeconds?, store? }` |
 | `MfaFactor`, `MfaFactorKind`, `MfaFactorStore`, `MfaFactorSummary` | interface / type | Enrolled factors (`'totp' \| 'backup_codes'`) and their store |
 | `MemoryMfaFactorStore` | class | In-memory `MfaFactorStore` |
@@ -148,7 +153,7 @@ Multi-factor authentication:
 | `TotpConfig`, `TotpEnrollment`, `TotpAlgorithm`, `TotpReplayGuard`, `ReplayRedisClient` | interface / type | TOTP options and contracts |
 | `BackupCodesProvider` | class | `new BackupCodesProvider(config?: BackupCodesConfig)`: `generate()`, `verify(hashes, code)` |
 | `BackupCodesConfig`, `BackupCodesResult`, `BackupCodeVerification` | interface | |
-| `OtpProvider` | class | `new OtpProvider(config: OtpConfig)`: `start(...)` sends a code through a delivery channel, `verify(...)` |
+| `OtpProvider` | class | `new OtpProvider(config: OtpConfig)`: `start(recipient)` sends a code through a delivery channel, `verify(challengeId, recipient, code)` checks it for that recipient only |
 | `MemoryOtpChallengeStore` | class | In-memory `OtpChallengeStore` (10 000 pending challenges at most) |
 | `OtpConfig`, `OtpChallenge`, `OtpChallengeStore`, `OtpDeliveryChannel`, `OtpStartResult`, `OtpVerification`, `OtpFailureReason` | interface / type | One-time code options and contracts |
 | `WebauthnProvider` | class | `new WebauthnProvider(config: WebauthnConfig)`: `startRegistration`, `finishRegistration`, `startAuthentication`, `finishAuthentication` |
@@ -159,7 +164,7 @@ Rate limiting and stores:
 
 | Export | Kind | Description |
 |---|---|---|
-| `AuthRateLimiter` | class | `new AuthRateLimiter(config?: AuthRateLimiterConfig)`: `attempt(...keys)`, `isBlocked(...keys)`, `clear(...keys)`, `AuthRateLimiter.loginKeys(ip, identifier)` |
+| `AuthRateLimiter` | class | `new AuthRateLimiter(config?: AuthRateLimiterConfig)`: `attempt(...keys)`, `isBlocked(...keys)`, `clear(...keys)`, `AuthRateLimiter.loginKeys(ip, identifier)`, `AuthRateLimiter.ipKey(ip)`, `AuthRateLimiter.identifierKey(identifier)`. Reset on success: `clear(AuthRateLimiter.identifierKey(email))` only |
 | `AuthRateLimiterConfig` | interface | `{ maxAttempts?, windowSeconds?, store? }` |
 | `AttemptDecision` | interface | `{ allowed, remaining, retryAfterSeconds }` |
 | `MemoryAttemptStore`, `RedisAttemptStore` | class | Attempt counters |
@@ -322,6 +327,64 @@ With an emitter set (`auth.setEmitter(emitter)`), each authentication decision i
 
 Events: `login_attempted`, `login_succeeded` and `logged_out` (session guards), `authentication_attempted`, `authentication_succeeded` and `authentication_failed` (every guard). A listener that throws never breaks a login.
 
+## Refresh tokens
+
+A sign-in opens a token family: one row that holds the hash of the one refresh token that is valid now. A refresh spends that token and puts its successor in the same row. The token value is `base64url(familyId).base64url(secret)`; only `sha256(secret)` is stored.
+
+```ts
+import { MemoryRefreshTokenDriver, mintRefreshToken, rotateRefreshToken } from '@c9up/warden'
+
+const refreshTokens = new MemoryRefreshTokenDriver() // your own driver in production
+
+// Sign-in: open a family.
+const minted = mintRefreshToken(user.id, 30 * 24 * 3600)
+await refreshTokens.store(minted.stored)
+// Send minted.value to the client, with an access token.
+
+// POST /auth/refresh
+const rotation = await rotateRefreshToken(refreshTokens, body.refreshToken, 30 * 24 * 3600)
+if (!rotation.rotated) {
+  // 'invalid' and 'reused' get the same 401. On 'reused', the family is
+  // already revoked; you can also warn the user or end every session:
+  // if (rotation.reason === 'reused') await refreshTokens.revokeAllForUser(rotation.userId)
+  return response.status(401).json({ error: 'invalid_grant' })
+}
+// Send rotation.value to the client, with a new access token for rotation.userId.
+```
+
+`rotateRefreshToken` answers:
+
+| Answer | When |
+|---|---|
+| `{ rotated: true, userId, familyId, value, expiresAt }` | The token was the current one. `value` is its successor; the presented token no longer works. |
+| `{ rotated: false, reason: 'invalid' }` | Not a refresh token, an unknown or revoked family, or an expired one (its row is removed). |
+| `{ rotated: false, reason: 'reused', userId, familyId }` | A token of a live family that is not the current one: a token already spent, or the loser of two requests that present the same token at the same time. The family is revoked, so the successor the other request received stops working too. |
+
+The second case is how a stolen token is caught: the thief and the owner hold tokens of the same sign-in, and the first spent token that comes back ends the family for both.
+
+### Writing a driver
+
+A driver stores one row per family, keyed by `familyId`: `{ familyId, hash, userId, expiresAt, createdAt }`.
+
+| Method | What it must do |
+|---|---|
+| `store(row)` | Insert the row of a new family |
+| `find(familyId)` | The row, or `null` |
+| `consume(familyId, presentedHash, successor)` | Replace `hash` and `expiresAt` with `successor` ONLY if the row's hash is still `presentedHash`, in one indivisible operation, and answer whether THIS call did it |
+| `revokeFamily(familyId)` | Delete the row |
+| `revokeAllForUser(userId)` | Delete every row of the user; compare ids as strings |
+| `cleanup()` | Delete expired rows |
+
+`consume` is a compare-and-set. In SQL, one statement and its affected row count:
+
+```sql
+UPDATE refresh_tokens SET hash = :next_hash, expires_at = :next_expires_at
+WHERE family_id = :family_id AND hash = :presented_hash
+-- consume() answers: affected rows === 1
+```
+
+On Redis, a Lua script that compares the hash and writes in the same call. A `find` followed by a separate write is not a consume: two requests with the same token both read the same hash and both write. A driver without `consume()` or `revokeFamily()` is refused with `E_WARDEN_REFRESH_STORE_CONTRACT`.
+
 ## Configuration
 
 `config/auth.ts`, read under the `auth` key. The provider throws `E_WARDEN_NO_AUTH_CONFIG` without any guard.
@@ -400,13 +463,14 @@ export default defineConfig({
 | Code | Raised when |
 |---|---|
 | [`E_UNAUTHORIZED_ACCESS`](/en/reference/errors#e-unauthorized-access-warden) | No guard authenticated the request (401), or a token lacks the ability `currentAccessToken.authorize()` asks for (403) |
-| [`E_INVALID_CREDENTIALS`](/en/reference/errors#e-invalid-credentials) | `authFinder().verifyCredentials()` found no account or a wrong password (400) |
+| [`E_INVALID_CREDENTIALS`](/en/reference/errors#e-invalid-credentials) | `authFinder().verifyCredentials()` found no account, a wrong password, or a password the hasher refuses (400) |
 | [`E_AUTHORIZATION_FAILURE`](/en/reference/errors#e-authorization-failure) | A bouncer ability or policy denied the action, or the user lacks a role or permission the route declares (403) |
-| [`E_WARDEN_MFA_REQUIRED`](/en/reference/errors#e-warden-mfa-required) | The route declares `@RequireMfa` and the step-up was not passed (403) |
+| [`E_WARDEN_MFA_REQUIRED`](/en/reference/errors#e-warden-mfa-required) | The route declares `@RequireMfa` and the step-up was not passed, or an `MfaManager` call changes the factors of an account that has MFA without `{ stepUp: true }` (403) |
 | [`E_WARDEN_AUTH_STRATEGY_ERROR`](/en/reference/errors#e-warden-auth-strategy-error) | Every attempted guard crashed (500) |
 | [`E_WARDEN_UNAUTHORIZED`](/en/reference/errors#e-warden-unauthorized) | The standalone `expressMiddleware()` found no token or refused it (401) |
 | [`E_WARDEN_AUTH_ERROR`](/en/reference/errors#e-warden-auth-error) | The standalone `expressMiddleware()` failed (500) |
 | [`E_WARDEN_NO_AUTH_CONFIG`](/en/reference/errors#e-warden-no-auth-config) | The provider found no guard in `config/auth.ts` |
+| [`E_WARDEN_EMPTY_GATE_REQUIREMENT`](/en/reference/errors#e-warden-empty-gate-requirement) | `@Guard()`, `@Role()` or `@Permission()` names nothing to require; thrown when the decorator is applied, and by the middleware for metadata that names nothing |
 | [`E_WARDEN_INVALID_CONFIG`](/en/reference/errors#e-warden-invalid-config) | A guard, token, MFA or rate-limit setting is invalid |
 | [`E_WARDEN_NAPI_REQUIRED`](/en/reference/errors#e-warden-napi-required) | JWT signing or verification ran without the native engine |
 | [`E_WARDEN_NOT_BOOTED`](/en/reference/errors#e-warden-not-booted) | `@c9up/warden/services/main` was read before the provider booted |
@@ -421,6 +485,7 @@ export default defineConfig({
 | [`E_WARDEN_TOKEN_TTL_INVALID`](/en/reference/errors#e-warden-token-ttl-invalid) | A refresh token TTL, or a token lifetime, is not a positive finite number (a token lifetime must also be whole seconds) |
 | [`E_WARDEN_OTP_STORE_FULL`](/en/reference/errors#e-warden-otp-store-full) | The in-memory OTP store holds its maximum of pending challenges |
 | [`E_WARDEN_OTP_STORE_CONTRACT`](/en/reference/errors#e-warden-otp-store-contract) | The OTP challenge store has no `take()` |
+| [`E_WARDEN_REFRESH_STORE_CONTRACT`](/en/reference/errors#e-warden-refresh-store-contract) | The refresh token driver given to `rotateRefreshToken` has no `consume()` or no `revokeFamily()` |
 | [`E_WARDEN_WEBAUTHN_STORE_FULL`](/en/reference/errors#e-warden-webauthn-store-full) | The in-memory WebAuthn store holds its maximum of pending ceremonies |
 | [`E_WARDEN_STORE_TTL_INVALID`](/en/reference/errors#e-warden-store-ttl-invalid) | A challenge store `ttlMs` is not a positive integer |
 | [`E_WARDEN_STORE_LIMIT_INVALID`](/en/reference/errors#e-warden-store-limit-invalid) | A challenge store `maxEntries` is not a positive integer |
@@ -457,6 +522,13 @@ Each one is a class of the `errors` namespace and a `@c9up/flare` `Exception`, w
 - `E_WARDEN_FORBIDDEN` is gone: a user who lacks a role or permission the route declares (`@Role`, `@Permission`) gets `E_AUTHORIZATION_FAILURE`, the code of a denied `authorize()` and of the route gate's `.role()` / `.permission()`. The message is translated under `errors.E_AUTHORIZATION_FAILURE` when the context has an `i18n`; the missing roles and permissions are not sent.
 - The middleware no longer writes a refusal itself: a request without valid credentials and a user who lacks a declared role or permission are THROWN (`errors.E_UNAUTHORIZED_ACCESS`, `errors.E_AUTHORIZATION_FAILURE`), and the error's own `handle` writes the response. A refused `@Role` / `@Permission` therefore answers as a denied `authorize()` does: `403 { "errors": [{ "message": "Access denied" }] }` for JSON, a JSON:API error object, the message as text for HTML, and a form submission from a browser with a session redirected back with the message flashed. The 401 is unchanged. A `try { await next() } catch` around warden's middleware now sees these errors.
 - warden needs `@c9up/ream` 0.2.32 or later, whose exception handler renders an error inside the middleware chain (so what a refusal flashes is saved with the session).
+- `authFinder().verifyCredentials()` now throws `E_INVALID_CREDENTIALS` (400) for a password the hasher refuses (over 1024 bytes with sigil, 72 with bcrypt), where an unknown account used to let the hasher's own error through as a 500; `verifyPassword()` answers `false` for it. Check a password's length when it is set, not at sign-in. A custom `hash` is now called differently for an unknown account or a row without a hash: `make()` once, on a random value, then `verify()` at each sign-in, in place of `make(password)`.
+- Refresh tokens now come in families, one row per sign-in. `RefreshTokenDriver` is keyed by `familyId` and needs `consume(familyId, presentedHash, successor)` (an atomic compare-and-set) and `revokeFamily(familyId)` in place of `revoke(hash)`; `StoredRefreshToken` gains `familyId`. `generateRefreshToken` and `hashRefreshToken` are gone: open a family with `mintRefreshToken`, and write the refresh endpoint with `rotateRefreshToken` (see [Refresh tokens](#refresh-tokens)) instead of `find` then `revoke`. Add a `family_id` key to your table. Refresh tokens issued before the change no longer refresh: those clients sign in again.
+- After a successful sign-in, clear the identifier's key only: replace `limiter.clear(...keys)` with `limiter.clear(AuthRateLimiter.identifierKey(email))`. Clearing the address's key too let a client that owns one account reset its per-address limit at will.
+- On an account that has a confirmed factor, `MfaManager.enrollTotp()`, `confirmTotp()`, `createBackupCodes()` and `disableFactor()` now throw `E_WARDEN_MFA_REQUIRED` (403) unless you pass `{ stepUp: ctx.auth.user.mfa === true }` and it is `true`. The label moves into the same options: `enrollTotp(user, { label })`, `createBackupCodes(userId, { label })` in place of a second string argument.
+- An ability, a policy action or a `before` / `after` hook that returns something other than a boolean or an `AuthorizationResponse` no longer grants when the value is truthy: an ability or an action denies, and a hook is ignored. Return a real boolean (`return user.isAdmin === true`).
+- `@Guard()`, `@Role()` and `@Permission()` with no name (or only empty names, such as a list read from configuration that is empty) now throw `E_WARDEN_EMPTY_GATE_REQUIREMENT` when the class loads, where they used to add no requirement and leave the action public under Warden's middleware. Name at least one, or remove the decorator.
+- `OtpProvider.verify()` now takes the recipient: `verify(challengeId, recipient, code)`, with the address you passed to `start()` for this sign-in. A challenge started for another recipient answers `not_found`. A call with only the id and the code throws `E_WARDEN_INVALID_CONFIG`.
 
 ## See also
 

@@ -155,7 +155,7 @@ export const healthChecks = new HealthChecks().register([
 
 Both register with ream's `HealthChecks` as they are. Each is named after its connection — `Redis health check (main)`, `Redis memory consumption health check (cache)` — so two connections make two entries; `as(name)` renames one, `cacheFor(duration)` reuses a result. Thresholds take bytes or a size (`'100 mb'`) and default to 100 MB and 120 MB, so a check left unconfigured can still fail; an unreadable one throws `E_INVALID_BYTES_VALUE`. `compute(async (connection) => bytes)` replaces how memory use is measured.
 
-Both return `{ status, message, finishedAt, meta }` rather than throwing — a health endpoint reports, it does not crash. `meta.connection` gives the connection's name and status; the memory check adds `meta.memoryInBytes: { used, warningThreshold, failureThreshold }`.
+Both return `{ status, message, finishedAt, meta }` rather than throwing — a health endpoint reports, it does not crash. `meta.connection` gives the connection's name and status; the memory check adds `meta.memoryInBytes: { used, warningThreshold, failureThreshold }`. When a check fails on an error, `meta.error` holds only `{ name, code }`: the error's class and a code such as `WRONGPASS` or `ECONNREFUSED`. The message is fixed text. The error itself is never in the report: a health route is often public, and the error can carry the address dialled. The connection logs the error.
 
 Neither sends a command to a connection that is not ready: ioredis would queue it, and a probe that hangs is the outage it exists to report. A connection still dialling gets three seconds, one that already failed gets none, and one ioredis ended on its own is dialled once. A connection that was quit, or that the manager dropped, is reported as closed and never dialled again — a socket the check reopened would be tracked by nothing, outlive `quitAll()` and keep the process from exiting.
 
@@ -195,6 +195,8 @@ quasar.connection().on('subscriber:error', ({ error, connection }) => { /* … *
 ```
 
 Without this a pub/sub connection that drops is invisible. The last failure is also readable as `connection.lastSubscriberError`.
+
+An error quasar hands out — in an event payload, in `lastError` / `lastSubscriberError`, in the log, or as the rejection of a command — keeps `error.command.name` but not `error.command.args`. Those arguments are what was sent: the password of a rejected `AUTH`, a cached value, a lock token.
 
 Subscriptions report themselves the same way:
 

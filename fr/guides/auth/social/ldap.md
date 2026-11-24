@@ -45,6 +45,16 @@ connecte donc en tant que la personne nommée. C'est le plus vieux bug de
 l'authentification LDAP, et il est refusé ici avant même l'ouverture d'une
 socket.
 
+Un mot de passe qui n'est pas une chaîne est refusé de la même façon. Le corps
+d'une requête ne porte pas que des chaînes : `password[]=` arrive comme un
+tableau, `password[length]=1` comme un objet, et un corps JSON porte ce qui a
+été écrit. Aucune de ces valeurs n'est une chaîne vide, et chacune serait
+envoyée comme un mot de passe vide. `authenticate` refuse un identifiant ou un
+mot de passe qui n'est pas une chaîne non vide, avec l'erreur d'un mauvais mot
+de passe (`resultCode` 49, statut 400), avant que l'annuaire soit joint.
+`LdapConnection.bind()` le refuse aussi : un bind sans mot de passe ne peut pas
+être envoyé.
+
 ### Un identifiant ne peut pas devenir un filtre
 
 Il n'y a pas de filtre sous forme de chaîne dans cette API. Un filtre est une

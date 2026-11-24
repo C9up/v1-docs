@@ -57,7 +57,8 @@ pnpm add @c9up/bay
 | `DispatchManyResult` | interface | `{ jobIds: string[] }`. |
 | `DispatchOptions` | interface | `JobOptions` sans `name`, plus `dedup?: { id: string; ttl?: Duration; extend?: boolean }` et `maxAttempts?: number`. |
 | `WorkerOptions` | interface | `{ idleDelay?; stalledInterval?; concurrency?; queues?; unknownJobRetries? }`. |
-| `QueueDriver` | interface | Le contrat d'un driver : `push`, `pop`, `fail`, `complete`, `retry`, `failed`, `size` ; `sizeOf`, `getJob`, `recoverStale`, `renew`, `renewIntervalMs` facultatifs. |
+| `QueueDriver` | interface | Le contrat d'un driver : `push`, `pop`, `fail`, `complete`, `retry`, `failed`, `size` ; `sizeOf`, `getJob`, `recoverStale`, `renew`, `renewIntervalMs` facultatifs. `recoverStale()` renvoie un `StaleRecovery`, ou seulement le nombre de jobs repris pour un driver qui ne met jamais un job en échec pour blocage. |
+| `StaleRecovery` | interface | `{ recovered: number; failed: Array<{ job: JobRecord; error: Error }> }` : ce qu'a fait un balayage des jobs bloqués. `failed` liste les jobs qu'il a mis en échec parce qu'ils se sont trop souvent bloqués, chacun avec l'erreur que reçoit leur hook `failed()`. |
 | `JobRecord` | interface | Un job tel qu'il est stocké : `id`, `name`, `payload`, `attempts`, `maxAttempts`, `status`, `createdAt`, `queue?`, `runAt?`, `priority?`… |
 | `JobStatus` | type | `'pending' \| 'active' \| 'delayed' \| 'completed' \| 'failed'`. |
 | `JobLookup` | interface | `{ status: JobStatus; data: JobRecord; finishedAt?: number; error?: string }`. |
@@ -127,7 +128,7 @@ export default class SendEmail extends Job<{ to: string }> {
 | `signal` | `readonly signal: AbortSignal` | Annulé quand le `timeout` de la tentative est dépassé. |
 | `context` | `readonly context: JobContext` | Identifiant, tentative, file et priorité de cette tentative. |
 | `execute` | `abstract execute(): Promise<void> \| void` | Le travail. |
-| `failed` | `failed?(error: Error): Promise<void> \| void` | Appelée une fois la dernière tentative échouée : avec `E_JOB_MAX_ATTEMPTS_REACHED` (l'erreur de la tentative en `cause`) une fois les relances épuisées, avec l'erreur de la tentative quand `maxAttempts` vaut 1 ou que `failOnTimeout` y a mis fin. |
+| `failed` | `failed?(error: Error): Promise<void> \| void` | Appelée une fois la dernière tentative échouée : avec `E_JOB_MAX_ATTEMPTS_REACHED` (l'erreur de la tentative en `cause`) une fois les relances épuisées, avec l'erreur de la tentative quand `maxAttempts` vaut 1 ou que `failOnTimeout` y a mis fin, avec `E_JOB_STALLED` quand le job s'est bloqué plus de `maxStalledCount` fois. |
 
 ### `JobOptions`
 
@@ -204,7 +205,7 @@ Les deux sont des `PromiseLike` : `await` envoie.
 | `locations` | `readonly string[]` | `['app/jobs']` | Répertoires dont les classes de job sont importées au démarrage. |
 | `jobFactory` | `JobFactory` | `make` du conteneur | Comment les classes de job sont construites. |
 
-`drivers.redis({ connection, prefix, visibilityTimeoutMs, maxStalledCount, maxFailedJobs })` : `connection` est une source de client ou un nom de connexion quasar ; `prefix` vaut `'queue:'` par défaut, `visibilityTimeoutMs` `30000`, `maxStalledCount` `1`, `maxFailedJobs` `1000` (`0` les garde tous).
+`drivers.redis({ connection, prefix, visibilityTimeoutMs, maxStalledCount, maxFailedJobs })` : `connection` est une source de client ou un nom de connexion quasar ; `prefix` vaut `'queue:'` par défaut, `visibilityTimeoutMs` `30000`, `maxStalledCount` `1`, `maxFailedJobs` `1000` (`0` les garde tous). Le driver respecte le `keyPrefix` de la connexion : toutes les clés qu'il écrit le portent, baux et identifiants de déduplication compris. Deux applications peuvent donc partager une même base Redis.
 
 ## Liaisons du conteneur
 
@@ -248,7 +249,7 @@ Les deux jetons texte sont typés sur `ContainerBindings` dès que `@c9up/bay` e
 | [`E_JOB_TIMEOUT`](/fr/reference/errors#e-job-timeout) | Une tentative a dépassé son `timeout` ; porte `job` (son nom) et `timeout` (ms). Ce que `failOnTimeout` reconnaît. |
 | [`E_JOB_MAX_ATTEMPTS_REACHED`](/fr/reference/errors#e-job-max-attempts-reached) | Remise au hook `failed()` d'un job une fois ses relances épuisées ; l'erreur de la dernière tentative est la `cause`. |
 | [`E_JOB_NOT_FOUND`](/fr/reference/errors#e-job-not-found) | Un job auquel aucun handler ni aucune classe ne répond reste inconnu au-delà de `unknownJobRetries` ; l'enregistrement en échec garde son message. |
-| [`E_JOB_STALLED`](/fr/reference/errors#e-job-stalled) | Le driver Redis classe en échec un job repris à un worker mort plus de `maxStalledCount` fois ; l'enregistrement en échec garde son message. |
+| [`E_JOB_STALLED`](/fr/reference/errors#e-job-stalled) | Le driver Redis classe en échec un job repris à un worker mort plus de `maxStalledCount` fois ; l'enregistrement en échec garde son message, et le hook `failed()` du job reçoit l'erreur. |
 | [`E_BAY_UNSERIALIZABLE_JOB`](/fr/reference/errors#e-bay-unserializable-job) | Un enregistrement de job ne peut pas être stocké en JSON comme Redis le transporterait. |
 | [`E_BAY_JOBS_DIRECTORY_UNREADABLE`](/fr/reference/errors#e-bay-jobs-directory-unreadable) | Un répertoire de jobs déclaré existe mais ne peut pas être lu. |
 | [`E_BAY_NO_JOBS_FOUND`](/fr/reference/errors#e-bay-no-jobs-found) | Des fichiers de jobs ont été parcourus et aucun n'a fourni de sous-classe de `Job`. |

@@ -70,13 +70,39 @@ token's `iss`. Write it the way the provider does — Auth0's ends with a slash
 (`https://tenant.auth0.com/`), and dropping it makes every sign-in fail. Only
 the well-known URL is built without the slash.
 
+The issuer must be an `https` URL. Everything a sign-in trusts is fetched from
+it: the endpoints, then the keys the token is verified against. Over plain
+HTTP, whoever sits between your server and the provider can answer in its
+place, publish a key of their own and sign a token for any user. An issuer
+that is not `https` raises `E_TRANSIT_INSECURE_ISSUER` when the driver is
+built, so the application does not boot. The endpoints the discovery document
+gives (`authorization_endpoint`, `token_endpoint`, `jwks_uri`,
+`userinfo_endpoint`) must be `https` too, or the sign-in fails with
+`E_TRANSIT_INVALID_DISCOVERY`.
+
+`http://localhost` is the one exception, for a provider you run on your own
+machine. Its discovery document may then give `http://localhost` endpoints.
+
 ### Keys, and when they are fetched
 
-The discovery document is cached for an hour; the signing keys are cached until
-a token names one that is not held, which is how a rotation is picked up. That
-refetch is rate-limited to once every five minutes, so a stream of tokens naming
+The discovery document and the signing keys are each cached for an hour
+(`cache.ttlMs`). After that they are fetched again before they are used.
+
+For the keys, this is what makes a withdrawal take effect. A provider revokes a
+leaked key by no longer publishing it. A key that is no longer published stops
+verifying tokens within `ttlMs`, without a restart. If the keys cannot be
+fetched once they have aged out, the sign-in fails with `E_TRANSIT_JWKS_FAILED`:
+an old key set is not used because it is the only one at hand.
+
+Within that hour, a token that names a key that is not held triggers a refetch,
+which is how a rotation is picked up at once. That refetch is rate-limited to
+once every five minutes (`cache.minRefetchMs`), so a stream of tokens naming
 invented keys cannot turn your application into a load generator against the
-provider. Both are tunable through `cache`.
+provider.
+
+```ts
+oidc({ ...config, cache: { ttlMs: 15 * 60_000 } })   // a withdrawn key is trusted 15 minutes at most
+```
 
 ### Providers that need no driver
 

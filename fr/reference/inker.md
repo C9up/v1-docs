@@ -8,7 +8,9 @@
 pnpm add @c9up/inker
 ```
 
-Enregistrez le provider dans `reamrc.ts` (`providers: [() => import('@c9up/inker/provider')]`) ; le paquet n'a pas de hook configure. `@c9up/rosetta`, dépendance pair optionnelle, fournit le helper `t()`. L'analyseur est un binaire natif : une plateforme qui n'en a pas lève `E_INKER_NAPI_REQUIRED`.
+Enregistrez le provider dans `reamrc.ts` (`providers: [() => import('@c9up/inker/provider')]`) ; le paquet n'a pas de hook configure. `@c9up/rosetta`, dépendance pair optionnelle, fournit le helper `t()`. L'analyseur est un moteur natif. Il est livré dans un petit paquet par plateforme, `@c9up/inker-<plateforme>`, pour linux x64 et arm64 (glibc), macOS x64 et arm64, et Windows x64. `@c9up/inker` les déclare en dépendances optionnelles, et votre gestionnaire de paquets installe seulement celui de votre machine. Vous n'avez pas besoin de toolchain Rust. N'installez pas avec les dépendances optionnelles désactivées (`--no-optional`, `--omit=optional`) : le moteur serait absent.
+
+Il n'existe pas de repli JavaScript. Sans le moteur, le rendu lève `E_INKER_NAPI_REQUIRED`, et son message nomme le paquet à installer, par exemple `@c9up/inker-linux-x64-gnu`.
 
 ## Points d'entrée
 
@@ -214,7 +216,7 @@ Le cache appartient à un `Templates` : deux moteurs aux racines différentes ne
 | [`E_INKER_INVALID_JSON_LD`](/fr/reference/errors#e-inker-invalid-json-ld) | `errors` | `html.jsonLd` a reçu une valeur que JSON-LD ne peut pas contenir. |
 | [`E_INKER_TEMPLATE_ERROR`](/fr/reference/errors#e-inker-template-error) | `InkerError` | Un template a levé une erreur lui-même. |
 | [`E_INKER_ENGINE_MISSING`](/fr/reference/errors#e-inker-engine-missing) | `errors` | Le singleton `plugins` a rendu avant que le provider ait construit un moteur. |
-| [`E_INKER_NAPI_REQUIRED`](/fr/reference/errors#e-inker-napi-required) | les deux | Il n'y a pas de binaire natif d'inker pour cette plateforme. |
+| [`E_INKER_NAPI_REQUIRED`](/fr/reference/errors#e-inker-napi-required) | les deux | Le moteur natif d'inker est absent ou n'a pas pu se charger. Le message nomme le paquet à installer. |
 | [`E_INKER_NOT_BOOTED`](/fr/reference/errors#e-inker-not-booted) | `errors` | Le moteur de rendu (`@c9up/inker/services/main`, ou l'`InkerRenderer` du conteneur) a servi avant l'exécution de `InkerProvider.start()` ou avant que `setInker()` en installe un. |
 | [`E_INKER_INVALID_CONFIG`](/fr/reference/errors#e-inker-invalid-config) | `errors` | `config.inker` contient une valeur que le provider ne peut pas utiliser : un `cacheMode` autre que `mtime`, `never` ou `auto`, ou une entrée d'`additionalHelpers` qui n'est pas une fonction. |
 | [`E_INKER_INVALID_HELPER_ARGUMENT`](/fr/reference/errors#e-inker-invalid-helper-argument) | `errors` | Un helper de vue (`t`, `url`, `route`, `signedRoute`, `config`, `formAttributes`, `asset`) a reçu un argument inutilisable : un nom ou une clé qui n'est pas une chaîne, ou des paramètres de route qui ne sont pas un objet simple de primitives finies et non nulles. |

@@ -65,6 +65,17 @@ ream new <destination> [--template <name>] [--db <name>] [-y] [--pkg <name>] [--
 | `--pkg` | Le gestionnaire de paquets qui installe le projet : `pnpm`, `npm` ou `yarn`. Par défaut celui qui a lancé `ream`, sinon `pnpm`. |
 | `--git-init` | Initialise un dépôt git dans le nouveau projet. |
 
+Un nouveau projet ne liste pas `reflect-metadata` : `@c9up/ream` en dépend et le charge. Depuis ream-cli 0.3.23, `ream test`, `ream repl`, `ream inspect` et `ream <commande>` le chargent aussi via `@c9up/ream`. Une version plus ancienne de ream-cli l'importe depuis le projet : un projet sans la dépendance échoue alors sur ces commandes, jusqu'à la mise à jour de la CLI.
+
+Ce que les templates `api` et `web` montent dans `start/kernel.ts` :
+
+- `api` : au niveau serveur, un middleware de mesure du temps et `@c9up/blackhole/server_middleware` ; au niveau routeur, le body parser et `@c9up/blackhole/middleware`. `config/blackhole.ts` active `X-Frame-Options: DENY`, HSTS et `X-Content-Type-Options: nosniff`. Il désactive le CSRF et la politique de sécurité du contenu (une API s'authentifie par jeton et ne sert pas de HTML). Sa politique CORS n'autorise aucune origine tant que vous n'en listez pas dans `cors.origin`.
+- `web` : au niveau serveur, `@c9up/blackhole/server_middleware` ; au niveau routeur, le body parser, la session, `@c9up/blackhole/middleware` (CSRF signé) et `@c9up/warden/silent-auth`. L'authentification silencieuse lit qui est connecté et ne refuse personne. Le middleware qui refuse est `app/middleware/auth_middleware.ts`, inscrit comme middleware nommé `auth` : attachez-le avec `.use(middleware.auth())`, ou chaînez `.guard('session')` sur la route.
+
+La moitié serveur de blackhole s'exécute pour chaque requête : une réponse à un chemin qu'aucune route ne connaît porte aussi les en-têtes de protection, et la limite de débit la compte.
+
+Le `.gitignore` généré exclut de git `.env`, `.env.local`, `.env.*.local`, `robledo.key` et `*.keystore`. `.env.example` et les fichiers partagés `.env.<NODE_ENV>` restent committés.
+
 ### `ream template`
 
 ```sh
@@ -183,6 +194,8 @@ ream mcp install | uninstall | status
 | `uninstall` | Retire l'entrée. |
 | `status` | Indique si le serveur est inscrit. |
 
+`.mcp.json` vient avec le dépôt : `install` et `uninstall` le refusent s'il est un lien symbolique ou pas un fichier ordinaire, et n'écrivent rien.
+
 ### `ream generate:key`
 
 ```sh
@@ -202,6 +215,8 @@ ream android:build [--release] [--aab]
 
 Construit à partir du bloc `mobile` de `reamrc.ts`. `--release` signe avec le keystore de l'app (une version de debug sinon) ; `--aab` construit un Android App Bundle pour le Play Store et implique `--release`.
 
+Quand `mobile.updates` est défini, le build écrit `assets/ream-updates.json` pour `@c9up/robledo` : le serveur de mises à jour, la clé publique, la version native, `embeddedCreatedAt` (l'heure du build, en secondes : une mise à jour publiée avant est refusée) et `appId` (`mobile.id` : une mise à jour pour une autre app est refusée). Voir [Mises à jour à distance](/fr/guides/mobile/building#mises-a-jour-a-distance).
+
 ### `ream android:run`
 
 ```sh
@@ -216,7 +231,7 @@ Construit, installe et lance l'app. Une version de debug charge son JS depuis Me
 ream android:publish [--key <file>]
 ```
 
-Empaquette, signe et publie le JS de l'app comme mise à jour à distance (`@c9up/robledo`) pour son runtime natif actuel. La clé de signature vient de `REAM_UPDATES_KEY`, sinon de `--key` (`robledo.key` par défaut).
+Empaquette, signe et publie le JS de l'app comme mise à jour à distance (`@c9up/robledo`) pour son runtime natif actuel. La clé de signature vient de `REAM_UPDATES_KEY`, sinon de `--key` (`robledo.key` par défaut). Le manifeste signé porte `createdAt` (l'heure de publication, en secondes) et `appId` (`mobile.id`), que les apps installées vérifient.
 
 ### `ream generate:update-key`
 
@@ -225,6 +240,8 @@ ream generate:update-key [--out <file>] [--force]
 ```
 
 Génère la paire de clés Ed25519 qui signe les mises à jour. `--out` désigne le fichier de la clé privée (`robledo.key` par défaut) ; `--force` remplace une clé existante, après quoi les apps installées refusent les mises à jour jusqu'à leur reconstruction.
+
+Le fichier de la clé privée n'est lisible que par vous (`0600`), y compris quand `--force` remplace un fichier que d'autres pouvaient lire. Une destination qui est un lien symbolique ou pas un fichier ordinaire est refusée, et rien n'est écrit : un dépôt cloné décide de ce qu'est `robledo.key`, et un lien mettrait la clé là où il pointe.
 
 ### `ream css:compile`
 
@@ -241,6 +258,15 @@ Lit le CSS compilé par Tailwind et écrit la table de styles JSON que lit orbit
 | `FORCE_COLOR`, `NO_COLOR` | La couleur, telle que la posent `--ansi` / `--no-ansi` ; transmise au côté Node. |
 | `REAM_PROBE_TIMEOUT_SECS` | Les secondes pendant lesquelles `ream configure` / `ream add` attendent le chargement du module d'un paquet (10 par défaut). |
 | `REAM_UPDATES_KEY` | La clé de signature de `ream android:publish`. |
+
+## Migration
+
+- Une nouvelle app `web` monte `@c9up/warden/silent-auth` sur chaque route, et `app/middleware/auth_middleware.ts` est désormais le middleware qui refuse une requête sans utilisateur connecté, inscrit comme middleware nommé `auth`. Dans une app créée par un `ream new` plus ancien, le `AuthMiddleware` global ne refusait personne, et `.guard('session')` répondait 401 à tout le monde, connecté ou non. Remplacez `() => import('#middleware/auth_middleware.js')` dans `router.use([...])` par `() => import('@c9up/warden/silent-auth')`, et protégez chaque route avec `.guard('session')` ou avec le middleware nommé `auth`.
+- Les templates `web` et `api` montent `@c9up/blackhole/server_middleware` au niveau serveur. Dans une app créée par un `ream new` plus ancien, ajoutez `server.use([() => import('@c9up/blackhole/server_middleware')])` à `start/kernel.ts` (pour `api`, ajoutez aussi `@c9up/blackhole` aux dépendances, son provider à `reamrc.ts`, `@c9up/blackhole/middleware` après le body parser, et un `config/blackhole.ts`).
+- `ream generate:update-key` et `ream mcp install` / `uninstall` refusent une destination qui est un lien symbolique. Remplacez le lien par un fichier ordinaire.
+- `ream generate:update-key --force` met le fichier de la clé en `0600`.
+- L'activité Android générée par `ream android:*` ne passe plus les extras de l'intent de lancement au composant racine : `run()` ne reçoit plus de props de lancement. N'importe quelle app du téléphone peut démarrer la vôtre avec les extras de son choix : n'y lisez donc ni écran, ni adresse, ni option.
+- `ream android:build` inscrit `embeddedCreatedAt` et `appId` dans l'app, et `ream android:publish` signe `appId` dans chaque mise à jour. Une app construite par une version plus ancienne n'a ni l'un ni l'autre. Une version du store n'y remplace donc pas une mise à jour à distance plus ancienne, et une mise à jour signée avec la même clé pour une autre app est acceptée. Reconstruisez l'app et publiez-la sur le store. Publiez ensuite ses mises à jour avec cette version seulement : l'app reconstruite refuse une mise à jour sans `appId`.
 
 ## Publication
 

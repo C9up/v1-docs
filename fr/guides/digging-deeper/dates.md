@@ -245,7 +245,7 @@ june.length('week')   // 4.285714285714286
 - Sorties: `toFormat` (jetons `yyyy-MM-dd`, `dd LLL yyyy`, `EEEE`), `format` (jetons `YYYY-MM-DD`), `toISO`, `toISODate`, `toISOTime`, `toSQL`, `toSQLDate`, `toSQLTime`, `toLocaleString`, `toDate`, `toMillis`, `valueOf`, `toJSON`
 
 Mode natif:
-- Le binaire NAPI Rust est requis — pas de fallback JavaScript. Compilez-le avec `cd packages/chronos && pnpm build:napi`.
+- Le moteur Rust est requis : il n'existe pas de repli JavaScript. Sous Node, il vient du paquet de plateforme `@c9up/chronos-<plateforme>`, une dépendance optionnelle que votre gestionnaire de paquets installe pour votre machine. Sans lui, `E_CHRONOS_ENGINE_REQUIRED` nomme le paquet à installer.
 
 Clés RRULE supportées par le moteur natif (toute autre clé est une erreur):
 - `FREQ`: `SECONDLY | MINUTELY | HOURLY | DAILY | WEEKLY | MONTHLY | YEARLY`

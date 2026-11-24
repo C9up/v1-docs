@@ -162,14 +162,18 @@ Chaque aptitude ou politique peut rendre un simple booléen.
 import { AuthorizationResponse, Bouncer } from '@c9up/warden'
 
 Bouncer.responseBuilder = (value) =>
-  value === false
-    ? AuthorizationResponse.deny('Rien ici', 404)
-    : AuthorizationResponse.from(value)
+  value instanceof AuthorizationResponse
+    ? value
+    : value === true
+      ? AuthorizationResponse.allow()
+      : AuthorizationResponse.deny('Rien ici', 404)
 ```
 
 Sans lui, chaque `return false` est un 403 nu, sans message. Il s'applique aux
 aptitudes comme aux politiques, et une `AuthorizationResponse` explicite passe
-toujours intacte.
+toujours intacte. Il reçoit un booléen ou une réponse : une vérification qui a
+rendu autre chose lui arrive comme `false`. Ce qu'il rend doit être une
+`AuthorizationResponse` ; toute autre valeur est un refus.
 
 `authorizer.setEmitter(emitter)` donne un collecteur d'événements à un
 autorisateur après construction — ce qu'un autorisateur construit directement

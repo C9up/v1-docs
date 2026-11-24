@@ -74,7 +74,8 @@ part of a `split`, each stamped or flattened page, carries its own copy of it.
 One call copies at most 4 million values (array elements and dictionary
 entries) and 256 MiB of strings, names and stream data, 1 GiB across the parts
 of a `split`, and is refused past that. For a `split`, select the pages you need
-instead.
+instead. Writing the result costs time in proportion to what is written, and
+one document written by an edit or a signature weighs at most 1 GiB.
 
 ## Stamping
 

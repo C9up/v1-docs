@@ -11,6 +11,8 @@ ream mcp install
 
 `ream mcp install` inscrit le serveur dans le `.mcp.json` du projet sous la forme `npx --no @c9up/ream-mcp`, qui lance la version qu'épingle le lockfile et n'en télécharge jamais. `@c9up/atlas` est une dépendance pair optionnelle, requise par les outils de migration et par `generate.migration` / `generate.seeder`.
 
+Le moteur natif du serveur est livré dans un petit paquet par plateforme, `@c9up/ream-mcp-<plateforme>`, pour linux x64 et arm64 (glibc), macOS x64 et arm64, et Windows x64. `@c9up/ream-mcp` les déclare en dépendances optionnelles, et votre gestionnaire de paquets installe seulement celui de votre machine. Vous n'avez pas besoin de toolchain Rust. N'installez pas avec les dépendances optionnelles désactivées (`--no-optional`, `--omit=optional`) : le moteur serait absent. Sans le moteur, le serveur s'arrête sur `E_REAM_MCP_NATIVE_LOAD_FAILED`, et son message nomme le paquet à installer, par exemple `@c9up/ream-mcp-linux-x64-gnu`.
+
 ## Points d'entrée
 
 | Import | Contenu |
@@ -35,7 +37,7 @@ ream mcp install
 | `ProjectRoot` | interface | `{ path: string; source: ProjectRootSource }`. |
 | `ProjectRootSource` | type | `"env" \| "reamrc.ts" \| "ream.config.ts" \| "package.json"`. |
 
-La racine est, dans l'ordre : `REAM_PROJECT_ROOT`, puis le premier dossier qui contient `reamrc.ts`, `ream.config.ts`, ou un `package.json` qui dépend de `@c9up/ream`.
+La racine est, dans l'ordre : `REAM_PROJECT_ROOT`, puis le premier dossier qui contient `reamrc.ts`, `ream.config.ts`, ou un `package.json` qui dépend de `@c9up/ream`. Un dossier trouvé au-dessus du répertoire courant n'est accepté que s'il appartient à l'utilisateur courant et que ni le groupe ni les autres ne peuvent y écrire (la règle `safe.directory` de git, sous POSIX seulement) ; sinon `detectProjectRoot()` lève `E_REAM_MCP_PROJECT_ROOT_NOT_FOUND`, dont le message nomme le dossier refusé. Le répertoire courant et `REAM_PROJECT_ROOT` ne sont pas vérifiés. Un serveur enregistré pour l'utilisateur et lancé par `npx` présente le même risque au niveau de `npx`, qui remonte de la même façon : enregistrez-le par projet (`ream mcp install`).
 
 ### `@c9up/ream-mcp/errors`
 
@@ -59,7 +61,7 @@ La racine est, dans l'ordre : `REAM_PROJECT_ROOT`, puis le premier dossier qui c
 
 ## Outils
 
-`tools/list` renvoie tous les outils ci-dessous. Chacun porte des annotations MCP : les outils en lecture seule posent `readOnlyHint: true` ; les outils destructeurs posent `destructiveHint: true`. Les arguments sont vérifiés contre le schéma avant l'exécution de l'outil ; chaque schéma pose `additionalProperties: false`.
+`tools/list` renvoie tous les outils ci-dessous. Chacun porte des annotations MCP : les outils en lecture seule posent `readOnlyHint: true` ; les outils destructeurs posent `destructiveHint: true`, comme les deux outils `inker`, qui importent et exécutent le `@c9up/inker` du projet. Les arguments sont vérifiés contre le schéma avant l'exécution de l'outil ; chaque schéma pose `additionalProperties: false`.
 
 ### Documentation
 
@@ -115,7 +117,7 @@ Par défaut, tous les générateurs planifient sans écrire.
 | `migration.run` | `dryRun?: boolean` (`true` par défaut) ; `confirm?: boolean` (`false` par défaut) | Lance les migrations en attente ; un essai à blanc renvoie `{ wouldRun: [{ id, name, sql }] }`. |
 | `migration.rollback` | `step?: integer` (1 au minimum, 1 par défaut) ; `dryRun?: boolean` (`true` par défaut) ; `confirm?: boolean` (`false` par défaut) | Annule les `step` derniers lots, plafonné au nombre appliqué ; un essai à blanc renvoie le SQL inverse. |
 
-Un aperçu importe chaque module de migration et exécute son `up()` / `down()` dans le processus du serveur pour collecter le SQL : il exécute donc du code du projet. Une exécution réelle exige `dryRun: false` et `confirm: true`, et elle est refusée si le serveur n'a pas été lancé avec `REAM_MCP_ALLOW_MIGRATIONS=1`. Une cible de production (`REAM_ENV` ou `NODE_ENV` vaut `production`, ou une URL de base qui n'est ni un fichier sqlite dans le projet ni un serveur en loopback ou sur socket unix) exige en plus `REAM_MCP_ALLOW_PRODUCTION_MIGRATIONS=1`. Aucun argument d'outil ne peut activer l'écriture.
+Un aperçu importe chaque module de migration et exécute son `up()` / `down()` dans le processus du serveur pour collecter le SQL : il exécute donc du code du projet. Une exécution réelle exige `dryRun: false` et `confirm: true`, et elle est refusée si le serveur n'a pas été lancé avec `REAM_MCP_ALLOW_MIGRATIONS=1`. Une cible de production (`REAM_ENV` ou `NODE_ENV` vaut `production`, ou une URL de base qui n'est ni un fichier sqlite dans le projet ni un serveur en loopback ou sur socket unix, jugée sur l'adresse que le pilote contacte : pour PostgreSQL le dernier `host` et le dernier `hostaddr` de l'URL, puis `PGHOST` et `PGHOSTADDR`, un `hostaddr` l'emportant sur l'hôte sauf si une socket est choisie ; pour MySQL l'hôte de l'URL ou son `socket`. Un paramètre que le pilote ignore (`socket` pour PostgreSQL, `host` pour MySQL) ne prouve rien, et une adresse qui n'est pas une IP n'est pas locale) exige en plus `REAM_MCP_ALLOW_PRODUCTION_MIGRATIONS=1`. Aucun argument d'outil ne peut activer l'écriture.
 
 ### Qualité et sécurité
 
@@ -124,7 +126,20 @@ Un aperçu importe chaque module de migration et exécute son `up()` / `down()` 
 | `quality.duplicates` | `minTokens?: integer` (1 au minimum, 20 par défaut) ; `minLines?: integer` (1 au minimum, 3 par défaut) | Les fragments dupliqués des sources TypeScript, identifiants anonymisés, littéraux conservés. |
 | `quality.package_report` | `package?: string` (le nom d'un `package.json` du workspace) | Par paquet : fichiers, lignes de code, exports publics, erreurs d'analyse, dépendances circulaires, et la couverture de `coverage/coverage-summary.json`. Tous les paquets s'il est omis. |
 | `quality.dep_graph` | `format?: "json" \| "dot"` (`json` par défaut) ; `scope?: "package" \| "file"` (`package` par défaut) | Le graphe des dépendances internes, avec ses cycles. |
-| `security.scan` | `checks?: string[]`, chacun parmi `sql_interpolation`, `csrf_disabled`, `xss_html_raw_output`, `cookie_missing_flags`, `reflect_metadata_missing`, `missing_guard_on_mutation_route`, `raw_error_not_reamerror` | Vérifications statiques ; `{ findings: [{ id, severity, check, file, line, excerpt, hint, docsUrl }] }`, par gravité puis fichier et ligne. Les sept s'exécutent quand `checks` est vide ou absent. |
+| `security.scan` | `checks?: string[]`, chacun parmi `sql_interpolation`, `csrf_disabled`, `xss_html_raw_output`, `cookie_missing_flags`, `missing_guard_on_mutation_route`, `raw_error_not_reamerror` | Vérifications statiques du TypeScript et des templates `.inker` d'une application Ream ; `{ findings: [{ id, severity, check, file, line, excerpt, hint, docsUrl }], scanned: { files, templates, directories, skipped }, confidence, knownGaps }`. Les résultats sont triés par gravité puis fichier et ligne. `scanned` dit ce qui a été lu : les fichiers analysés, les templates lus, les dossiers de premier niveau d'où ils viennent et les dossiers laissés de côté. `knownGaps` liste ce qu'une vérification n'a pas pu trancher ou n'a rien trouvé à lire. `confidence` ne vaut `high` que si quelque chose a été lu et que `knownGaps` est vide. Les six s'exécutent quand `checks` est vide ou absent. Voir [Vérifications de sécurité](#verifications-de-securite). |
+
+#### Vérifications de sécurité
+
+L'analyse lit toute la racine du projet (`app/`, `start/`, `config/`, `providers/`, `bin/`, un dossier `src/`, les paquets qu'elle contient), et `resources/templates/**/*.inker`. `node_modules`, `dist`, `build`, `out`, `coverage`, `target`, `tmp`, `tests`, `test`, `__tests__`, `spec`, `e2e` et `fixtures` sont ignorés seulement au premier niveau de la racine et de chaque paquet (un dossier qui a un `package.json`) : plus bas, `app/modules/build/` est du code de l'application et il est lu. Les dossiers cachés et `node_modules` sont ignorés partout, et un dossier ignoré dans le code de l'application donne une entrée de `knownGaps`. Une vérification qui n'a rien à lire le dit dans `knownGaps` : `missing_guard_on_mutation_route` quand aucun fichier ne déclare de routes, `csrf_disabled` quand `@c9up/blackhole` est une dépendance et qu'aucune configuration blackhole n'a été lue. Deux verdicts dépendent de la version de ream, lue dans `node_modules/@c9up/ream/package.json`, sinon dans la plage de `package.json` : quand aucun des deux ne la donne, `knownGaps` le dit.
+
+| Vérification | Gravité | Signale |
+|---|---|---|
+| `sql_interpolation` | high | Une valeur écrite dans le SQL de `rawQuery`, `raw`, `execute`, `query` ou d'une méthode `*Raw` d'atlas (`whereRaw`, `orderByRaw`…), par un `${}` ou un `+`, au lieu d'être passée en binding. |
+| `csrf_disabled` | high | Une config blackhole qui coupe le CSRF : `csrf: false`, `csrf: { enabled: false }`, ou une entrée de `csrf.exceptRoutes` qui couvre tous les chemins (`'*'`, `'/*'`). Lue dans `defineConfig` importé de `@c9up/blackhole` ou de `@c9up/blackhole/config` (ce qu'écrit `ream new --template web`), dans l'export par défaut de `config/blackhole.ts`, dans `createBlackhole` et dans les adaptateurs Express, Fastify et Hono. Une valeur qui n'est pas littérale (`csrf: settings`, `enabled: flag`, un `exceptRoutes` fonction, une décomposition) part dans `knownGaps`. |
+| `missing_guard_on_mutation_route` | high | Une route `post`, `put`, `patch`, `delete`, `any` ou `route()`, ou le `store` / `update` / `destroy` d'une ressource, que rien n'authentifie : ni `.guard()`, `.role()` ou `.permission()` qui nomme au moins un guard, un rôle ou une permission, ni middleware d'auth sur la route ou son `router.group()` (reconnu par son nom : `'auth'`, `middleware.auth()`, l'import différé d'un fichier `auth_middleware` ; `authorAudit` n'en est pas un), ni `@Guard`, `@Role` ou `@Permission` de warden qui nomme quelque chose sur l'action du contrôleur (lus à travers `extends`, comme warden les lit). Une garde qui ne nomme rien ne protège rien : ream la refuse au démarrage à partir de 0.2.32. Un `@RequireMfa()` seul compte à partir de ream 0.2.32, dont la garde de route répond 401 à une requête anonyme. Partent dans `knownGaps` : un contrôleur que l'analyse ne sait pas suivre, par exemple importé d'un paquet, des `guards` / `roles` / `permissions` / `middleware` de groupe qui ne sont pas une liste littérale, une garde qui décompose une liste illisible, et un `@RequireMfa()` seul quand la version de ream est inconnue. Une route publique exprès (connexion, webhook signé) est quand même listée. |
+| `xss_html_raw_output` | medium | La sortie brute `{{{ }}}` d'inker dans un template, et `new SafeString(valeur)` ou `html.safe(valeur)` autour d'une valeur qui n'est ni un littéral ni un `html.escape(...)`. |
+| `cookie_missing_flags` | low | Un `response.cookie()`, `plainCookie()` ou `encryptedCookie()` qui finit sans `Secure`, `SameSite` ou `HttpOnly`. À partir de ream 0.2.32, chaque cookie reçoit `Secure`, `SameSite=lax` et `HttpOnly` par défaut, réglés pour l'application sous `http.cookie` dans `config/app.ts` : un appel qui ne les donne pas convient, et `secure: false`, `sameSite: false`, `httpOnly: false` (ou `undefined`, qui retire la valeur par défaut) sur un appel, ou `false` dans `http.cookie`, est signalé. Avant 0.2.32, ream n'ajoute que `HttpOnly`, et un appel sans `secure` ou sans `sameSite` est signalé. |
+| `raw_error_not_reamerror` | low | `new Error()` dans un contrôleur (un dossier `controllers/`, ou un fichier `*_controller.ts` / `*Controller.ts`) au lieu d'une erreur déclarée avec `createError()` ou comme une `Exception`. |
 
 ### Environnement et templates
 
@@ -132,8 +147,8 @@ Un aperçu importe chaque module de migration et exécute son `up()` / `down()` 
 |---|---|---|
 | `doctor.health` | aucun | Les versions de Node et de Rust, les binaires NAPI construits et manquants, et la cohérence des versions des paquets. |
 | `doctor.env_check` | aucun | Les variables d'env documentées (`set: bool`, valeurs jamais renvoyées) et les fichiers de configuration (`exists: bool`, avec une indication). |
-| `inker.list_templates` | `root?: string` (`resources/templates` par défaut) ; `lint?: boolean` (`false` par défaut) | Tous les templates `.inker` ; avec `lint`, les erreurs d'analyse de chacun. |
-| `inker.render_test` | `template: string` (obligatoire, `minLength: 1`) ; `data?: object` ; `root?: string` | Rend un template avec `data`, sans les helpers d'exécution (`t`, `csrfField`, `url`, `asset` lèvent une erreur). Renvoie `{ html }`, ou `{ error: { code, message, line, column } }`. Un rendu est interrompu au bout de 5 secondes. |
+| `inker.list_templates` | `root?: string` (`resources/templates` par défaut) ; `lint?: boolean` (`false` par défaut) | Tous les templates `.inker` ; avec `lint`, les erreurs d'analyse de chacun, données par le `@c9up/inker` du projet, importé et exécuté dans le processus du serveur. Un lint qui ne peut pas le charger en donne la raison dans `knownGaps`. |
+| `inker.render_test` | `template: string` (obligatoire, `minLength: 1`) ; `data?: object` ; `root?: string` | Rend un template avec `data` par le `@c9up/inker` du projet, importé et exécuté dans le processus du serveur, avec les expressions du template ; sans les helpers d'exécution (`t`, `csrfField`, `url`, `asset` lèvent une erreur). Renvoie `{ html }`, ou `{ error: { code, message, line, column } }`. Un rendu est interrompu au bout de 5 secondes. |
 
 ### BMAD
 
@@ -170,7 +185,7 @@ Le serveur ne télécharge jamais le modèle : `ream-mcp-reindex --download-mode
 
 ## Erreurs
 
-Un nom d'outil inconnu est une erreur JSON-RPC (`-32602`). Un outil qui s'exécute et échoue, y compris un refus (`{ error, hint }`) et des arguments hors schéma (`{ error, problems }`), renvoie un résultat avec `isError: true` ; les messages ne portent ni pile d'appels ni chemin absolu. Chaque refus du serveur lui-même est une classe du namespace `errors` et une `Exception` de `@c9up/flare` de statut 500 : testez `error.code` ou `error instanceof errors.E_REAM_MCP_*`. Le `core` de `@c9up/ream-mcp/napi` lève les erreurs du binding, sans code ; le serveur les convertit en `E_REAM_MCP_INDEX_FAILED` ou `E_REAM_MCP_INVALID_JSON`.
+Un nom d'outil inconnu est une erreur JSON-RPC (`-32602`). Un outil qui s'exécute et échoue, y compris un refus (`{ error, hint }`) et des arguments hors schéma (`{ error, problems }`), renvoie un résultat avec `isError: true` ; les messages ne portent ni pile d'appels ni chemin absolu. Chaque refus du serveur lui-même est une classe du namespace `errors` et une `Exception` de `@c9up/flare` de statut 500 : testez `error.code` ou `error instanceof errors.E_REAM_MCP_*`. Importer `@c9up/ream-mcp/napi` lève `E_REAM_MCP_UNSUPPORTED_PLATFORM` ou `E_REAM_MCP_NATIVE_LOAD_FAILED` quand le binaire natif ne peut pas être chargé. Son `core` lève les erreurs du binding, sans code ; le serveur les convertit en `E_REAM_MCP_INDEX_FAILED` ou `E_REAM_MCP_INVALID_JSON`.
 
 | Code | Levée quand |
 |---|---|
@@ -178,7 +193,9 @@ Un nom d'outil inconnu est une erreur JSON-RPC (`-32602`). Un outil qui s'exécu
 | [`E_INKER_UNKNOWN`](/fr/reference/errors#e-inker-unknown) | `inker.render_test` a échoué sans code inker. |
 | [`E_INKER_PARSE_ERROR`](/fr/reference/errors#e-inker-parse-error) | `inker.list_templates` avec `lint` a rencontré une erreur de template sans code inker. |
 | [`E_REAM_MCP_INVALID_ARGUMENT`](/fr/reference/errors#e-ream-mcp-invalid-argument) | Un outil ou une fonction a été appelé sans un argument requis (`docs.get`, `docs.explain`, une chaîne vide) ou avec un seuil de détection de doublons hors limites. |
-| [`E_REAM_MCP_PROJECT_ROOT_NOT_FOUND`](/fr/reference/errors#e-ream-mcp-project-root-not-found) | Aucune racine de projet Ream n'a été trouvée en remontant depuis le répertoire courant ; définissez `REAM_PROJECT_ROOT`. |
+| [`E_REAM_MCP_PROJECT_ROOT_NOT_FOUND`](/fr/reference/errors#e-ream-mcp-project-root-not-found) | Aucune racine de projet Ream n'a été trouvée en remontant depuis le répertoire courant, ou celle trouvée au-dessus appartient à un autre utilisateur ou est accessible en écriture au groupe ou aux autres ; définissez `REAM_PROJECT_ROOT`. |
+| [`E_REAM_MCP_UNSUPPORTED_PLATFORM`](/fr/reference/errors#e-ream-mcp-unsupported-platform) | Import de `@c9up/ream-mcp/napi` sur une plateforme sans binaire natif (prises en charge : linux-x64, linux-arm64 sous glibc, darwin-x64, darwin-arm64, win32-x64). |
+| [`E_REAM_MCP_NATIVE_LOAD_FAILED`](/fr/reference/errors#e-ream-mcp-native-load-failed) | Le binaire natif est absent ou ne se charge pas ; le message nomme le fichier ou le paquet de plateforme, le code d'erreur de Node et la correction (installer le paquet de plateforme, ou reconstruire une build locale cassée), `cause` est l'erreur de Node. |
 | [`E_REAM_MCP_NATIVE_UNAVAILABLE`](/fr/reference/errors#e-ream-mcp-native-unavailable) | Le cœur natif n'a pas donné de version au démarrage : le binaire est absent ou incompatible. |
 | [`E_REAM_MCP_NATIVE_MISMATCH`](/fr/reference/errors#e-ream-mcp-native-mismatch) | Le cœur natif a répondu quelque chose que le serveur n'attend pas (trace, statistiques d'index, manifeste du modèle) : le binaire est périmé ou d'une autre version. |
 | [`E_REAM_MCP_PATH_ESCAPE`](/fr/reference/errors#e-ream-mcp-path-escape) | Un nom de fichier de migration ou un chemin de fichier du modèle sort de son répertoire. |
@@ -197,6 +214,14 @@ Les autres codes inker proviennent tels quels de `@c9up/inker`.
 
 ## Migration
 
+- `security.scan` n'a plus de vérification `reflect_metadata_missing` : `@c9up/ream` importe lui-même `reflect-metadata`, avant que ses décorateurs ne s'exécutent, donc l'application n'a rien à ajouter. La passer dans `checks` donne maintenant un refus `unknown check`.
+- `security.scan` renvoie une nouvelle clé `scanned` et lit toute la racine du projet, y compris un dossier `src/` et les paquets qu'elle contient ; un dossier nommé `build`, `test`, `fixtures`… sous le premier niveau est maintenant lu. `confidence` ne vaut plus `high` pour une analyse qui n'a rien lu, ni quand une vérification n'avait rien à lire (`knownGaps` dit laquelle). Attendez-vous à des résultats et à des lacunes sur du code qui était ignoré.
+- `missing_guard_on_mutation_route` ne compte plus un `.guard()`, `.role()`, `.permission()` ou un décorateur warden qui ne nomme rien, ni un middleware dont le nom contient seulement `auth` : nommez le guard (`.guard('web')`) et attachez le middleware d'auth par son nom (`.middleware('auth')`). Une config de groupe qui n'est pas une liste littérale part maintenant dans `knownGaps`.
+- `cookie_missing_flags` suit les valeurs par défaut des cookies de ream 0.2.32 (`Secure`, `SameSite=lax`, `HttpOnly`, réglées sous `http.cookie` dans `config/app.ts`) : un appel qui ne donne pas ces attributs n'est plus signalé à partir de 0.2.32 ; un `false` dans `http.cookie` l'est.
+- `inker.list_templates` et `inker.render_test` sont annotés `readOnlyHint: false`, `destructiveHint: true` : un client qui demande confirmation pour ces appels la demande maintenant pour eux. Ils chargent le vrai `@c9up/inker` (une carte d'exports avec la seule condition `import`), ce qu'ils ne savaient pas faire.
+- `detectProjectRoot()`, et donc le serveur, refusent une racine trouvée au-dessus du répertoire courant qui appartient à un autre utilisateur ou dans laquelle le groupe ou les autres peuvent écrire (`E_REAM_MCP_PROJECT_ROOT_NOT_FOUND`) : lancez le serveur dans le projet, ou définissez `REAM_PROJECT_ROOT`. `E_REAM_MCP_PROJECT_ROOT_NOT_FOUND` prend maintenant deux arguments, le répertoire courant et la raison.
+- Une écriture de migration vers une URL PostgreSQL avec `hostaddr`, un `host` répété, ou sans hôte alors que `PGHOST` / `PGHOSTADDR` désignent un autre serveur, vers une URL PostgreSQL dont le seul signe local est `?socket=`, ou vers une URL MySQL dont le seul signe local est `?host=`, exige maintenant `REAM_MCP_ALLOW_PRODUCTION_MIGRATIONS=1`, sauf si l'adresse que le pilote contacte est en loopback ou une socket unix.
+- Importer `@c9up/ream-mcp/napi` ne lève plus une simple `Error` : testez `error.code` pour `E_REAM_MCP_UNSUPPORTED_PLATFORM` ou `E_REAM_MCP_NATIVE_LOAD_FAILED`.
 - `detectProjectRoot()` ne lève plus une simple `Error` : testez `error.code === 'E_REAM_MCP_PROJECT_ROOT_NOT_FOUND'`, ou `error instanceof errors.E_REAM_MCP_PROJECT_ROOT_NOT_FOUND` avec `import * as errors from '@c9up/ream-mcp/errors'`.
 
 ## Voir aussi

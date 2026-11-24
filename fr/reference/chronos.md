@@ -8,7 +8,9 @@
 pnpm add @c9up/chronos
 ```
 
-chronos n'a ni provider ni configuration. Le moteur natif est livré précompilé dans le paquet.
+chronos n'a ni provider ni configuration. Sous Node, le moteur natif est livré dans un petit paquet par plateforme, `@c9up/chronos-<plateforme>`, pour linux x64 et arm64 (glibc), macOS x64 et arm64, et Windows x64. `@c9up/chronos` les déclare en dépendances optionnelles, et votre gestionnaire de paquets installe seulement celui de votre machine. Vous n'avez pas besoin de toolchain Rust. N'installez pas avec les dépendances optionnelles désactivées (`--no-optional`, `--omit=optional`) : le moteur serait absent. Dans un navigateur, chronos utilise sa build WASM, livrée dans `@c9up/chronos` lui-même.
+
+Il n'existe pas de repli JavaScript. Sans le moteur, le premier appel lève `E_CHRONOS_ENGINE_REQUIRED`, et son message nomme le paquet à installer, par exemple `@c9up/chronos-linux-x64-gnu`.
 
 ## Points d'entrée
 

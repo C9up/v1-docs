@@ -10,6 +10,10 @@ pnpm add @c9up/atlas
 
 `ream configure @c9up/atlas` registers the provider and the `@c9up/atlas/commands` commands, writes `config/database.ts` and adds `DB_HOST`, `DB_PORT`, `DB_DATABASE`, `DB_USER` and `DB_PASSWORD` to `.env`. Factories that use faker need `@faker-js/faker`; the `db()` test plugin needs `@c9up/helix` (both optional peers).
 
+Atlas runs on two Rust binaries: the query compiler and the database driver. Both come in one small package per platform, `@c9up/atlas-<platform>`, for linux x64 and arm64 (glibc), macOS x64 and arm64, and Windows x64. `@c9up/atlas` lists them as optional dependencies, and your package manager installs only the one that matches your machine. No Rust toolchain is needed. Do not install with optional dependencies turned off (`--no-optional`, `--omit=optional`): the binaries would be left out.
+
+There is no JavaScript fallback. Without the binaries, the first query throws `E_ATLAS_NAPI_NOT_FOUND` and the first connection throws `E_ATLAS_DB_DRIVER_NOT_FOUND`. Both messages name the package to install, for example `@c9up/atlas-linux-x64-gnu`.
+
 ## Entry points
 
 | Import | Contents |
@@ -57,7 +61,7 @@ pnpm add @c9up/atlas
 | `PrimaryKey` | function | `PrimaryKey(options?): PropertyDecorator`. |
 | `computed` | function | `computed(): MethodDecorator`: a getter included in serialization. |
 | `BelongsTo` / `HasOne` / `HasMany` / `HasOneThrough` / `HasManyThrough` / `ManyToMany` | function | Relation decorators; the lower-case forms (`belongsTo`…) are the same functions. |
-| `SoftDeletes` | function | `SoftDeletes(): ClassDecorator`: `delete()` sets `deleted_at`; queries leave deleted rows out. |
+| `SoftDeletes` | function | `SoftDeletes(): ClassDecorator`: `delete()` sets `deleted_at`; queries leave deleted rows out, the filter ANDed with the query's clauses as one group. |
 | `hasSoftDeletes` | function | `hasSoftDeletes(target): boolean`. |
 | `scope` | function | Declare a reusable query scope on a model. |
 | `beforeSave`, `afterSave`, `beforeCreate`, `afterCreate`, `beforeUpdate`, `afterUpdate`, `beforeDelete`, `afterDelete`, `beforeFind`, `afterFind`, `beforeFetch`, `afterFetch`, `beforePaginate`, `afterPaginate` | function | Lifecycle hook decorators: `(): MethodDecorator`. |
@@ -220,7 +224,7 @@ pnpm add @c9up/atlas
 | `schema:generate` | Introspect the database and generate model classes. |
 | `atlas:check` | Compare the models with the live schema. |
 
-Commands that destroy data refuse to run in production without `--force` while `migrations.disableRollbacksInProduction` is on.
+Commands that destroy data refuse to run in production without `--force` while `migrations.disableRollbacksInProduction` is on. With the option off, `db:wipe`, `migration:fresh`, `migration:rollback`, `migration:reset` and `migration:refresh` ask for confirmation in production, as `migration:run` does; a missing or failed prompt counts as no.
 
 ### `BaseModel`
 
@@ -249,7 +253,7 @@ Commands that destroy data refuse to run in production without `--force` while `
 | Group | Members |
 |---|---|
 | Query | `query()`, `find(id)`, `findOrFail(id)`, `findBy(column, value)`, `findByOrFail`, `findMany`, `findManyBy`, `all()`, `allWithTrashed()`, `onlyTrashed()`, `where(column, value)` |
-| Write | `create(data, options?)`, `createMany(rows)`, `createQuietly`, `createManyQuietly`, `save(entity)`, `saveQuietly`, `saveMany(entities)`, `upsert(data, uniqueBy)`, `firstOrCreate(where, create?)`, `firstOrNew(where, create?)`, `updateOrCreate(where, data)`, `updateOrCreateMany`, `fetchOrCreateMany`, `fetchOrNewUpMany`, `updateById(id, data)`, `updateWhere(column, value, data)` |
+| Write | `create(data, options?)`, `createMany(rows)`, `createQuietly`, `createManyQuietly`, `save(entity)`, `saveQuietly`, `saveMany(entities)`, `upsert(data, uniqueBy)`, `firstOrCreate(where, create?)`, `firstOrNew(where, create?)`, `updateOrCreate(where, data, options?)`, `updateOrCreateMany(key, rows, options?)`, `fetchOrCreateMany`, `fetchOrNewUpMany`, `updateById(id, data)`, `updateWhere(column, value, data)` |
 | Delete | `delete(entity)`, `deleteQuietly`, `forceDelete(entity)`, `restore(entity)`, `truncate()` |
 | Counters | `increment(id, column, amount?)` or `increment(id, { colA: 1 })`; `decrement` likewise |
 | Relations | `loadRelation(entity, name, callback?)`, `relatedProxy(entity, name)`, `loadCount(entity, name, alias?)`, `loadAggregate(entity, name, builder)`, `refresh(entity)`, `fresh(entity)` |
@@ -275,7 +279,8 @@ A `ModelQuery` is `PromiseLike`: `await` runs it. Every `where*` and `having*` m
 | Run | `exec()`, `first()`, `firstOrFail()`, `sole()`, `exists()`, `doesntExist()`, `pluck(column)`, `all()` |
 | Write | `update(patch, returning?)`, `delete(returning?)`, `increment(column, amount)` or `increment({ … })`, `decrement` likewise |
 | Inspect | `toSQL()`, `toQuery()`, `toNative()`, `debug(flag)`, `comment(text)`, `reporterData`, `clone()`, `useTransaction(trx)` |
-| Clear | `clearSelect`, `clearWhere`, `clearOrder`, `clearHaving`, `clearLimit`, `clearOffset` |
+| Clear | `clearSelect`, `clearWhere` (the relation key, scope and soft-delete filter stay), `clearOrder`, `clearHaving`, `clearLimit`, `clearOffset` |
+| Group | `wrapExisting()`: close the clauses chained so far into one group |
 
 The eight aggregates share one signature. Each takes a column, with an alias inline, as a second argument, or as the key of an object, and returns the builder. The value comes back as a column of the result row, in `$extras` on the model builder:
 
@@ -287,9 +292,13 @@ const [order] = await Order.query().sum('amount as spent').countDistinct('sku', 
 Number(order.$extras.spent)
 ```
 
-None of them runs the query on its own.
+None of them runs the query on its own. On `db.from()`, the argument is a column or `*`: an expression is refused with `E_UNSAFE_IDENTIFIER`; give it to `select()` instead (`select('sum(price * quantity) as total')`).
 
 The `DatabaseQueryBuilder` that `db.from()` returns has the same filtering, join, grouping, set and locking methods, plus `insert`, `multiInsert`, `returning`, `onConflict(...).ignore()` / `.merge()`, `update`, `delete` / `del`, `increment`, `decrement`, `withSchema` and `paginate`.
+
+`insert()` takes one row or an array of rows; an array works like `multiInsert()`. A row with no column inserts one row of defaults: `INSERT INTO "t" DEFAULT VALUES` on Postgres and SQLite, ``INSERT INTO `t` () VALUES ()`` on MySQL. An empty array has no row, so `insert([])` and `multiInsert([])` fail with `E_ATLAS_EMPTY_INSERT`. Several rows that set no column fail the same way: only one row can take every default. On SQLite, an upsert (`onConflict()`) of a row with no column fails with `E_UNSUPPORTED`, because SQLite takes no `ON CONFLICT` after `DEFAULT VALUES`.
+
+`onConflict()` with no column means any unique constraint. With `ignore()`, it compiles `ON CONFLICT DO NOTHING` on Postgres and SQLite, and `INSERT IGNORE` on MySQL. With `merge()`, it compiles `ON CONFLICT DO UPDATE` on SQLite and `ON DUPLICATE KEY UPDATE` on MySQL. Postgres needs the conflict columns to update a row, so `onConflict().merge()` fails there with `E_UNSUPPORTED`: name the columns, as in `onConflict('email').merge()`.
 
 ### `Migration`
 
@@ -371,13 +380,13 @@ All are typed on `ContainerBindings` once `@c9up/atlas` is imported.
 
 ## Errors
 
-Each code is a class of the `errors` namespace (`import { errors } from '@c9up/atlas'`) and a `@c9up/flare` `Exception`: branch on `error.code` or on `error instanceof errors.E_…`. The status is 500, except `E_ROW_NOT_FOUND` (404); `help`, when set, says how to fix the cause. The Rust query compiler's and driver's refusals (`E_UNSAFE_*`, `E_INJECTION_PATTERN`, `E_UNSUPPORTED`, `E_ATLAS_INSECURE_SSLMODE`…) are rethrown as their class too, with the native error as `cause`. See [Error handling](/en/guides/database/orm/error-handling) for the classes that carry data.
+Each code is a class of the `errors` namespace (`import { errors } from '@c9up/atlas'`) and a `@c9up/flare` `Exception`: branch on `error.code` or on `error instanceof errors.E_…`. The status is 500, except `E_ROW_NOT_FOUND` (404); `help`, when set, says how to fix the cause. The Rust query compiler's and driver's refusals (`E_UNSAFE_*`, `E_INJECTION_PATTERN`, `E_UNSUPPORTED`, `E_ATLAS_INSECURE_SSLMODE`…) are rethrown as their class too, with the native error as `cause`. Every compiler refusal carries a code, a malformed spec (`E_ATLAS_INVALID_SPEC`) and a compiler panic (`E_ATLAS_INTERNAL`) included. See [Error handling](/en/guides/database/orm/error-handling) for the classes that carry data.
 
 | Code | Raised when |
 |---|---|
 | [`E_ROW_NOT_FOUND`](/en/reference/errors#e-row-not-found) | A query that must return a row found none: `findOrFail`, `findByOrFail`, `refresh`, `fresh`, `firstOrFail()`, `sole()`. |
 | [`E_MASS_ASSIGNMENT`](/en/reference/errors#e-mass-assignment) | `fill()` / `merge()` (and `create`, `createMany`, `updateOrCreate`) set an attribute outside `fillable`, or listed in `guarded`. |
-| [`E_EXTRA_PROPERTIES`](/en/reference/errors#e-extra-properties) | A fill named a property that is not a declared column. |
+| [`E_EXTRA_PROPERTIES`](/en/reference/errors#e-extra-properties) | `fill()` / `merge()`, or `updateOrCreate` / `updateOrCreateMany` on a found row, named a property that is not a declared column. |
 | [`E_UNKNOWN_COLUMN`](/en/reference/errors#e-unknown-column) | A value was assigned to a key that is not a column. Pass `{ allowExtraProperties: true }` to keep unknown keys in `$extras`. |
 | [`E_INVALID_COLUMN`](/en/reference/errors#e-invalid-column) | A query names a column the entity does not declare. |
 | [`E_INVALID_FIND_VALUE`](/en/reference/errors#e-invalid-find-value) | `find()` was called without a usable primary key value. |
@@ -402,11 +411,11 @@ Each code is a class of the `errors` namespace (`import { errors } from '@c9up/a
 | [`E_INVALID_DATE_COLUMN_VALUE`](/en/reference/errors#e-invalid-date-column-value) | A date column was given a value that is not a valid date. |
 | [`E_ATLAS_UNDEFINED_BINDING`](/en/reference/errors#e-atlas-undefined-binding) | A query value is `undefined`. Validate the input first; use `whereNull()` to match NULL. |
 | [`E_ATLAS_DIALECT_MISMATCH`](/en/reference/errors#e-atlas-dialect-mismatch) | `useTransaction(trx)` was given a transaction of another dialect than the query was built for. Start the transaction on the query's connection, or build the query from the transaction. |
-| [`E_ATLAS_RAW_BINDINGS`](/en/reference/errors#e-atlas-raw-bindings) | A raw query has placeholders with no binding. |
-| [`E_ATLAS_RAW_VALUE`](/en/reference/errors#e-atlas-raw-value) | `defaultTo(db.raw())` was given bindings, which a column default cannot carry. |
+| [`E_ATLAS_RAW_BINDINGS`](/en/reference/errors#e-atlas-raw-bindings) | A raw fragment's placeholders and bindings do not match: a placeholder with no binding, a binding no placeholder uses, `?` mixed with `$N` or with named bindings, or a `??` binding that is not a string. |
+| [`E_ATLAS_RAW_VALUE`](/en/reference/errors#e-atlas-raw-value) | A `db.raw()` was used where it cannot go: `defaultTo(db.raw())` with bindings, or a raw value compared with an operator that takes none (`IS NULL`, `BETWEEN`). |
 | [`E_ATLAS_NON_FINITE_NUMBER`](/en/reference/errors#e-atlas-non-finite-number) | `defaultTo()` was given a number that is not a SQL number (`NaN`, `Infinity`). |
 | [`E_ATLAS_FACTORY_FAKER_MISSING`](/en/reference/errors#e-atlas-factory-faker-missing) | A factory uses faker, an optional peer of atlas that is not installed. |
-| [`E_ATLAS_NAPI_NOT_FOUND`](/en/reference/errors#e-atlas-napi-not-found) | The Rust query compiler is not loaded; `cause` holds the load failure. See [Troubleshooting](/en/guides/database/orm/troubleshooting). |
+| [`E_ATLAS_NAPI_NOT_FOUND`](/en/reference/errors#e-atlas-napi-not-found) | The Rust query compiler is not loaded. The message names the platform package to install; `cause` holds the load failure. See [Troubleshooting](/en/guides/database/orm/troubleshooting). |
 | [`E_ATLAS_INSECURE_SSLMODE`](/en/reference/errors#e-atlas-insecure-sslmode) | The connection asks for `sslmode=prefer` or `allow` (URL or `PGSSLMODE`), which fall back to plaintext without saying so. Use `disable` or `verify-full`. See [Encrypted connections](/en/guides/database/orm/connections#encrypted-connections-tls). |
 | [`E_ATLAS_LISTEN_UNSUPPORTED`](/en/reference/errors#e-atlas-listen-unsupported) | LISTEN / NOTIFY was used on a connection that is not PostgreSQL. |
 | [`E_ATLAS_LISTEN_CONNECT`](/en/reference/errors#e-atlas-listen-connect) | The listener could not open its own PostgreSQL connection. |
@@ -432,6 +441,7 @@ Each code is a class of the `errors` namespace (`import { errors } from '@c9up/a
 | [`E_SEEDER_INVALID_PATH`](/en/reference/errors#e-seeder-invalid-path) | A seeder path resolves outside the seeders directory. |
 | [`E_NO_CONNECTION`](/en/reference/errors#e-no-connection) | `schema.<method>()` needs a live connection; it is available inside a migration, not on a standalone `Schema`. |
 | [`E_ALTER_EMPTY`](/en/reference/errors#e-alter-empty) | `schema.alterTable()` declared no operation. |
+| [`E_ATLAS_EMPTY_TABLE`](/en/reference/errors#e-atlas-empty-table) | `schema.createTable()` declared no column. |
 | [`E_ALTER_MISUSE`](/en/reference/errors#e-alter-misuse) | `.alter()` does not follow a column definition, or an alter-only method was used on a new table. |
 | [`E_CHECK_EMPTY`](/en/reference/errors#e-check-empty) | A check constraint (or `checkBetween`) was given no value or interval. |
 | [`E_CHECK_RANGE`](/en/reference/errors#e-check-range) | `checkBetween` was given an interval that is not `[min, max]`. |
@@ -440,12 +450,15 @@ Each code is a class of the `errors` namespace (`import { errors } from '@c9up/a
 | [`E_EMPTY_VIEW_SELECT`](/en/reference/errors#e-empty-view-select) | A view has no SELECT, or a materialized view was asked of a dialect that has none. |
 | [`E_SPECIFIC_TYPE_EMPTY`](/en/reference/errors#e-specific-type-empty) | `specificType()` was given an empty type. |
 | [`E_SQLITE_DECIMAL_PRECISION`](/en/reference/errors#e-sqlite-decimal-precision) | A decimal precision SQLite cannot store exactly. |
-| [`E_UNSUPPORTED`](/en/reference/errors#e-unsupported) | A SQL feature the connection's dialect does not have (`DISTINCT ON` off Postgres, `UNION ALL` variants on SQLite, advisory locks on SQLite…). |
+| [`E_UNSUPPORTED`](/en/reference/errors#e-unsupported) | A SQL feature the connection's dialect does not have (`DISTINCT ON` off Postgres, `UNION ALL` variants on SQLite, advisory locks on SQLite, an upsert of a row with no column on SQLite, `onConflict().merge()` with no column on Postgres…). |
 | [`E_UNSAFE_IDENTIFIER`](/en/reference/errors#e-unsafe-identifier) | An identifier is not a plain name: refused by atlas's own checks or by the Rust compiler. |
-| [`E_UNSAFE_SQL`](/en/reference/errors#e-unsafe-sql) | The Rust compiler refused a SQL fragment. |
+| [`E_UNSAFE_SQL`](/en/reference/errors#e-unsafe-sql) | The Rust compiler refused a SQL fragment, or a keyword outside its allowed list (set operation, ORDER BY direction, lock mode, referential action…). |
 | [`E_UNSAFE_EXPRESSION`](/en/reference/errors#e-unsafe-expression) | The Rust compiler refused an expression. |
 | [`E_UNSAFE_LITERAL`](/en/reference/errors#e-unsafe-literal) | The Rust compiler refused a literal value. |
 | [`E_INJECTION_PATTERN`](/en/reference/errors#e-injection-pattern) | The Rust compiler refused an input that looks like an injection attempt. |
+| [`E_ATLAS_INVALID_SPEC`](/en/reference/errors#e-atlas-invalid-spec) | The statement the Rust compiler received is malformed: a clause misses a field, a field has the wrong shape, or the spec does not parse. Atlas builds every spec itself, so this points at an atlas bug or at a spec built by hand. |
+| [`E_ATLAS_EMPTY_INSERT`](/en/reference/errors#e-atlas-empty-insert) | An INSERT or an upsert has no row (`insert([])`, `multiInsert([])`), or has several rows that set no column. |
+| [`E_UNSUPPORTED_CLIENT`](/en/reference/errors#e-unsupported-client) | The connection names a dialect atlas does not know. Atlas compiles for `sqlite`, `postgres` (or `postgresql`) and `mysql` (or `mariadb`). |
 | [`E_ATLAS_FACTORY_INVALID`](/en/reference/errors#e-atlas-factory-invalid) | `make:factory` was given a name that is not a safe file name. |
 | [`E_ATLAS_SEEDER_INVALID`](/en/reference/errors#e-atlas-seeder-invalid) | `make:seeder` was given a name that is not a safe file name. |
 | [`E_ATLAS_NO_URL`](/en/reference/errors#e-atlas-no-url) | A connection config has no `url` (or `connection`), or the database config has neither a top-level `url` nor `connections`. |
@@ -454,7 +467,7 @@ Each code is a class of the `errors` namespace (`import { errors } from '@c9up/a
 | [`E_ATLAS_BOOT_FAILED`](/en/reference/errors#e-atlas-boot-failed) | `AtlasProvider.boot()` could not open one or more configured connections; `cause` holds the first failure. |
 | [`E_ATLAS_READ_ONLY`](/en/reference/errors#e-atlas-read-only) | A write ran on a query builder scoped to a connection opened with `{ mode: 'read' }`. |
 | [`E_ATLAS_INVALID_PRAGMA`](/en/reference/errors#e-atlas-invalid-pragma) | A SQLite pragma key or value is outside `[A-Za-z0-9_]`. |
-| [`E_ATLAS_DB_DRIVER_NOT_FOUND`](/en/reference/errors#e-atlas-db-driver-not-found) | The Rust database driver could not be loaded, or the loaded binary is stale; `cause` holds the load failure. |
+| [`E_ATLAS_DB_DRIVER_NOT_FOUND`](/en/reference/errors#e-atlas-db-driver-not-found) | The Rust database driver could not be loaded, or the loaded binary is stale. The message names the platform package to install; `cause` holds the load failure. |
 | [`E_ATLAS_NO_REPOSITORY`](/en/reference/errors#e-atlas-no-repository) | `refresh()`, `fresh()`, `load()`, `loadCount()`, `loadAggregate()` or `related()` was called on an entity no repository hydrated. |
 | [`E_ATLAS_FILLABLE_AND_GUARDED`](/en/reference/errors#e-atlas-fillable-and-guarded) | A model declares both `static fillable` and `static guarded`. |
 | [`E_ATLAS_INVALID_ENTITY_CLASS`](/en/reference/errors#e-atlas-invalid-entity-class) | A relation's target (or through model) does not resolve to a `BaseEntity` subclass. |
@@ -471,7 +484,7 @@ Each code is a class of the `errors` namespace (`import { errors } from '@c9up/a
 | [`E_ATLAS_MULTIPLE_ROWS`](/en/reference/errors#e-atlas-multiple-rows) | `sole()` matched more than one row. |
 | [`E_ATLAS_SUBQUERY_ALIAS`](/en/reference/errors#e-atlas-subquery-alias) | `select()` was given a subquery not named with `.as()`. |
 | [`E_ATLAS_INVALID_ALIAS`](/en/reference/errors#e-atlas-invalid-alias) | An alias is not a bare identifier. |
-| [`E_ATLAS_INVALID_EXPRESSION`](/en/reference/errors#e-atlas-invalid-expression) | A `whereExpr()` extra expression holds forbidden characters, unbalanced parentheses, a SQL keyword, or a function outside the allowed list. |
+| [`E_ATLAS_INVALID_EXPRESSION`](/en/reference/errors#e-atlas-invalid-expression) | A `whereExpr()` extra expression is not a tail of arithmetic: it holds a comment or another forbidden character, unbalanced parentheses, a SQL keyword, or a function outside the allowed list. |
 | [`E_ATLAS_INVALID_JSON_PATH`](/en/reference/errors#e-atlas-invalid-json-path) | A `whereJsonPath()` path does not start with `$`. |
 | [`E_ATLAS_INVALID_GROUP_LIMIT`](/en/reference/errors#e-atlas-invalid-group-limit) | `groupLimit()` was given a value that is not a non-negative integer. |
 | [`E_ATLAS_INVALID_LOCK`](/en/reference/errors#e-atlas-invalid-lock) | `skipLocked()` / `noWait()` was used without a base row lock. |
@@ -482,7 +495,7 @@ Each code is a class of the `errors` namespace (`import { errors } from '@c9up/a
 | [`E_ATLAS_UNKNOWN_SCOPE`](/en/reference/errors#e-atlas-unknown-scope) | `apply()` reached a scope the model does not declare, or a model with no `static scopes`. |
 | [`E_ATLAS_CURSOR_ORDER_REQUIRED`](/en/reference/errors#e-atlas-cursor-order-required) | `cursorPaginate()` was called without an order column. |
 | [`E_ATLAS_INVALID_CURSOR`](/en/reference/errors#e-atlas-invalid-cursor) | A `cursorPaginate()` cursor does not decode, or its tuple length does not match the order columns. |
-| [`E_ATLAS_EMPTY_UPDATE`](/en/reference/errors#e-atlas-empty-update) | A model query's `update()` was given an empty payload. |
+| [`E_ATLAS_EMPTY_UPDATE`](/en/reference/errors#e-atlas-empty-update) | An update was given an empty payload: a model query's `update()`, or an UPDATE with no SET assignment that reached the compiler. |
 | [`E_ATLAS_QUERY_TIMEOUT`](/en/reference/errors#e-atlas-query-timeout) | A query ran longer than its `timeout(ms)`. |
 | [`E_ATLAS_COMPILE_EMPTY`](/en/reference/errors#e-atlas-compile-empty) | The query compiler returned no statement. |
 | [`E_ATLAS_SCHEMA_MISMATCH`](/en/reference/errors#e-atlas-schema-mismatch) | `verifySchema()` in `throw` mode found drift between the models and the database; the message lists the findings. |
@@ -497,7 +510,7 @@ Each code is a class of the `errors` namespace (`import { errors } from '@c9up/a
 | [`E_ATLAS_FACTORY_PIVOT_LENGTH`](/en/reference/errors#e-atlas-factory-pivot-length) | A factory's `pivotAttributes` array length differs from the related-row count. |
 | [`E_ATLAS_FACTORY_UNSUPPORTED_RELATION`](/en/reference/errors#e-atlas-factory-unsupported-relation) | A factory's `with()` names a relation kind it cannot build (a through relation). |
 | [`E_ATLAS_SEEDER_DIR_REQUIRED`](/en/reference/errors#e-atlas-seeder-dir-required) | `testUtils().db().seed()` ran without a `seedersDir`. |
-| [`E_ATLAS_INTERNAL`](/en/reference/errors#e-atlas-internal) | An invariant inside atlas broke: always a bug in atlas itself. |
+| [`E_ATLAS_INTERNAL`](/en/reference/errors#e-atlas-internal) | An invariant inside atlas broke, or the Rust compiler panicked or could not serialize what it compiled: always a bug in atlas itself. |
 
 ## Migration
 
@@ -505,10 +518,28 @@ Each code is a class of the `errors` namespace (`import { errors } from '@c9up/a
 - `EntityNotFoundError` becomes `errors.E_ROW_NOT_FOUND`, `MassAssignmentError` becomes `errors.E_MASS_ASSIGNMENT`, `OptimisticLockError` becomes `errors.E_OPTIMISTIC_LOCK` and `RelationNotLoadedError` becomes `errors.E_RELATION_NOT_LOADED`; their fields are unchanged, except those of `E_ROW_NOT_FOUND` (below).
 - A Rust compiler refusal (`E_UNSAFE_*`, `E_INJECTION_PATTERN`, `E_UNSUPPORTED`…) now carries its code in `error.code`; its message no longer starts with the code, so match `error.code` instead of the message.
 - `error.name` is now the class name (`Exception` for most codes), not `AtlasError`.
+- `insert({})` now inserts a row of defaults. It used to resolve `[]` without running anything. A model saved with nothing set now inserts its row too: it used to be marked persisted with no row in the table.
+- `insert([])` and `multiInsert([])` now fail with `E_ATLAS_EMPTY_INSERT`. They used to resolve `[]`.
 - `E_ATLAS_INVALID_DATE_COLUMN_VALUE` is now `E_INVALID_DATE_COLUMN_VALUE`, `E_ATLAS_UNKNOWN_RELATION` is now `E_UNDEFINED_RELATIONSHIP`, `E_MIGRATION_LOCKED` is now `E_UNABLE_ACQUIRE_LOCK` and `E_ATLAS_MIGRATION_NOT_FOUND` is now `E_MISSING_SCHEMA_FILES`.
 - A connection name that is not registered is now `E_UNMANAGED_DB_CONNECTION` ("Cannot connect to unregistered connection `<name>`"); `E_ATLAS_MISSING_CONNECTION` stays for a missing default connection and a repository built without one.
 - `E_ROW_NOT_FOUND` carries the model class on `model` (it was the class name on `entityClass`), and its message is always "Row not found": the lookup criteria stay on `criteria` and never reach the message, which an exception handler sends to the client.
 - `E_MODEL_DELETED` reads "Cannot mutate delete model instance", and a successful migration run whose lock was cleared under it now fails with `E_UNABLE_RELEASE_LOCK`.
+- `whereExpr()`'s extra expression must now be a tail of arithmetic that starts with `+`, `-`, `*` or `/`. A comment (`--`, `/*`, `*/`), `current_date` and the like, a qualified name or a fragment that opens with a parenthesis is refused with `E_ATLAS_INVALID_EXPRESSION`; use `whereRaw()` with bindings instead.
+- A `select()` / `having()` expression is now parsed against a grammar. `IS DISTINCT FROM`, a row constructor `(a, b)`, `WITHIN GROUP`, `exists(…)`, a cast to an unlisted type and a bare `current_user` / `session_user` are refused with `E_UNSAFE_EXPRESSION`; give `select()` or `having()` a `db.raw()` fragment for those, and write `"current_user"` quoted for a column of that name.
+- On `db.from()`, `count()`, `sum()`, `avg()`, `min()`, `max()` and their `Distinct` forms now refuse anything but a column or `*` with `E_UNSAFE_IDENTIFIER`; move an expression to `select('sum(price * quantity) as total')`.
+- `groupBy()` on `db.from()` and on `QueryBuilder` now refuses a value that is not a column name with `E_UNSAFE_IDENTIFIER`. An object `{ raw: '…' }` used to be compiled as SQL; call `groupByRaw(sql, bindings)` or pass `db.raw(sql, bindings)` instead.
+- The constraint a relation adds (the key of `related().query()`, the correlation of `whereHas()` / `withCount()` / `withAggregate()`, the parent keys of a preload) and the `@SoftDeletes` filter are now ANDed with your clauses taken as one group. `where(a).orWhere(b)` on such a query used to return, update and delete rows of other parents, and deleted rows; it now stays inside the relation and the live rows. Queries without `orWhere()` are unchanged.
+- `update()`, `delete()`, `increment()` and `decrement()` on a many-to-many `related().query()` now change only the related rows linked to the parent. They used to ignore the pivot and reach every row of the related table.
+- `clearWhere()` on a `related().query()` now keeps the relation's key; it used to drop it and return the rows of every parent.
+- `whereHas()`, `withCount()` and `withAggregate()` on a `@SoftDeletes` related model now leave the deleted rows out; call `withTrashed()` in the callback to count them.
+- Bulk `restore()` now applies the repository scope and the key of a `related().query()`; it used to restore matching rows of every tenant.
+- `updateOrCreate()`, `updateOrCreateMany()` and `related().updateOrCreate()` now apply the payload of a found row with `merge()`: a key that is not a declared property or its column name throws `E_EXTRA_PROPERTIES` (it used to be written, `{ IsAdmin: 1 }` past `guarded`, `{ Id: … }` onto the primary key). Pass `{ allowExtraProperties: true }` to keep such keys in `$extras`; on the new-row branch an unknown key throws `E_UNKNOWN_COLUMN`, as `create()` does.
+- `upsert()` on a repository with a `scope` no longer updates a conflicting row outside the scope (PostgreSQL, SQLite: that row is left as it is). On MySQL an `upsert()` with `updateColumns` on such a repository now fails with `E_UNSUPPORTED`; check that the rows belong to the tenant, then upsert through an unscoped repository.
+- `cursorPaginate()` now fires `beforeFetch` on its query and `afterFetch` on the page's items; `exists()` and `doesntExist()` now fire `beforeFind`. A filter a hook adds now applies to them.
+- `db:seed` without `--environment` now gates `static environment` on the application's environment, else `REAM_ENV` / `NODE_ENV` through the alias table (production when either says so). With neither variable set, a seeder that lists environments no longer runs; set `NODE_ENV` or pass `--environment`. `prod`, `dev` and `test` now match `production`, `development` and `testing` in the list.
+- With `migrations.disableRollbacksInProduction: false`, `db:wipe`, `migration:fresh`, `migration:rollback`, `migration:reset` and `migration:refresh` now ask for confirmation in production; without an answer (a non-interactive run) they do nothing. Pass `--force` in a deploy script.
+- `save()` now writes declared columns only; an undeclared property set on the instance is no longer turned into a column name.
+- A `beforeFind`, `beforeFetch` or `beforePaginate` hook now receives the query with the caller's clauses closed into one group (`wrapExisting()`), so a filter it adds guards every `orWhere()` branch.
 
 ## See also
 

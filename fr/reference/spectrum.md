@@ -39,7 +39,7 @@ pnpm add @c9up/spectrum
 | `clearLogListeners` | fonction | `clearLogListeners(): void`, retire tous les écouteurs `onLog` |
 | `createRustLogBridge` | fonction | `createRustLogBridge(logger: Logger, options?: RustLogBridgeOptions): { start(): void; stop(): void }`, fait passer les lignes stderr du moteur Rust par `logger` |
 | `parseRustLog` | fonction | `parseRustLog(line: string): LogEntry \| null`, lit une ligne `[LEVEL module] message` |
-| `stdSerializers` | const | `{ err, req, res }`, les sérialiseurs standard |
+| `stdSerializers` | const | `{ err, req, res }`, les sérialiseurs standard. `req` et `res` lisent une requête ou une réponse Node, et aussi celles dont les champs sont des méthodes (`method()`, `url()`, `headers()`, `getStatus()`), comme `ctx.request` et `ctx.response` |
 | `stdTimeFunctions` | const | `{ epochTime, unixTime, isoTime, nullTime }`, valeurs pour l'option `timestamp` |
 | `logLevel` | fonction | `logLevel(raw: unknown, fallback?: LogLevelWithSilent): LogLevelWithSilent` ; absent ou vide donne `fallback` (`'info'`), une valeur qui n'est pas un niveau lève une erreur |
 | `isLogLevelWithSilent` | fonction | `isLogLevelWithSilent(value: unknown): value is LogLevelWithSilent` |
@@ -73,7 +73,7 @@ pnpm add @c9up/spectrum
 
 | Membre | Signature | Description |
 |---|---|---|
-| `trace` … `fatal` | `info(mergingObject: unknown, message?: string, ...values: unknown[]): void`<br>`info(message: string, ...values: unknown[]): void` | Écrit à ce niveau. Un objet est fusionné à la racine de l'entrée, une `Error` va sous `err`, `values` remplissent les jetons printf ; un message suivi d'un seul objet sans jeton fusionne l'objet |
+| `trace` … `fatal` | `info(mergingObject: unknown, message?: string, ...values: unknown[]): void`<br>`info(message: string, ...values: unknown[]): void` | Écrit à ce niveau. Un objet est fusionné à la racine de l'entrée, une `Error` va sous `err`, `values` remplissent les jetons printf. Un message suivi d'un seul objet fusionne toujours l'objet, et le message est écrit tel quel, signes `%` compris ; un message suivi d'une seule `Error` l'écrit sous `err`. Jetons : `%s`, `%d`, `%i`, `%f`, `%j`, `%o`, `%O`, `%%`. Un objet que `%j`, `%o` ou `%O` écrit dans le message passe d'abord par `serializers` et `redact`. Une valeur qu'aucun jeton ne prend est ignorée |
 | `silent` | comme `info` | N'écrit rien |
 | `log` | `log(level: LogLevel, message: string, ...values: unknown[]): void` | Écrit à un niveau choisi à l'exécution ; accepte aussi un objet à fusionner en premier |
 | `child` | `child(bindings?: Record<string, unknown>, options?: ChildOptions): Logger` | Un logger dont les entrées portent `bindings` ; `module` et `correlationId` dans `bindings` fixent ces champs |
@@ -92,8 +92,8 @@ pnpm add @c9up/spectrum
 
 | Membre | Signature | Description |
 |---|---|---|
-| `use` | `use(name?: string): Logger` | Le logger nommé (celui par défaut sans nom), créé une fois et mis en cache ; un nom inconnu lève une erreur |
-| `createLogger` | `createLogger(name: string, config: LogConfig): Logger` | Construit un logger nommé `name`, non mis en cache |
+| `use` | `use(name?: string): Logger` | Le logger nommé (celui par défaut sans nom), créé une fois et mis en cache ; un nom qui n'est pas une clé de `loggers` lève `E_SPECTRUM_UNKNOWN_LOGGER`, `constructor` ou `__proto__` compris |
+| `createLogger` | `createLogger(name: string, config: LogConfig): Logger` | Construit un logger nommé `name`, non mis en cache ; `config` n'est pas modifié |
 | `create` | `create(config: LogConfig): Logger` | Construit un logger non géré depuis une configuration |
 
 ### Canaux
@@ -164,14 +164,17 @@ fake.assertLogged('info', { containing: 'signed in' })
 `config/logger.ts`, lu sous la clé `logger`. `defineConfig` accepte `{ default, loggers }`, ou un seul `LogConfig` qui devient un logger nommé `app`. Sans configuration, le provider construit un logger `app` au niveau `LOG_LEVEL` (ou `info`) qui écrit sur une console lisible.
 
 ```ts
-import { defineConfig, logLevel, targets } from '@c9up/spectrum'
+import { defineConfig, logLevel, stdSerializers, targets } from '@c9up/spectrum'
 
 export default defineConfig({
   default: 'app',
   loggers: {
     app: {
       level: logLevel(process.env.LOG_LEVEL),
-      redact: { paths: ['req.headers.authorization', 'req.headers.cookie'] },
+      serializers: { req: stdSerializers.req, res: stdSerializers.res },
+      redact: {
+        paths: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
+      },
       transport: {
         targets: targets()
           .pushIf(process.env.NODE_ENV !== 'production', targets.pretty())
@@ -194,7 +197,7 @@ export default defineConfig({
 | `destination` | `string \| number \| LineWritable` | — | Lignes JSON vers un chemin de fichier, un descripteur ou un objet inscriptible ; l'emporte sur `transport` |
 | `transport` | `{ targets?: TransportTargetOptions[] } \| TransportTargetOptions` | — | Cibles converties en canaux ; chaque cible peut porter son propre `level` |
 | `modules` | `Record<string, LogLevelWithSilent>` | — | Niveau par liaison `module` |
-| `redact` | `string[] \| RedactOptions` | — | Chemins remplacés par `[Redacted]` (ou par `censor`), ou retirés |
+| `redact` | `string[] \| RedactOptions` | — | Chemins remplacés par `[Redacted]` (ou par `censor`), ou retirés. Un chemin s'applique à ce que la ligne écrit : pour un objet qui a un `toJSON()`, à ce que `toJSON()` renvoie |
 | `serializers` | `Record<string, LogSerializer>` | `err` et `error` sérialisés | Transforment la valeur d'un champ avant écriture |
 | `depthLimit` | `number` | `5` | Profondeur parcourue dans une valeur que JSON ne sait pas écrire (un cycle, un BigInt) |
 | `edgeLimit` | `number` | `100` | Entrées écrites d'un tel objet ou tableau |
@@ -248,6 +251,13 @@ Chaque code est une classe de l'espace de noms `errors` (`import { errors } from
 
 - `SpectrumError` disparaît : testez `error.code`, ou `error instanceof errors.E_SPECTRUM_*` avec `import { errors } from '@c9up/spectrum'`.
 - Le `name` d'une erreur ne vaut plus `"SpectrumError"`.
+- `logger.info(message, objet)` fusionne maintenant toujours l'objet comme champs, même quand le message contient un jeton `%`. Le message est écrit tel quel. Pour mettre une valeur dans le message, passez-la avec une deuxième valeur ou utilisez la forme objet d'abord : `logger.info({ id }, 'user %s', name)`.
+- `logger.error(message, err)` écrit maintenant l'erreur sous `err` au lieu de l'ajouter au message.
+- printf suit maintenant les règles amont : une valeur qu'aucun jeton ne prend est ignorée au lieu d'être ajoutée au message, `%s` sur un objet écrit `[object Object]`, et `%c` n'est plus un jeton. Passez les valeurs en plus comme champs.
+- Un objet écrit par `%j`, `%o` ou `%O` est sérialisé et censuré. `%o` et `%O` écrivent maintenant du JSON au lieu de la forme inspectée de Node.
+- `stdSerializers.req` lit maintenant `ctx.request`. `url` est son chemin, et la query string est écrite à part sous `query`, déjà analysée. Sur `ctx.response`, `stdSerializers.res` écrit le statut lu par `getStatus()`. Un nouveau `config/logger.ts` branche les deux sérialiseurs. Ajoutez `serializers: { req: stdSerializers.req, res: stdSerializers.res }` à une configuration existante.
+- Un chemin de `redact` trouve maintenant aussi ce que renvoie le `toJSON()` d'un objet. `req.headers.authorization` censure maintenant l'en-tête d'un `ctx.request` loggé tel quel.
+- `logger.use(name)`, le constructeur de `LoggerManager`, `defineConfig` et le provider ne cherchent un nom de logger que parmi les clés de `loggers`. `use('constructor')` ou un `default` qui vaut `toString` lève maintenant une erreur. `createLogger()` n'écrit plus `name` dans la configuration que vous passez.
 
 ## Voir aussi
 

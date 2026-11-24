@@ -213,17 +213,18 @@ The CSRF header (`X-XSRF-TOKEN` from the `XSRF-TOKEN` cookie) is sent on same-or
 | `liveStore` | function | `liveStore(factory: () => LiveComponentDefinition, relay: RelayBroadcaster, channel: string): LiveStore`: one shared session broadcast to everyone on a channel. |
 | `connectPatches` | function | `connectPatches(session: LiveSession, relay: RelayBroadcaster, channel: string): () => void`. |
 | `liveClient` | function | `liveClient(opts: LiveClientOptions): () => void`: the browser side; applies patches and posts events. |
-| `buildLiveTransport` | function | `buildLiveTransport(relayClient: RelaySubscribeClient, http: LiveHttpPoster, options?: { path?: string }): LiveClientTransport`. |
+| `buildLiveTransport` | function | `buildLiveTransport(relayClient: RelaySubscribeClient, http: LiveHttpPoster, options?: { path?: string }): LiveClientTransport`. Its `keepAlive(id)` posts `{ id, keepAlive: true }` to the event route. |
+| `DEFAULT_LIVE_KEEP_ALIVE_MS` | const | `120000`: how often `liveClient` keeps its session alive (`LiveClientOptions.keepAliveMs`). |
 | `DEFAULT_LIVE_EVENT_PATH` | const | `'/__live/event'`. |
 | `LiveComponentDefinition` | interface | `{ view: TemplateResult; handlers?: Record<string, (payload?: unknown) => void> }`. |
 | `LiveSession` | interface | `renderToString()`, `dispatch(event, payload?)`, `drainPatches()`, `onPatch(listener)`, `dispose()`. |
 | `SlotPatch` | interface | `{ slot: number; value: string }`. |
-| `LiveRegistryOptions` | interface | `{ claimTimeoutMs?; idleTimeoutMs?; maxPerOwner?: number; maxSessions?: number }`. `maxPerOwner` 32, `maxSessions` 10 000, `idleTimeoutMs` off by default. |
+| `LiveRegistryOptions` | interface | `{ claimTimeoutMs?; idleTimeoutMs?; maxPerOwner?: number; maxSessions?: number }`. `maxPerOwner` 32, `maxSessions` 10 000, `idleTimeoutMs` ten minutes. |
 | `LiveRegistry` | interface | `define(name, factory)`, `has`, `mount(name, ownerId)`, `claim`, `get`, `ownerOf`, `dispose`, `disposeOwner`, `disposeAll`, `size`. |
-| `LiveRouter` | interface | `mount(name, ownerId): LiveMount`, `event(id, event, payload, callerId): LiveEventOutcome`, `authorizeChannel`, `ownerOf`, `disconnect`, `channelFor`. |
+| `LiveRouter` | interface | `mount(name, ownerId): LiveMount`, `event(id, event, payload, callerId): LiveEventOutcome`, `keepAlive(id, callerId): LiveEventOutcome`, `authorizeChannel`, `ownerOf`, `disconnect`, `channelFor`. |
 | `LiveMount` | interface | `{ id: string; channel: string; html: string }`. |
 | `LiveEventOutcome` | type | `'handled' \| 'unknown-session' \| 'forbidden' \| 'unknown-event'`. |
-| `LiveStore`, `LiveSessionHandle`, `LiveClientOptions`, `LiveClientTransport`, `LiveHttpPoster`, `LiveHttpContext`, `LiveHttpRouter`, `LiveEventBody`, `WireLiveEventsOptions`, `RelayBroadcaster`, `RelaySubscribeClient`, `IdentifyLiveCaller` | type | |
+| `LiveStore`, `LiveSessionHandle`, `LiveClientOptions`, `LiveClientTransport`, `LiveHttpPoster`, `LiveHttpContext`, `LiveHttpRouter`, `LiveEventBody`, `LiveKeepAliveBody`, `WireLiveEventsOptions`, `RelayBroadcaster`, `RelaySubscribeClient`, `IdentifyLiveCaller` | type | |
 
 #### Diagnostics, errors and types
 
@@ -408,7 +409,7 @@ The host-free subset of `@c9up/aurora`: `html`, `isTemplateResult`, `component`,
 | [`E_AURORA_UNKNOWN_ROUTE`](/en/reference/errors#e-aurora-unknown-route) | `urlFor` was given a name absent from the route manifest. |
 | [`E_AURORA_MISSING_ROUTE_PARAMS`](/en/reference/errors#e-aurora-missing-route-params) | `urlFor` was not given every required param. |
 | [`E_AURORA_UNKNOWN_LIVE_COMPONENT`](/en/reference/errors#e-aurora-unknown-live-component) | A live component was mounted before `registry.define()` named it. |
-| [`E_AURORA_LIVE_SESSION_LIMIT`](/en/reference/errors#e-aurora-live-session-limit) | The registry holds `maxSessions` already. Status 503. |
+| [`E_AURORA_LIVE_SESSION_LIMIT`](/en/reference/errors#e-aurora-live-session-limit) | The registry holds `maxSessions` already, all of them in use. Status 503. |
 | [`E_AURORA_RELAY_REQUEST_FAILED`](/en/reference/errors#e-aurora-relay-request-failed) | A relay request came back with a non-2xx status. |
 | [`E_AURORA_UNSAFE_URL`](/en/reference/errors#e-aurora-unsafe-url) | A navigation URL failed the same-origin or scheme check. |
 | [`E_AURORA_SLOT_IN_TAG_NAME`](/en/reference/errors#e-aurora-slot-in-tag-name) | A `${}` where a tag name goes. |
@@ -428,7 +429,8 @@ The host-free subset of `@c9up/aurora`: `html`, `isTemplateResult`, `component`,
 | [`E_AURORA_VISIT_PROPS`](/en/reference/errors#e-aurora-visit-props) | With `visits` on, a page's props were not an object. |
 | [`E_AURORA_INVALID_MOTION`](/en/reference/errors#e-aurora-invalid-motion) | `motion=${…}` was not an object of motion values, or named a property motion cannot drive. |
 | [`E_AURORA_REACTIVE_CYCLE`](/en/reference/errors#e-aurora-reactive-cycle) | Effects kept re-running each other in one update. |
-| [`E_AURORA_VISIT_NO_PAGE_DATA`](/en/reference/errors#e-aurora-visit-no-page-data) | With `visits` on, the page carries no usable `aurora-page-data` to boot from. |
+| [`E_AURORA_VISIT_NO_PAGE_DATA`](/en/reference/errors#e-aurora-visit-no-page-data) | With `visits` on, the page carries no usable page data script (`script[data-aurora-page]`) to boot from. |
+| [`E_AURORA_VISIT_CROSS_ORIGIN_MODULE`](/en/reference/errors#e-aurora-visit-cross-origin-module) | With `visits` on, a page module's URL is not on the page's own origin. |
 | [`E_AURORA_VISIT_ASYNC_FIRST_PAGE`](/en/reference/errors#e-aurora-visit-async-first-page) | With `visits` on, the first page's factory is async: a hydrated page renders synchronously. |
 | [`E_AURORA_INVALID_LIVE_LIMIT`](/en/reference/errors#e-aurora-invalid-live-limit) | A live registry limit (`maxSessions`, `maxPerOwner`, `claimTimeoutMs`, `idleTimeoutMs`) is not a positive number. |
 | [`E_AURORA_BROWSER_ENTRY_OUTSIDE_DIST`](/en/reference/errors#e-aurora-browser-entry-outside-dist) | A browser package declares its entry outside the `dist/` aurora serves for it. |
@@ -443,6 +445,13 @@ The host-free subset of `@c9up/aurora`: `html`, `isTemplateResult`, `component`,
 - `AuroraRangeError` is gone: `E_AURORA_INVALID_LIVE_LIMIT` is no longer a `RangeError`; catch it by its code.
 - `HttpError` becomes `errors.E_AURORA_HTTP_REQUEST_FAILED`, with the same `status`, `response` and `data`; `isHttpError` still narrows to it.
 - The `AuroraErrorCode` type is gone: `error.code` is a `string`.
+- Templates are read the way the browser reads them. A slot in `onclick ="${v}"`, `srcdoc ="${v}"`, `<script src ="${v}">` or `<base href ="${v}">` (whitespace before the `=`), in `x/onclick="${v}"`, in `<img ='${v}'>`, or inside `<script/x>` or `<style/x>` now throws the error the ordinary spelling throws. `href = "${url}"` (whitespace on both sides) no longer throws `E_AURORA_SLOT_IN_ATTRIBUTE_NAME`: it is an `href`, guarded like `href="${url}"`. Write the ordinary spelling.
+- `renderToString` writes an unquoted value that holds a slot between double quotes: `title=${x}` comes out as `title="…"`, and `title=""` when `x` is empty. A test that compared the markup byte for byte must expect the quotes.
+- The page data script is now `<script type="application/json" data-aurora-page>`, written first in the `<body>`, before the root; it no longer has `id="aurora-page-data"`. Code that read it with `getElementById('aurora-page-data')` must use `document.querySelector('script[data-aurora-page][type="application/json"]')`.
+- With `visits` on, a page module is imported only from the page's own origin: a `modules` pattern on another origin (or `data:`, or `//host/…`) throws `E_AURORA_VISIT_CROSS_ORIGIN_MODULE`. Serve page modules from your own origin.
+- A live registry ends a claimed session after ten minutes without an event or a keep-alive (`idleTimeoutMs`, was off). `liveClient` sends the keep-alive through `buildLiveTransport`; a custom transport needs a `keepAlive(id)` posting `{ id, keepAlive: true }`, or set `idleTimeoutMs` yourself.
+- A full live registry now evicts the oldest unclaimed session, or the least recently used one silent for half of `idleTimeoutMs`, before `mount` throws `E_AURORA_LIVE_SESSION_LIMIT`. An event the component does not handle no longer claims the session.
+- `@click ="${h}"`, `@click= "${h}"` and `x="1"@click="${h}"` are listeners on the server too: `renderToString` no longer calls `h` and writes nothing for them.
 
 ## See also
 

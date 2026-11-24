@@ -39,7 +39,7 @@ pnpm add @c9up/spectrum
 | `clearLogListeners` | function | `clearLogListeners(): void`, removes every `onLog` listener |
 | `createRustLogBridge` | function | `createRustLogBridge(logger: Logger, options?: RustLogBridgeOptions): { start(): void; stop(): void }`, routes the Rust engine's stderr lines through `logger` |
 | `parseRustLog` | function | `parseRustLog(line: string): LogEntry \| null`, reads a `[LEVEL module] message` line |
-| `stdSerializers` | const | `{ err, req, res }`, the standard serializers |
+| `stdSerializers` | const | `{ err, req, res }`, the standard serializers. `req` and `res` read a Node request or response, and also one whose fields are methods (`method()`, `url()`, `headers()`, `getStatus()`), such as `ctx.request` and `ctx.response` |
 | `stdTimeFunctions` | const | `{ epochTime, unixTime, isoTime, nullTime }`, values for the `timestamp` option |
 | `logLevel` | function | `logLevel(raw: unknown, fallback?: LogLevelWithSilent): LogLevelWithSilent`; unset or empty gives `fallback` (`'info'`), a value that is no level throws |
 | `isLogLevelWithSilent` | function | `isLogLevelWithSilent(value: unknown): value is LogLevelWithSilent` |
@@ -73,7 +73,7 @@ pnpm add @c9up/spectrum
 
 | Member | Signature | Description |
 |---|---|---|
-| `trace` … `fatal` | `info(mergingObject: unknown, message?: string, ...values: unknown[]): void`<br>`info(message: string, ...values: unknown[]): void` | Write at that level. An object is merged at the root of the entry, an `Error` goes under `err`, `values` fill printf tokens; a message followed by one object without a token merges the object |
+| `trace` … `fatal` | `info(mergingObject: unknown, message?: string, ...values: unknown[]): void`<br>`info(message: string, ...values: unknown[]): void` | Write at that level. An object is merged at the root of the entry, an `Error` goes under `err`, `values` fill printf tokens. A message followed by exactly one object always merges the object, and the message is written as given, `%` signs included; a message followed by exactly one `Error` writes it under `err`. Tokens: `%s`, `%d`, `%i`, `%f`, `%j`, `%o`, `%O`, `%%`. An object that `%j`, `%o` or `%O` writes into the message goes through `serializers` and `redact` first. A value no token takes is dropped |
 | `silent` | same as `info` | Writes nothing |
 | `log` | `log(level: LogLevel, message: string, ...values: unknown[]): void` | Write at a level given at run time; also takes a merging object first |
 | `child` | `child(bindings?: Record<string, unknown>, options?: ChildOptions): Logger` | A logger whose entries carry `bindings`; `module` and `correlationId` in `bindings` set those fields |
@@ -92,8 +92,8 @@ pnpm add @c9up/spectrum
 
 | Member | Signature | Description |
 |---|---|---|
-| `use` | `use(name?: string): Logger` | The named logger (default one without a name), created once and cached; an unknown name throws |
-| `createLogger` | `createLogger(name: string, config: LogConfig): Logger` | Build a logger named `name`, not cached |
+| `use` | `use(name?: string): Logger` | The named logger (default one without a name), created once and cached; a name that is not a key of `loggers` throws `E_SPECTRUM_UNKNOWN_LOGGER`, `constructor` or `__proto__` included |
+| `createLogger` | `createLogger(name: string, config: LogConfig): Logger` | Build a logger named `name`, not cached; `config` is not modified |
 | `create` | `create(config: LogConfig): Logger` | Build an unmanaged logger from a config |
 
 ### Channels
@@ -164,14 +164,17 @@ fake.assertLogged('info', { containing: 'signed in' })
 `config/logger.ts`, read under the `logger` key. `defineConfig` takes `{ default, loggers }`, or one `LogConfig` that becomes a logger named `app`. Without a config, the provider builds one `app` logger at `LOG_LEVEL` (or `info`) writing to a pretty console.
 
 ```ts
-import { defineConfig, logLevel, targets } from '@c9up/spectrum'
+import { defineConfig, logLevel, stdSerializers, targets } from '@c9up/spectrum'
 
 export default defineConfig({
   default: 'app',
   loggers: {
     app: {
       level: logLevel(process.env.LOG_LEVEL),
-      redact: { paths: ['req.headers.authorization', 'req.headers.cookie'] },
+      serializers: { req: stdSerializers.req, res: stdSerializers.res },
+      redact: {
+        paths: ['req.headers.authorization', 'req.headers.cookie', 'res.headers["set-cookie"]'],
+      },
       transport: {
         targets: targets()
           .pushIf(process.env.NODE_ENV !== 'production', targets.pretty())
@@ -194,7 +197,7 @@ export default defineConfig({
 | `destination` | `string \| number \| LineWritable` | — | JSON lines to a file path, a descriptor or a writable; wins over `transport` |
 | `transport` | `{ targets?: TransportTargetOptions[] } \| TransportTargetOptions` | — | Targets turned into channels; each target can carry its own `level` |
 | `modules` | `Record<string, LogLevelWithSilent>` | — | Level per `module` binding |
-| `redact` | `string[] \| RedactOptions` | — | Paths replaced by `[Redacted]` (or the `censor`), or removed |
+| `redact` | `string[] \| RedactOptions` | — | Paths replaced by `[Redacted]` (or the `censor`), or removed. A path is applied to what the line writes: for an object with a `toJSON()`, to what `toJSON()` returns |
 | `serializers` | `Record<string, LogSerializer>` | `err` and `error` serialized | Transform a field's value before writing |
 | `depthLimit` | `number` | `5` | Depth walked in a value JSON cannot write (a cycle, a BigInt) |
 | `edgeLimit` | `number` | `100` | Entries written of such an object or array |
@@ -248,6 +251,13 @@ Each code is a class of the `errors` namespace (`import { errors } from '@c9up/s
 
 - `SpectrumError` is gone: test `error.code`, or `error instanceof errors.E_SPECTRUM_*` with `import { errors } from '@c9up/spectrum'`.
 - The `name` of an error is no longer `"SpectrumError"`.
+- `logger.info(message, object)` now always merges the object as fields, even when the message holds a `%` token. The message is written as given. To put a value in the message, pass it with a second value or use the object-first form: `logger.info({ id }, 'user %s', name)`.
+- `logger.error(message, err)` now writes the error under `err` instead of appending it to the message.
+- printf now follows the upstream rules: a value no token takes is dropped instead of being appended to the message, `%s` on an object writes `[object Object]`, and `%c` is no longer a token. Pass extra values as fields instead.
+- An object written by `%j`, `%o` or `%O` is serialized and redacted. `%o` and `%O` now write JSON instead of Node's inspected form.
+- `stdSerializers.req` now reads `ctx.request`. `url` is its path, and the query string is written apart under `query`, parsed. On `ctx.response`, `stdSerializers.res` writes the status from `getStatus()`. A new `config/logger.ts` wires both serializers. Add `serializers: { req: stdSerializers.req, res: stdSerializers.res }` to an existing config.
+- A `redact` path now also matches inside what an object's `toJSON()` returns. `req.headers.authorization` now censors the header of a `ctx.request` logged raw.
+- `logger.use(name)`, the `LoggerManager` constructor, `defineConfig` and the provider read a logger name only among the keys of `loggers`. `use('constructor')` or a `default` set to `toString` now throws. `createLogger()` no longer writes `name` into the config you pass.
 
 ## See also
 

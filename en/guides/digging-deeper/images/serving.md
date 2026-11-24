@@ -6,6 +6,7 @@ This guide covers serving images to a page:
 - Every axis is allow-listed
 - What comes back
 - What producing a variant costs
+- Images behind authentication
 
 ## Serving images to a page
 
@@ -80,7 +81,8 @@ The content type is the format the engine wrote, never the file's extension, and
 The allow-lists bound how many answers exist, not what producing one costs nor how often it is produced. An AVIF encode is seconds of CPU on libuv's thread pool — the four threads that also serve the application's file, DNS and crypto calls. So:
 
 - **A variant is rendered once.** It is keyed by the width it will really have: 3200, 3840 and 5120 of a 3000px source are the same image and one render. The same variant asked for several times at once is decoded once.
-- **There is always a cache.** With `cacheDir`, variants are kept on disk, one directory per source; replacing a source deletes its previous version's variants when the new ones are written, so an avatar re-uploaded at the same path does not pile up. Without `cacheDir`, they are kept in memory up to `memoryCacheBytes` (32 MiB), least recently used dropped first.
+- **There is always a cache.** With `cacheDir`, variants are kept on disk, one directory per source; replacing a source deletes its previous version's variants when the new ones are written, so an avatar re-uploaded at the same path does not pile up. A source deleted or renamed loses its variants as soon as a request finds it missing, and the directory is bounded by `maxCacheBytes` (1 GiB): past it, the variants of sources that no longer exist go first, then the oldest written. Without `cacheDir`, they are kept in memory up to `memoryCacheBytes` (32 MiB), least recently used dropped first.
+- **A refusal is remembered.** A variant the engine refused to render — over the memory limit, corrupt — is answered from memory for the same version of the source, instead of being decoded again by every request.
 - **Renders run a few at a time.** `concurrency` (2) renders run at once, `queueLimit` (64) wait; past that the answer is 503 `E_PRISM_IMAGE_BUSY` with `Retry-After`, rather than a longer wait for everyone.
 - **Identifying a source is bounded too.** Its first 64 KiB are read to tell an image from anything else; a video or archive sitting in a root costs that read, once per version of the file — the answer, a refusal included, is remembered. A larger image is read whole only inside the render gate above, so `concurrency` x `limits.maxBytes` is the most that source reads hold at once, and the same source asked for many times at once is read once.
 - **AVIF is encoded at `effort` 1** (0 fastest, 9 slowest): the image is encoded while a visitor waits, and effort 4 takes about four times as long for bytes within a percent.
@@ -89,6 +91,20 @@ The allow-lists bound how many answers exist, not what producing one costs nor h
 |---|---|---|
 | `cacheDir` | — | variants on disk |
 | `memoryCacheBytes` | 32 MiB | in-memory cache when there is no `cacheDir`; 0 turns it off |
+| `maxCacheBytes` | 1 GiB | size bound of `cacheDir`; 0 turns it off |
 | `concurrency` | 2 | renders at once; keep it below `UV_THREADPOOL_SIZE` |
 | `queueLimit` | 64 | renders waiting before a 503 |
 | `effort` | 1 | AVIF encoding effort, 0–9 |
+
+### Images behind authentication
+
+`registerImageRoute` returns what the router returns, so a middleware can guard the route. Such a route must not answer `Cache-Control: public`, the default: a CDN or a reverse proxy in front of the application may store a public answer and serve it to anyone asking for the same URL, without the application being asked again. Say who may store it:
+
+```ts
+serve: {
+  roots: [app.makePath('storage/members')],
+  cacheControl: 'private',
+}
+```
+
+`'private'` keeps the answer in the browser of the user who asked. `false` sends no `Cache-Control` at all, for a middleware that sets its own. Refusals are `no-store` whatever the setting.

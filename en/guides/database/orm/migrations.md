@@ -243,7 +243,7 @@ The runner does not read the module dialect set by `setAtlasDialect()`: without 
 
 | Option | Default | Effect |
 |--------|---------|--------|
-| `disableRollbacksInProduction` | `true` | `rollback()`, `reset()`, `refresh()`, `fresh()` and `wipe()` throw `E_ROLLBACK_DISABLED_IN_PRODUCTION` when `REAM_ENV` or `NODE_ENV` says production, unless called with `{ force: true }` (`--force` on the matching command). Config key `migrations.disableRollbacksInProduction`. |
+| `disableRollbacksInProduction` | `true` | `rollback()`, `reset()`, `refresh()`, `fresh()` and `wipe()` throw `E_ROLLBACK_DISABLED_IN_PRODUCTION` when `REAM_ENV` or `NODE_ENV` says production, unless called with `{ force: true }` (`--force` on the matching command). Set to `false`, the commands ask for confirmation in production instead (no `--force`). Config key `migrations.disableRollbacksInProduction`. |
 | `disableLocks` | `false` | Skips the `<tableName>_lock` table that stops two runs from migrating one database at once. Constructor option only; leave it off wherever two processes can migrate. |
 | `disableTransactions` | `false` | Runs every migration outside a transaction, so a failure leaves a half-applied migration behind. A single migration can opt out alone with `static disableTransactions = true`. Config key `migrations.disableTransactions`. |
 

@@ -63,9 +63,18 @@ serait fausse d'une manière difficile à voir — un serveur qui n'affiche aucu
 - **Rotation des refresh tokens avec détection de rejeu.** Chaque usage en
   frappe un nouveau ; un jeton déjà consommé qui revient prouve une fuite, et
   comme rien ne distingue le voleur de la victime, toute la famille est
-  révoquée et les deux sont déconnectés.
+  révoquée et les deux sont déconnectés. Deux présentations du même jeton au
+  même moment comptent aussi : celle qui perd la course révoque la famille, y
+  compris les nouveaux jetons du gagnant.
 - **Un code d'autorisation rejoué révoque ce qu'il a acheté.** L'échange
-  légitime a déjà eu lieu : les jetons en vol sont ceux de l'attaquant.
+  légitime a déjà eu lieu : les jetons en vol sont ceux de l'attaquant. C'est
+  pareil quand deux échanges du même code se font la course.
+- **Pas de consentement silencieux pour un client que rien n'identifie.** Un
+  client public sur une URI de redirection en loopback, sur `localhost` ou sur
+  un schéma privé voit l'écran de consentement à chaque fois : un autre
+  programme de la machine pourrait présenter son identifiant.
+- **La réponse d'autorisation nomme son émetteur** (`iss`, RFC 9207) : un
+  client qui utilise plusieurs serveurs sait d'où vient un code.
 - **Les paramètres dans le corps uniquement.** `/oauth/token`,
   `/oauth/introspect`, `/oauth/revoke` et `/oauth/register` ne lisent que le
   corps de la requête, et répondent `invalid_request` à une requête qui place
@@ -89,11 +98,15 @@ configuration, en secondes :
 | `accessTokenTtlSeconds` | `3600` (une heure) | Un jeton d'accès, et l'`expires_in` de la réponse. `ream configure` l'écrit explicitement. |
 | `refreshTokenTtlSeconds` | `2592000` (30 jours) | Un refresh token. La rotation en frappe un nouveau à chaque usage. |
 | `codeTtlSeconds` | `30` | Un code d'autorisation : il s'échange en quelques millisecondes. |
+| `consentTicketTtlSeconds` | `600` (dix minutes) | Une page de consentement : passé ce délai, la réponse de l'utilisateur est refusée. |
 | `issueRefreshTokens` | `true` | Si des refresh tokens existent tout court. À `false`, chaque session se termine avec son jeton d'accès. |
 
 Un refresh token n'est émis qu'à un client dont les `grantTypes` contiennent
 `refresh_token`, et jamais sur le grant `client_credentials`, où aucun
 utilisateur n'a consenti à quoi que ce soit.
+
+Chaque durée est un nombre entier positif de secondes. Toute autre valeur arrête
+le démarrage avec `E_VISA_INVALID_TTL`.
 
 ## Ce que `ream configure` écrit
 

@@ -31,6 +31,8 @@ export default defineConfig({
       location: 'storage/uploads',
       // Requis pour que `getSignedUrl` réponde sur le disque local.
       signingSecret: env.get('APP_KEY'),
+      // Requis : 'private' ne sert chaque fichier que par une URL signée.
+      visibility: 'private',
     }),
     s3: services.s3({ bucket: env.get('S3_BUCKET'), region: env.get('S3_REGION') }),
   },
@@ -92,15 +94,28 @@ await disk.setVisibility('avatars/1.png', 'public')
 const visibility = await disk.getVisibility('invoices/42.pdf') // 'private'
 ```
 
-Sur le disque local, un fichier sans marqueur de visibilité est `public` ; un
-fichier rendu privé porte un marqueur à côté de lui. Ce marqueur est posé avant
-les octets : `put`, `copy` et `move` marquent un fichier privé avant de
-l'écrire, de le copier ou de le déplacer, si bien qu'il n'est jamais lisible
-comme public pendant son arrivée, et une écriture qui échoue le laisse privé ou
-le supprime. Rendu public, un fichier garde son ancien marqueur jusqu'à ce que
-les nouveaux octets soient en place. Sur S3, la visibilité est
-l'ACL de l'objet (`public-read` ou `private`), et un objet dont l'ACL ne se lit
-pas compte comme privé.
+Un disque local a sa propre visibilité, que `services.fs()` exige :
+
+- `visibility: 'private'` : chaque fichier du disque est privé, quoi que
+  demande une écriture ou `setVisibility()`. `url()` signe toujours, et la route
+  signée refuse toute requête sans signature.
+- `visibility: 'public'` : un fichier écrit sans visibilité est public. Un
+  fichier rendu privé porte un marqueur à côté de lui.
+
+Ce marqueur est posé avant les octets : `put`, `putStream`, `copyFromFs`,
+`moveFromFs`, `copy` et `move` marquent un fichier privé avant de l'écrire, de
+le copier ou de le déplacer. Il n'est donc jamais lisible comme public pendant
+son arrivée, et une écriture qui échoue le laisse privé ou le supprime. Rendu
+public, un fichier garde son ancien marqueur jusqu'à ce que les nouveaux octets
+soient en place. Sur S3, la visibilité est l'ACL de l'objet (`public-read` ou
+`private`), et un objet dont l'ACL ne se lit pas compte comme privé.
+
+`copy()` et `move()` gardent la visibilité de la source, sauf si vous passez
+`{ visibility }` : la copie d'un fichier privé est privée.
+
+`deleteAll(prefix)` et `list(prefix)` lisent `prefix` comme un répertoire, sur
+tous les disques : `deleteAll('users/1')` supprime `users/1/…` et ne touche
+jamais à `users/10/…`.
 
 `url(path)` suit la visibilité : un fichier public reçoit son URL simple, un
 fichier privé une URL signée. `getSignedUrl(path, { expiresIn })` signe
@@ -122,7 +137,10 @@ si `services.fs({ routeBasePath })` dit autre chose. Rien ne sert ce chemin
 tant que vous ne montez pas la route signée de `@c9up/archive/signed-route`.
 Elle lit le préfixe sur le driver, sert les fichiers publics, refuse un fichier
 privé sauf si l'URL porte une signature valide, et envoie le fichier en flux
-avec un ETag :
+avec un ETag. Un fichier texte part avec son jeu de caractères
+(`text/html; charset=utf-8`). La signature couvre le `routeBasePath` du disque :
+une URL signée par un disque n'ouvre pas un fichier d'un autre disque qui a le
+même `signingSecret` :
 
 ```ts
 // start/storage.ts
@@ -132,6 +150,7 @@ import env from '#start/env'
 
 export const driver = new LocalDriver('storage/uploads', {
   signingSecret: env.get('APP_KEY'),
+  visibility: 'private',
 })
 export const uploads = new StorageManager(driver)
 export const serveUploads = createSignedRouteHandler({ storage: uploads, driver })
@@ -153,12 +172,17 @@ Une requête refusée reçoit un corps JSON `{ error: { code, message } }` :
 | --- | --- | --- |
 | 403 | `E_ARCHIVE_INVALID_SIGNATURE` | La signature, son expiration ou une surcharge d'en-tête signée est mal formée ou ne correspond pas |
 | 403 | `E_ARCHIVE_EXPIRED_SIGNATURE` | La signature est valide mais son `exp` est dépassé |
-| 403 | `E_ARCHIVE_ACCESS_DENIED` | Une requête non signée vers un fichier privé |
+| 403 | `E_ARCHIVE_ACCESS_DENIED` | Une requête non signée vers autre chose qu'un fichier public stocké : un fichier privé, un nom absent, n'importe quel fichier d'un disque privé |
 | 403 | `E_ARCHIVE_INVALID_KEY` | Le chemin ne nomme aucune clé que le disque adresse |
 | 404 | `E_ARCHIVE_NOT_FOUND` | Une signature valide pour un fichier qui n'est pas stocké |
 
-Une requête non signée vers un nom qui n'est pas stocké passe au middleware
-suivant.
+Une requête non signée reçoit la même réponse pour un fichier privé et pour un
+nom absent : personne ne peut savoir quels fichiers privés existent.
+
+La route sert un fichier HTML ou SVG en ligne, depuis l'origine de votre
+application. Si vos utilisateurs envoient ces fichiers, lisez
+[Servir les fichiers envoyés](/fr/guides/basics/file-uploads#servir-les-fichiers-envoyes)
+avant de les servir.
 
 ### Fichiers statiques
 
@@ -173,6 +197,12 @@ const assets = new StaticMiddleware({ root: 'public', prefix: '/assets' })
 server.use([assets.handle.bind(assets)])
 ```
 
+Les fichiers cachés ne sont pas servis : un chemin dont un segment commence par
+un point (`.vite/manifest.json`, `.vscode/settings.json`) passe au middleware
+suivant. Mettez `dotFiles: 'deny'` pour répondre 403 à la place, ou
+`dotFiles: 'allow'` pour les servir. Un fichier texte part avec son jeu de
+caractères (`text/css; charset=utf-8`).
+
 Les fichiers sont diffusés en flux depuis le disque, jamais lus en entier en
 mémoire : une requête ne garde qu'un tampon de lecture quelle que soit la
 taille du fichier, et les fichiers de plus de 2 Gio sont servis.
@@ -180,7 +210,9 @@ taille du fichier, et les fichiers de plus de 2 Gio sont servis.
 Pointez-le uniquement sur des ressources publiques, jamais sur le répertoire
 d'un disque local. Il ne vérifie aucune signature : il refuse un fichier dont
 le marqueur de visibilité dit privé et ne sert jamais les marqueurs eux-mêmes,
-mais tout le reste sous `root` est servi à quiconque le demande. Les fichiers
+mais tout le reste sous `root` est servi à quiconque le demande. Il ne connaît
+pas la visibilité d'un disque : un fichier écrit quand le disque était public
+n'a pas de marqueur, et il le servirait si le disque devient privé. Les fichiers
 privés passent par la route signée.
 
 ## Envoyer depuis le système de fichiers local
@@ -188,6 +220,7 @@ privés passent par la route signée.
 ```ts
 await disk.moveFromFs(request.file('avatar').tmpPath, `avatars/${user.id}.png`)
 await disk.copyFromFs(new URL('./seed.png', import.meta.url), 'seed.png')
+await disk.moveFromFs(tmpPath, 'invoices/42.pdf', { visibility: 'private' })
 ```
 
 C'est la paire qui suit un upload multipart. `copy()` déplace **à l'intérieur**

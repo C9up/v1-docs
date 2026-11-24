@@ -208,9 +208,13 @@ builds them, from a preload:
 import relay from '@c9up/relay/services/main'
 
 relay.registerRoutes()
-// or, to put the endpoints behind auth:
-relay.registerRoutes((route) => route.middleware('auth'))
+// or, to require an authenticated request on the endpoints:
+relay.registerRoutes((route) => route.guard('web'))
 ```
+
+`.guard()`, `.role()` and `.permission()` on the route refuse a request that
+does not meet them. Warden's `auth` middleware would refuse nothing here: it
+enforces the decorators of a controller action, and these routes have none.
 
 Mounting where the declaration is written is what keeps the routes ahead of the
 socket. Building them in a later phase left a window, after the server was

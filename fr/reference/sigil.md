@@ -8,7 +8,9 @@
 pnpm add @c9up/sigil
 ```
 
-`ream configure @c9up/sigil` enregistre le provider, écrit `config/hash.ts` et ajoute `HASH_DRIVER=argon2` aux fichiers d'environnement. Le paquet embarque son moteur natif pour linux x64 et arm64 (glibc), macOS x64 et arm64, et Windows x64 ; aucune toolchain Rust n'est nécessaire. Il n'existe pas de repli JavaScript : sans le moteur, le hachage lève `E_SIGIL_NAPI_REQUIRED`.
+`ream configure @c9up/sigil` enregistre le provider, écrit `config/hash.ts` et ajoute `HASH_DRIVER=argon2` aux fichiers d'environnement. Le moteur natif est livré dans un petit paquet par plateforme, `@c9up/sigil-<plateforme>`, pour linux x64 et arm64 (glibc), macOS x64 et arm64, et Windows x64. `@c9up/sigil` les déclare en dépendances optionnelles, et votre gestionnaire de paquets installe seulement celui de votre machine. Vous n'avez pas besoin de toolchain Rust. N'installez pas avec les dépendances optionnelles désactivées (`--no-optional`, `--omit=optional`) : le moteur serait absent.
+
+Il n'existe pas de repli JavaScript. Sans le moteur, le hachage lève `E_SIGIL_NAPI_REQUIRED`, et son message nomme le paquet à installer, par exemple `@c9up/sigil-linux-x64-gnu`.
 
 ## Points d'entrée
 

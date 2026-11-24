@@ -69,7 +69,7 @@ response.status(201).json({ data }) // Chainable status
 response.noContent()                // 204 No Content
 response.header('x-trace', id)      // Set header
 response.type('application/xml')    // Set content-type
-response.cookie('session', token, { httpOnly: true, maxAge: 3600 })
+response.cookie('remember_device', token, { maxAge: '30d' })
 response.redirect().toPath('/login')
 response.redirect().status(301).toPath('/new')
 response.redirect().toRoute('users.show', { id: '1' })
@@ -240,6 +240,11 @@ await ctx.session.tag(String(user.id))   // login
 await ctx.session.untag(String(user.id)) // logout
 ```
 
+The order inside the request does not matter. At login the session id is new
+or was just regenerated, so its row does not exist yet: the tag is kept and
+written with the row when the session is saved at the end of the request. A
+session that holds no data is not saved, and is not tagged.
+
 To end every session a user has, list them from the store and destroy each:
 
 ```typescript
@@ -360,6 +365,11 @@ session.flash({ notice: 'Saved' })       // a key/value or an object
 session.flashErrors({ email: 'Taken' })  // into `errorsBag`
 session.flashValidationErrors(error)     // inputErrorsBag + errorsBag + input
 ```
+
+`flashValidationErrors()` flashes the input without `password`,
+`password_confirmation`, `passwordConfirmation`, `_csrf` and `_method`: a
+password must not sit in clear text in the session store. `flashAll()` flashes
+everything; use `flashExcept()` when the form has a secret field.
 
 Flash data lives for exactly one following request. That request takes it out
 of the session and writes the session back without it, even when it only reads

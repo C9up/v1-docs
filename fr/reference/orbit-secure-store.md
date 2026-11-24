@@ -39,7 +39,7 @@ iOS n'est pas encore pris en charge.
 
 ### Fonctions
 
-Une clé compte de 1 à 128 caractères parmi `A-Z a-z 0-9 . _ -` (ni `.` ni `..`) ; toute autre clé est refusée avec `E_ORBIT_SECURE_STORE_INVALID_KEY` avant que rien n'atteigne la plateforme.
+Une clé compte de 1 à 128 caractères parmi `A-Z a-z 0-9 . _ -` (ni `.` ni `..`) ; toute autre clé est refusée avec `E_ORBIT_SECURE_STORE_INVALID_KEY` avant que rien n'atteigne la plateforme. Chaque clé a sa propre valeur : `token`, `token.bak` et `token.new` ne se lisent, ne s'écrasent et ne se suppriment jamais l'une l'autre, et chaque valeur est scellée avec sa clé : elle ne s'ouvre sous aucun autre nom. Les valeurs rangées par la version 0.1.0 restent lisibles : chacune passe au nouveau format à sa première lecture, et la 0.1.0 ne la voit plus ensuite.
 
 | Fonction | Signature | Description |
 |---|---|---|

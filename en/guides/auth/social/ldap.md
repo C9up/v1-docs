@@ -44,6 +44,15 @@ answers success**. A login form that passes a blank password straight through
 therefore signs in as whoever was named. It is the oldest bug in LDAP
 authentication, and it is refused here before a socket is even opened.
 
+A password that is not a string is refused the same way. A request body does
+not only carry strings: `password[]=` arrives as an array, `password[length]=1`
+as an object, and a JSON body carries whatever was written. None of those is an
+empty string, and each one would be sent as an empty password. `authenticate`
+refuses a login or a password that is not a non-empty string, with the error of
+a wrong password (`resultCode` 49, status 400), before the directory is
+reached. `LdapConnection.bind()` refuses it too, so a bind without a password
+cannot be sent.
+
 ### A username cannot become a filter
 
 There is no filter string in this API. A filter is a structure, and its values

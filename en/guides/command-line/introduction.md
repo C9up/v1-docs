@@ -107,12 +107,13 @@ ream doctor
 
 `ream new` prompts for a template. `web` and `api` now differ meaningfully:
 
-- **`api`** — minimal: server entry, a root route, a timing kernel. No auth.
+- **`api`** — minimal: server entry, a root route, a kernel with a timing middleware and the body parser. No auth. Blackhole in its two halves: the server half (`@c9up/blackhole/server_middleware`) on every request, and the router half after the body parser. `config/blackhole.ts` turns on `X-Frame-Options: DENY`, HSTS and `nosniff`, turns CSRF and the content security policy off (an API authenticates with tokens and serves no HTML), and allows no CORS origin until you list one.
 - **`web`** — the api skeleton plus a pre-wired session/cookie auth kit. A fresh `web` app boots cookie-authenticated out of the box:
-  - a kernel chaining body parser → cookie `SessionMiddleware` → blackhole (signed-CSRF + security headers) → auth middleware. The order is load-bearing: blackhole runs after the body parser because a form post carries its CSRF token in the body, and after the session because the token is bound to it (with a session config, blackhole before the session refuses every request with `E_BLACKHOLE_SESSION_NOT_READY`); the session runs before auth so `ctx.session` is populated when the session guard resolves the user;
+  - a kernel with blackhole's server half (`@c9up/blackhole/server_middleware`) on the server tier, so a 404 also carries the protective headers and counts for the rate limit, and on the router tier body parser → cookie `SessionMiddleware` → blackhole's router half (signed CSRF) → `@c9up/warden/silent-auth`. The order is load-bearing: blackhole runs after the body parser because a form post carries its CSRF token in the body, and after the session because the token is bound to it (with a session config, blackhole before the session refuses every request with `E_BLACKHOLE_SESSION_NOT_READY`); the session runs before silent auth so the session guard finds the signed-in user;
   - `config/auth.ts` defaulting to the session strategy (`defaultStrategy: 'session'`, with a `findUser` TODO stub);
   - `config/blackhole.ts` with signed CSRF enabled (`secret` read from `APP_KEY`);
-  - `app/middleware/auth_middleware.ts` that populates `ctx.auth` from `ctx.session`;
+  - silent auth on every route: it reads who is signed in, records the guard that vouched for the user, and refuses nobody. A route chained with `.guard('session')` then answers 401 to an anonymous request and runs for a signed-in user;
+  - `app/middleware/auth_middleware.ts`, the middleware that refuses a request nobody is signed in to, registered as the named `auth` middleware in `start/kernel.ts` (`.use(middleware.auth())` on a route);
   - reamrc providers for sigil + warden + blackhole;
   - a freshly generated `APP_KEY` in `.env` — every scaffolded app gets its own, never a shared placeholder — and a `#middleware/*` import alias.
 - **`microservice`** / **`slim`** — lightweight, no HTTP auth kit.

@@ -196,9 +196,13 @@ date. `moment` dit quel cas s'est appliqué — `"timestamp"`, ou `"claimed"` /
 `"unknown"`, tous deux jugés maintenant.
 
 Chaque maillon est contrôlé : la signature de chaque certificat se vérifie avec
-la clé de celui du dessus, chaque émetteur déclare être une autorité, la
-longueur de chemin et les contraintes de nom données à une autorité sont
-respectées, et le certificat signataire a bien le droit de signer. Une ancre est
+la clé de celui du dessus, chaque émetteur déclare être une autorité (`cA` dans
+ses contraintes de base) et, quand son usage de clé est restreint, qu'il peut
+signer des certificats, la longueur de chemin et les contraintes de nom données
+à une autorité sont respectées, et le certificat signataire a bien le droit de
+signer. Un certificat ordinaire qui en émet un sous son propre nom ne fait pas
+exception : son titulaire choisirait sinon une nouvelle clé, un nouveau
+répondeur et de nouveaux usages, sous le nom que l'autorité a certifié. Une ancre est
 reconnue par le certificat entier ou par son nom et sa clé — jamais par un nom
 et un numéro de série, que n'importe qui peut copier. Un certificat qui s'est
 signé lui-même et n'est pas une ancre termine le chemin, et un chemin de plus
@@ -215,7 +219,9 @@ const signatures = await vellum.verifySignatures(mandat, { checkRevocation: true
 ```
 
 C'est un appel réseau par certificat signataire, vers le répondeur qu'il
-nomme : c'est donc désactivé sauf demande. Les signatures qui partagent un
+nomme : c'est donc désactivé sauf demande. Seule une signature `trusted` est
+vérifiée : hors d'un chemin de confiance, son « émetteur » peut être n'importe
+qui, et la réponse qu'il signe aussi ; la réponse est donc `unknown`. Les signatures qui partagent un
 certificat partagent une question ; quatre au plus sont posées à la fois, et
 pas plus de seize certificats par appel — les autres répondent `unknown` sans
 que rien ne soit demandé, puisque c'est le document qui choisit les répondeurs.

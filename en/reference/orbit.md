@@ -77,13 +77,18 @@ The package has no `react-native` export condition: the phone entry is the `./re
 |---|---|---|
 | `viewport` | `{ width: number; height: number }` | The root's size in dp (React Native: `Dimensions.get("window")`). |
 | `host` | `OrbitHost` | Defaults to the host given to `useHost`. |
+| `onError` | `(error: Error) => void` | Told of what orbit recovered from instead of throwing: a commit the host refused while nothing waited on it (a scheduled one), an image address from data orbit will not load, a value of a drawing the host left out. Without it, a development build (`__DEV__`) logs them with `console.warn` and a production build says nothing. |
 
 | `Root` member | Signature | Description |
 |---|---|---|
 | `flush` | `flush(): OrbitReport` | Commits what changed now, instead of at the end of the turn. |
 | `reports` | `readonly reports: OrbitReport[]` | Every commit's report, newest last (development and benchmarks). |
 
-`OrbitReport` is `{ deleted: number[]; parseUs: number; layoutUs: number; diffUs: number; measures: number; nodes: number; opsBytes: number }`.
+`OrbitReport` is `{ deleted: number[]; parseUs: number; layoutUs: number; diffUs: number; measures: number; nodes: number; opsBytes: number; warnings?: string[] }`. `warnings` lists the values of drawings the host left out, each starting with its code (`E_ORBIT_SVG_VALUE: …`); orbit also hands each one to `onError`.
+
+A commit the host refuses is not lost: orbit sends what it carried again with the next commit. `mount` and `flush()` throw the refusal; a scheduled commit hands it to `onError`. Text reaches the host well formed: half of an emoji (`"Ana😀".slice(0, 4)`) is shown as U+FFFD, as a browser shows it.
+
+Views may nest at most 100 levels deep under the root. The host lays the tree out on the JS thread, one level of its stack at a time, and refuses a deeper tree with `E_ORBIT_TREE_TOO_DEEP` before it lays it out. Data nested as deep as it likes (replies to replies) needs a limit of its own in the template.
 
 `OrbitHost` is structural, so a test can pass a fake. Its methods: `setViewport(width, height)`, `commit(ops: string): string`, `imageBytes(tag, bytes: Uint8Array)`, `layout(tags: string): string`, `scroll(tag, by, toEnd)`, `setEventHandler(handler)`, and the motion methods `motionValue`, `motionInterpolate`, `motionSet`, `motionStop`, `motionFrames`, `motionSpring`, `motionDispose`, `motionBind`, `motionBindScroll`.
 
@@ -177,12 +182,12 @@ A dropped connection dispatches `error` and reconnects after the server's `retry
 |---|---|---|
 | `run` | function | Registers the root component as the app and mounts it when the activity starts. |
 | `RunOptions` | interface | Options of `run`. |
-| `LaunchProps` | type | `{ [key: string]: unknown }`: the launch props (intent extras). |
+| `LaunchProps` | type | `{ [key: string]: unknown }`: the props the app is started with. The activity `ream android:*` generates passes none, so `root` receives `{}`; the launch intent's extras are not read (another app can put anything in them). |
 | `APP_NAME` | const | `"main"`, the name the generated activity starts the app by. |
 
 | Function | Signature | Description |
 |---|---|---|
-| `run` | `run(root: (props: LaunchProps) => TemplateResult, options?: RunOptions): void` | Gives orbit the `NativeOrbit` host (throws `E_ORBIT_NO_HOST` when the module is not orbit's) and the style table, sets the colour scheme, sends the back button to `goBack`, and mounts `root` with the launch props at the window's size. |
+| `run` | `run(root: (props: LaunchProps) => TemplateResult, options?: RunOptions): void` | Gives orbit the `NativeOrbit` host (throws `E_ORBIT_NO_HOST` when the module is not orbit's) and the style table, sets the colour scheme, sends the back button to `goBack`, and mounts `root` at the window's size with the launch props (`{}` from the generated activity). |
 
 | `RunOptions` field | Type | Default | Description |
 |---|---|---|---|
@@ -214,14 +219,16 @@ A dropped connection dispatches `error` and reconnects after the server's `retry
 | Code | Raised when |
 |---|---|
 | [`E_ORBIT_NO_HOST`](/en/reference/errors#e-orbit-no-host) | `mount` ran before `useHost`, or the `NativeOrbit` module is not orbit's host. |
-| [`E_ORBIT_COMMIT_FAILED`](/en/reference/errors#e-orbit-commit-failed) | The native host refused a commit; the message carries its report. |
+| [`E_ORBIT_COMMIT_FAILED`](/en/reference/errors#e-orbit-commit-failed) | The native host refused a commit; the message carries its report. What the commit carried is sent again with the next one. |
+| [`E_ORBIT_TREE_TOO_DEEP`](/en/reference/errors#e-orbit-tree-too-deep) | The views nest more than 100 levels deep: the host refuses the commit before it lays it out. |
+| [`E_ORBIT_SVG_VALUE`](/en/reference/errors#e-orbit-svg-value) | A value of an `<svg>` the host cannot read (a `NaN` length, unreadable path data, `points` or `transform`). That shape is left out (path data and `points` are drawn up to the error) and the rest drawn. Reported to `onError`, never thrown. |
 | [`E_ORBIT_UNSUPPORTED_ELEMENT`](/en/reference/errors#e-orbit-unsupported-element) | An element has no native mapping (`select`, `canvas`, or `text` or a gradient inside an `svg`). |
 | [`E_ORBIT_BLOCK_IN_TEXT`](/en/reference/errors#e-orbit-block-in-text) | A block element sits inside text. |
 | [`E_ORBIT_INVALID_MOTION`](/en/reference/errors#e-orbit-invalid-motion) | `motion=${…}` is not an object of motion values. |
 | [`E_ORBIT_INVALID_SCROLL_BINDING`](/en/reference/errors#e-orbit-invalid-scroll-binding) | `scroll-y=${…}` is not a motion value. |
 | [`E_ORBIT_INVALID_COLOR`](/en/reference/errors#e-orbit-invalid-color) | A colour orbit cannot read. |
-| [`E_ORBIT_INSECURE_IMAGE_URL`](/en/reference/errors#e-orbit-insecure-image-url) | `<img src>` uses plain http. |
-| [`E_ORBIT_IMAGE_SOURCE`](/en/reference/errors#e-orbit-image-source) | `<img src>` uses a scheme that is not an image source (`data:`, `javascript:`…). |
+| [`E_ORBIT_INSECURE_IMAGE_URL`](/en/reference/errors#e-orbit-insecure-image-url) | `<img src>` uses plain http. Thrown for an address written in the template; for one from data (`src=${…}`) the image shows nothing and the error goes to `onError`. |
+| [`E_ORBIT_IMAGE_SOURCE`](/en/reference/errors#e-orbit-image-source) | `<img src>` uses a scheme that is not an image source (`data:`, `javascript:`…), a scheme-relative address (`//host/a.png`) or a `file:` URL that does not decode. Thrown or reported as `E_ORBIT_INSECURE_IMAGE_URL` is. |
 | [`E_ORBIT_DUPLICATE_KEY`](/en/reference/errors#e-orbit-duplicate-key) | Two elements of an `each` list share a key. |
 | [`E_ORBIT_NO_SCREEN`](/en/reference/errors#e-orbit-no-screen) | `useScreen()` runs in a component no screen built. |
 | [`E_ORBIT_STACK_SHOWN`](/en/reference/errors#e-orbit-stack-shown) | One stack is put in two places. |
@@ -245,6 +252,12 @@ Every error is a class of the `errors` export, named by its code. The five raise
 - `OrbitError` is gone: test `error.code`, or `error instanceof errors.E_ORBIT_*` with `import { errors } from '@c9up/orbit'`.
 - `OrbitTypeError` and `OrbitRangeError` are gone: the `URL` and `TextDecoder` refusals are still a `TypeError` / `RangeError`, now `errors.E_ORBIT_INVALID_URL` and the like. `E_ORBIT_FOREIGN_ORIGIN` and `E_ORBIT_NO_XHR` are no longer a `TypeError`: catch them by their code.
 - The `OrbitErrorCode` type is gone: `error.code` is a `string`.
+- An `<img src=${…}>` whose address comes from data no longer throws `E_ORBIT_INSECURE_IMAGE_URL` or `E_ORBIT_IMAGE_SOURCE`: that image shows nothing and the error goes to `mount`'s `onError`. To act on it, pass `onError`. An address written in the template still throws.
+- `<img src="//host/a.png">` is now refused with `E_ORBIT_IMAGE_SOURCE`; it used to load nothing from a local path. Write `https://`.
+- A scheduled commit the host refuses no longer rejects a microtask unseen: it goes to `onError`, and what it carried is sent with the next commit.
+- A view tree more than 100 levels deep is refused with `E_ORBIT_TREE_TOO_DEEP` (it used to crash the app past about 170). Limit how deep a template nests data that nests (replies to replies).
+- A value of an `<svg>` the host cannot read no longer fails the commit: that shape is left out and reported as `E_ORBIT_SVG_VALUE`.
+- `<input maxlength>` given a longer value keeps the value whole, as HTML does; `maxlength` limits typing only. It used to crash the app on Android.
 
 ## See also
 

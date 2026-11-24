@@ -84,7 +84,10 @@ bottom and follows new rows while the reader is there — a conversation.
 
 `<img src>` takes `https://` URLs, `file:` and `content://` paths, `asset:`
 files bundled with the app and bytes handed over from JS; it is decoded off the
-UI thread at the size it is shown, and `object-*` sets its fit.
+UI thread at the size it is shown, and `object-*` sets its fit. An address
+written in the template that orbit will not load (`http:`, `data:`, `//host/…`)
+throws. One that comes from data, such as a user's avatar, shows nothing for
+that image and goes to `mount`'s `onError`; the rest of the screen is shown.
 
 `<svg>` becomes a vector view. orbit-host reads the drawing — path data with
 every command, `rect` (rounded), `circle`, `ellipse`, `line`, `polyline`,
@@ -92,3 +95,7 @@ every command, `rect` (rounded), `circle`, `ellipse`, `line`, `polyline`,
 platform replays plain paths scaled to the box. `currentColor` paints with the
 text colour around it, so an icon takes the colour of the text it sits in;
 `shape-rendering="crispEdges"` keeps a QR code's modules pure black and white.
+A value the host cannot read does not stop the screen. A number that is not
+finite (`NaN` from `0 / 0`) counts as absent. Path data and `points` are drawn
+up to their first error. A shape whose `transform` or paint cannot be read is
+left out. Each goes to `onError` as `E_ORBIT_SVG_VALUE`.

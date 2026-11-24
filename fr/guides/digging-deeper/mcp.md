@@ -26,6 +26,17 @@ Le serveur détecte la racine du projet en remontant depuis le répertoire coura
 
 `REAM_PROJECT_ROOT=/chemin/du/projet` force la racine.
 
+Une racine trouvée au-dessus du répertoire courant doit vous appartenir : le
+serveur refuse un répertoire qui appartient à un autre utilisateur, ou dans
+lequel le groupe ou les autres peuvent écrire, et s'arrête avec
+`E_REAM_MCP_PROJECT_ROOT_NOT_FOUND`. C'est la règle `safe.directory` de git.
+Sans elle, un `reamrc.ts` déposé par quelqu'un d'autre dans un répertoire
+partagé comme `/tmp` deviendrait la racine de votre projet, et les générateurs
+lanceraient le `node_modules/.bin/ream` de ce répertoire. Le répertoire courant
+et `REAM_PROJECT_ROOT` ne sont pas vérifiés : vous les avez choisis. Un serveur
+enregistré pour votre utilisateur et lancé par `npx` présente le même risque au
+niveau de `npx` : enregistrez-le par projet, comme ci-dessous.
+
 `ream mcp install` l'enregistre dans le `.mcp.json` du projet, un fichier fait
 pour être commité : l'entrée est donc la même sur chaque machine,
 `npx --no @c9up/ream-mcp`, sans chemin absolu. `--no` lance la version que le
@@ -72,7 +83,7 @@ appelle un outil écrit tous ses arguments, donc aucun argument ne le peut.
 
 | Variable au lancement | Autorise |
 |---|---|
-| `REAM_MCP_ALLOW_MIGRATIONS=1` | l'écriture sur une base locale : un fichier sqlite dans le projet, ou un serveur en boucle locale / socket unix |
+| `REAM_MCP_ALLOW_MIGRATIONS=1` | l'écriture sur une base locale : un fichier sqlite dans le projet, ou un serveur en boucle locale / socket unix, jugé sur l'adresse que le pilote contacte (le `host` et le `hostaddr` de l'URL, `PGHOST`, `PGHOSTADDR`) |
 | `REAM_MCP_ALLOW_PRODUCTION_MIGRATIONS=1`, en plus de la précédente | l'écriture en production : `REAM_ENV` / `NODE_ENV` vaut `production`, ou l'URL de la base désigne autre chose qu'une cible locale prouvée |
 
 Elles se posent dans le bloc `env` de l'entrée du serveur dans `.mcp.json` :
@@ -107,7 +118,11 @@ d'appels ni chemin absolu ; le détail complet part sur le `stderr` du serveur.
 
 Chaque outil déclare aussi ses annotations MCP (`readOnlyHint`,
 `destructiveHint`) : un client peut demander confirmation avant les appels qui
-écrivent et laisser passer ceux en lecture seule.
+écrivent et laisser passer ceux en lecture seule. Les deux outils `inker` ne
+sont pas en lecture seule : ils importent le `@c9up/inker` du projet et
+l'exécutent dans le serveur (et un rendu exécute les expressions du gabarit).
+Ils portent donc `destructiveHint: true`. Utilisez-les sur un projet de
+confiance.
 
 ## Architecture
 

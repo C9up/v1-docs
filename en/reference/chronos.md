@@ -8,7 +8,9 @@
 pnpm add @c9up/chronos
 ```
 
-chronos has no provider and no configuration. The native engine ships prebuilt in the package.
+chronos has no provider and no configuration. In Node, the native engine comes as one small package per platform, `@c9up/chronos-<platform>`, for linux x64 and arm64 (glibc), macOS x64 and arm64, and Windows x64. `@c9up/chronos` lists them as optional dependencies, and your package manager installs only the one that matches your machine. No Rust toolchain is needed. Do not install with optional dependencies turned off (`--no-optional`, `--omit=optional`): the engine would be left out. In a browser, chronos runs its WASM build, which ships in `@c9up/chronos` itself.
+
+There is no JavaScript fallback. Without the engine, the first call throws `E_CHRONOS_ENGINE_REQUIRED`, and its message names the package to install, for example `@c9up/chronos-linux-x64-gnu`.
 
 ## Entry points
 

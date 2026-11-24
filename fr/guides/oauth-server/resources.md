@@ -49,7 +49,9 @@ lieu de là où chaque application pense à vérifier.
 
 `createToken(user, abilities, { name, expiresInSeconds })` en frappe un
 directement pour un client first-party — nommé par `tokenClientId` — et
-`invalidateToken(token)` en révoque un.
+`invalidateToken(token)` en révoque un. `expiresInSeconds`, dans la config de la
+garde ou à l'appel, est un nombre entier positif de secondes ; toute autre
+valeur lève `E_VISA_INVALID_TTL`.
 
 La forme bas niveau reste disponible pour un serveur de ressources sans guard :
 

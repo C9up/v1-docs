@@ -79,7 +79,10 @@ remplacement. Deux autres drapeaux sont communs à tous — `--dry-run` imprime 
 qui serait écrit sans rien écrire, et `--json` rapporte le résultat en un seul
 objet JSON sur la dernière ligne de stdout, ce que lit `@c9up/ream-mcp`. Quand
 `--force` écrase effectivement plusieurs fichiers, un échec en cours de route
-restaure ce que le même lancement avait déjà écrit.
+restaure ce que le même lancement avait déjà écrit. Une destination qui est un
+lien symbolique menant hors du projet, ou vers un chemin qui n'existe pas,
+compte comme déjà présente : elle est ignorée, et refusée avec
+`E_REAM_STUB_UNSAFE_PATH` sous `--force`.
 
 `make:middleware` prend `--stack server|named|router` (par défaut `router`), qui
 choisit la ligne d'enregistrement que le fichier généré suggère :

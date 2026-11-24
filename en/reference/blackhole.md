@@ -8,7 +8,11 @@
 pnpm add @c9up/blackhole
 ```
 
-`ream configure @c9up/blackhole` registers the provider, registers `@c9up/blackhole/server_middleware` on the server tier and `@c9up/blackhole/middleware` at the end of the router tier, and writes `config/blackhole.ts`. A Redis-backed store needs `@c9up/quasar` (or a client of your own); the database limiter store uses `@c9up/atlas` when present; `@c9up/blackhole/hono` needs `hono`. The package ships its native engine; without it, `createBlackhole()` throws.
+`ream configure @c9up/blackhole` registers the provider, registers `@c9up/blackhole/server_middleware` on the server tier and `@c9up/blackhole/middleware` at the end of the router tier, and writes `config/blackhole.ts`. A Redis-backed store needs `@c9up/quasar` (or a client of your own); the database limiter store uses `@c9up/atlas` when present; `@c9up/blackhole/hono` needs `hono`.
+
+The native engine comes as one small package per platform, `@c9up/blackhole-<platform>`, for linux x64 and arm64 (glibc), macOS x64 and arm64, and Windows x64. `@c9up/blackhole` lists them as optional dependencies, and your package manager installs only the one that matches your machine. No Rust toolchain is needed. Do not install with optional dependencies turned off (`--no-optional`, `--omit=optional`): the engine would be left out.
+
+There is no JavaScript fallback. Without the engine, `createBlackhole()` throws `E_BLACKHOLE_NAPI_REQUIRED`, and its message names the package to install, for example `@c9up/blackhole-linux-x64-gnu`.
 
 ## Entry points
 
@@ -75,7 +79,7 @@ CSRF, CORS, XSS:
 | `CorsConfig` | interface | CORS options (see Configuration) |
 | `CorsResult` | interface | `{ headers, varyOrigin, preflight }` |
 | `CorsOriginValue`, `CorsHeadersValue` | type | `boolean \| string \| string[]` |
-| `XssConfig` | interface | `{ enabled?, allowAttributes?: XssOptInAttribute[] }` |
+| `XssConfig` | interface | `{ enabled?, allowAttributes?: XssOptInAttribute[], maxInputBytes?, maxDepth? }` |
 | `XssOptInAttribute` | type | `'id' \| 'is' \| 'slot' \| 'part' \| 'data-*'` |
 
 Rate-limit stores (the global `rateLimit` option):
@@ -126,7 +130,7 @@ Every export of `@c9up/blackhole/limiter` is also exported here.
 | `cspHasNonce` | `cspHasNonce(): boolean` | Whether the CSP names `@nonce` |
 | `generateNonce` | `generateNonce(): string` | A fresh nonce |
 | `cors` | `cors(requestOrigin: string, method: string, requestMethod?: string, requestHeaders?: string, ctx?: BlackholeContext): CorsResult \| undefined` | The CORS decision; `undefined` without `cors` |
-| `sanitizeResponse` | `sanitizeResponse(body: string, contentType: string): string` | Sanitize a `text/html` body as untrusted markup, whatever `xss` says |
+| `sanitizeResponse` | `sanitizeResponse(body: string, contentType: string): string` | Sanitize a `text/html` body as untrusted markup, whatever `xss` says; throws `E_BLACKHOLE_HTML_TOO_LARGE`, `E_BLACKHOLE_HTML_TOO_DEEP` or `E_BLACKHOLE_HTML_TOO_COMPLEX` past the bounds |
 | `xssEnabled` | `xssEnabled(): boolean` | Whether responses are sanitized |
 
 ### `@c9up/blackhole/config`
@@ -217,7 +221,7 @@ The adapters have no session: `csrf.session: true` refuses every request there. 
 | `consume` | `consume(key: string, amount?: number): Promise<LimiterResponse>` | Count; throws `errors.E_TOO_MANY_REQUESTS` over the budget |
 | `increment` / `decrement` | `increment(key: string, amount?: number): Promise<LimiterResponse>` | Count without throwing |
 | `attempt` | `attempt<T>(key: string, callback: () => T \| Promise<T>, amount?: number): Promise<T \| undefined>` | Run `callback` if the key has budget left |
-| `penalize` | `penalize<T>(key: string, callback: () => T \| Promise<T>, amount?: number): Promise<[ThrottleException, null] \| [null, T]>` | Run `callback`; a throw counts against the key |
+| `penalize` | `penalize<T>(key: string, callback: () => T \| Promise<T>, amount?: number): Promise<[ThrottleException, null] \| [null, T]>` | Run `callback`, the attempt counted first; a throw keeps it counted, a success clears the key |
 | `block` | `block(key: string, duration: number \| string): Promise<LimiterResponse>` | Block the key |
 | `set` | `set(key: string, requests: number, duration?: number \| string): Promise<LimiterResponse>` | |
 | `get` | `get(key: string): Promise<LimiterResponse \| null>` | |
@@ -280,7 +284,7 @@ export default defineConfig({
 | `pathTraversal` | `boolean` | `true` | Refuse `..` in the path, raw or percent-encoded |
 | `paramPollution` | `boolean` | `true` | Refuse a repeated query key (keys ending in `[]` excepted) |
 | `cors` | `CorsConfig` | — | Omitted, CORS is not handled |
-| `xss` | `boolean \| XssConfig` | `false` | Sanitize every `text/html` response as untrusted markup |
+| `xss` | `boolean \| XssConfig` | `false` | Sanitize every `text/html` response as untrusted markup; `allowAttributes`, `maxInputBytes` (1 MiB), `maxDepth` (512) |
 | `xFrame` | `XFrameConfig` | on, `SAMEORIGIN` | `X-Frame-Options` |
 | `hsts` | `HstsConfig` | on, 180 days, `includeSubDomains` | `Strict-Transport-Security`; `maxAge` in seconds or a duration string |
 | `contentTypeSniffing` | `ContentTypeSniffingConfig` | on | `X-Content-Type-Options: nosniff` |
@@ -295,7 +299,7 @@ export default defineConfig({
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `enabled` | `boolean` | `true` | |
-| `methods` | `string[]` | `POST`, `PUT`, `PATCH`, `DELETE` | Methods checked |
+| `methods` | `string[]` | `POST`, `PUT`, `PATCH`, `DELETE` | Methods checked; a request is checked when its request-line method or its overridden (`_method`) method is listed |
 | `exceptRoutes` | `string[] \| ((ctx: BlackholeContext) => boolean)` | — | Route patterns, paths, path prefixes ending in `*`, or a predicate |
 | `trustedOrigins` | `string[]` | — | Other origins allowed for state-changing requests; same origin always is |
 | `enableXsrfCookie` | `boolean` | `true` | Seed the readable `XSRF-TOKEN` cookie |
@@ -347,6 +351,14 @@ The token is read from `X-XSRF-TOKEN`, `X-CSRF-TOKEN` or the `_csrf` form field.
 | [`E_BLACKHOLE_INVALID_CORS`](/en/reference/errors#e-blackhole-invalid-cors) | CORS combines a wildcard origin with `credentials: true`, or its origin list holds something other than non-empty strings. |
 | [`E_BLACKHOLE_INVALID_DURATION`](/en/reference/errors#e-blackhole-invalid-duration) | A duration (HSTS `maxAge`, a limiter duration) is negative or unreadable. |
 | [`E_BLACKHOLE_INVALID_RATE_LIMIT`](/en/reference/errors#e-blackhole-invalid-rate-limit) | A rate limit or limiter is given a request count or duration that is not a positive whole number. |
+| [`E_BLACKHOLE_INVALID_XSS_ATTRIBUTE`](/en/reference/errors#e-blackhole-invalid-xss-attribute) | `xss.allowAttributes` names an attribute outside the opt-in list (`id`, `is`, `slot`, `part`, `data-*`, `class`); the native engine refuses it. |
+| [`E_BLACKHOLE_INVALID_XSS_LIMIT`](/en/reference/errors#e-blackhole-invalid-xss-limit) | `xss.maxInputBytes` or `xss.maxDepth` is not a positive whole number. |
+| [`E_BLACKHOLE_HTML_TOO_LARGE`](/en/reference/errors#e-blackhole-html-too-large) | `sanitizeResponse()` (or the `xss` pass) was given a `text/html` body longer than `xss.maxInputBytes` (1 MiB by default). |
+| [`E_BLACKHOLE_HTML_TOO_DEEP`](/en/reference/errors#e-blackhole-html-too-deep) | The HTML to sanitize nests elements deeper than `xss.maxDepth` (512 by default), measured on the tree the parser builds. |
+| [`E_BLACKHOLE_HTML_TOO_COMPLEX`](/en/reference/errors#e-blackhole-html-too-complex) | The HTML to sanitize builds more than four times its size plus 64 KiB (misnested formatting tags re-created in every block). |
+| [`E_BLACKHOLE_UNKNOWN_CHECK`](/en/reference/errors#e-blackhole-unknown-check) | `check()` was asked for a check the engine does not have (only `rateLimit`, `shield` and `csrf` exist). |
+| [`E_BLACKHOLE_INVALID_HEADERS`](/en/reference/errors#e-blackhole-invalid-headers) | `check()` was given request headers that are not an object of strings. |
+| [`E_BLACKHOLE_INTERNAL_PANIC`](/en/reference/errors#e-blackhole-internal-panic) | The native engine panicked while checking a request; `cause` carries the native error. |
 | [`E_BLACKHOLE_SECRET_MISSING`](/en/reference/errors#e-blackhole-secret-missing) | CSRF is enabled and no `secret` was given. |
 | [`E_BLACKHOLE_WEAK_SECRET`](/en/reference/errors#e-blackhole-weak-secret) | The CSRF `secret` is the scaffolding placeholder, or shorter than 16 characters. |
 | [`E_BLACKHOLE_INVALID_SECRET`](/en/reference/errors#e-blackhole-invalid-secret) | The CSRF `secret` is neither a string nor a `Secret` wrapping one (a `TypeError`). |
@@ -378,6 +390,12 @@ An invalid option (a CSP source left unquoted, CORS `credentials` with a wildcar
 - The error classes are no longer exported one by one: `E_BLACKHOLE_SESSION_NOT_READY` becomes `errors.E_BLACKHOLE_SESSION_NOT_READY`, and so on; `ThrottleException` becomes `errors.ThrottleException`, also `errors.E_TOO_MANY_REQUESTS`.
 - `E_BLACKHOLE_RATE_LIMITED` is now `E_TOO_MANY_REQUESTS`: the global rate limit answers its 429 with the code a throttle raises. The body keeps its shape, `{ "error": { "code": "E_TOO_MANY_REQUESTS", "message": "Too many requests" } }`.
 - The Ream middleware now throws `errors.E_BAD_CSRF_TOKEN` on a CSRF refusal instead of answering it in place. The response is unchanged (the error renders itself through its `handle`), but an application's exception handler now sees it and can catch or customise it. blackhole therefore needs `@c9up/ream` 0.2.32 or later, which renders an error thrown inside the middleware chain.
+- The CSRF check now reads the method on the request line as well as the overridden one. A `POST` whose body carries `_method=GET` (or `HEAD`, `OPTIONS`, any verb outside `csrf.methods`) used to skip the check; it now needs a valid token, like any `POST`. Send the token with such forms, or list the route in `csrf.exceptRoutes` if it really must accept cross-site posts.
+- `class` is now dropped from untrusted markup, like `id` and `data-*`: on a page with utility classes it drew overlays the `style` filter refuses. Add `'class'` to `xss.allowAttributes` if your page reads no class from untrusted markup.
+- `sanitizeResponse()` now throws on a `text/html` body past its bounds — `E_BLACKHOLE_HTML_TOO_LARGE` over 1 MiB, `E_BLACKHOLE_HTML_TOO_DEEP` past 512 nested elements, `E_BLACKHOLE_HTML_TOO_COMPLEX` when the parse would build more than four times the input. Catch them where you sanitize user input, or raise `xss.maxInputBytes` / `xss.maxDepth`. With `xss: true`, such a response now ends in a 500.
+- A `_csrf` field holding a lone UTF-16 surrogate is now a missing token (403 `E_BAD_CSRF_TOKEN` on a guarded request) instead of a 500.
+- `penalize()` now counts the attempt before the callback runs and clears it on success. Requests sent together can no longer all run their callback: at most `requests` callbacks run per key. An attempt refused because the key had none left now stays counted.
+- A limiter's stored key now carries its budget: `<requests>/<duration>/<blockDuration>:<key>` (in Redis under the store's prefix, in the database `key` column). Two budgets on the same key no longer share one counter. Counters written before the upgrade are not read again: every key starts from zero once. Code that reads the Redis keys or the table directly must use the new shape.
 
 ## See also
 

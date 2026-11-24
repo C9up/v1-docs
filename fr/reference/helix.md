@@ -10,6 +10,10 @@ pnpm add -D @c9up/helix
 
 Le binaire `helix` charge les fichiers de test TypeScript avec `tsx` s'il est installé (`--tsx=false` utilise à la place le loader du processus parent). Une app ream pilote helix par [`@c9up/helix-plugin-ream`](/fr/reference/helix-plugin-ream) et `ream test`.
 
+`helix test` s'exécute par un moteur Rust. Ce moteur est livré dans un petit paquet par plateforme, `@c9up/helix-<plateforme>`, pour linux x64 et arm64 (glibc), macOS x64 et arm64, et Windows x64. `@c9up/helix` les déclare en dépendances optionnelles, et votre gestionnaire de paquets installe seulement celui de votre machine. Vous n'avez pas besoin de toolchain Rust. N'installez pas avec les dépendances optionnelles désactivées (`--no-optional`, `--omit=optional`) : le moteur serait absent.
+
+Sans le moteur, une exécution simple lève `E_HELIX_NATIVE_REQUIRED`, et son message nomme le paquet à installer, par exemple `@c9up/helix-linux-x64-gnu`. L'erreur de chargement est la `cause` de l'exception. Une exécution avec `--coverage`, `--diff-cov` ou `--list-pinned`, ou avec un `reporterInstance` passé à `run()`, passe par le pool TypeScript, qui ne charge pas le moteur.
+
 ## Points d'entrée
 
 | Import | Contenu |
@@ -71,6 +75,21 @@ Un drapeau non booléen prend sa valeur après `=` (`--timeout=5000`) ; `--flag=
 | `--diff-cov-base` | ref | Ref git de comparaison (`origin/main` par défaut, puis `main`). |
 | `--diff-cov-thresholds` | JSON | Seuils du diff en ligne, `{"lines":80}`. |
 | `--help`, `-h` | | Affiche l'aide. |
+
+### Sortie des rapporteurs
+
+Une erreur qui porte un `code` le garde dans chaque rapporteur. `spec` affiche le code entre crochets avant le message : `[E_HELIX_TIMEOUT] test "slow" exceeded 100ms timeout`. `dot` n'affiche que `F` et `E`.
+
+`json` écrit un objet JSON par ligne sur stdout :
+
+| `event` | Autre champ | Contenu |
+|---|---|---|
+| `file:start` | `file` | Le chemin absolu du fichier. |
+| `file:end` | `result` | Le `FileResult` du fichier : `file`, `suites`, `tests`, `totals`, `durationMs`. L'`error` d'un test en échec est une `SerializedError` : `name`, `message`, `code` quand l'erreur en a un, `stack`, et `actual`, `expected`, `operator` pour une assertion. |
+| `file:error` | `error` | Une erreur du fichier hors de ses tests : `file`, `message`, `code`, `stack`. |
+| `summary` | `summary` | `totals`, `files`, `fileErrors`, `durationMs`. |
+
+`code` est absent quand l'erreur n'en a pas, par exemple une `Error` simple levée par un test. Une erreur de fichier levée dans le worker garde le code de ce qui a été levé. Une erreur de fichier que le pool constate lui-même porte un code de helix : `E_HELIX_TIMEOUT` quand le fichier a dépassé `--file-timeout`, `E_HELIX_WORKER_FAILED` quand le worker a échoué en dehors des tests.
 
 ## Exports
 
@@ -148,11 +167,11 @@ function runTestFile(absolutePath: string, options?: RunFileOptions): Promise<Fi
 | Export | Nature | Signature |
 |---|---|---|
 | `useContainer` | fonction | `useContainer(container: HelixContainer): void` : lie le conteneur sur lequel agit `override()`. |
-| `override` | fonction | `override(token: ContainerToken, value: unknown): void` : surcharge une liaison du conteneur actif et la restaure après le test. |
+| `override` | fonction | `override(token: ContainerToken, value: unknown): void` : surcharge une liaison du conteneur actif. Après le test, le token se résout comme avant l'appel : par le swap qui était en place (un faux que le fichier a installé dans `beforeAll`, un `override()` extérieur), ou par sa liaison. |
 | `overrideOn` | fonction | `overrideOn(container: HelixContainer, token: ContainerToken, value: unknown): void`. |
 | `clearActiveContainer` | fonction | `clearActiveContainer(): void`. |
 | `spy` | fonction | `spy<Fn>(implementation?: Fn): Spy<Fn>` : `vi.fn`. |
-| `HelixContainer` | interface | `override(token, value): void` et `restore(token): void`. |
+| `HelixContainer` | interface | `override(token, value): void` et `restore(token): void`. En option : `swapped(token): unknown` et `swap(token, factory): void`. Avec les deux, le nettoyage de fin de test remet le swap précédent ; sans eux, il appelle `restore(token)`, qui retire tous les swaps du token. Le `Container` de `@c9up/ream` a les deux à partir de la version qui ajoute `swapped()`. |
 | `ContainerLike`, `ContainerToken` | type | `ContainerToken` est une classe, une chaîne ou un symbole. |
 
 ### `@c9up/helix/time`
@@ -304,8 +323,10 @@ Chaque code est une classe du namespace `errors` et une `Exception` de `@c9up/fl
 | Code | Levée quand |
 |---|---|
 | [`E_HELIX_ASSERTION_FAILED`](/fr/reference/errors#e-helix-assertion-failed) | Une vérification `expect()` ou `assert` a échoué ; porte `actual`, `expected`, `operator`, `showDiff`, et garde le nom `AssertionError` que reconnaissent les rapporteurs. |
-| [`E_HELIX_TIMEOUT`](/fr/reference/errors#e-helix-timeout) | Un test ou un hook ne s'est pas terminé dans son délai. |
+| [`E_HELIX_TIMEOUT`](/fr/reference/errors#e-helix-timeout) | Un test ou un hook ne s'est pas terminé dans son délai. C'est aussi le `code` de l'erreur de fichier quand un fichier dépasse `--file-timeout`. |
 | [`E_HELIX_TEST_ABORTED`](/fr/reference/errors#e-helix-test-aborted) | Le test en cours a appelé `meta.abort(message)`. |
+| [`E_HELIX_UNEXPECTED_ONLY`](/fr/reference/errors#e-helix-unexpected-only) | Jamais levée : le `code` de l'erreur d'un test qu'un `.only` ou un `.pin()` sélectionne dans un run qui ne les permet pas (en CI, ou avec `--allow-only=false`). |
+| [`E_HELIX_NO_TEST_SUITE`](/fr/reference/errors#e-helix-no-test-suite) | Le `code` de l'erreur de fichier pour un fichier qui ne déclare aucun test, sauf avec `--pass-with-no-tests`. |
 | [`E_HELIX_NO_ACTIVE_TEST`](/fr/reference/errors#e-helix-no-active-test) | Une aide réservée aux tests (`getActiveTestOrFail()`, `time.freeze`/`travel`, `override()`, une fonction de `test.macro`) a été appelée hors d'un test en cours. |
 | [`E_HELIX_NO_ACTIVE_CONTAINER`](/fr/reference/errors#e-helix-no-active-container) | `override()` a été appelé avant `useContainer()`. |
 | [`E_HELIX_ASYNC_DESCRIBE`](/fr/reference/errors#e-helix-async-describe) | Le corps d'un `describe` a renvoyé une Promise ; attendez la mise en place dans `beforeAll` à la place. |
@@ -325,8 +346,9 @@ Chaque code est une classe du namespace `errors` et une `Exception` de `@c9up/fl
 | [`E_HELIX_INVALID_DIFF_COVERAGE`](/fr/reference/errors#e-helix-invalid-diff-coverage) | La couverture de diff est activée sans la couverture, ou son `cwd` et `coverage.root` sont disjoints. |
 | [`E_HELIX_INVALID_WATCH_OPTIONS`](/fr/reference/errors#e-helix-invalid-watch-options) | Le mode watch a reçu un `include` vide ou un `debounceMs` hors plage. |
 | [`E_HELIX_WATCH_FAILED`](/fr/reference/errors#e-helix-watch-failed) | Le mode watch n'a pas pu surveiller son dossier racine ; `cause` contient l'erreur de `fs.watch`. |
+| [`E_HELIX_WORKER_FAILED`](/fr/reference/errors#e-helix-worker-failed) | Jamais levée : le `code` d'une erreur de fichier quand le worker n'a pas pu démarrer, a envoyé une trame illisible, est sorti sans résultat, ou est sorti d'une façon que son résultat n'explique pas. |
 | [`E_HELIX_NATIVE_REQUIRED`](/fr/reference/errors#e-helix-native-required) | Le binaire natif de helix manque, n'a pas pu se charger ou est périmé, ou la plateforme n'en a pas. |
-| [`E_HELIX_INTERNAL`](/fr/reference/errors#e-helix-internal) | Un invariant interne de helix est rompu : un bug de helix, à signaler. |
+| [`E_HELIX_INTERNAL`](/fr/reference/errors#e-helix-internal) | Un invariant interne de helix est rompu : un bug de helix, à signaler. Les refus du moteur natif arrivent sous ce code. |
 
 ## Migration
 

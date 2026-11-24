@@ -26,6 +26,13 @@ throws outside a test (a restore queued there would never run) and when no
 container is active. `overrideOn(container, token, value)` targets a container
 explicitly.
 
+Undoing an override puts back what was there before it, not an empty slot. A
+fake the file swapped in `beforeAll` is still in place for the next test, and
+two overrides of the same token unwind one at a time. This needs a container
+that can read its current swap: `@c9up/ream`'s `Container` does it through
+`swapped(token)`. On a container without it, the cleanup calls
+`restore(token)`, which removes every swap of the token.
+
 ## Time-travel
 
 ```ts

@@ -59,9 +59,17 @@ hard to notice — a server showing no consent screen grants silently.
   client secrets. A database dump is not a set of working credentials.
 - **Refresh rotation with replay detection.** Every use mints a new token; a
   spent one coming back proves a leak, and since there is no telling the thief
-  from the victim, the whole family is revoked and both are signed out.
+  from the victim, the whole family is revoked and both are signed out. Two
+  presentations of the same token at the same time count too: the one that
+  loses the race revokes the family, the winner's new tokens included.
 - **A replayed authorization code revokes what it bought.** The legitimate
-  exchange already happened, so the tokens in flight are the attacker's.
+  exchange already happened, so the tokens in flight are the attacker's. The
+  same holds when two exchanges of one code race.
+- **No silent consent for a client nothing identifies.** A public client on a
+  loopback, `localhost` or private-use-scheme redirect URI sees the consent
+  screen every time: another program on the machine could present its id.
+- **The authorization response names its issuer** (`iss`, RFC 9207), so a
+  client that uses several servers can tell where a code came from.
 - **Parameters in the body only.** `/oauth/token`, `/oauth/introspect`,
   `/oauth/revoke` and `/oauth/register` read the request body only, and answer
   `invalid_request` to a request that puts an OAuth parameter
@@ -84,11 +92,15 @@ How long a leaked credential stays usable is configuration, in seconds:
 | `accessTokenTtlSeconds` | `3600` (an hour) | An access token, and the `expires_in` the token response carries. `ream configure` writes it explicitly. |
 | `refreshTokenTtlSeconds` | `2592000` (30 days) | A refresh token. Rotation mints a new one on every use. |
 | `codeTtlSeconds` | `30` | An authorization code: it is exchanged in milliseconds. |
+| `consentTicketTtlSeconds` | `600` (ten minutes) | A consent page: past it, the user's answer is refused. |
 | `issueRefreshTokens` | `true` | Whether refresh tokens exist at all. `false` and every session ends with its access token. |
 
 A refresh token is issued only to a client whose `grantTypes` include
 `refresh_token`, and never on the `client_credentials` grant, where no user
 consented to anything.
+
+Each lifetime is a positive whole number of seconds. Any other value stops the
+boot with `E_VISA_INVALID_TTL`.
 
 ## What `ream configure` writes
 

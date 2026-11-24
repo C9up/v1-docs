@@ -337,6 +337,18 @@ test('places an order without real payment', async () => {
 
 Appeler `app.container.restore()` sans argument supprime tous les swaps actifs en une seule fois.
 
+Un token a un seul swap. Un deuxième `swap()` remplace le premier, et `restore(token)` retire entièrement le swap du token. Pour faire un swap par-dessus un swap existant et n'annuler que le vôtre, lisez d'abord le swap en cours avec `swapped(token)`, puis remettez-le :
+
+```typescript
+const previous = app.container.swapped('PaymentGateway')
+app.container.swap('PaymentGateway', () => decliningGateway)
+// ...
+if (previous === undefined) app.container.restore('PaymentGateway')
+else app.container.swap('PaymentGateway', previous)
+```
+
+`swapped()` renvoie la factory sans l'exécuter. Le singleton mis en cache avant le premier swap est gardé jusqu'au `restore()` final, qui remet la même instance. Le `override()` de helix fonctionne ainsi : un faux mis en place dans `beforeAll` survit à un test qui surcharge le même token.
+
 ## Référence des portées
 
 | Portée | Durée de vie | Décorateur |

@@ -94,6 +94,14 @@ invalid as soon as the wall clock advances. The previous truthy guard
 silently treated `0` as "no expiry", which was a security bug; the
 current behaviour matches caller intent.
 
+Give `verify()` the request target exactly as it was received: Node's
+`req.url`, or `request.url(true)`. The signature covers those bytes, and they
+are never parsed as a URL. A path that differs from the signed one by a single
+character is refused, even when a browser would read it as the same path:
+`/users/7\..\5/verify`, `%2e%2e` segments, a leading `//host`, a re-encoded
+or reordered query. Send back the URL `make()` returned, unchanged.
+`request.hasValidSignature()` does this for you.
+
 `purpose` binds the URL to a named flow:
 
 ```ts

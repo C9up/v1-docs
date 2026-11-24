@@ -62,12 +62,13 @@ détournée.
 
 | | |
 | --- | --- |
-| Signature | Contre le certificat des métadonnées, sur l'assertion, avant toute autre lecture. |
-| Wrapping | L'élément que la signature couvre est celui qui est lu. Rien n'est recherché dans le document après coup. |
+| Signature | Contre le certificat des métadonnées, avant toute autre lecture. Elle se trouve directement dans l'élément qu'elle signe. |
+| Wrapping | L'élément signé est la réponse postée ou son unique assertion, et c'est cette assertion qui est lue. Rien n'est recherché dans le document après coup. |
 | Issuer | Le fournisseur nommé par la config. |
 | Audience | L'entity id de cette application. |
 | Recipient | L'URL à laquelle cette application répond. |
 | `InResponseTo` | La requête que cette connexion a émise. |
+| Réponse | Son propre `Destination`, son `Issuer` et son `InResponseTo`, quand elle les porte. Une réponse signée doit porter les deux premiers. |
 | Fenêtres | Celle de l'assertion et celle de la confirmation bearer, à une minute de dérive près. |
 | Rejeu | L'identifiant d'assertion, mémorisé tant que l'assertion pourrait encore être acceptée. |
 
@@ -87,6 +88,18 @@ enveloppée dans `<samlp:Response>`, qui couvre tout ce qu'elle contient — qui
 est vérifiée, et l'unique assertion est lue dans l'élément qu'elle couvre. Toute
 autre forme à plusieurs signatures (deux sur la réponse, plusieurs à
 l'intérieur sans aucune sur elle) est refusée.
+
+Une signature ne se couvre pas elle-même : tout ce qui se trouve sous
+`<ds:Signature>` est exclu de ce qui est signé. L'assertion n'est donc jamais
+recherchée. C'est l'unique enfant `<Assertion>` de la réponse postée, et elle
+n'est lue que si l'élément signé est cette assertion ou la réponse qui
+l'entoure. Sont refusés :
+
+- un document signé d'une autre nature placé dans la réponse, comme les
+  métadonnées signées du fournisseur ou un refus signé ;
+- une deuxième assertion à côté de celle qui est signée ;
+- une assertion signée déplacée ailleurs dans le document ;
+- tout élément SAML écrit sous une `<ds:Signature>`.
 
 ### Le rejeu, et une deuxième réplique
 

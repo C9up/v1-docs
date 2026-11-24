@@ -117,6 +117,8 @@ const avatar = request.file('avatar', { size: '2mb', extnames: ['jpg', 'png'] })
 
 `extnames` est validé contre le type DÉTECTÉ à partir des magic bytes, pas contre le nom de fichier du client. Un binaire renommé `evil.png` est donc rejeté. Ream lit la signature lui-même, sans dépendance : il reconnaît les mêmes formats, sous les mêmes extensions et types MIME, que la bibliothèque [`file-type`](https://github.com/sindresorhus/file-type) — images, conteneurs audio et vidéo, PDF, fichiers Office et OpenDocument, archives, polices et exécutables.
 
+La détection ne lit que les 64 premiers Kio de chaque fichier. Les fichiers d'une même requête partagent aussi une limite sur le travail ZIP (4096 entrées et 4 Mio parcourus) : un fichier à base de ZIP au-delà n'est pas reconnu, et garde l'extension envoyée par le client (`file.typeSource === 'claimed'`). Le body parser rend la main à la boucle d'événements entre deux fichiers : une requête chargée de fichiers ne bloque pas les autres.
+
 Le garde-fou canonique dans un contrôleur vérifie les trois modes d'échec :
 
 ```typescript
