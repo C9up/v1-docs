@@ -1,11 +1,20 @@
 {
-  // The docs as static assets on Cloudflare Workers: no script runs, the
-  // built VitePress site is served from Cloudflare's edge.
+  // The docs as static assets on Cloudflare Workers: the built VitePress site
+  // is served from Cloudflare's edge. A small script runs first (worker/index.js)
+  // to send http:// and www. to https://reamjs.com and add HSTS.
   "name": "ream-docs",
   "account_id": "5e2eb2976fd458f98840e79d9a653aad",
   "compatibility_date": "2026-11-13",
+  "main": "worker/index.js",
+  "routes": [
+    { "pattern": "reamjs.com", "custom_domain": true },
+    { "pattern": "www.reamjs.com", "custom_domain": true }
+  ],
   "assets": {
     "directory": ".vitepress/dist",
+    "binding": "ASSETS",
+    // the script decides first (redirects), then hands over to the assets
+    "run_worker_first": true,
     // /fr/guide/websockets serves websockets.html
     "html_handling": "auto-trailing-slash",
     "not_found_handling": "404-page"
