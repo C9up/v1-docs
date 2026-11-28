@@ -665,6 +665,10 @@ export const sidebar_en = {
           "link": "/en/guides/digging-deeper/i18n"
         },
         {
+          "text": "Language models",
+          "link": "/en/guides/digging-deeper/language-models"
+        },
+        {
           "text": "Atomic locks",
           "link": "/en/guides/digging-deeper/locks"
         },
@@ -1089,6 +1093,10 @@ export const sidebar_en = {
         {
           "text": "parsec",
           "link": "/en/reference/parsec"
+        },
+        {
+          "text": "polaris",
+          "link": "/en/reference/polaris"
         },
         {
           "text": "prism",
@@ -1809,6 +1817,10 @@ export const sidebar_fr = {
           "link": "/fr/guides/digging-deeper/i18n"
         },
         {
+          "text": "Modèles de langage",
+          "link": "/fr/guides/digging-deeper/language-models"
+        },
+        {
           "text": "Verrous atomiques",
           "link": "/fr/guides/digging-deeper/locks"
         },
@@ -2233,6 +2245,10 @@ export const sidebar_fr = {
         {
           "text": "parsec",
           "link": "/fr/reference/parsec"
+        },
+        {
+          "text": "polaris",
+          "link": "/fr/reference/polaris"
         },
         {
           "text": "prism",

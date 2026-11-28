@@ -41,6 +41,7 @@ This guide covers every error code:
 - Orbit Secure Store Errors
 - Parsec Errors
 - Photon Errors
+- Polaris Errors
 - Prism Errors
 - Quasar Errors
 - Ream MCP Errors
@@ -1383,6 +1384,30 @@ If you see one, the cause is almost always a **non-deterministic render**: a `Da
 | <span id="e-photon-invalid-svelte-root"></span>`E_PHOTON_INVALID_SVELTE_ROOT` | — | The `svelteRoot` given to the Svelte adapter does not export `setPage()`; pass the root from `@c9up/photon/svelte`. |
 | <span id="e-photon-invalid-ssr-setup"></span>`E_PHOTON_INVALID_SSR_SETUP` | — | Svelte's `createPhotonApp` rendered on the server without a `setup`, or its `setup` did not return `render(App, { props })` from `svelte/server`. |
 | <span id="e-photon-deferred-props-missing"></span>`E_PHOTON_DEFERRED_PROPS_MISSING` | — | The answer to a deferred group did not carry the props asked for; reported on the router's `exception` event (`photon:exception`), not thrown, and not asked for again on that visit. |
+
+## Polaris Errors
+
+Raised by `@c9up/polaris`: the provider manager, its checks before a request is sent, and its drivers. A call you cancel with your own `signal` rejects with that signal's reason instead.
+
+| Code | HTTP | Description |
+|------|------|-------------|
+| <span id="e-polaris-missing-config"></span>`E_POLARIS_MISSING_CONFIG` | 500 | The application has no `polaris` config. |
+| <span id="e-polaris-invalid-config"></span>`E_POLARIS_INVALID_CONFIG` | 500 | A config value or a call option is out of range, a provider factory built no driver, or a driver's SDK is not installed. |
+| <span id="e-polaris-no-default-provider"></span>`E_POLARIS_NO_DEFAULT_PROVIDER` | 500 | `use()` was called without a name, and the config sets no `default`. |
+| <span id="e-polaris-unknown-provider"></span>`E_POLARIS_UNKNOWN_PROVIDER` | 500 | `use(name)` names a provider the config does not declare. The message lists the declared ones. |
+| <span id="e-polaris-invalid-request"></span>`E_POLARIS_INVALID_REQUEST` | 500 | The request is malformed: no messages, a bad `maxTokens`, two tools with one name, a tool schema that is not an object, a per-call key too short. |
+| <span id="e-polaris-unsupported"></span>`E_POLARIS_UNSUPPORTED` | 500 | The provider cannot serve what the request asks for (tools, structured output, images, streaming, embeddings). Nothing was sent. |
+| <span id="e-polaris-timeout"></span>`E_POLARIS_TIMEOUT` | 500 | The call did not finish within its deadline (`timeout`, 10 minutes by default). |
+| <span id="e-polaris-response-too-large"></span>`E_POLARIS_RESPONSE_TOO_LARGE` | 500 | The provider sent a body larger than `maxResponseBytes`. |
+| <span id="e-polaris-stream-incomplete"></span>`E_POLARIS_STREAM_INCOMPLETE` | 500 | A stream ended before its final `done` event. |
+| <span id="e-polaris-invalid-response"></span>`E_POLARIS_INVALID_RESPONSE` | 500 | A driver broke the contract: an event after `done`, the wrong number of vectors, vectors of the wrong size. |
+| <span id="e-polaris-authentication"></span>`E_POLARIS_AUTHENTICATION` | 502 | The provider refused the credentials (401, 403). The status is 502: the fault is the server's provider key, not the visitor's request. |
+| <span id="e-polaris-rate-limited"></span>`E_POLARIS_RATE_LIMITED` | 503 | The provider is rate limiting (429), and the retries are spent. |
+| <span id="e-polaris-provider-unavailable"></span>`E_POLARIS_PROVIDER_UNAVAILABLE` | 503 | The provider is overloaded or failing (5xx, 529), and the retries are spent. |
+| <span id="e-polaris-provider-rejected"></span>`E_POLARIS_PROVIDER_REJECTED` | 502 | The provider rejected the request itself (400, 404, 413, 422…). The message carries the provider's request id. |
+| <span id="e-polaris-provider-unreachable"></span>`E_POLARIS_PROVIDER_UNREACHABLE` | 502 | The provider could not be reached (DNS, connection, TLS). |
+| <span id="e-polaris-provider-failed"></span>`E_POLARIS_PROVIDER_FAILED` | 500 | A provider error mentioned the call's own key. The key is removed from the message and the original error is not attached. |
+| <span id="e-polaris-not-booted"></span>`E_POLARIS_NOT_BOOTED` | 500 | `@c9up/polaris/services/main` was used before `PolarisProvider` booted. List `@c9up/polaris/provider` in `reamrc.ts`. |
 
 ## Prism Errors
 
