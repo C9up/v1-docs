@@ -12,6 +12,11 @@
 //   node scripts/check-package-links.mjs [dist directory] [packages directory]
 //   (defaults: .vitepress/dist and ../packages, i.e. run from ream-dev/docs)
 //
+// A package with neither a reference page (en/reference/<name>.md) nor a
+// section of its own (en/<name>/, as nebula) is not documented yet: it is not
+// published, and its docs wait for its first release. It is
+// left out of both checks, and named in the output so it cannot be forgotten.
+//
 // Exit code 1 and one line per problem otherwise. No dependency.
 
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
@@ -62,9 +67,15 @@ const problems = []
 const codes = new Map() // code -> first file that raises it
 const sources = [] // { where, code }: TypeScript and Rust sources, comments removed
 
+const undocumented = []
+
 for (const pkg of readdirSync(packages)) {
   const root = join(packages, pkg)
   if (!statSync(root).isDirectory()) continue
+  if (!existsSync(join('en', 'reference', `${pkg}.md`)) && !existsSync(join('en', pkg))) {
+    undocumented.push(pkg)
+    continue
+  }
   for (const file of sourceFiles(root)) {
     const text = readFileSync(file, 'utf8')
     const where = relative(packages, file)
@@ -149,3 +160,6 @@ if (problems.length > 0) {
   process.exit(1)
 }
 console.log(`${codes.size} error codes and every reamjs.com link of the packages resolve.`)
+if (undocumented.length > 0) {
+  console.log(`Not documented yet, not checked: ${undocumented.join(', ')}.`)
+}
