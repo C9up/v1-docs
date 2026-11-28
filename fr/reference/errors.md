@@ -41,7 +41,6 @@ Ce guide couvre tous les codes d'erreur :
 - Erreurs Orbit Secure Store
 - Erreurs Parsec
 - Erreurs Photon
-- Erreurs Polaris
 - Erreurs Prism
 - Erreurs Quasar
 - Erreurs Ream MCP
@@ -1387,30 +1386,6 @@ Si vous en voyez un, la cause est presque toujours un **render non déterministe
 | <span id="e-photon-invalid-svelte-root"></span>`E_PHOTON_INVALID_SVELTE_ROOT` | — | Le `svelteRoot` passé à l'adaptateur Svelte n'exporte pas `setPage()` ; passez la racine de `@c9up/photon/svelte`. |
 | <span id="e-photon-invalid-ssr-setup"></span>`E_PHOTON_INVALID_SSR_SETUP` | — | Le `createPhotonApp` de Svelte a rendu côté serveur sans `setup`, ou son `setup` n'a pas renvoyé `render(App, { props })` de `svelte/server`. |
 | <span id="e-photon-deferred-props-missing"></span>`E_PHOTON_DEFERRED_PROPS_MISSING` | — | La réponse à un groupe différé ne contient pas les props demandées ; signalée par l'événement `exception` du routeur (`photon:exception`), pas levée, et pas redemandée pendant cette visite. |
-
-## Erreurs Polaris
-
-Levées par `@c9up/polaris` : le gestionnaire de fournisseurs, ses contrôles avant l'envoi d'une requête, et ses drivers. Un appel que vous annulez avec votre propre `signal` est rejeté avec la raison de ce signal, pas avec une de ces erreurs.
-
-| Code | HTTP | Description |
-|------|------|-------------|
-| <span id="e-polaris-missing-config"></span>`E_POLARIS_MISSING_CONFIG` | 500 | L'application n'a pas de config `polaris`. |
-| <span id="e-polaris-invalid-config"></span>`E_POLARIS_INVALID_CONFIG` | 500 | Une valeur de config ou une option d'appel est hors limites, une fabrique de fournisseur n'a construit aucun driver, ou le SDK d'un driver n'est pas installé. |
-| <span id="e-polaris-no-default-provider"></span>`E_POLARIS_NO_DEFAULT_PROVIDER` | 500 | `use()` a été appelé sans nom, et la config ne fixe aucun `default`. |
-| <span id="e-polaris-unknown-provider"></span>`E_POLARIS_UNKNOWN_PROVIDER` | 500 | `use(nom)` désigne un fournisseur que la config ne déclare pas. Le message liste ceux qui sont déclarés. |
-| <span id="e-polaris-invalid-request"></span>`E_POLARIS_INVALID_REQUEST` | 500 | La requête est mal formée : aucun message, un `maxTokens` invalide, deux outils du même nom, un schéma d'outil qui n'est pas un objet, une clé d'appel trop courte. |
-| <span id="e-polaris-unsupported"></span>`E_POLARIS_UNSUPPORTED` | 500 | Le fournisseur ne sait pas servir ce que demande la requête (outils, sortie structurée, images, streaming, embeddings). Rien n'a été envoyé. |
-| <span id="e-polaris-timeout"></span>`E_POLARIS_TIMEOUT` | 500 | L'appel ne s'est pas terminé dans son délai (`timeout`, 10 minutes par défaut). |
-| <span id="e-polaris-response-too-large"></span>`E_POLARIS_RESPONSE_TOO_LARGE` | 500 | Le fournisseur a envoyé un corps plus gros que `maxResponseBytes`. |
-| <span id="e-polaris-stream-incomplete"></span>`E_POLARIS_STREAM_INCOMPLETE` | 500 | Un stream s'est terminé avant son événement final `done`. |
-| <span id="e-polaris-invalid-response"></span>`E_POLARIS_INVALID_RESPONSE` | 500 | Un driver n'a pas respecté le contrat : un événement après `done`, un mauvais nombre de vecteurs, des vecteurs de la mauvaise taille. |
-| <span id="e-polaris-authentication"></span>`E_POLARIS_AUTHENTICATION` | 502 | Le fournisseur a refusé les identifiants (401, 403). Le statut est 502 : la faute vient de la clé du serveur, pas de la requête du visiteur. |
-| <span id="e-polaris-rate-limited"></span>`E_POLARIS_RATE_LIMITED` | 503 | Le fournisseur limite le débit (429), et les nouvelles tentatives sont épuisées. |
-| <span id="e-polaris-provider-unavailable"></span>`E_POLARIS_PROVIDER_UNAVAILABLE` | 503 | Le fournisseur est surchargé ou en panne (5xx, 529), et les nouvelles tentatives sont épuisées. |
-| <span id="e-polaris-provider-rejected"></span>`E_POLARIS_PROVIDER_REJECTED` | 502 | Le fournisseur a rejeté la requête elle-même (400, 404, 413, 422…). Le message porte l'identifiant de requête du fournisseur. |
-| <span id="e-polaris-provider-unreachable"></span>`E_POLARIS_PROVIDER_UNREACHABLE` | 502 | Le fournisseur n'a pas pu être joint (DNS, connexion, TLS). |
-| <span id="e-polaris-provider-failed"></span>`E_POLARIS_PROVIDER_FAILED` | 500 | Une erreur du fournisseur mentionnait la clé propre à l'appel. La clé est retirée du message et l'erreur d'origine n'est pas jointe. |
-| <span id="e-polaris-not-booted"></span>`E_POLARIS_NOT_BOOTED` | 500 | `@c9up/polaris/services/main` a été utilisé avant le démarrage de `PolarisProvider`. Ajoutez `@c9up/polaris/provider` dans `reamrc.ts`. |
 
 ## Erreurs Prism
 
